@@ -1,0 +1,72 @@
+#ifndef __PAIRFXN_H
+#define __PAIRFXN_H
+
+// _pairfxn.h
+
+// Select members from a pair for passing to a unary function.
+
+__BIENUTIL_BEGIN_NAMESPACE
+
+template < class t_TyPair, class t_TyUnaryFunction >
+struct _unary2nd 
+	: public unary_function<	typename t_TyUnaryFunction::argument_type, 
+														typename t_TyUnaryFunction::result_type >
+{
+	t_TyUnaryFunction	m_f1;
+
+	_unary2nd( t_TyUnaryFunction const & _rUnary )
+		: m_f1( _rUnary )
+	{
+	}
+	_unary2nd( _unary2nd const & _r )
+		: m_f1( _r.m_f1 )
+	{
+	}
+
+  typename t_TyUnaryFunction::result_type
+	operator()( const t_TyPair & __x ) const 
+	{
+    return m_f1( __x.second );
+  }
+};
+
+template < class t_TyPair, class t_TyUnaryFunction >
+_unary2nd< t_TyPair, t_TyUnaryFunction >
+unary2nd( t_TyUnaryFunction const & _f, t_TyPair const & )
+{
+	return _unary2nd< t_TyPair, t_TyUnaryFunction >( _f );
+}
+
+template < class t_TyPair, class t_TyUnaryFunction >
+struct _unary1st
+	: public unary_function<	typename t_TyUnaryFunction::argument_type, 
+														typename t_TyUnaryFunction::result_type >
+{
+	t_TyUnaryFunction	m_f1;
+
+	_unary1st( t_TyUnaryFunction const & _rUnary )
+		: m_f1( _rUnary )
+	{
+	}
+	_unary1st( _unary1st const & _r )
+		: m_f1( _r.m_f1 )
+	{
+	}
+
+  typename t_TyUnaryFunction::result_type
+	operator()( const t_TyPair & __x ) const 
+	{
+    return m_f1( __x.first );
+  }
+};
+
+template < class t_TyPair, class t_TyUnaryFunction >
+_unary1st< t_TyPair, t_TyUnaryFunction >
+unary1st( t_TyUnaryFunction const & _f, t_TyPair const & )
+{
+	return _unary1st< t_TyPair, t_TyUnaryFunction >( _f );
+}
+
+__BIENUTIL_END_NAMESPACE
+
+#endif __PAIRFXN_H
