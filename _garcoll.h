@@ -145,11 +145,11 @@ class _gco
 	}
 
 // reference counting:
-	_TyRef	AddRef() __STL_NOTHROW
+	_TyRef	AddRef() _STLP_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() __STL_NOTHROW
+	_TyRef	Release() _STLP_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -174,11 +174,11 @@ class _gco
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = m_alloc.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		__STL_UNWIND( m_alloc.deallocate( p, 1 ) );
+		_STLP_UNWIND( m_alloc.deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -187,11 +187,11 @@ class _gco
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -201,11 +201,11 @@ class _gco
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _r1, _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -215,11 +215,11 @@ class _gco
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _r1, _r2, _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -316,11 +316,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	}
 
 // reference counting:
-	_TyRef	AddRef() __STL_NOTHROW
+	_TyRef	AddRef() _STLP_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() __STL_NOTHROW
+	_TyRef	Release() _STLP_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -346,11 +346,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -358,11 +358,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	static _TyThis * PGCOCreate( t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -371,11 +371,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 												  	    t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _r1 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -384,11 +384,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 									    			  	t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _r1, _r2 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return pgco;
 	}
 
@@ -471,11 +471,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	}
 
 // reference counting:
-	_TyRef	AddRef() __STL_NOTHROW
+	_TyRef	AddRef() _STLP_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() __STL_NOTHROW
+	_TyRef	Release() _STLP_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -500,11 +500,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = m_alloc.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		__STL_UNWIND( m_alloc.deallocate( p, 1 ) );
+		_STLP_UNWIND( m_alloc.deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -513,12 +513,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl();
 		}
-		__STL_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -528,12 +528,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1 );
  		}
-		__STL_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -543,12 +543,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1, _r2 );
 		}
-		__STL_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -572,7 +572,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	typedef _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >     _TyThis;
 
   // The type for the static allocator:
-	typedef typename _Alloc_traits<_TyThis, t_TyAllocator>::_Alloc_type	  _TyAllocThis;
+	typedef typename _Alloc_traits<_TyThis, t_TyAllocator>::allocator_type _TyAllocThis;
 
   // Needed for external access:
 	typedef t_TyAllocator		_TyAllocator;	
@@ -633,11 +633,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	}
 
 // reference counting:
-	_TyRef	AddRef() __STL_NOTHROW
+	_TyRef	AddRef() _STLP_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() __STL_NOTHROW
+	_TyRef	Release() _STLP_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -663,11 +663,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -675,12 +675,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	static _TyThis * PGCOCreate( t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl();
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -689,12 +689,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 												  	    t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -703,12 +703,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 									    			  	t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( p ) _TyThis( );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1, _r2 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return pgco;
 	}
 
@@ -779,11 +779,11 @@ protected:
     (this->*m_pmfnDestroy)();
   }
 
-	_TyRef	AddRef() __STL_NOTHROW
+	_TyRef	AddRef() _STLP_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() __STL_NOTHROW
+	_TyRef	Release() _STLP_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -860,21 +860,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::__STL_TEMPLATE Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::__STL_TEMPLATE Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -914,11 +914,11 @@ private:
 	_TyThis *	copy() const
 	{
 		_TyThis *	pgco = m_alloc.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		__STL_UNWIND( m_alloc.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( m_alloc.deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
@@ -926,11 +926,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -940,11 +940,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -954,11 +954,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2, _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1010,21 +1010,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1059,22 +1059,22 @@ private:
 	_TyThis *	copy() const
 	{
 		_TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
 	static _TyThis *	PGCOCreate( t_TyAllocator const &  )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1083,11 +1083,11 @@ private:
 						  							      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1096,11 +1096,11 @@ private:
 					  								      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1168,11 +1168,11 @@ protected:
   virtual _TyThis * copy() const = 0;
   virtual void  destroy() = 0;
 
-	_TyRef	AddRef() __STL_NOTHROW
+	_TyRef	AddRef() _STLP_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() __STL_NOTHROW
+	_TyRef	Release() _STLP_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -1242,21 +1242,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::__STL_TEMPLATE Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::__STL_TEMPLATE Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1297,11 +1297,11 @@ private:
 	_TyBase *	copy() const
 	{
 		_TyThis *	pgco = m_alloc.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		__STL_UNWIND( m_alloc.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( m_alloc.deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
@@ -1309,11 +1309,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1323,11 +1323,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1337,11 +1337,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2, _rAlloc );
 		}
-		__STL_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1386,21 +1386,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::__STL_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1436,22 +1436,22 @@ private:
 	_TyBase *	copy() const
 	{
 		_TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
 	static _TyThis *	PGCOCreate( t_TyAllocator const &  )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1460,11 +1460,11 @@ private:
 						  							      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1473,11 +1473,11 @@ private:
 					  								      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		__STL_TRY
+		_STLP_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2 );
 		}
-		__STL_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1574,7 +1574,7 @@ public:
   // REVIEW: explicit or not.
   _gcp(  t_TyEl const & _rEl,
          _TyAllocator const & _rA = _TyAllocator() )
-		: m_pgco( t_TyGCO::__STL_TEMPLATE PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
+		: m_pgco( t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
   {
   }
 
@@ -1589,12 +1589,12 @@ public:
 		}
 	}
 
-	~_gcp() __STL_NOTHROW
+	~_gcp() _STLP_NOTHROW
 	{
 		_Release();
 	}
 
-	void	Release() __STL_NOTHROW
+	void	Release() _STLP_NOTHROW
 	{
 		_Release();
 		m_pgco = 0;
@@ -1612,7 +1612,7 @@ public:
 	void	Create1(	t_TyP1 _r1,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::__STL_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1621,7 +1621,7 @@ public:
 	void	Create2(	t_TyP1 _r1, t_TyP2 _r2,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::__STL_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1646,7 +1646,7 @@ public:
                           t_TyP1 _r1,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::__STL_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -1656,7 +1656,7 @@ public:
                           t_TyP1 _r1, t_TyP2 _r2,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::__STL_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -1669,7 +1669,7 @@ public:
 	{
     return _gcp_dispatch_el_access< _TyThis, t_fCopyOnWrite >::PElNonConst( *this );
 	}
-	const t_TyEl *	PElConst() const __STL_NOTHROW
+	const t_TyEl *	PElConst() const _STLP_NOTHROW
 	{
 		// May have a pointer or be a NULL element:
 		return m_pgco ? &const_cast< const t_TyEl & >( static_cast< t_TyEl & >( *m_pgco ) ) : 0;
@@ -1679,7 +1679,7 @@ public:
 	{
 		return *PElNonConst();
 	}
-	const t_TyEl & RElConst() const __STL_NOTHROW
+	const t_TyEl & RElConst() const _STLP_NOTHROW
 	{
 		return *PElConst();
 	}
@@ -1689,7 +1689,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	operator const t_TyEl * () const __STL_NOTHROW
+	operator const t_TyEl * () const _STLP_NOTHROW
 	{
 		return PElConst();
 	}
@@ -1699,7 +1699,7 @@ public:
 	{
 		return RElNonConst();
 	}
-	operator const t_TyEl & () const __STL_NOTHROW
+	operator const t_TyEl & () const _STLP_NOTHROW
 	{
 		return RElconst();
 	}
@@ -1708,7 +1708,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	const t_TyEl *	operator -> () const __STL_NOTHROW
+	const t_TyEl *	operator -> () const _STLP_NOTHROW
 	{
 		return PElConst();
 	}
@@ -1717,19 +1717,19 @@ public:
   {
     return RElNonConst();
   }
-  const t_TyEl &  operator * () const __STL_NOTHROW
+  const t_TyEl &  operator * () const _STLP_NOTHROW
   {
     return RElConst();
   }
 
 // operations:
-	_TyThis &	operator = ( _TyThis const & _rgcp ) __STL_NOTHROW
+	_TyThis &	operator = ( _TyThis const & _rgcp ) _STLP_NOTHROW
 	{
 		_SetEqual( rgcp.m_pgco );
 		return *this;
 	}
 
-	_TyThis &	operator = ( _TyGcr const & _rgcr ) __STL_NOTHROW
+	_TyThis &	operator = ( _TyGcr const & _rgcr ) _STLP_NOTHROW
 	{
 		_SetEqual( _rgcr.m_pgco );
 		return *this;
@@ -1771,29 +1771,29 @@ public:
 protected:
 
 // named access to GCO - these don't participate in copy-on-write:
-	t_TyGCO *		PGCO() const __STL_NOTHROW
+	t_TyGCO *		PGCO() const _STLP_NOTHROW
 	{
 		return m_pgco;
 	}
-	t_TyGCO &		RGCO() const __STL_NOTHROW
+	t_TyGCO &		RGCO() const _STLP_NOTHROW
 	{
 		assert( m_pgco );
 		return *m_pgco;
 	}
 
-	t_TyGCO ** PPGCO() __STL_NOTHROW
+	t_TyGCO ** PPGCO() _STLP_NOTHROW
 	{
 		assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
 		return &m_pgco;
 	}
 
-	t_TyGCO *& PRGCO() __STL_NOTHROW
+	t_TyGCO *& PRGCO() _STLP_NOTHROW
 	{
 		assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
 		return m_pgco;
 	}
 
-	void	_Release() __STL_NOTHROW
+	void	_Release() _STLP_NOTHROW
 	{
 		if ( m_pgco && !m_pgco->Release() )
 		{
@@ -1801,7 +1801,7 @@ protected:
 		}
 	}
 
-	void	_SetEqual( t_TyGCO * _pgco ) __STL_NOTHROW
+	void	_SetEqual( t_TyGCO * _pgco ) _STLP_NOTHROW
 	{
     if ( _pgco != m_pgco )
     {
@@ -1922,7 +1922,7 @@ public:
   // REVIEW: explicit or not.
   _gcr(  t_TyEl const & _rEl,
          _TyAllocator const & _rA = _TyAllocator() )
-		: m_pgco( t_TyGCO::__STL_TEMPLATE PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
+		: m_pgco( t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
   {
   }
 
@@ -1956,7 +1956,7 @@ public:
 	void	Create1(	t_TyP1 _r1,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::__STL_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1965,7 +1965,7 @@ public:
 	void	Create2(	t_TyP1 _r1, t_TyP2 _r2,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::__STL_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1990,7 +1990,7 @@ public:
                           t_TyP1 _r1,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::__STL_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -2000,7 +2000,7 @@ public:
                           t_TyP1 _r1, t_TyP2 _r2,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::__STL_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -2012,7 +2012,7 @@ public:
     return _gcr_dispatch_el_access< _TyThis, t_fCopyOnWrite >::RElNonConst( *this );
 	}
 
-	const t_TyEl & RElConst() const __STL_NOTHROW
+	const t_TyEl & RElConst() const _STLP_NOTHROW
 	{
 		return const_cast< const t_TyEl & >( static_cast< t_TyEl & >( RGCO() ) );
 	}
@@ -2021,7 +2021,7 @@ public:
 	{
 		return &RElNonConst();
 	}
-	const t_TyEl * PElConst() const __STL_NOTHROW
+	const t_TyEl * PElConst() const _STLP_NOTHROW
 	{
 		return &RElConst();
 	}
@@ -2031,7 +2031,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	operator const t_TyEl * () const __STL_NOTHROW
+	operator const t_TyEl * () const _STLP_NOTHROW
 	{
 		return PElConst();
 	}
@@ -2040,7 +2040,7 @@ public:
 	{
 		return RElNonConst();
 	}
-	operator const t_TyEl & () const __STL_NOTHROW
+	operator const t_TyEl & () const _STLP_NOTHROW
 	{
 		return RElConst();
 	}
@@ -2049,7 +2049,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	const t_TyEl * operator -> () const __STL_NOTHROW
+	const t_TyEl * operator -> () const _STLP_NOTHROW
 	{
 		return PElConst();
 	}
@@ -2090,18 +2090,18 @@ public:
     m_pgco = _r.PGCO();
   }
 
-  void  swap( _TyThis & _r ) __STL_NOTHROW
+  void  swap( _TyThis & _r ) _STLP_NOTHROW
   {
     __STD_OR_GLOBAL_QUALIFIER swap( m_pgco, _r.m_pgco );
   }
 
 protected:
 
-	t_TyGCO *		PGCO() const __STL_NOTHROW
+	t_TyGCO *		PGCO() const _STLP_NOTHROW
 	{
 		return m_pgco;
 	}
-	t_TyGCO &		RGCO() const __STL_NOTHROW
+	t_TyGCO &		RGCO() const _STLP_NOTHROW
 	{
 		return *PGCO();
 	}
@@ -2141,7 +2141,7 @@ public:
 
   _gcr_create(  _TyDerived const & _rd,
                 _TyAllocator const & _rA = _TyAllocator() )
-    : _TyBase( t_TyGCODerived::__STL_TEMPLATE PGCOCreate1< _TyDerived const & >( _rd, _rA ) )
+    : _TyBase( t_TyGCODerived::_STLP_TEMPLATE PGCOCreate1< _TyDerived const & >( _rd, _rA ) )
   {
   }
 };

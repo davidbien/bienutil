@@ -5,9 +5,9 @@
 
 // Generic base class for abstracting the difference between an instanced and static allocator.
 
-#include "bienutil/bienutil.h"
-#include "bienutil/_util.h"
-#include "bienutil/_dbgthrw.h"
+#include "bienutil.h"
+#include "_util.h"
+#include "_dbgthrw.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -33,20 +33,20 @@ public:
 
 	// Allow initialization with an allocator.
 	template < class t__TyAllocator >	
-	_alloc_base( t__TyAllocator const & _rAlloc ) __STL_NOTHROW
+	_alloc_base( t__TyAllocator const & _rAlloc ) _STLP_NOTHROW
 		: m_alloc( _rAlloc )	// An error here indicates initialization with incompatible iterators.
 	{ }
 
-	__INLINE _TyAllocatorType const & get_allocator_ref() const __STL_NOTHROW
+	__INLINE _TyAllocatorType const & get_allocator_ref() const _STLP_NOTHROW
 	{
 		return m_alloc;
 	}
-	__INLINE _TyAllocatorType & get_allocator_ref() __STL_NOTHROW
+	__INLINE _TyAllocatorType & get_allocator_ref() _STLP_NOTHROW
 	{
 		return m_alloc;
 	}
 
-	__INLINE t_TyAllocator get_allocator() const __STL_NOTHROW
+	__INLINE t_TyAllocator get_allocator() const _STLP_NOTHROW
 	{
 		return m_alloc;
 	}
@@ -108,14 +108,14 @@ public:
 
 	// Allow initialization with any allocator:
 	template < class t__TyAllocator >
-	_alloc_base( t__TyAllocator const & ) __STL_NOTHROW { }
+	_alloc_base( t__TyAllocator const & ) _STLP_NOTHROW { }
 
-	static __INLINE _TyAllocatorType & get_allocator_ref() __STL_NOTHROW
+	static __INLINE _TyAllocatorType & get_allocator_ref() _STLP_NOTHROW
 	{
 		return ms_alloc;
 	}
 	
-	static __INLINE t_TyAllocator get_allocator() __STL_NOTHROW
+	static __INLINE t_TyAllocator get_allocator() _STLP_NOTHROW
 	{
 		return t_TyAllocator();
 	}
@@ -172,7 +172,7 @@ class _alloc_base
 
 public:
 
-  typedef simple_alloc< t_TyAllocate, malloc_alloc >  _TyStaticAllocType;
+	typedef simple_alloc< t_TyAllocate, __malloc_alloc >  _TyStaticAllocType;
 	typedef _TyStaticAllocType 	_TyAllocatorType;
 	typedef size_t	size_type;
 
@@ -184,14 +184,14 @@ public:
 
 	// Allow initialization with any allocator:
 	template < class t__TyAllocator >
-	_alloc_base( t__TyAllocator const & ) __STL_NOTHROW { }
+	_alloc_base( t__TyAllocator const & ) _STLP_NOTHROW { }
 
-	static __INLINE _TyAllocatorType & get_allocator_ref() __STL_NOTHROW
+	static __INLINE _TyAllocatorType & get_allocator_ref() _STLP_NOTHROW
 	{
 		return ms_alloc;
 	}
 	
-	static __INLINE t_TyAllocator get_allocator() __STL_NOTHROW
+	static __INLINE t_TyAllocator get_allocator() _STLP_NOTHROW
 	{
 		return t_TyAllocator();
 	}
@@ -234,7 +234,7 @@ public:
 };
   
 template < class t_TyAllocate, class t_TyAllocator >
-simple_alloc< t_TyAllocate, malloc_alloc >
+simple_alloc< t_TyAllocate, __malloc_alloc >
 _alloc_base< t_TyAllocate, t_TyAllocator >::ms_alloc;
 
 #endif __ICL

@@ -117,7 +117,7 @@ public:
   {
   }
 
-  ~_simple_bitvec() __STL_NOTHROW
+  ~_simple_bitvec() _STLP_NOTHROW
   {
     if ( m_rgEls )
     {
@@ -125,12 +125,12 @@ public:
     }
   }
 
-  size_type size() const __STL_NOTHROW
+  size_type size() const _STLP_NOTHROW
   {
     return m_kstBits;
   }
 
-  size_type size_bytes() const __STL_NOTHROW
+  size_type size_bytes() const _STLP_NOTHROW
   {
     return m_kstSize * sizeof( t_TyEl );
   }
@@ -141,7 +141,7 @@ public:
   }
 
   _TyThis & 
-  operator = ( _TyThis const & _r ) __STL_NOTHROW
+  operator = ( _TyThis const & _r ) _STLP_NOTHROW
   {
     assert( _r.m_kstBits == m_kstBits );
     memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
@@ -149,18 +149,18 @@ public:
   }
 
   bool
-  operator < ( _TyThis const & _r ) const __STL_NOTHROW
+  operator < ( _TyThis const & _r ) const _STLP_NOTHROW
   {
     assert( _r.m_kstBits == m_kstBits );
     return 0 > memcmp( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
   }
 
-  void clear() __STL_NOTHROW
+  void clear() _STLP_NOTHROW
   {
     memset( m_rgEls, 0, m_kstSize * sizeof( t_TyEl ) );
   }
 
-  bool  empty() const __STL_NOTHROW
+  bool  empty() const _STLP_NOTHROW
   {
     t_TyEl * pElEnd = m_rgEls + m_kstSize;
     for ( t_TyEl * pEl = m_rgEls; pEl != pElEnd; ++pEl )
@@ -171,21 +171,21 @@ public:
     return true;
   }
 
-  void  setbit( size_type _rstBit ) __STL_NOTHROW
+  void  setbit( size_type _rstBit ) _STLP_NOTHROW
   {
     assert( _rstBit < size() );
     m_rgEls[ _rstBit / ms_kiElSizeBits ] |= 
       ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kiElSizeBits ) );
   }
 
-  void  clearbit( size_type _rstBit ) __STL_NOTHROW
+  void  clearbit( size_type _rstBit ) _STLP_NOTHROW
   {
     assert( _rstBit < size() );
     m_rgEls[ _rstBit / ms_kiElSizeBits ] &= 
       ~( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kiElSizeBits ) );
   }
 
-  bool  isbitset( size_type _rstBit ) const __STL_NOTHROW
+  bool  isbitset( size_type _rstBit ) const _STLP_NOTHROW
   {
     assert( _rstBit < size() );
     return m_rgEls[ _rstBit / ms_kiElSizeBits ] &
@@ -194,7 +194,7 @@ public:
 
   // Clear the first set least significant bit - if none found then return
   //  with ( _rstFound == m_kstBits ) - otherwise return index of bit.
-  size_type getclearfirstset( ) __STL_NOTHROW
+  size_type getclearfirstset( ) _STLP_NOTHROW
   {
     return _getclearfirstset( m_rgEls );
   }
@@ -205,12 +205,12 @@ public:
   }
 
   // Obtain the index first least significant bit set.
-  size_type getfirstset( ) const __STL_NOTHROW
+  size_type getfirstset( ) const _STLP_NOTHROW
   {
     return _getset( m_rgEls );
   }
 
-  size_type getnextset( size_type _stLast ) const __STL_NOTHROW
+  size_type getnextset( size_type _stLast ) const _STLP_NOTHROW
   {
     assert( _stLast < size() );
     // First process any partial elements:
@@ -231,7 +231,7 @@ public:
     return _getset( pElNext );
   }
 
-  size_type countsetbits() const __STL_NOTHROW
+  size_type countsetbits() const _STLP_NOTHROW
   {
     size_type stSet = 0;
     t_TyEl * pElEnd = m_rgEls + m_kstSize;
@@ -250,12 +250,12 @@ public:
     return stSet;
   }
 
-  bool  operator == ( _TyThis const & _r ) const __STL_NOTHROW
+  bool  operator == ( _TyThis const & _r ) const _STLP_NOTHROW
   {
     return !memcmp( _r.m_rgEls, m_rgEls, m_kstSize * sizeof( t_TyEl ) );
   }
 
-  _TyThis & operator |= ( _TyThis const & _r ) __STL_NOTHROW
+  _TyThis & operator |= ( _TyThis const & _r ) _STLP_NOTHROW
   {
     assert( _r.m_kstBits == m_kstBits );
     or_equals( _r.m_rgEls );
@@ -272,7 +272,7 @@ public:
     }
   }
 
-  bool  FIntersects( _TyThis const & _r ) const __STL_NOTHROW
+  bool  FIntersects( _TyThis const & _r ) const _STLP_NOTHROW
   {
     assert( _r.m_kstBits == m_kstBits );
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
@@ -310,13 +310,13 @@ public:
     return fIntersect;
   }
 
-  size_type FirstIntersection( _TyThis const & _r ) const __STL_NOTHROW
+  size_type FirstIntersection( _TyThis const & _r ) const _STLP_NOTHROW
   {
     assert( _r.m_kstBits == m_kstBits );
     return _NIntersection( m_rgEls, _r.m_rgEls );
   }
 
-  size_type NextIntersection( _TyThis const & _r, size_type _stLast ) const __STL_NOTHROW
+  size_type NextIntersection( _TyThis const & _r, size_type _stLast ) const _STLP_NOTHROW
   {
     assert( _stLast < size() );
     // First process any partial elements:
@@ -339,7 +339,7 @@ public:
     return _NIntersection( pElNextThis, pElNextThat );
   }
 
-  void  invert() __STL_NOTHROW
+  void  invert() _STLP_NOTHROW
   {
     // We can invert all but the last element wholly - need to
     //  maintain null bits above bit limit on last element:
@@ -356,7 +356,7 @@ public:
     }
   }
 
-  size_t  hash() const __STL_NOTHROW
+  size_t  hash() const _STLP_NOTHROW
   {
     // We add all the elements together ( not worrying about overflow ):
     size_t  st = 0;
@@ -368,7 +368,7 @@ public:
     return st;
   }
 
-  void  swap( _TyThis & _r ) __STL_NOTHROW
+  void  swap( _TyThis & _r ) _STLP_NOTHROW
   {
     __STD::swap(  const_cast< size_type& >( m_kstBits ),
                   const_cast< size_type& >( _r.m_kstBits ) );
@@ -401,7 +401,7 @@ protected:
     return m_kstBits;
   }
 
-  size_type _getset( t_TyEl * pEl ) const __STL_NOTHROW
+  size_type _getset( t_TyEl * pEl ) const _STLP_NOTHROW
   {
     t_TyEl * pElEnd = m_rgEls + m_kstSize;
     for ( ; pEl != pElEnd; ++pEl )
@@ -416,7 +416,7 @@ protected:
     return m_kstBits;
   }
 
-  size_type _NIntersection( t_TyEl * pcurThis, t_TyEl * pcurThat ) const __STL_NOTHROW
+  size_type _NIntersection( t_TyEl * pcurThis, t_TyEl * pcurThat ) const _STLP_NOTHROW
   {
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     for ( ; pcurThis != pendThis; ++pcurThat, ++pcurThis )

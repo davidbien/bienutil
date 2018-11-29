@@ -38,23 +38,19 @@ struct __IsSameType
   typedef __false_type  _TyF;
 };
 
-#ifdef __ICL
 template < class t_Ty >
 struct __IsSameType< t_Ty, t_Ty >
 {
   typedef __true_type   _TyF;
 };
-#endif __ICL
 
 template < class t_Ty1, class t_Ty2 >
 struct __AssertSameType;
-#ifdef __ICL
 template < class t_Ty >
 struct __AssertSameType< t_Ty, t_Ty >
 {
   typedef __true_type   _TyF;
 };
-#endif __ICL
 #define __ASSERT_SAME_TYPE3( _t1, _t2, _Ty ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _Ty
 #define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _TyFooSameType
 
@@ -87,7 +83,7 @@ template <> struct __assert_bool<true>
 #ifdef __ICL
 // Intel doesn't allow operations among template arguments.
 #define __ASSERT_BOOL2( _f )    typedef typename __assert_bool< _f >::_TyF
-#define __ASSERT_BOOL( _f ) static const bool __fAssertBool = (_f); \
+#define __ASSERT_BOOL( _f ) static constexpr bool __fAssertBool = (_f); \
   typedef typename __assert_bool< _fAssertBool##__LINE__ >::_TyF  _TyFooAssertBool;
 #else __ICL
 #define __ASSERT_BOOL2( _f )    typedef typename __assert_bool< _f >::_TyF
@@ -108,7 +104,6 @@ template <> struct __assert_bool_type< __true_type >
 #define __ASSERT_BOOL_TYPE( _f )  typedef typename __assert_bool_type< _f >::_TyF
 
 template < int t_i, class _TyType0, class _TyType1 > struct __select_type2;
-#ifdef __ICL
 template < class _TyType0, class _TyType1 > struct __select_type2<0, _TyType0, _TyType1>
 {
   typedef _TyType0  _TyType;
@@ -117,7 +112,6 @@ template < class _TyType0, class _TyType1 > struct __select_type2<1, _TyType0, _
 {
   typedef _TyType1  _TyType;
 };
-#endif __ICL
 
 __BIENUTIL_END_NAMESPACE
 

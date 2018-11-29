@@ -25,13 +25,13 @@ protected:
 
 public:
 
-	explicit _sdp( t_TyAllocator const & _rAlloc = t_TyAllocator() ) __STL_NOTHROW
+	explicit _sdp( t_TyAllocator const & _rAlloc = t_TyAllocator() ) _STLP_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_pt( 0 )
 	{
 	}
 
-	_sdp( t_TyP * _pt, t_TyAllocator const & _rAlloc ) __STL_NOTHROW
+	_sdp( t_TyP * _pt, t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_pt( _pt )
 	{
@@ -48,7 +48,7 @@ public:
 		}
 	}
 
-	~_sdp() __STL_NOTHROW
+	~_sdp() _STLP_NOTHROW
 	{
 		if ( m_pt )
 		{
@@ -89,34 +89,34 @@ protected: // Are these accessed publicly - if not then use _sdpd
 	// etc.
 public:
 
-	t_TyP *	transfer() __STL_NOTHROW
+	t_TyP *	transfer() _STLP_NOTHROW
 	{
 		t_TyP * _pt = m_pt;
 		m_pt = 0;
 		return _pt;
 	}
 
-	t_TyP *	Ptr() const __STL_NOTHROW
+	t_TyP *	Ptr() const _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
-	t_TyP *& PtrRef() __STL_NOTHROW
+	t_TyP *& PtrRef() _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
-	operator t_TyP * () const __STL_NOTHROW
+	operator t_TyP * () const _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
-	t_TyP * operator ->() const __STL_NOTHROW
+	t_TyP * operator ->() const _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
-	t_TyP & operator *() const __STL_NOTHROW
+	t_TyP & operator *() const _STLP_NOTHROW
 	{
 		return *m_pt;
 	}

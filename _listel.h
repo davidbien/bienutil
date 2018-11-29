@@ -37,7 +37,7 @@ public:
   }
 
   // methods for a list using a tail.
-  void  insert_tail( t_TyMD *& _pmdBefore, t_TyMD **& _rppmdTail ) __STL_NOTHROW
+  void  insert_tail( t_TyMD *& _pmdBefore, t_TyMD **& _rppmdTail ) __STLP_NOTHROW
   {
     m_ppmdPrevNext = &_pmdBefore;
     m_pmdNext = _pmdBefore;
@@ -52,14 +52,14 @@ public:
     }
     _pmdBefore = static_cast< t_TyMD * >( this );
   }
-  void  push_back_tail( t_TyMD **& _rppmdTail ) __STL_NOTHROW
+  void  push_back_tail( t_TyMD **& _rppmdTail ) __STLP_NOTHROW
   {
     m_ppmdPrevNext = _rppmdTail;
     *_rppmdTail = this;
     m_pmdNext = 0;
     _rppmdTail = &m_pmdNext;
   }
-  void  remove_tail( t_TyMD **& _rppmdTail ) __STL_NOTHROW
+  void  remove_tail( t_TyMD **& _rppmdTail ) __STLP_NOTHROW
   {
     if ( m_pmdNext )
     {

@@ -29,7 +29,7 @@ public:
     _r.Reset();
   }
 
-  ~_dtorp() __STL_NOTHROW
+  ~_dtorp() _STLP_NOTHROW
   {
     if ( m_pt )
     {
@@ -37,16 +37,16 @@ public:
     }
   }
 
-  t_Ty *  Ptr() const __STL_NOTHROW
+  t_Ty *  Ptr() const _STLP_NOTHROW
   {
     return m_pt;
   }
-  t_Ty *& PtrRef() __STL_NOTHROW
+  t_Ty *& PtrRef() _STLP_NOTHROW
   {
     return m_pt;
   }
 
-  void  Release() __STL_NOTHROW
+  void  Release() _STLP_NOTHROW
   {
     if ( m_pt )
     {
@@ -55,17 +55,17 @@ public:
     }
   }
 
-  void  Reset() __STL_NOTHROW
+  void  Reset() _STLP_NOTHROW
   {
     m_pt = 0;
   }
-  void  Reset( t_Ty * _pt ) __STL_NOTHROW
+  void  Reset( t_Ty * _pt ) _STLP_NOTHROW
   {
     m_pt = _pt;
   }
 
   // acquire <_pt> - destruct any current object.
-  void  operator = ( t_Ty * _pt ) __STL_NOTHROW
+  void  operator = ( t_Ty * _pt ) _STLP_NOTHROW
   {
     if ( m_pt )
     {
@@ -85,11 +85,11 @@ public:
     _r.Reset();
   }
 
-  t_Ty *  operator ->() const __STL_NOTHROW
+  t_Ty *  operator ->() const _STLP_NOTHROW
   {
     return m_pt;
   }
-  t_Ty &  operator *() const __STL_NOTHROW
+  t_Ty &  operator *() const _STLP_NOTHROW
   {
     return *m_pt;
   }
@@ -98,18 +98,18 @@ public:
   //  prevents accidental construction or assignment to
   //  a const-_TyThis - since then conversion to pointer is
   //  inaccessible.
-  operator t_Ty * () __STL_NOTHROW
+  operator t_Ty * () _STLP_NOTHROW
   {
     return m_pt;
   }
 
-  operator const t_Ty * () const __STL_NOTHROW
+  operator const t_Ty * () const _STLP_NOTHROW
   {
     return m_pt;
   }
 
 #ifdef __GNUC__ // This gets rid of some warnings from gcc.
-  operator bool () __STL_NOTHROW
+  operator bool () _STLP_NOTHROW
   {
     return m_pt;
   }
