@@ -51,7 +51,7 @@ __BIENUTIL_END_NAMESPACE
 __STL_BEGIN_NAMESPACE
 __BIENUTIL_USING_NAMESPACE
 
-__STL_TEMPLATE_NULL struct hash<_type_info_wrap>
+_STLP_TEMPLATE_NULL struct hash<_type_info_wrap>
 {
   size_t operator()(_type_info_wrap const & _rtiw ) const 
   { 

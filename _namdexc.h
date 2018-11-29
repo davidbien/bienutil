@@ -21,7 +21,7 @@ __STL_BEGIN_NAMESPACE
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
 template < class t_TyAllocator = allocator< char > >
-class _t__Named_exception : public __STL_EXCEPTION_BASE {
+class _t__Named_exception : public _STLP_EXCEPTION_BASE {
 public:
   typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
 
@@ -29,7 +29,7 @@ public:
     strncpy(_M_name, __str.c_str(), _S_bufsize);
     _M_name[_S_bufsize - 1] = '\0';
   }
-  virtual const char* what() const __STL_NOTHROW { return _M_name; }
+  virtual const char* what() const _STLP_NOTHROW { return _M_name; }
 
 private:
   enum { _S_bufsize = 256 };

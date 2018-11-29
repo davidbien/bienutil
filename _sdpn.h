@@ -19,13 +19,13 @@ class _sdpn
 
 public:
 
-	_sdpn( t_TyAllocator const & _rAlloc ) __STL_NOTHROW
+	_sdpn( t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_pt( 0 )
 	{
 	}
 
-	_sdpn( t_TyP * _pt, size_type _st, t_TyAllocator const & _rAlloc ) __STL_NOTHROW
+	_sdpn( t_TyP * _pt, size_type _st, t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_pt( _pt ),
 			m_st( _st )
@@ -43,7 +43,7 @@ public:
 		}
 	}
 
-	~_sdpn() __STL_NOTHROW
+	~_sdpn() _STLP_NOTHROW
 	{
 		if ( m_pt )
 		{
@@ -137,31 +137,31 @@ public:
 	}
 	// etc.
 
-	t_TyP *	transfer() __STL_NOTHROW
+	t_TyP *	transfer() _STLP_NOTHROW
 	{
 		t_TyP * _pt = m_pt;
 		m_pt = 0;
 		return _pt;
 	}
 
-	operator t_TyP * () const __STL_NOTHROW
+	operator t_TyP * () const _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
 #if 0	// These make very little sense on this object - PtrRef() is dangerous - and unworkable
 			//	since m_st is currently inaccessible
-	t_TyP *& PtrRef() __STL_NOTHROW
+	t_TyP *& PtrRef() _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
-	t_TyP * operator ->() const __STL_NOTHROW
+	t_TyP * operator ->() const _STLP_NOTHROW
 	{
 		return m_pt;
 	}
 
-	t_TyP & operator *() const __STL_NOTHROW
+	t_TyP & operator *() const _STLP_NOTHROW
 	{
 		return *m_pt;
 	}

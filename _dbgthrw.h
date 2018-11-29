@@ -3,10 +3,13 @@
 
 #ifndef __NDEBUG_THROW
 
-#include <slist.h>
+#include <cassert>
+#include <algorithm>
+#include <slist>
 #include <map>
-#include <ostream.h>
-#include "bienutil/_namdexc.h"
+#include <string>
+//#include <ostream.h>
+#include "_namdexc.h"
 
 // _dbgthrw.h
 
@@ -14,7 +17,7 @@
 
 #ifndef __DBGTHROW_DEFAULT_ALLOCATOR
 #ifndef NDEBUG
-#define __DBGTHROW_DEFAULT_ALLOCATOR std::__allocator< char, std::malloc_alloc >
+#define __DBGTHROW_DEFAULT_ALLOCATOR std::_stlallocator< char, std::__debug_alloc< std::__malloc_alloc > >
 #else !NDEBUG
 #define __DBGTHROW_DEFAULT_ALLOCATOR std::allocator< char >
 #endif !NDEBUG
@@ -39,7 +42,7 @@ class _debug_memory_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLO
   typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_memory_except()
-    : _TyBase( "_debug_memory_except" )
+    : _TyBase( string_type("_debug_memory_except") )
   {
   }
 };
@@ -166,7 +169,7 @@ struct _throw_static_base
   // Determine whether we have exhausted the throw points:
   typedef map<  _throw_object_base, _throw_hit_stats, 
                 less<_throw_object_base>,
-                __allocator< char, malloc_alloc > >   _TyMapHitThrows;
+                _stlallocator< char, __malloc_alloc > >   _TyMapHitThrows;
   _TyMapHitThrows m_mapHitThrows;
   unsigned      m_uHitThrows;
 
@@ -220,7 +223,7 @@ struct _throw_static_base
     m_uHitThrows = 0;
   }
 
-  void  get_hit_stats( unsigned & ruHit, unsigned & ruPossible )
+  void  get_hit_stats( unsigned & ruHit, size_t & ruPossible )
   {
     ruPossible = m_mapHitThrows.size();
     ruHit = m_uHitThrows;
@@ -366,11 +369,11 @@ struct _throw_static_base
         // If we have multiple types then choose one:
         m_rgttTypeCur = _ptob->m_rgttType;
 
-        int  iSetBits;
-        if ( 1 < ( iSetBits = _count_set_bits( m_rgttTypeCur ) ) )
+        size_t stSetBits;
+        if ( 1 < ( stSetBits = _count_set_bits( m_rgttTypeCur ) ) )
         {
           // Choose a random bit among those present:
-          int _iR = rand() % iSetBits;
+          int _iR = rand() % (int)stSetBits;
 
           // Clear each bit successively:
           while( _iR )

@@ -18,13 +18,13 @@ class _sdpd
 
 public:
 
-  _sdpd() __STL_NOTHROW
+  _sdpd() _STLP_NOTHROW
     : _TyBase( t_TyAllocator() ),
 			m_fConstructed( false )
   {
   }
 
-	explicit _sdpd( t_TyAllocator const & _rAlloc ) __STL_NOTHROW
+	explicit _sdpd( t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_fConstructed( false )
 	{
@@ -56,7 +56,7 @@ public:
 	}
 
   // Indicate that the contained object is constructed.
-  void  SetConstructed() __STL_NOTHROW
+  void  SetConstructed() _STLP_NOTHROW
   {
     m_fConstructed = true;
   }
@@ -131,7 +131,7 @@ public:
 		}
 	}
 
-	t_TyP *	transfer() __STL_NOTHROW
+	t_TyP *	transfer() _STLP_NOTHROW
 	{
 		m_fConstructed = false;
 		return _TyBase::transfer();

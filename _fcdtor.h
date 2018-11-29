@@ -17,12 +17,12 @@ class CMFDtor0_void
 
 public:
   
-  CMFDtor0_void() __STL_NOTHROW
+  CMFDtor0_void() _STLP_NOTHROW
     : m_pFunc( 0 )
   {
   }
   CMFDtor0_void( _TyObjectPtr _po,
-                _TyFunc _pFunc ) __STL_NOTHROW
+                _TyFunc _pFunc ) _STLP_NOTHROW
     : m_po( _po ),
       m_pFunc( _pFunc )
   {
@@ -39,12 +39,12 @@ public:
     _ReleaseInt(  m_pFunc = 0, pFunc );
   }
 
-  void  Reset() __STL_NOTHROW
+  void  Reset() _STLP_NOTHROW
   {
     m_pFunc = 0;
   }
   void  Reset(  _TyObjectPtr _po,
-                _TyFunc _pFunc ) __STL_NOTHROW
+                _TyFunc _pFunc ) _STLP_NOTHROW
   {
     if ( _po && _pFunc )
     {
@@ -81,12 +81,12 @@ class CMFDtor0_rtn
 
 public:
   
-  CMFDtor0_rtn() __STL_NOTHROW
+  CMFDtor0_rtn() _STLP_NOTHROW
     : m_pFunc( 0 )
   {
   }
   CMFDtor0_rtn( _TyObjectPtr _po,
-                _TyFunc _pFunc ) __STL_NOTHROW
+                _TyFunc _pFunc ) _STLP_NOTHROW
     : m_po( _po ),
       m_pFunc( _pFunc )
   {
@@ -103,12 +103,12 @@ public:
     return m_rtn;
   }
 
-  void  Reset() __STL_NOTHROW
+  void  Reset() _STLP_NOTHROW
   {
     m_pFunc = 0;
   }
   void  Reset(  _TyObjectPtr _po,
-                _TyFunc _pFunc ) __STL_NOTHROW
+                _TyFunc _pFunc ) _STLP_NOTHROW
   {
     if ( _po && _pFunc )
     {
@@ -147,13 +147,13 @@ class CMFDtor1_void
 
 public:
   
-  CMFDtor1_void() __STL_NOTHROW
+  CMFDtor1_void() _STLP_NOTHROW
     : m_pFunc( 0 )
   {
   }
   CMFDtor1_void( _TyObjectPtr _po,
                 _TyFunc _pFunc,
-                t_TyP1Call _p1 ) __STL_NOTHROW
+                t_TyP1Call _p1 ) _STLP_NOTHROW
     : m_po( _po ),
       m_pFunc( _pFunc ),
       m_p1( _p1 )
@@ -171,13 +171,13 @@ public:
     _ReleaseInt(  m_pFunc = 0, pFunc );
   }
 
-  void  Reset() __STL_NOTHROW
+  void  Reset() _STLP_NOTHROW
   {
     m_pFunc = 0;
   }
   void  Reset(  _TyObjectPtr _po,
                 _TyFunc _pFunc,
-                t_TyP1Call _p1 ) __STL_NOTHROW
+                t_TyP1Call _p1 ) _STLP_NOTHROW
   {
     if ( _po && _pFunc )
     {
@@ -220,14 +220,14 @@ class CMFDtor2_void
 
 public:
   
-  CMFDtor2_void() __STL_NOTHROW
+  CMFDtor2_void() _STLP_NOTHROW
     : m_pFunc( 0 )
   {
   }
   CMFDtor2_void( _TyObjectPtr _po,
                   _TyFunc _pFunc,
                   t_TyP1Call _p1,
-                  t_TyP2Call _p2 ) __STL_NOTHROW
+                  t_TyP2Call _p2 ) _STLP_NOTHROW
     : m_po( _po ),
       m_pFunc( _pFunc ),
       m_p1( _p1 ),
@@ -246,14 +246,14 @@ public:
     _ReleaseInt(  m_pFunc = 0, pFunc );
   }
 
-  void  Reset() __STL_NOTHROW
+  void  Reset() _STLP_NOTHROW
   {
     m_pFunc = 0;
   }
   void  Reset(  _TyObjectPtr _po,
                 _TyFunc _pFunc,
                 t_TyP1Call _p1,
-                t_TyP2Call _p2 ) __STL_NOTHROW
+                t_TyP2Call _p2 ) _STLP_NOTHROW
   {
     if ( _po && _pFunc )
     {
@@ -292,12 +292,12 @@ class CFDtor1_void
 
 public:
   
-  CFDtor1_void() __STL_NOTHROW
+  CFDtor1_void() _STLP_NOTHROW
     : m_pFunc( 0 )
   {
   }
   CFDtor1_void( _TyFunc _pFunc,
-                t_TyP1Call _p1 ) __STL_NOTHROW
+                t_TyP1Call _p1 ) _STLP_NOTHROW
     : m_pFunc( _pFunc ),
       m_p1( _p1 )
   {
@@ -314,12 +314,12 @@ public:
     _ReleaseInt(  m_pFunc = 0, pFunc );
   }
 
-  void  Reset() __STL_NOTHROW
+  void  Reset() _STLP_NOTHROW
   {
     m_pFunc = 0;
   }
   void  Reset(  _TyFunc _pFunc,
-                t_TyP1Call _p1 ) __STL_NOTHROW
+                t_TyP1Call _p1 ) _STLP_NOTHROW
   {
     if ( _pFunc )
     {
@@ -333,7 +333,7 @@ public:
   }
 
   // Parameter access.
-  t_TyP1Store const & P1() const __STL_NOTHROW
+  t_TyP1Store const & P1() const _STLP_NOTHROW
   {
     return m_p1;
   }

@@ -663,7 +663,7 @@ public:
 
 	// Remove the variable length index record located at <_pplv>.
 	// Remove the associated value at the same time.
-	void	remove_variable( _TyPropLookupVariable * _pplv ) __STL_NOTHROW
+	void	remove_variable( _TyPropLookupVariable * _pplv ) __STLP_NOTHROW
 	{
 		assert( _valid_variable( _pplv ) );
 
@@ -679,7 +679,7 @@ public:
 	
 	// Remove the fixed length index record located at <_pplf>.
 	// Remove the associated value at the same time.
-	void	remove_fixed( _TyPropLookupFixed * _pplf ) __STL_NOTHROW
+	void	remove_fixed( _TyPropLookupFixed * _pplf ) __STLP_NOTHROW
 	{
 		assert( _valid_fixed( _pplv ) );
 

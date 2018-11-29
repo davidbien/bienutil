@@ -4,13 +4,15 @@
 
 // debug throwing stuff
 
+#if 0
 #include <stddef.h>
 #include <assert.h>
-#include <alloc.h>
+#include <_alloc.h>
+#endif 0
 #include <stdexcept>
-#include "bienutil/bienutil.h"
-#include "bienutil/_util.h"
-#include "bienutil/_dbgthrw.h"
+#include "bienutil.h"
+#include "_util.h"
+#include "_dbgthrw.h"
 
 #ifndef __NDEBUG_THROW
 
