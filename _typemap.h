@@ -98,4 +98,4 @@ struct _char_type_map< unsigned int >
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __TYPEMAP_H__
+#endif //__TYPEMAP_H__

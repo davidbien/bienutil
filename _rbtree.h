@@ -58,7 +58,7 @@ iterators invalidated are those referring to the deleted node.
 #include <stl_construct.h>
 #include <stl_function.h>
 
-__STL_BEGIN_NAMESPACE 
+_STLP_BEGIN_NAMESPACE 
 
 #if defined(__sgi) && !defined(__GNUC__) && (_MIPS_SIM != _MIPS_SIM_ABI32)
 #pragma set woff 1375
@@ -224,7 +224,7 @@ inline bool operator!=(const _Rb_tree_base_iterator<_type_Rb_tree_node_base>& __
   return __x._M_node != __y._M_node;
 }
 
-#ifndef __STL_CLASS_PARTIAL_SPECIALIZATION
+#ifndef _STLP_CLASS_PARTIAL_SPECIALIZATION
 
 template < class _type_Rb_tree_node_base >
 inline bidirectional_iterator_tag
@@ -244,7 +244,7 @@ inline _Value *	value_type( const _Rb_tree_iterator<_Value, _Ref, _Ptr, _type_Rb
   return (_Value*) 0;
 }
 
-#endif /* __STL_CLASS_PARTIAL_SPECIALIZATION */
+#endif /* _STLP_CLASS_PARTIAL_SPECIALIZATION */
 
 template < class _type_Rb_tree_node_base >
 inline void 
@@ -470,7 +470,7 @@ _Rb_tree_rebalance_for_erase(_type_Rb_tree_node_base* __z,
 // having an empty base class, we arbitrarily move one of rb_tree's
 // data members into the base class.
 
-#ifdef __STL_USE_STD_ALLOCATORS
+#if 1 //def _STLP_USE_STD_ALLOCATORS
 
 // _Base for general standard-conforming allocators.
 template <class _Tp, class _Alloc, class _type_Rb_tree_node, bool _S_instanceless>
@@ -532,7 +532,7 @@ struct _Rb_tree_base
 
 };
 
-#else /* __STL_USE_STD_ALLOCATORS */
+#else /* 1 */ /* _STLP_USE_STD_ALLOCATORS */
 
 template <class _Tp, class _Alloc, class _type_Rb_tree_node>
 struct _Rb_tree_base
@@ -555,10 +555,10 @@ protected:
     { _Alloc_type::deallocate(__p, 1); }
 };
 
-#endif /* __STL_USE_STD_ALLOCATORS */
+#endif /* _STLP_USE_STD_ALLOCATORS */
 
 template <class _Key, class _Value, class _KeyOfValue, class _Compare,
-          class _Alloc = __STL_DEFAULT_ALLOCATOR(_Value),
+          class _Alloc = allocator< _Value >,
 					class _type_Rb_tree_node = _Rb_tree_node_2<_Value>, 
 					class _type_Rb_tree_node_base = _Rb_tree_node_2<_Value> >
 class _Rb_tree : protected _Rb_tree_base<_Value, _Alloc, _type_Rb_tree_node> 
@@ -588,21 +588,21 @@ public:
   allocator_type get_allocator() const { return _Base::get_allocator(); }
 
 protected:
-#ifdef __STL_USE_NAMESPACES
+#ifdef _STLP_USE_NAMESPACES
   using _Base::_M_get_node;
   using _Base::_M_put_node;
   using _Base::_M_header;
-#endif /* __STL_USE_NAMESPACES */
+#endif /* _STLP_USE_NAMESPACES */
 
 protected:
 
   _Link_type _M_create_node( const value_type & __x )
   {
     _Link_type __tmp = _M_get_node();
-    __STL_TRY {
+    _STLP_TRY {
       construct(&__tmp->_M_value_field, __x);
     }
-    __STL_UNWIND(_M_put_node(__tmp));
+    _STLP_UNWIND(_M_put_node(__tmp));
     return __tmp;
   }
 
@@ -669,17 +669,17 @@ public:
   typedef _Rb_tree_iterator<value_type, const_reference, const_pointer, _type_Rb_tree_node, _type_Rb_tree_node_base> 
           const_iterator;
 
-#ifdef __STL_CLASS_PARTIAL_SPECIALIZATION
+#ifdef _STLP_CLASS_PARTIAL_SPECIALIZATION
   typedef reverse_iterator<const_iterator> const_reverse_iterator;
   typedef reverse_iterator<iterator> reverse_iterator;
-#else /* __STL_CLASS_PARTIAL_SPECIALIZATION */
+#else /* _STLP_CLASS_PARTIAL_SPECIALIZATION */
   typedef reverse_bidirectional_iterator<iterator, value_type, reference,
                                          difference_type>
           reverse_iterator; 
   typedef reverse_bidirectional_iterator<const_iterator, value_type,
                                          const_reference, difference_type>
           const_reverse_iterator;
-#endif /* __STL_CLASS_PARTIAL_SPECIALIZATION */ 
+#endif /* _STLP_CLASS_PARTIAL_SPECIALIZATION */ 
 
 private:
   iterator _M_insert_value(_Base_ptr __x, _Base_ptr __y, const value_type& __v);
@@ -766,17 +766,17 @@ public:
   iterator insert_unique_node(iterator __position, node_type & __n);
   iterator insert_equal_node(iterator __position, node_type & __n);
 
-#ifdef __STL_MEMBER_TEMPLATES  
+#ifdef _STLP_MEMBER_TEMPLATES  
   template <class _InputIterator>
   void insert_unique(_InputIterator __first, _InputIterator __last);
   template <class _InputIterator>
   void insert_equal(_InputIterator __first, _InputIterator __last);
-#else /* __STL_MEMBER_TEMPLATES */
+#else /* _STLP_MEMBER_TEMPLATES */
   void insert_unique(const_iterator __first, const_iterator __last);
   void insert_unique(const value_type* __first, const value_type* __last);
   void insert_equal(const_iterator __first, const_iterator __last);
   void insert_equal(const value_type* __first, const value_type* __last);
-#endif /* __STL_MEMBER_TEMPLATES */
+#endif /* _STLP_MEMBER_TEMPLATES */
 
   void erase(iterator __position);
   size_type erase(const key_type& __x);
@@ -831,7 +831,7 @@ operator<(const _Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_n
                                  __y.begin(), __y.end());
 }
 
-#ifdef __STL_FUNCTION_TMPL_PARTIAL_ORDER
+#ifdef _STLP_FUNCTION_TMPL_PARTIAL_ORDER
 
 template <class _Key, class _Value, class _KeyOfValue, 
           class _Compare, class _Alloc, 
@@ -843,7 +843,7 @@ swap(_Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_node,_type_R
   __x.swap(__y);
 }
 
-#endif /* __STL_FUNCTION_TMPL_PARTIAL_ORDER */
+#endif /* _STLP_FUNCTION_TMPL_PARTIAL_ORDER */
 
 
 template <class _Key, class _Value, class _KeyOfValue, 
@@ -1144,7 +1144,7 @@ _Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_node,_type_Rb_tre
   }
 }
 
-#ifdef __STL_MEMBER_TEMPLATES  
+#ifdef _STLP_MEMBER_TEMPLATES  
 
 template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
 					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
@@ -1165,7 +1165,7 @@ void _Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc, _type_Rb_tree_node, _type_Rb_tree_node
     insert_unique(*__first);
 }
 
-#else /* __STL_MEMBER_TEMPLATES */
+#else /* _STLP_MEMBER_TEMPLATES */
 
 template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
 					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
@@ -1206,7 +1206,7 @@ void _Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc,_type_Rb_tree_node,_type_Rb_tree_node_b
     insert_unique(*__first);
 }
 
-#endif /* __STL_MEMBER_TEMPLATES */
+#endif /* _STLP_MEMBER_TEMPLATES */
          
 template <class _Key, class _Value, class _KeyOfValue, 
           class _Compare, class _Alloc, 
@@ -1246,7 +1246,7 @@ _Rb_tree<_Key,_Val,_KoV,_Compare,_Alloc,_type_Rb_tree_node,_type_Rb_tree_node_ba
   _Link_type __top = _M_clone_node(__x);
   __top->_M_parent = __p;
  
-  __STL_TRY {
+  _STLP_TRY {
     if (__x->_M_right)
       __top->_M_right = _M_copy(_S_right_link(__x), __top);
     __p = __top;
@@ -1262,7 +1262,7 @@ _Rb_tree<_Key,_Val,_KoV,_Compare,_Alloc,_type_Rb_tree_node,_type_Rb_tree_node_ba
       __x = _S_left_link(__x);
     }
   }
-  __STL_UNWIND(_M_erase(__top));
+  _STLP_UNWIND(_M_erase(__top));
 
   return __top;
 }
@@ -1512,7 +1512,7 @@ bool _Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_node,_type_R
 // compatibility with the HP STL.
 
 template <class _Key, class _Value, class _KeyOfValue, class _Compare,
-          class _Alloc = __STL_DEFAULT_ALLOCATOR(_Value), 
+          class _Alloc = allocator< _Value >, 
 					class _type_Rb_tree_node = _Rb_tree_node<_Value>, 
 					class _type_Rb_tree_node_base = _Rb_tree_node_base >
 struct rb_tree : public _Rb_tree<	_Key, _Value, _KeyOfValue, _Compare, 
@@ -1532,7 +1532,7 @@ struct rb_tree : public _Rb_tree<	_Key, _Value, _KeyOfValue, _Compare,
 #pragma reset woff 1375
 #endif
 
-__STL_END_NAMESPACE 
+_STLP_END_NAMESPACE 
 
 #endif /* __SGI_STL_INTERNAL_TREE_H */
 

@@ -220,4 +220,4 @@ struct ATL_NO_VTABLE IStreamImpl : public IStream
 
 } // namespace ATL
 
-#endif __STRMIMP_H__
+#endif //__STRMIMP_H__

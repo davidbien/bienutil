@@ -16,4 +16,4 @@ struct __map_to_base_class
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __BASEMAP_H___
+#endif //__BASEMAP_H___

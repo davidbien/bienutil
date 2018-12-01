@@ -43,4 +43,4 @@ struct __relation_traits< int, less<int> >
 	}
 };
 
-#endif __RLTRAIT_H
+#endif //__RLTRAIT_H

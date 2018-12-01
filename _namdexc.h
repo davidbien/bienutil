@@ -16,7 +16,9 @@
 #ifndef ___NAMDEXC_H___
 #define ___NAMDEXC_H___
 
-__STL_BEGIN_NAMESPACE
+#include <string>
+
+_STLP_BEGIN_NAMESPACE
 
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
@@ -36,6 +38,6 @@ private:
   char _M_name[_S_bufsize];
 };
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
-#endif ___NAMDEXC_H___
+#endif //___NAMDEXC_H___

@@ -6,6 +6,8 @@
 // Smart deallocation pointers - these deallocate memory allocated with an allocator.
 // A good way ( though reasonably espensive ) to ensure deletion in throwing situations.
 
+#include <assert.h>
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 template <	class t_TyP, class t_TyAllocator, class t_TyBase >
@@ -138,6 +140,6 @@ __BIENUTIL_END_NAMESPACE
 #define __SDP_CHECK_VOID( p )										if ( !(p) )	return
 #define __SDP_PTRREF( p ) (p)
 
-#endif 0 // !__NUSESDP
+#endif //0 !__NUSESDP
 
-#endif __SDP_H
+#endif //__SDP_H

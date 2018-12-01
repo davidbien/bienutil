@@ -45,7 +45,7 @@ _bv_get_first_set( t_Ty const & _rt )
 #ifdef IVEC_H_INCLUDED  // If we have the intel ivec stuff included.
 
 // Define some specializations:
-__STL_TEMPLATE_NULL
+_STLP_TEMPLATE_NULL
 __INLINE size_t
 _bv_get_clear_first_set( Iu64vec1 & _rt )
 {
@@ -59,7 +59,7 @@ _bv_get_clear_first_set( Iu64vec1 & _rt )
 
 }
 
-#endif IVEC_H_INCLUDED
+#endif //IVEC_H_INCLUDED
 
 
 // Note: Should be able to use intel integer vectors as elements. Will have
@@ -433,7 +433,7 @@ protected:
 
 __BIENUTIL_END_NAMESPACE
 
-__STL_BEGIN_NAMESPACE
+_STLP_BEGIN_NAMESPACE
 __BIENUTIL_USING_NAMESPACE
 
 template < class t_TyEl, class t_TyAllocator >
@@ -446,6 +446,6 @@ struct hash< _simple_bitvec< t_TyEl, t_TyAllocator > >
   }
 };
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
-#endif __SIMPBV_H
+#endif //__SIMPBV_H

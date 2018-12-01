@@ -5,23 +5,17 @@
 
 #include "_booltyp.h"
 
-#ifdef __STL_USE_NAMESPACES
+#ifdef _STLP_USE_NAMESPACES
 #define __STD_OR_GLOBAL_QUALIFIER std::
-#else __STL_USE_NAMESPACES
+#else //_STLP_USE_NAMESPACES
 #define __STD_OR_GLOBAL_QUALIFIER ::
-#endif __STL_USE_NAMESPACES
-
-#ifdef _MSC_VER
-#define __INLINE __inline
-#else _MSC_VER
-#define __INLINE inline
-#endif _MSC_VER
+#endif //_STLP_USE_NAMESPACES
 
 #ifndef __ICL
 #define __MSC_INLINE __INLINE
-#else !__ICL
+#else //!__ICL
 #define __MSC_INLINE
-#endif !__ICL
+#endif //!__ICL
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -52,7 +46,7 @@ struct __AssertSameType< t_Ty, t_Ty >
   typedef __true_type   _TyF;
 };
 #define __ASSERT_SAME_TYPE3( _t1, _t2, _Ty ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _Ty
-#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _TyFooSameType
+#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _TyFooSameType##__LINE___
 
 // Whether to allow a const/non-const object reference to be transfered to
 //  a const/non-const:
@@ -85,13 +79,13 @@ template <> struct __assert_bool<true>
 #define __ASSERT_BOOL2( _f )    typedef typename __assert_bool< _f >::_TyF
 #define __ASSERT_BOOL( _f ) static constexpr bool __fAssertBool = (_f); \
   typedef typename __assert_bool< _fAssertBool##__LINE__ >::_TyF  _TyFooAssertBool;
-#else __ICL
+#else //__ICL
 #define __ASSERT_BOOL2( _f )    typedef typename __assert_bool< _f >::_TyF
 #define __ASSERT_BOOL( _f ) typedef typename __assert_bool< (_f) >::_TyF  _TyFooAssertBool;
 #endif 
-#else !NDEBUG
+#else //!NDEBUG
 #define __ASSERT_BOOL( _f )
-#endif !NDEBUG
+#endif //!NDEBUG
 
 
 // Assertion logic for boolean type ( i.e. not boolean const variable ):
@@ -115,4 +109,4 @@ template < class _TyType0, class _TyType1 > struct __select_type2<1, _TyType0, _
 
 __BIENUTIL_END_NAMESPACE
 
-#endif ___UTIL_H__BIEN__
+#endif //___UTIL_H__BIEN__

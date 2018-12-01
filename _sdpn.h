@@ -15,7 +15,7 @@ class _sdpn
 	typedef _alloc_base< t_TyP, t_TyAllocator >	_TyBase;
 
 	t_TyP *		m_pt;
-	size_type	m_st;
+	size_t	m_st;
 
 public:
 
@@ -25,7 +25,7 @@ public:
 	{
 	}
 
-	_sdpn( t_TyP * _pt, size_type _st, t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
+	_sdpn( t_TyP * _pt, size_t _st, t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_pt( _pt ),
 			m_st( _st )
@@ -51,7 +51,7 @@ public:
 		}
 	}
 
-	size_type	size() const
+	size_t	size() const
 	{
 		return m_pt ? m_st : 0;
 	}
@@ -73,26 +73,26 @@ public:
 		return m_pt ? m_pt + m_st : 0;
 	}
 
-	t_TyP &	operator []( size_type _st )
+	t_TyP &	operator []( size_t _st )
 	{
 		assert( _st < m_st );
 		return m_pt[ _st ];
 	}
 
-	t_TyP const &	operator []( size_type _st ) const
+	t_TyP const &	operator []( size_t _st ) const
 	{
 		assert( _st < m_st );
 		return m_pt[ _st ];
 	}
 
-	t_TyP *	operator + ( size_type _st )
+	t_TyP *	operator + ( size_t _st )
 	{
 		assert( _st < m_st );
 		return m_pt + _st;
 	}
 
 	void
-	allocate( size_type _st )
+	allocate( size_t _st )
 	{
 		assert( !m_pt );
 		_TyBase::allocate_n( m_pt, m_st = _st );
@@ -165,9 +165,9 @@ public:
 	{
 		return *m_pt;
 	}
-#endif 0
+#endif //0
 };
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __SDPN_H
+#endif //__SDPN_H

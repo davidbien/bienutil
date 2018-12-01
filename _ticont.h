@@ -48,7 +48,7 @@ public:
 
 __BIENUTIL_END_NAMESPACE
 
-__STL_BEGIN_NAMESPACE
+_STLP_BEGIN_NAMESPACE
 __BIENUTIL_USING_NAMESPACE
 
 _STLP_TEMPLATE_NULL struct hash<_type_info_wrap>
@@ -59,6 +59,6 @@ _STLP_TEMPLATE_NULL struct hash<_type_info_wrap>
   }
 };
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
 #endif __TICONT_H__

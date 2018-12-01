@@ -56,4 +56,4 @@ public:
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __REF_H__
+#endif //__REF_H__

@@ -74,7 +74,7 @@ unsigned int	UMSBitSet( unsigned long ulTest )
 
 	return __MSBitSet( ulTest );
 
-#else __UBITSET_USECOMPLOOK_1
+#else //__UBITSET_USECOMPLOOK_1
 
 #if defined ( __UBITSET_USECOMPLOOK_2 )
 
@@ -326,17 +326,17 @@ unsigned int	UMSBitSet( unsigned long ulTest )
 		break;
 	}
 
-#else __UBITSET_USESWITCH
+#else //__UBITSET_USESWITCH
 #error How to find log base 2 of ulTest.
-#endif __UBITSET_USESWITCH
+#endif //__UBITSET_USESWITCH
 
 	return ulTest;
 
-#endif __UBITSET_USECOMPLOOK_1
+#endif //__UBITSET_USECOMPLOOK_1
 
 
 }
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __BITUTIL_H
+#endif //__BITUTIL_H

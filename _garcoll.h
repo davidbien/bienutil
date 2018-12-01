@@ -132,7 +132,7 @@ class _gco
 	{
 		assert( !m_ref );	// This should be the case.
 	}
-#endif !NDEBUG
+#endif //!NDEBUG
 
 // access:
 	operator t_TyEl const & () const
@@ -303,7 +303,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	{
 		assert( !m_ref );	// This should be the case.
 	}
-#endif !NDEBUG
+#endif //!NDEBUG
 
 // access:
 	operator t_TyEl const & () const
@@ -458,7 +458,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		assert( !m_ref );	// This should be the case.
 	}
-#endif !NDEBUG
+#endif //!NDEBUG
 
 // access:
 	operator t_TyEl const & () const
@@ -620,7 +620,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	{
 		assert( !m_ref );	// This should be the case.
 	}
-#endif !NDEBUG
+#endif //!NDEBUG
 
 // access:
 	operator t_TyEl const & () const
@@ -1163,7 +1163,7 @@ protected:
   {
     assert( !m_ref ); // this should be the case.
   }
-#endif !NDEBUG
+#endif //!NDEBUG
 
   virtual _TyThis * copy() const = 0;
   virtual void  destroy() = 0;
@@ -1934,9 +1934,9 @@ public:
 protected:
   void  _Release()
   {
-#ifndef __STL_USE_EXCEPTIONS	// If we aren't using exceptions then we need to test the address.
+#ifndef _STLP_USE_EXCEPTIONS	// If we aren't using exceptions then we need to test the address.
 		if ( m_pgco )
-#endif !__STL_USE_EXCEPTIONS
+#endif //!_STLP_USE_EXCEPTIONS
 		if ( !RGCO().Release() )
 		{
 			RGCO().destroy( );
@@ -2148,4 +2148,4 @@ public:
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __GARCOLL_H
+#endif //__GARCOLL_H

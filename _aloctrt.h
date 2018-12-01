@@ -49,13 +49,13 @@
 
 // The fully general version.
 
-__STL_BEGIN_NAMESPACE
+_STLP_BEGIN_NAMESPACE
 
 template <class _Tp, class _Allocator>
 struct _Alloc_traits
 {
   static const bool _S_instanceless = false;
-  typedef typename _Allocator::__STL_TEMPLATE rebind<_Tp>::other 
+  typedef typename _Allocator::_STLP_TEMPLATE rebind<_Tp>::other 
           allocator_type;
 };
 
@@ -72,6 +72,6 @@ struct _Alloc_traits<_Tp, allocator<_Tp1> >
   typedef allocator<_Tp> allocator_type;
 };
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
-#endif __ALOCTRT_H
+#endif //__ALOCTRT_H

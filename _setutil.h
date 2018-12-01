@@ -5,7 +5,7 @@
 
 // Set utilities.
 
-__STL_BEGIN_NAMESPACE
+_STLP_BEGIN_NAMESPACE
 
 // Since sets and maps don't have a templatized copy constructor ( or assignment operator )
 // ( and since the structural copy is likely faster ) - we have an object that chooses
@@ -99,6 +99,6 @@ set_set_intersection(	t_TyInputIter1 __first1, t_TyInputIter1 __last1,
 	}
 }
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
-#endif __SETUTIL_H
+#endif //__SETUTIL_H

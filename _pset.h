@@ -20,7 +20,7 @@
 // 7) change variable length property. This can be as fast as (1) if allocation is less.
 
 // Since this is a utility class we will make part of std.
-__STL_BEGIN_NAMESPACE
+_STLP_BEGIN_NAMESPACE
 
 interface IStream;	// For OLE persistence.
 
@@ -758,12 +758,12 @@ public:
 	void	load( t_TyLoadFrom _s )
 	{
 		clear();	// we don't maintain state on throw so...
-		__STL_TRY
+		_STLP_TRY
 		{
 			load_fixed( _s );
 			load_variable( _s );
 		}
-		__STL_UNWIND( clear() );	// ensure that we leave this method in valid state.
+		_STLP_UNWIND( clear() );	// ensure that we leave this method in valid state.
 	}
 
 	void
@@ -1131,7 +1131,7 @@ protected:
 			pcFixedNew = 0;
 		}
 			
-		__STL_TRY
+		_STLP_TRY
 		{
 			assert( _valid_fixed( _pplf ) );
 			if ( m_stPropLookupFixedAllocated == m_stPropLookupFixed )
@@ -1145,7 +1145,7 @@ protected:
 			}
 			++m_stPropLookupFixed;
 		}
-		__STL_UNWIND( if ( pcFixedNew ) _TyCharAllocBase::deallocate_n( pcFixedNew, stAlloced ) );
+		_STLP_UNWIND( if ( pcFixedNew ) _TyCharAllocBase::deallocate_n( pcFixedNew, stAlloced ) );
 
 		if ( pcFixedNew )
 		{
@@ -1350,6 +1350,6 @@ protected:
 
 };
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
-#endif __C_PPLST_H
+#endif //__C_PPLST_H
