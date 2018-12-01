@@ -8,7 +8,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <_alloc.h>
-#endif 0
+#endif //0
 #include <stdexcept>
 #include "bienutil.h"
 #include "_util.h"
@@ -22,4 +22,4 @@ _throw_static_base	_throw_object_base::ms_tsb;
 
 __BIENUTIL_END_NAMESPACE
 
-#endif !__NDEBUG_THROW
+#endif //!__NDEBUG_THROW

@@ -289,22 +289,22 @@ public:
 	_TyNode *	create_node()
 	{
 		_TyNode	*	_pn = PNodeAllocate();
-		__STL_TRY
+		_STLP_TRY
 		{
 			construct( &_pn->m_tEl );
 		}
-		__STL_UNWIND( NodeDeallocate( _pn ) );
+		_STLP_UNWIND( NodeDeallocate( _pn ) );
 		return _pn;
 	}
 
 	_TyNode *	create_node( const _TyEl & _rtEl )
 	{
 		_TyNode	*	_pn = PNodeAllocate();
-		__STL_TRY
+		_STLP_TRY
 		{
 			construct( &_pn->m_tEl, _rtEl );
 		}
-		__STL_UNWIND( NodeDeallocate( _pn ) );
+		_STLP_UNWIND( NodeDeallocate( _pn ) );
 		return _pn;
 	}
 
@@ -354,7 +354,7 @@ public:
 		static int	rgTiers[] = { 7, 6, 5, 4, 3, 2, 1, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 5, 4, 3, 2, 1, 3, 2, 1, 1, 6, 5, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 3, 2, 1, 2, 1, 1  };
 		return rgTiers[ ( ++iTiers ) % 52 ];
 	}
-#endif 0
+#endif //0
 
 	void	insert( _TyNode * _pn )
 	{
@@ -490,4 +490,4 @@ public:
 
 };
 
-#endif __MTLIST_H
+#endif //__MTLIST_H

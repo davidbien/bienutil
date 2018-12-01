@@ -5,7 +5,13 @@
 
 // Define the boolean types __true_type and __false_type and some related utilities.
 
-#include <type_traits.h>
+#include <type_traits>
+
+#ifdef _MSC_VER
+#define __INLINE __inline
+#else //_MSC_VER
+#define __INLINE inline
+#endif //_MSC_VER
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -17,7 +23,7 @@ struct __true_type
 struct __false_type
 {
 };
-#endif 0
+#endif //0
 
 #ifdef __GNUC__ // doesn't like templates declared like this.
 // Type->boolean functions:
@@ -48,24 +54,16 @@ __INLINE bool  __FFalse( __false_type )
 {
   return true;
 }
-#endif !__GNUC__
+#endif //!__GNUC__
 
 // Type->boolean types:
 template < class _TyF > struct __type_to_bool
 {
-#ifdef __ICL
   static const bool ms_cfValue = true;
-#else __ICL
-  enum { ms_cfValue = 1 };
-#endif __ICL
 };
 template < > struct __type_to_bool< __false_type >
 {
-#ifdef __ICL
   static const bool ms_cfValue = false;
-#else __ICL
-  enum { ms_cfValue = 0 };
-#endif __ICL
 };
 
 // Boolean->type types:
@@ -84,86 +82,50 @@ struct __boolean_type<false>
 template < bool t_fBoolean >
 struct __boolean_not
 {
-#ifdef __ICL
   static const bool ms_cfValue = false;
-#else __ICL
-  enum { ms_cfValue = 0 };
-#endif __ICL
 };
 template < >
 struct __boolean_not< false >
 {
-#ifdef __ICL
   static const bool ms_cfValue = true;
-#else __ICL
-  enum { ms_cfValue = 1 };
-#endif __ICL
 };
 
 template < bool t_fBoolean1, bool t_fBoolean2 >
 struct __boolean_and
 {
-#ifdef __ICL
   static const bool ms_cfValue = false;
-#else __ICL
-  enum { ms_cfValue = 0 };
-#endif __ICL
 };
 template < >
 struct __boolean_and< true, true >
 {
-#ifdef __ICL
   static const bool ms_cfValue = true;
-#else __ICL
-  enum { ms_cfValue = 1 };
-#endif __ICL
 };
 
 template < bool t_fBoolean1, bool t_fBoolean2 >
 struct __boolean_or
 {
-#ifdef __ICL
   static const bool ms_cfValue = true;
-#else __ICL
-  enum { ms_cfValue = 1 };
-#endif __ICL
 };
 template < >
 struct __boolean_or< false, false >
 {
-#ifdef __ICL
   static const bool ms_cfValue = false;
-#else __ICL
-  enum { ms_cfValue = 0 };
-#endif __ICL
 };
 
 template < bool t_fBoolean1, bool t_fBoolean2 >
 struct __boolean_equals
 {
-#ifdef __ICL
   static const bool ms_cfValue = false;
-#else __ICL
-  enum { ms_cfValue = 0 };
-#endif __ICL
 };
 template < >
 struct __boolean_equals< false, false >
 {
-#ifdef __ICL
   static const bool ms_cfValue = true;
-#else __ICL
-  enum { ms_cfValue = 1 };
-#endif __ICL
 };
 template < >
 struct __boolean_equals< true, true >
 {
-#ifdef __ICL
   static const bool ms_cfValue = true;
-#else __ICL
-  enum { ms_cfValue = 1 };
-#endif __ICL
 };
 
 // Boolean type operations:
@@ -218,7 +180,7 @@ struct __booltyp_equals< __true_type, __true_type >
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __BOOLTYP_H
+#endif //__BOOLTYP_H
 
 
 

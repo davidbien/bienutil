@@ -77,7 +77,7 @@ public:
 
 __BIENUTIL_END_NAMESPACE
 
-__STL_BEGIN_NAMESPACE
+_STLP_BEGIN_NAMESPACE
 __BIENUTIL_USING_NAMESPACE
 
 // The hash for a swap object is the same as the hash for the base type:
@@ -105,6 +105,6 @@ struct less < _swap_object< t_Ty > > :
   }
 };
 
-__STL_END_NAMESPACE
+_STLP_END_NAMESPACE
 
-#endif __SWAPOBJ_H
+#endif //__SWAPOBJ_H

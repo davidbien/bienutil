@@ -161,7 +161,7 @@ template < class t_TyAllocate, class t_TyAllocator >
 typename _Alloc_traits< t_TyAllocate, t_TyAllocator >::allocator_type
 _alloc_base< t_TyAllocate, t_TyAllocator, true >::ms_alloc;
 
-#else __ICL
+#else //__ICL
 
 // msc++: doesn't support concept of instanceless allocator
 
@@ -237,8 +237,8 @@ template < class t_TyAllocate, class t_TyAllocator >
 simple_alloc< t_TyAllocate, __malloc_alloc >
 _alloc_base< t_TyAllocate, t_TyAllocator >::ms_alloc;
 
-#endif __ICL
+#endif //__ICL
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __ALLBASE_H
+#endif //__ALLBASE_H

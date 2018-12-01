@@ -354,7 +354,7 @@ protected:
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __FCDTOR_H
+#endif //__FCDTOR_H
 
 #if 0 // !__FAMILIES    // A half-baked concept that would require a lot of work :-)
 
@@ -450,5 +450,5 @@ protected:
 family FFDtor implement template < [], [ n = 0...3 ], class t_CRetVal > class FFDtor_global[n];
 family FFDtor implement template < class t_CObject, [ n = 0...3 ], class t_CRetVal > class FFDtor_object[n];
 
-#endif 0 // __FAMILIES
+#endif // 0 __FAMILIES
 

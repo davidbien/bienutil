@@ -113,9 +113,9 @@ public:
   {
     return m_pt;
   }
-#endif __GNUC__
+#endif //__GNUC__
 };
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __DTORP_H
+#endif //__DTORP_H

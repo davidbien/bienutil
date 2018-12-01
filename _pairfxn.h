@@ -69,4 +69,4 @@ unary1st( t_TyUnaryFunction const & _f, t_TyPair const & )
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __PAIRFXN_H
+#endif //__PAIRFXN_H

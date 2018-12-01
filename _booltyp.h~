@@ -148,4 +148,4 @@ struct __booltyp_equals< __true_type, __true_type >
 	typedef __true_type			_value;
 };
 
-#endif __BOOLTYP_H
+#endif //__BOOLTYP_H

@@ -18,10 +18,10 @@
 #ifndef __DBGTHROW_DEFAULT_ALLOCATOR
 #ifndef NDEBUG
 #define __DBGTHROW_DEFAULT_ALLOCATOR std::_stlallocator< char, std::__debug_alloc< std::__malloc_alloc > >
-#else !NDEBUG
+#else //!NDEBUG
 #define __DBGTHROW_DEFAULT_ALLOCATOR std::allocator< char >
-#endif !NDEBUG
-#endif !__DBGTHROW_DEFAULT_ALLOCATOR
+#endif //!NDEBUG
+#endif //!__DBGTHROW_DEFAULT_ALLOCATOR
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -403,11 +403,11 @@ _throw_object_base::_maybe_throw()
 
 __BIENUTIL_END_NAMESPACE
 
-#else !__NDEBUG_THROW
+#else //!__NDEBUG_THROW
 
 #define __THROWPT( _type )
 
-#endif !__NDEBUG_THROW
+#endif //!__NDEBUG_THROW
 
 
-#endif __DBGTHRW_H
+#endif //__DBGTHRW_H

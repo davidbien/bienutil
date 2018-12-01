@@ -56,4 +56,4 @@ __CoCreateLocal( REFCLSID _rclsid, t_IFace *& _rpi )
 
 __BIENUTIL_END_NAMESPACE
 
-#endif __OLEUTIL_H
+#endif //__OLEUTIL_H
