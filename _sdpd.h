@@ -17,6 +17,8 @@ class _sdpd
 	bool	m_fConstructed;	// Set to true if this object has been successfully constructed.
 
 public:
+	using _TyBase::allocate;
+	using _TyBase::m_pt;
 
   _sdpd() _STLP_NOTHROW
     : _TyBase( t_TyAllocator() ),

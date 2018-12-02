@@ -74,6 +74,7 @@ private:
   typedef _alloc_base< t_TyEl, t_TyAllocator >      _TyAllocBase;
 public:
   
+  typedef size_t size_type;
   typedef t_TyAllocator _TyAllocator;
   typedef t_TyEl        _TyEl;
 
@@ -219,7 +220,7 @@ public:
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
-      if ( el = ( *pElNext & ~( ( 1 << _stLast ) - 1 ) ) )
+      if ( !!( el = ( *pElNext & ~( ( 1 << _stLast ) - 1 ) ) ) )
       {
         _stLast = _bv_get_first_set( el ) + ( pElNext - m_rgEls ) * ms_kiElSizeBits;
         assert( _stLast < size() );
@@ -326,7 +327,7 @@ public:
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
-      if ( el = ( *pElNextThis & *pElNextThat & ~( ( 1 << _stLast ) - 1 ) ) )
+      if ( !!( el = ( *pElNextThis & *pElNextThat & ~( ( 1 << _stLast ) - 1 ) ) ) )
       {
         _stLast = _bv_get_first_set( el ) + ( pElNextThis - m_rgEls ) * ms_kiElSizeBits;
         assert( _stLast < size() );
@@ -422,7 +423,7 @@ protected:
     for ( ; pcurThis != pendThis; ++pcurThat, ++pcurThis )
     {
       t_TyEl  el;
-      if ( el = ( *pcurThis & *pcurThat ) )
+      if ( !!( el = ( *pcurThis & *pcurThat ) ) )
       {
         return (pcurThis - m_rgEls) * ms_kiElSizeBits + _bv_get_first_set( el );
       }

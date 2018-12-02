@@ -39,6 +39,9 @@ class _sdpv
 	}
 
 public:
+	using _TyBase::PSdpCreate;
+	using _TyBase::get_allocator;
+	using _TyBase::m_pt;
 
 	~_sdpv()
 	{
@@ -217,12 +220,12 @@ protected:
 		// We cannot deallocate ourselves - since our most base class still exists -
 		//	and since its destructor must be called - we register a deallocation method with
 		//	the most base object:
-		m_pmfnDeallocThis = static_cast< _TyPMFnDeallocThis >( &_TyThis::DeallocThis );
+		_TyVBase::m_pmfnDeallocThis = static_cast< typename _TyVBase::_TyPMFnDeallocThis >( &_TyThis::DeallocThis );
 	}
 
 	void	DeallocThis()
 	{
-    _TyAllocSdpMD alloc( *((_TyAllocSdpMD*)m_rgcAllocSelf) );
+		_TyAllocSdpMD alloc( *((_TyAllocSdpMD*)m_rgcAllocSelf) );
 		((_TyAllocSdpMD*)m_rgcAllocSelf)->~_TyAllocSdpMD();
 		alloc.deallocate_type( static_cast< _TySdpMD * >( this ) );
 	}
