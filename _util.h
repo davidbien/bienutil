@@ -17,6 +17,9 @@
 #define __MSC_INLINE
 #endif //!__ICL
 
+#define _ppmacroxstr( s ) #s
+#define ppmacroxstr( s ) _ppmacroxstr(s)
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 // this is an abstract class that is used to produce an error for the programmer:
@@ -45,8 +48,10 @@ struct __AssertSameType< t_Ty, t_Ty >
 {
   typedef __true_type   _TyF;
 };
+#define _pptokenpaste(x,y) x ## y
+#define pptokenpaste(x,y) _pptokenpaste(x,y)
 #define __ASSERT_SAME_TYPE3( _t1, _t2, _Ty ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _Ty
-#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _TyFooSameType##__LINE___
+#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __AssertSameType< _t1, _t2 >::_TyF pptokenpaste(_TyFooSameType,__LINE__)
 
 // Whether to allow a const/non-const object reference to be transfered to
 //  a const/non-const:
