@@ -18,15 +18,26 @@
 
 #include <string>
 
-_STLP_BEGIN_NAMESPACE
+#pragma push_macro("std")
+#undef std
+
+// put this into std to fix issues with FreeBSD's inability to match exception handlers when namespaces are mixed.
+namespace std
+{
 
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
-template < class t_TyAllocator = allocator< char > >
-class _t__Named_exception : public _STLP_EXCEPTION_BASE {
+template < class t_TyAllocator = _STL::allocator< char > >
+class _t__Named_exception : public exception {
 public:
-  typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
+  typedef _STL::basic_string< char, _STL::char_traits<char>, t_TyAllocator > string_type;
+  typedef exception _tyExceptionBase;
 
+  _t__Named_exception()
+  {
+    strncpy( _M_name, "_t__Named_exception", _S_bufsize );
+    _M_name[_S_bufsize - 1] = '\0';
+  }
   _t__Named_exception(const string_type& __str) {
     strncpy(_M_name, __str.c_str(), _S_bufsize);
     _M_name[_S_bufsize - 1] = '\0';
@@ -38,6 +49,8 @@ private:
   char _M_name[_S_bufsize];
 };
 
-_STLP_END_NAMESPACE
+} // namespace std
+
+#pragma pop_macro("std")
 
 #endif //___NAMDEXC_H___
