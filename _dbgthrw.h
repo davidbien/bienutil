@@ -5,7 +5,7 @@
 
 #include <cassert>
 #include <algorithm>
-#include <slist>
+//#include <slist>
 #include <map>
 #include <string>
 //#include <ostream.h>
@@ -17,9 +17,9 @@
 
 #ifndef __DBGTHROW_DEFAULT_ALLOCATOR
 #ifndef NDEBUG
-#define __DBGTHROW_DEFAULT_ALLOCATOR std::_stlallocator< char, std::__debug_alloc< std::__malloc_alloc > >
+#define __DBGTHROW_DEFAULT_ALLOCATOR _STL::_stlallocator< char, _STL::__debug_alloc< _STL::__malloc_alloc > >
 #else //!NDEBUG
-#define __DBGTHROW_DEFAULT_ALLOCATOR std::allocator< char >
+#define __DBGTHROW_DEFAULT_ALLOCATOR _STL::allocator< char >
 #endif //!NDEBUG
 #endif //!__DBGTHROW_DEFAULT_ALLOCATOR
 
@@ -37,33 +37,42 @@ enum EThrowType
   e_ttChronicMask = e_ttFileOutput | e_ttMemory
 };
 
-class _debug_memory_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
+
+#ifdef __NAMDDEXC_STDBASE
+#pragma push_macro("std")
+#undef std
+#endif //__NAMDDEXC_STDBASE
+
+class _debug_memory_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
-  typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
+  typedef std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_memory_except()
     : _TyBase( string_type("_debug_memory_except") )
   {
   }
 };
-class _debug_output_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
+class _debug_output_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
-  typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
+  typedef std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_output_except()
     : _TyBase( "_debug_output_except" )
   {
   }
 };
-class _debug_input_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
+class _debug_input_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
-  typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
+  typedef std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_input_except()
     : _TyBase( "_debug_input_except" )
   {
   }
 };
+#ifdef __NAMDDEXC_STDBASE
+#pragma pop_macro("std")
+#endif //__NAMDDEXC_STDBASE
 
 struct _throw_static_base;
 
@@ -79,15 +88,16 @@ public:
   _throw_object_base( unsigned long _rgttType, 
                       const char * _cpFileName,
                       unsigned long _ulLineNumber,
-                      bool _fMaybeThrow = false ) :
+                      bool _fMaybeThrow = false,
+                      bool _fAlwaysThrow = false ) :
     m_rgttType( _rgttType ),
     m_cpFileName( _cpFileName ),
     m_ulLineNumber( _ulLineNumber )
   {
     assert( m_rgttType );
-    if ( _fMaybeThrow )
+    if ( _fMaybeThrow || _fAlwaysThrow )
     {
-      _maybe_throw();
+      _maybe_throw( _fAlwaysThrow );
     }
   }
 
@@ -108,7 +118,7 @@ public:
   }
 
 protected:
-  void  _maybe_throw();
+  void  _maybe_throw( bool _fAlwaysThrow );
 };              
 
 struct _throw_object_with_throw_rate
@@ -181,13 +191,19 @@ struct _throw_static_base
   _throw_static_base()
     : m_fOn( false ),
       m_uRandSeed( 0 ),
-      m_iThrowRate( 50 ),
+      m_iThrowRate( 1000 ),
       m_rgttTypeAccum( 0 ),
       m_uNumThrows( 0 ),
       m_iThrowOneOnly( -1 ),
       m_uHitThrows( 0 ),
       m_ptobtrStart( 0 )
   {
+	  // Scale the throw rate according to the impl's RAND_MAX.
+	  const unsigned long long llMinRandMax = 0x7fff;
+	  unsigned long long llRandMax = RAND_MAX;
+	  llRandMax *= m_iThrowRate;
+	  llRandMax /= llMinRandMax;
+	  m_iThrowRate = (int)llRandMax;
   }
 
   void  set_on( bool _fOn )
@@ -253,7 +269,7 @@ struct _throw_static_base
       {
         if ( _ptobtr->m_fHitOnce )
         {
-          _ptobtr->m_iThrowRate = 1;
+          _ptobtr->m_iThrowRate = RAND_MAX;
         }
       }
     }
@@ -263,6 +279,27 @@ struct _throw_static_base
   {
     m_cpFileNameCur = _ptob->m_cpFileName;
     m_ulLineNumberCur = _ptob->m_ulLineNumber;
+
+		// If we have multiple types then choose one:
+		m_rgttTypeCur = _ptob->m_rgttType;
+
+		size_t stSetBits;
+		if ( 1 < ( stSetBits = _count_set_bits( m_rgttTypeCur ) ) )
+		{
+			// Choose a random bit among those present:
+			int _iR = rand() % (int)stSetBits;
+
+			// Clear each bit successively:
+			while( _iR )
+			{
+				m_rgttTypeCur &= m_rgttTypeCur-1;
+				_iR--;
+			}
+
+			m_rgttTypeCur &= ~( m_rgttTypeCur & m_rgttTypeCur-1 );
+			assert( 1 == _count_set_bits( m_rgttTypeCur ) );
+		}
+		m_rgttTypeAccum |= m_rgttTypeCur;
   }
 
   void  _throw()
@@ -289,6 +326,9 @@ struct _throw_static_base
       {
         case e_ttMemory:
         {
+#ifdef __DEBUG_THROW_VERBOSE
+					fprintf( stderr, __FILE__ ":" ppmacroxstr(__LINE__) ": Throwing _debug_memory_except().\n" );
+#endif 
           throw _debug_memory_except();
         }
         break;
@@ -314,7 +354,7 @@ struct _throw_static_base
     }
   }
 
-  void  _maybe_throw( _throw_object_base * _ptob )
+  void  _maybe_throw( _throw_object_base * _ptob, bool _fAlwaysThrow )
   {
     if ( !m_fOn )
       return;
@@ -325,7 +365,7 @@ struct _throw_static_base
     pair< _TyMapHitThrows::iterator, bool > pib = m_mapHitThrows.insert( vtHit );
     pib.first->second.m_uPossible++;
 
-    if ( e_ttChronicMask & m_rgttTypeAccum & _ptob->m_rgttType )
+    if ( _fAlwaysThrow || ( e_ttChronicMask & m_rgttTypeAccum & _ptob->m_rgttType ) )
     {
       // Then a chronic throwing condition:
       // Throw the same as the last:
@@ -348,7 +388,7 @@ struct _throw_static_base
             if ( pitEqual.first->m_iThrowRate )
             {
               pitEqual.first->m_iThrowRate = 0;
-              iThrowRate = 1;
+              iThrowRate = RAND_MAX;
             }
             else
             {
@@ -363,30 +403,9 @@ struct _throw_static_base
       }
 
       // Don't throw until the seed is set:
-      if ( m_uRandSeed && ( 0 == ( rand() % iThrowRate ) ) )
+      if ( m_uRandSeed && ( rand() <= iThrowRate ) )
       {
         _set_params( _ptob );
-        // If we have multiple types then choose one:
-        m_rgttTypeCur = _ptob->m_rgttType;
-
-        size_t stSetBits;
-        if ( 1 < ( stSetBits = _count_set_bits( m_rgttTypeCur ) ) )
-        {
-          // Choose a random bit among those present:
-          int _iR = rand() % (int)stSetBits;
-
-          // Clear each bit successively:
-          while( _iR )
-          {
-            m_rgttTypeCur &= m_rgttTypeCur-1;
-            _iR--;
-          }
-
-          m_rgttTypeCur &= ~( m_rgttTypeCur & m_rgttTypeCur-1 );
-          assert( 1 == _count_set_bits( m_rgttTypeCur ) );
-        }
-        m_rgttTypeAccum |= m_rgttTypeCur;
-
         _throw();
       }
     }
@@ -394,12 +413,13 @@ struct _throw_static_base
 };
 
 __INLINE void 
-_throw_object_base::_maybe_throw()
+_throw_object_base::_maybe_throw( bool _fAlwaysThrow )
 {
-  ms_tsb._maybe_throw( this );
+  ms_tsb._maybe_throw( this, _fAlwaysThrow );
 }
 
 #define __THROWPT( _type )  _throw_object_base( _type, __FILE__, __LINE__, true );
+#define __THROWPTALWAYS( _type )  _throw_object_base( _type, __FILE__, __LINE__, true, true );
 
 __BIENUTIL_END_NAMESPACE
 
