@@ -34,7 +34,7 @@ namespace std // This may be STLport as well, depending on how we are compiled.
 template < class t_TyAllocator = allocator< char > >
 class _t__Named_exception : public exception {
 public:
-  typedef basic_string< char, _STL::char_traits<char>, t_TyAllocator > string_type;
+  typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
   typedef exception _tyExceptionBase;
 
   _t__Named_exception()

@@ -5,7 +5,7 @@
 
 #include <cassert>
 #include <algorithm>
-#include <slist>
+//#include <slist>
 #include <map>
 #include <string>
 //#include <ostream.h>
@@ -191,13 +191,19 @@ struct _throw_static_base
   _throw_static_base()
     : m_fOn( false ),
       m_uRandSeed( 0 ),
-      m_iThrowRate( 50 ),
+      m_iThrowRate( 1000 ),
       m_rgttTypeAccum( 0 ),
       m_uNumThrows( 0 ),
       m_iThrowOneOnly( -1 ),
       m_uHitThrows( 0 ),
       m_ptobtrStart( 0 )
   {
+	  // Scale the throw rate according to the impl's RAND_MAX.
+	  const unsigned long long llMinRandMax = 0x7fff;
+	  unsigned long long llRandMax = RAND_MAX;
+	  llRandMax *= m_iThrowRate;
+	  llRandMax /= llMinRandMax;
+	  m_iThrowRate = (int)llRandMax;
   }
 
   void  set_on( bool _fOn )
@@ -263,7 +269,7 @@ struct _throw_static_base
       {
         if ( _ptobtr->m_fHitOnce )
         {
-          _ptobtr->m_iThrowRate = 1;
+          _ptobtr->m_iThrowRate = RAND_MAX;
         }
       }
     }
@@ -382,7 +388,7 @@ struct _throw_static_base
             if ( pitEqual.first->m_iThrowRate )
             {
               pitEqual.first->m_iThrowRate = 0;
-              iThrowRate = 1;
+              iThrowRate = RAND_MAX;
             }
             else
             {
@@ -397,7 +403,7 @@ struct _throw_static_base
       }
 
       // Don't throw until the seed is set:
-      if ( m_uRandSeed && ( 0 == ( rand() % iThrowRate ) ) )
+      if ( m_uRandSeed && ( rand() <= iThrowRate ) )
       {
         _set_params( _ptob );
         _throw();
