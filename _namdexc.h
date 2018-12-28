@@ -18,19 +18,23 @@
 
 #include <string>
 
+//#define __NAMDDEXC_STDBASE
+// If this is defined then we will base 
+
+#ifdef __NAMDDEXC_STDBASE
 #pragma push_macro("std")
 #undef std
+#endif //__NAMDDEXC_STDBASE
 
-// put this into std to fix issues with FreeBSD's inability to match exception handlers when namespaces are mixed.
-namespace std
+namespace std // This may be STLport as well, depending on how we are compiled.
 {
 
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
-template < class t_TyAllocator = _STL::allocator< char > >
+template < class t_TyAllocator = allocator< char > >
 class _t__Named_exception : public exception {
 public:
-  typedef _STL::basic_string< char, _STL::char_traits<char>, t_TyAllocator > string_type;
+  typedef basic_string< char, _STL::char_traits<char>, t_TyAllocator > string_type;
   typedef exception _tyExceptionBase;
 
   _t__Named_exception()
@@ -51,6 +55,8 @@ private:
 
 } // namespace std
 
+#ifdef __NAMDDEXC_STDBASE
 #pragma pop_macro("std")
+#endif //__NAMDDEXC_STDBASE
 
 #endif //___NAMDEXC_H___

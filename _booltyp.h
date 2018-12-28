@@ -15,7 +15,7 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-#if 0 // These defined in type_traits.h
+#ifndef _STLP_STD // STLport defines these locally.
 struct __true_type
 {
 };
@@ -23,7 +23,7 @@ struct __true_type
 struct __false_type
 {
 };
-#endif //0
+#endif //!_STLP_STD
 
 #ifdef __GNUC__ // doesn't like templates declared like this.
 // Type->boolean functions:

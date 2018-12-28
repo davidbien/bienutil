@@ -38,8 +38,10 @@ enum EThrowType
 };
 
 
+#ifdef __NAMDDEXC_STDBASE
 #pragma push_macro("std")
 #undef std
+#endif //__NAMDDEXC_STDBASE
 
 class _debug_memory_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
@@ -68,7 +70,9 @@ public:
   {
   }
 };
+#ifdef __NAMDDEXC_STDBASE
 #pragma pop_macro("std")
+#endif //__NAMDDEXC_STDBASE
 
 struct _throw_static_base;
 
