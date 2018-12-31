@@ -9,7 +9,7 @@
 //#include <slist>
 #include <map>
 #include <string>
-//#include <ostream.h>
+#include <ostream>
 #include "_namdexc.h"
 
 // _dbgthrw.h
