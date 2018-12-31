@@ -49,6 +49,22 @@
 
 // The fully general version.
 
+#ifndef _USE_STLPORT
+
+#include <memory>
+
+template <class _Tp, class _Allocator>
+struct _Alloc_traits
+{
+	static const bool _S_instanceless = false;
+  template< typename t_TyT >
+  using RebindAlloc = typename std::allocator_traits<_Allocator>::template rebind_alloc<t_TyT>;
+  typedef RebindAlloc< _Tp > allocator_type;
+  using size_type = typename std::allocator_traits< allocator_type >::size_type;
+	// deprecated typedef typename _Allocator::template rebind<_Tp>::other allocator_type;
+};
+
+#else //!_USE_STLPORT
 _STLP_BEGIN_NAMESPACE
 
 template <class _Tp, class _Allocator>
@@ -73,5 +89,6 @@ struct _Alloc_traits<_Tp, allocator<_Tp1> >
 };
 
 _STLP_END_NAMESPACE
+#endif _USE_STLPORT
 
 #endif //__ALOCTRT_H

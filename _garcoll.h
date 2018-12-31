@@ -145,11 +145,11 @@ class _gco
 	}
 
 // reference counting:
-	_TyRef	AddRef() _STLP_NOTHROW
+	_TyRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _STLP_NOTHROW
+	_TyRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -174,11 +174,11 @@ class _gco
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = m_alloc.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		_STLP_UNWIND( m_alloc.deallocate( p, 1 ) );
+		_BIEN_UNWIND( m_alloc.deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -187,11 +187,11 @@ class _gco
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -201,11 +201,11 @@ class _gco
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _r1, _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -215,11 +215,11 @@ class _gco
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _r1, _r2, _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -316,11 +316,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	}
 
 // reference counting:
-	_TyRef	AddRef() _STLP_NOTHROW
+	_TyRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _STLP_NOTHROW
+	_TyRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -346,11 +346,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -358,11 +358,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	static _TyThis * PGCOCreate( t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -371,11 +371,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 												  	    t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _r1 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -384,11 +384,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 									    			  	t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _r1, _r2 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return pgco;
 	}
 
@@ -471,11 +471,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	}
 
 // reference counting:
-	_TyRef	AddRef() _STLP_NOTHROW
+	_TyRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _STLP_NOTHROW
+	_TyRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -500,11 +500,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = m_alloc.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		_STLP_UNWIND( m_alloc.deallocate( p, 1 ) );
+		_BIEN_UNWIND( m_alloc.deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -513,12 +513,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl();
 		}
-		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -528,12 +528,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1 );
  		}
-		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -543,12 +543,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( _rAlloc );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1, _r2 );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( p, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( p, 1 ) );
     return p;
 	}
 
@@ -633,11 +633,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	}
 
 // reference counting:
-	_TyRef	AddRef() _STLP_NOTHROW
+	_TyRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _STLP_NOTHROW
+	_TyRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -663,11 +663,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	_TyThis *	copy() const
 	{
 		_TyThis *	p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( *this );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
 		return p;
 	}
 
@@ -675,12 +675,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	static _TyThis * PGCOCreate( t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl();
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -689,12 +689,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 												  	    t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return p;
 	}
 
@@ -703,12 +703,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 									    			  	t_TyAllocator const & )
 	{
 		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TyThis( );
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1, _r2 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
     return pgco;
 	}
 
@@ -779,11 +779,11 @@ protected:
     (this->*m_pmfnDestroy)();
   }
 
-	_TyRef	AddRef() _STLP_NOTHROW
+	_TyRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _STLP_NOTHROW
+	_TyRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -914,11 +914,11 @@ private:
 	_TyThis *	copy() const
 	{
 		_TyThis *	pgco = m_alloc.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		_STLP_UNWIND( m_alloc.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( m_alloc.deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
@@ -926,11 +926,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -940,11 +940,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -954,11 +954,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2, _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1059,22 +1059,22 @@ private:
 	_TyThis *	copy() const
 	{
 		_TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
 	static _TyThis *	PGCOCreate( t_TyAllocator const &  )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1083,11 +1083,11 @@ private:
 						  							      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1096,11 +1096,11 @@ private:
 					  								      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1168,11 +1168,11 @@ protected:
   virtual _TyThis * copy() const = 0;
   virtual void  destroy() = 0;
 
-	_TyRef	AddRef() _STLP_NOTHROW
+	_TyRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _STLP_NOTHROW
+	_TyRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -1297,11 +1297,11 @@ private:
 	_TyBase *	copy() const
 	{
 		_TyThis *	pgco = m_alloc.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		_STLP_UNWIND( m_alloc.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( m_alloc.deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
@@ -1309,11 +1309,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1323,11 +1323,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1337,11 +1337,11 @@ private:
 	{
 		_TyAllocatorThis		localAllocator( _rAlloc );
     _TyThis *	pgco = localAllocator.allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2, _rAlloc );
 		}
-		_STLP_UNWIND( localAllocator.deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( localAllocator.deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1436,22 +1436,22 @@ private:
 	_TyBase *	copy() const
 	{
 		_TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( *this );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
 		return pgco;
 	}
 
 	static _TyThis *	PGCOCreate( t_TyAllocator const &  )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1460,11 +1460,11 @@ private:
 						  							      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1473,11 +1473,11 @@ private:
 					  								      t_TyAllocator const & )
 	{
     _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( pgco ) _TyThis( _r1, _r2 );
 		}
-		_STLP_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
+		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
     return pgco;
 	}
 
@@ -1589,12 +1589,12 @@ public:
 		}
 	}
 
-	~_gcp() _STLP_NOTHROW
+	~_gcp() _BIEN_NOTHROW
 	{
 		_Release();
 	}
 
-	void	Release() _STLP_NOTHROW
+	void	Release() _BIEN_NOTHROW
 	{
 		_Release();
 		m_pgco = 0;
@@ -1669,7 +1669,7 @@ public:
 	{
     return _gcp_dispatch_el_access< _TyThis, t_fCopyOnWrite >::PElNonConst( *this );
 	}
-	const t_TyEl *	PElConst() const _STLP_NOTHROW
+	const t_TyEl *	PElConst() const _BIEN_NOTHROW
 	{
 		// May have a pointer or be a NULL element:
 		return m_pgco ? &const_cast< const t_TyEl & >( static_cast< t_TyEl & >( *m_pgco ) ) : 0;
@@ -1679,7 +1679,7 @@ public:
 	{
 		return *PElNonConst();
 	}
-	const t_TyEl & RElConst() const _STLP_NOTHROW
+	const t_TyEl & RElConst() const _BIEN_NOTHROW
 	{
 		return *PElConst();
 	}
@@ -1689,7 +1689,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	operator const t_TyEl * () const _STLP_NOTHROW
+	operator const t_TyEl * () const _BIEN_NOTHROW
 	{
 		return PElConst();
 	}
@@ -1699,7 +1699,7 @@ public:
 	{
 		return RElNonConst();
 	}
-	operator const t_TyEl & () const _STLP_NOTHROW
+	operator const t_TyEl & () const _BIEN_NOTHROW
 	{
 		return RElconst();
 	}
@@ -1708,7 +1708,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	const t_TyEl *	operator -> () const _STLP_NOTHROW
+	const t_TyEl *	operator -> () const _BIEN_NOTHROW
 	{
 		return PElConst();
 	}
@@ -1717,19 +1717,19 @@ public:
   {
     return RElNonConst();
   }
-  const t_TyEl &  operator * () const _STLP_NOTHROW
+  const t_TyEl &  operator * () const _BIEN_NOTHROW
   {
     return RElConst();
   }
 
 // operations:
-	_TyThis &	operator = ( _TyThis const & _rgcp ) _STLP_NOTHROW
+	_TyThis &	operator = ( _TyThis const & _rgcp ) _BIEN_NOTHROW
 	{
 		_SetEqual( rgcp.m_pgco );
 		return *this;
 	}
 
-	_TyThis &	operator = ( _TyGcr const & _rgcr ) _STLP_NOTHROW
+	_TyThis &	operator = ( _TyGcr const & _rgcr ) _BIEN_NOTHROW
 	{
 		_SetEqual( _rgcr.m_pgco );
 		return *this;
@@ -1771,29 +1771,29 @@ public:
 protected:
 
 // named access to GCO - these don't participate in copy-on-write:
-	t_TyGCO *		PGCO() const _STLP_NOTHROW
+	t_TyGCO *		PGCO() const _BIEN_NOTHROW
 	{
 		return m_pgco;
 	}
-	t_TyGCO &		RGCO() const _STLP_NOTHROW
+	t_TyGCO &		RGCO() const _BIEN_NOTHROW
 	{
 		assert( m_pgco );
 		return *m_pgco;
 	}
 
-	t_TyGCO ** PPGCO() _STLP_NOTHROW
+	t_TyGCO ** PPGCO() _BIEN_NOTHROW
 	{
 		assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
 		return &m_pgco;
 	}
 
-	t_TyGCO *& PRGCO() _STLP_NOTHROW
+	t_TyGCO *& PRGCO() _BIEN_NOTHROW
 	{
 		assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
 		return m_pgco;
 	}
 
-	void	_Release() _STLP_NOTHROW
+	void	_Release() _BIEN_NOTHROW
 	{
 		if ( m_pgco && !m_pgco->Release() )
 		{
@@ -1801,7 +1801,7 @@ protected:
 		}
 	}
 
-	void	_SetEqual( t_TyGCO * _pgco ) _STLP_NOTHROW
+	void	_SetEqual( t_TyGCO * _pgco ) _BIEN_NOTHROW
 	{
     if ( _pgco != m_pgco )
     {
@@ -1934,9 +1934,9 @@ public:
 protected:
   void  _Release()
   {
-#ifndef _STLP_USE_EXCEPTIONS	// If we aren't using exceptions then we need to test the address.
+#ifndef _BIEN_USE_EXCEPTIONS	// If we aren't using exceptions then we need to test the address.
 		if ( m_pgco )
-#endif //!_STLP_USE_EXCEPTIONS
+#endif //!_BIEN_USE_EXCEPTIONS
 		if ( !RGCO().Release() )
 		{
 			RGCO().destroy( );
@@ -2012,7 +2012,7 @@ public:
     return _gcr_dispatch_el_access< _TyThis, t_fCopyOnWrite >::RElNonConst( *this );
 	}
 
-	const t_TyEl & RElConst() const _STLP_NOTHROW
+	const t_TyEl & RElConst() const _BIEN_NOTHROW
 	{
 		return const_cast< const t_TyEl & >( static_cast< t_TyEl & >( RGCO() ) );
 	}
@@ -2021,7 +2021,7 @@ public:
 	{
 		return &RElNonConst();
 	}
-	const t_TyEl * PElConst() const _STLP_NOTHROW
+	const t_TyEl * PElConst() const _BIEN_NOTHROW
 	{
 		return &RElConst();
 	}
@@ -2031,7 +2031,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	operator const t_TyEl * () const _STLP_NOTHROW
+	operator const t_TyEl * () const _BIEN_NOTHROW
 	{
 		return PElConst();
 	}
@@ -2040,7 +2040,7 @@ public:
 	{
 		return RElNonConst();
 	}
-	operator const t_TyEl & () const _STLP_NOTHROW
+	operator const t_TyEl & () const _BIEN_NOTHROW
 	{
 		return RElConst();
 	}
@@ -2049,7 +2049,7 @@ public:
 	{
 		return PElNonConst();
 	}
-	const t_TyEl * operator -> () const _STLP_NOTHROW
+	const t_TyEl * operator -> () const _BIEN_NOTHROW
 	{
 		return PElConst();
 	}
@@ -2090,18 +2090,18 @@ public:
     m_pgco = _r.PGCO();
   }
 
-  void  swap( _TyThis & _r ) _STLP_NOTHROW
+  void  swap( _TyThis & _r ) _BIEN_NOTHROW
   {
     __STD_OR_GLOBAL_QUALIFIER swap( m_pgco, _r.m_pgco );
   }
 
 protected:
 
-	t_TyGCO *		PGCO() const _STLP_NOTHROW
+	t_TyGCO *		PGCO() const _BIEN_NOTHROW
 	{
 		return m_pgco;
 	}
-	t_TyGCO &		RGCO() const _STLP_NOTHROW
+	t_TyGCO &		RGCO() const _BIEN_NOTHROW
 	{
 		return *PGCO();
 	}

@@ -33,20 +33,20 @@ public:
     m_t.swap( const_cast< _Ty & >( _r.RObject() ) );
   }
 
-  _Ty & RObject() _STLP_NOTHROW
+  _Ty & RObject() _BIEN_NOTHROW
   {
     return m_t;
   }
-  const _Ty & RObject() const _STLP_NOTHROW
+  const _Ty & RObject() const _BIEN_NOTHROW
   {
     return m_t;
   }
 
-  operator _Ty & () _STLP_NOTHROW
+  operator _Ty & () _BIEN_NOTHROW
   {
     return RObject();
   }
-  operator const _Ty & () const _STLP_NOTHROW
+  operator const _Ty & () const _BIEN_NOTHROW
   {
     return RObject();
   }

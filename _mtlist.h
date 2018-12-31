@@ -289,22 +289,22 @@ public:
 	_TyNode *	create_node()
 	{
 		_TyNode	*	_pn = PNodeAllocate();
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			construct( &_pn->m_tEl );
 		}
-		_STLP_UNWIND( NodeDeallocate( _pn ) );
+		_BIEN_UNWIND( NodeDeallocate( _pn ) );
 		return _pn;
 	}
 
 	_TyNode *	create_node( const _TyEl & _rtEl )
 	{
 		_TyNode	*	_pn = PNodeAllocate();
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			construct( &_pn->m_tEl, _rtEl );
 		}
-		_STLP_UNWIND( NodeDeallocate( _pn ) );
+		_BIEN_UNWIND( NodeDeallocate( _pn ) );
 		return _pn;
 	}
 
