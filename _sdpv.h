@@ -32,7 +32,7 @@ class _sdpv
 	bool	m_fConstructed;	// Set to true if this object has been successfully constructed.
 
 	// Can't construct directly - use static construction stuff below:
-	_sdpv( t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
+	_sdpv( t_TyAllocator const & _rAlloc ) _BIEN_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_fConstructed( false )
 	{
@@ -55,13 +55,13 @@ public:
 	static _TyThis *	construct( t_TyAllocator const & _rAlloc = t_TyAllocator() )
 	{
 		_TyThis *	p = PSdpCreate( _rAlloc );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			p->allocate();
 			new ( p->Ptr() ) t_TyP();
 			p->m_fConstructed = true;
 		}
-		_STLP_UNWIND( p->~_TyThis() );
+		_BIEN_UNWIND( p->~_TyThis() );
 		return p;	
 	}
 
@@ -70,13 +70,13 @@ public:
 																t_TyAllocator const & _rAlloc = t_TyAllocator() )
 	{
 		_TyThis *	p = PSdpCreate( _rAlloc );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			p->allocate();
 			new ( p->Ptr() ) t_TyP( _p1 );
 			p->m_fConstructed = true;
 		}
-		_STLP_UNWIND( p->~_TyThis() );
+		_BIEN_UNWIND( p->~_TyThis() );
 		return p;	
 	}
 
@@ -85,13 +85,13 @@ public:
 																t_TyAllocator const & _rAlloc = t_TyAllocator() )
 	{
 		_TyThis *	p = PSdpCreate( _rAlloc );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			p->allocate();
 			new ( p->Ptr() ) t_TyP( _p1, _p2 );
 			p->m_fConstructed = true;
 		}
-		_STLP_UNWIND( p->~_TyThis() );
+		_BIEN_UNWIND( p->~_TyThis() );
 		return p;	
 	}
 	// etc...
@@ -111,7 +111,7 @@ public:
 		// We could support this by uncommenting code below:
 
 		_TySdpMD *	pSdp = PSdpCreate( get_allocator() );
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			pSdp->allocate();
 //		if ( m_fConstructed )
@@ -120,11 +120,11 @@ public:
 				pSdp->m_fConstructed = true;
 			}
 		}
-		_STLP_UNWIND( pSdp->~_TySdpMD() );
+		_BIEN_UNWIND( pSdp->~_TySdpMD() );
 		*_ppb = pSdp;
 	}
 
-	_TyPBase *	GetBaseP() const _STLP_NOTHROW
+	_TyPBase *	GetBaseP() const _BIEN_NOTHROW
 	{
 		return m_pt;
 	}
@@ -163,17 +163,17 @@ public:
 	virtual void clone( _TyThis ** ) const = 0;
 	virtual void destruct() = 0;
 	virtual void allocate() = 0;
-	virtual t_TyPBase *	GetBaseP() const _STLP_NOTHROW = 0;
+	virtual t_TyPBase *	GetBaseP() const _BIEN_NOTHROW = 0;
 
-	operator t_TyPBase * () const _STLP_NOTHROW
+	operator t_TyPBase * () const _BIEN_NOTHROW
 	{
 		return GetBaseP();
 	}
-	t_TyPBase * operator -> () const _STLP_NOTHROW
+	t_TyPBase * operator -> () const _BIEN_NOTHROW
 	{
 		return GetBaseP();
 	}
-	t_TyPBase & operator * () const _STLP_NOTHROW
+	t_TyPBase & operator * () const _BIEN_NOTHROW
 	{
 		return *GetBaseP();
 	}
@@ -201,11 +201,11 @@ protected:
 	{
 		_TyAllocSdpMD	allocSelf( _rAlloc );
 		_TySdpMD *	p = allocSelf.allocate_type();
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			new ( p ) _TySdpMD( _rAlloc );
 		}
-		_STLP_UNWIND( allocSelf.deallocate_type( p ) );
+		_BIEN_UNWIND( allocSelf.deallocate_type( p ) );
 		return p;
 	}
 

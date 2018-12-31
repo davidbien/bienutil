@@ -3,6 +3,7 @@
 
 #ifndef __NDEBUG_THROW
 
+#include "bienutil.h"
 #include <cassert>
 #include <algorithm>
 //#include <slist>
@@ -16,11 +17,13 @@
 // Objects for testing throw-safety in a repeatable manner.
 
 #ifndef __DBGTHROW_DEFAULT_ALLOCATOR
-#ifndef NDEBUG
-#define __DBGTHROW_DEFAULT_ALLOCATOR _STL::_stlallocator< char, _STL::__debug_alloc< _STL::__malloc_alloc > >
-#else //!NDEBUG
-#define __DBGTHROW_DEFAULT_ALLOCATOR _STL::allocator< char >
-#endif //!NDEBUG
+#if defined(_USE_STLPORT) && !defined(NDEBUG)
+#define __DBGTHROW_DEFAULT_ALLOCATOR __STD::_stlallocator< char, __STD::__debug_alloc< __STD::__malloc_alloc > >
+#define __DBGTHROW_GET_ALLOCATOR(t) __STD::_stlallocator< t, __STD::__debug_alloc< __STD::__malloc_alloc > >
+#else // defined(_USE_STLPORT) && !defined(NDEBUG)
+#define __DBGTHROW_DEFAULT_ALLOCATOR __STD::allocator< char >
+#define __DBGTHROW_GET_ALLOCATOR(t) __STD::allocator< t >
+#endif //defined(_USE_STLPORT) && !defined(NDEBUG)
 #endif //!__DBGTHROW_DEFAULT_ALLOCATOR
 
 __BIENUTIL_BEGIN_NAMESPACE
@@ -177,9 +180,10 @@ struct _throw_static_base
   int           m_iThrowOneOnly;
 
   // Determine whether we have exhausted the throw points:
-  typedef map<  _throw_object_base, _throw_hit_stats, 
+  typedef map< _throw_object_base, _throw_hit_stats >::value_type _tyMapValueType;
+  typedef map<  _throw_object_base, _throw_hit_stats,
                 less<_throw_object_base>,
-                _stlallocator< char, __malloc_alloc > >   _TyMapHitThrows;
+				__DBGTHROW_GET_ALLOCATOR(_tyMapValueType) >   _TyMapHitThrows;
   _TyMapHitThrows m_mapHitThrows;
   unsigned      m_uHitThrows;
 

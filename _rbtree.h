@@ -599,10 +599,10 @@ protected:
   _Link_type _M_create_node( const value_type & __x )
   {
     _Link_type __tmp = _M_get_node();
-    _STLP_TRY {
+    _BIEN_TRY {
       construct(&__tmp->_M_value_field, __x);
     }
-    _STLP_UNWIND(_M_put_node(__tmp));
+    _BIEN_UNWIND(_M_put_node(__tmp));
     return __tmp;
   }
 
@@ -1246,7 +1246,7 @@ _Rb_tree<_Key,_Val,_KoV,_Compare,_Alloc,_type_Rb_tree_node,_type_Rb_tree_node_ba
   _Link_type __top = _M_clone_node(__x);
   __top->_M_parent = __p;
  
-  _STLP_TRY {
+  _BIEN_TRY {
     if (__x->_M_right)
       __top->_M_right = _M_copy(_S_right_link(__x), __top);
     __p = __top;
@@ -1262,7 +1262,7 @@ _Rb_tree<_Key,_Val,_KoV,_Compare,_Alloc,_type_Rb_tree_node,_type_Rb_tree_node_ba
       __x = _S_left_link(__x);
     }
   }
-  _STLP_UNWIND(_M_erase(__top));
+  _BIEN_UNWIND(_M_erase(__top));
 
   return __top;
 }

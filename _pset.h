@@ -758,12 +758,12 @@ public:
 	void	load( t_TyLoadFrom _s )
 	{
 		clear();	// we don't maintain state on throw so...
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			load_fixed( _s );
 			load_variable( _s );
 		}
-		_STLP_UNWIND( clear() );	// ensure that we leave this method in valid state.
+		_BIEN_UNWIND( clear() );	// ensure that we leave this method in valid state.
 	}
 
 	void
@@ -1131,7 +1131,7 @@ protected:
 			pcFixedNew = 0;
 		}
 			
-		_STLP_TRY
+		_BIEN_TRY
 		{
 			assert( _valid_fixed( _pplf ) );
 			if ( m_stPropLookupFixedAllocated == m_stPropLookupFixed )
@@ -1145,7 +1145,7 @@ protected:
 			}
 			++m_stPropLookupFixed;
 		}
-		_STLP_UNWIND( if ( pcFixedNew ) _TyCharAllocBase::deallocate_n( pcFixedNew, stAlloced ) );
+		_BIEN_UNWIND( if ( pcFixedNew ) _TyCharAllocBase::deallocate_n( pcFixedNew, stAlloced ) );
 
 		if ( pcFixedNew )
 		{

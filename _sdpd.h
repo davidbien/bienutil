@@ -20,13 +20,13 @@ public:
 	using _TyBase::allocate;
 	using _TyBase::m_pt;
 
-  _sdpd() _STLP_NOTHROW
+  _sdpd() _BIEN_NOTHROW
     : _TyBase( t_TyAllocator() ),
 			m_fConstructed( false )
   {
   }
 
-	explicit _sdpd( t_TyAllocator const & _rAlloc ) _STLP_NOTHROW
+	explicit _sdpd( t_TyAllocator const & _rAlloc ) _BIEN_NOTHROW
 		: _TyBase( _rAlloc ),
 			m_fConstructed( false )
 	{
@@ -58,7 +58,7 @@ public:
 	}
 
   // Indicate that the contained object is constructed.
-  void  SetConstructed() _STLP_NOTHROW
+  void  SetConstructed() _BIEN_NOTHROW
   {
     m_fConstructed = true;
   }
@@ -133,7 +133,7 @@ public:
 		}
 	}
 
-	t_TyP *	transfer() _STLP_NOTHROW
+	t_TyP *	transfer() _BIEN_NOTHROW
 	{
 		m_fConstructed = false;
 		return _TyBase::transfer();

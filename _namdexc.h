@@ -19,7 +19,7 @@
 #include <string>
 
 //#define __NAMDDEXC_STDBASE
-// If this is defined then we will base 
+// If this is defined then we will base the named exception on std::exception, otherwise it may be based on STLPORT's stlp_std::exception.
 
 #ifdef __NAMDDEXC_STDBASE
 #pragma push_macro("std")
@@ -46,7 +46,7 @@ public:
     strncpy(_M_name, __str.c_str(), _S_bufsize);
     _M_name[_S_bufsize - 1] = '\0';
   }
-  virtual const char* what() const _STLP_NOTHROW { return _M_name; }
+  virtual const char* what() const _BIEN_NOTHROW { return _M_name; }
 
 private:
   enum { _S_bufsize = 256 };
