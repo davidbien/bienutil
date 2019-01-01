@@ -89,6 +89,6 @@ struct _Alloc_traits<_Tp, allocator<_Tp1> >
 };
 
 _STLP_END_NAMESPACE
-#endif _USE_STLPORT
+#endif //_USE_STLPORT
 
 #endif //__ALOCTRT_H
