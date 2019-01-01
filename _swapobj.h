@@ -77,19 +77,19 @@ public:
 
 __BIENUTIL_END_NAMESPACE
 
-_STLP_BEGIN_NAMESPACE
+namespace std {
 __BIENUTIL_USING_NAMESPACE
 
 // The hash for a swap object is the same as the hash for the base type:
 template < class t_Ty >
 struct hash< _swap_object< t_Ty > >
-  : public hash< t_Ty > 
+  : public hash< t_Ty >
 {
   typedef hash< t_Ty >          _TyDelegate;
   typedef _swap_object< t_Ty >  _TySwapObj;
-  size_t operator()( const _TySwapObj & _r ) const
+  size_t operator()(const _TySwapObj & _r) const
   {
-    return _TyDelegate::operator ()( _r.RObject() );
+    return _TyDelegate::operator ()(_r.RObject());
   }
 };
 
@@ -99,12 +99,13 @@ struct less < _swap_object< t_Ty > > :
 {
   typedef less< t_Ty >          _TyDelegate;
   typedef _swap_object< t_Ty >  _TySwapObj;
-  bool operator()( const _TySwapObj & _rl, const _TySwapObj & _rr ) const
+  bool operator()(const _TySwapObj & _rl, const _TySwapObj & _rr) const
   {
-    return _TyDelegate::operator ()( _rl.RObject(), _rr.RObject() );
+    return _TyDelegate::operator ()(_rl.RObject(), _rr.RObject());
   }
 };
 
-_STLP_END_NAMESPACE
+} // end namespace std
+
 
 #endif //__SWAPOBJ_H

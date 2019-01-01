@@ -9,8 +9,10 @@ __BIENUTIL_BEGIN_NAMESPACE
 
 template < class t_TyPair, class t_TyUnaryFunction >
 struct _unary2nd 
+#ifdef _USE_STLPORT
 	: public unary_function<	typename t_TyUnaryFunction::argument_type, 
 														typename t_TyUnaryFunction::result_type >
+#endif //_USE_STLPORT
 {
 	t_TyUnaryFunction	m_f1;
 
@@ -39,8 +41,10 @@ unary2nd( t_TyUnaryFunction const & _f, t_TyPair const & )
 
 template < class t_TyPair, class t_TyUnaryFunction >
 struct _unary1st
-	: public unary_function<	typename t_TyUnaryFunction::argument_type, 
+#ifdef _USE_STLPORT
+  : public unary_function<	typename t_TyUnaryFunction::argument_type,
 														typename t_TyUnaryFunction::result_type >
+#endif _USE_STLPORT
 {
 	t_TyUnaryFunction	m_f1;
 

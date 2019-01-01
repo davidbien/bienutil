@@ -99,7 +99,7 @@ public:
   _simple_bitvec( _TyThis const & _r )
     : m_kstBits( _r.m_kstBits ),
       m_kstSize( _r.m_kstSize ),
-      _TyAllocBase( _r ),
+      _TyAllocBase( _r.get_allocator() ),
       m_rgEls( 0 )
   {
     if ( _r.m_rgEls )
@@ -113,7 +113,7 @@ public:
   _simple_bitvec( _TyThis const & _r, __false_type )
     : m_kstBits( 0 ),
       m_kstSize( 0 ),
-      _TyAllocBase( _r ),
+      _TyAllocBase( (_TyAllocBase const &)_r ),
       m_rgEls( 0 )
   {
   }
@@ -222,7 +222,7 @@ public:
       t_TyEl  el;
       if ( !!( el = ( *pElNext & ~( ( 1 << _stLast ) - 1 ) ) ) )
       {
-        _stLast = _bv_get_first_set( el ) + ( pElNext - m_rgEls ) * ms_kiElSizeBits;
+        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_kiElSizeBits;
         assert( _stLast < size() );
         return _stLast;
       }
@@ -329,7 +329,7 @@ public:
       t_TyEl  el;
       if ( !!( el = ( *pElNextThis & *pElNextThat & ~( ( 1 << _stLast ) - 1 ) ) ) )
       {
-        _stLast = _bv_get_first_set( el ) + ( pElNextThis - m_rgEls ) * ms_kiElSizeBits;
+        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNextThis - m_rgEls ) * ms_kiElSizeBits;
         assert( _stLast < size() );
         return _stLast;
       }
@@ -394,7 +394,7 @@ protected:
     {
       if ( *pEl )
       {
-        size_type stFound = (pEl - m_rgEls) * ms_kiElSizeBits + _bv_get_clear_first_set( *pEl );
+        size_type stFound = size_type(pEl - m_rgEls) * ms_kiElSizeBits + (size_type)_bv_get_clear_first_set( *pEl );
         assert( stFound < m_kstBits );
         return stFound;
       }
@@ -409,7 +409,7 @@ protected:
     {
       if ( *pEl )
       {
-        size_type stFound = (pEl - m_rgEls) * ms_kiElSizeBits + _bv_get_first_set( *pEl );
+        size_type stFound = size_type(pEl - m_rgEls) * ms_kiElSizeBits + size_type(_bv_get_first_set( *pEl ));
         assert( stFound < m_kstBits );
         return stFound;
       }
@@ -425,7 +425,7 @@ protected:
       t_TyEl  el;
       if ( !!( el = ( *pcurThis & *pcurThat ) ) )
       {
-        return (pcurThis - m_rgEls) * ms_kiElSizeBits + _bv_get_first_set( el );
+        return size_type(pcurThis - m_rgEls) * ms_kiElSizeBits + size_type(_bv_get_first_set( el ));
       }
     }
     return m_kstBits;
@@ -434,19 +434,18 @@ protected:
 
 __BIENUTIL_END_NAMESPACE
 
-_STLP_BEGIN_NAMESPACE
+namespace std {
 __BIENUTIL_USING_NAMESPACE
 
-template < class t_TyEl, class t_TyAllocator >
+  template < class t_TyEl, class t_TyAllocator >
 struct hash< _simple_bitvec< t_TyEl, t_TyAllocator > >
 {
   typedef _simple_bitvec< t_TyEl, t_TyAllocator > _TyBitVec;
-  size_t operator()( const _TyBitVec & _r ) const
+  size_t operator()(const _TyBitVec & _r) const
   {
     return _r.hash();
   }
 };
-
-_STLP_END_NAMESPACE
+} // end namespace std
 
 #endif //__SIMPBV_H

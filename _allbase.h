@@ -25,6 +25,13 @@ public:
 
 	_TyAllocatorType m_alloc;
 
+  // Allow copy construction from any alloc base - this could fail if the allocators were incompatible.
+  template < class t__TyAllocate, class t__TyAllocator >
+  explicit _alloc_base( _alloc_base< t__TyAllocate, t__TyAllocator > const & _rOther ) _BIEN_NOTHROW
+    : m_alloc( _rOther.get_allocator() )
+  {
+  }
+
 	// Allow initialization with any allocator:
 	template < class t__TyAllocator >
 	explicit _alloc_base(t__TyAllocator const & _rOther ) _BIEN_NOTHROW 
