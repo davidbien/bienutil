@@ -44,7 +44,7 @@ struct _unary1st
 #ifdef _USE_STLPORT
   : public unary_function<	typename t_TyUnaryFunction::argument_type,
 														typename t_TyUnaryFunction::result_type >
-#endif _USE_STLPORT
+#endif //_USE_STLPORT
 {
 	t_TyUnaryFunction	m_f1;
 
