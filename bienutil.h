@@ -46,4 +46,6 @@
 #define __BIENUTIL_NAMESPACE __BIENUTIL_USE_NAMESPACE::
 #endif //__BIENUTIL_GLOBALNAMESPACE
 
+#include <cstring>
+
 #endif //!__BIENUTIL_H

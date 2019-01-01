@@ -15,7 +15,7 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-#ifndef _STLP_STD // STLport defines these locally.
+#if !defined( _STLP_STD ) && ( defined( __FreeBSD__ ) || !defined( __GNUC__ ) ) // STLport defines these locally, FreeBSD's STL seems not to, gcc otherwise does.
 struct __true_type
 {
 };
