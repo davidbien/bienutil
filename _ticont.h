@@ -48,17 +48,17 @@ public:
 
 __BIENUTIL_END_NAMESPACE
 
-_STLP_BEGIN_NAMESPACE
-__BIENUTIL_USING_NAMESPACE
+namespace std {
+  __BIENUTIL_USING_NAMESPACE
 
-_STLP_TEMPLATE_NULL struct hash<_type_info_wrap>
-{
-  size_t operator()(_type_info_wrap const & _rtiw ) const 
-  { 
-    return _rtiw.hash(); 
-  }
-};
+  template<> struct hash<_type_info_wrap>
+  {
+    size_t operator()(_type_info_wrap const & _rtiw) const
+    {
+      return _rtiw.hash();
+    }
+  };
 
-_STLP_END_NAMESPACE
+} // end namespace std
 
 #endif //__TICONT_H__

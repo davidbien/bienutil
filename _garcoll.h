@@ -860,21 +860,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
+    t_TyGcp::template create< _TyThis >::template Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::template create< _TyThis >::template Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1010,21 +1010,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1242,21 +1242,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
+    t_TyGcp::template create< _TyThis >::template Create1< t_Ty1 >( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::_STLP_TEMPLATE Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::template create< _TyThis >::template Create2< t_Ty1, t_Ty2 >( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1386,21 +1386,21 @@ public:
   template < class t_TyGcp >
   static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create( _rgcp, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create( _rgcp, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1 >
   static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
   }
 
   template < class t_TyGcp, class t_Ty1, class t_Ty2 >
   static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
                           t_TyAllocator const & _rAlloc = t_TyAllocator() )
   {
-    t_TyGcp::_STLP_TEMPLATE create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
+    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
   }
 
 private:
@@ -1574,7 +1574,7 @@ public:
   // REVIEW: explicit or not.
   _gcp(  t_TyEl const & _rEl,
          _TyAllocator const & _rA = _TyAllocator() )
-		: m_pgco( t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
+		: m_pgco( t_TyGCO::template PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
   {
   }
 
@@ -1612,7 +1612,7 @@ public:
 	void	Create1(	t_TyP1 _r1,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+    _TyGCO * pgco = t_TyGCO::template PGCOCreate1< t_TyP1 >( _r1, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1621,7 +1621,7 @@ public:
 	void	Create2(	t_TyP1 _r1, t_TyP2 _r2,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+    _TyGCO * pgco = t_TyGCO::template PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1646,7 +1646,7 @@ public:
                           t_TyP1 _r1,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::template PGCOCreate1< t_TyP1 >( _r1, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -1656,7 +1656,7 @@ public:
                           t_TyP1 _r1, t_TyP2 _r2,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::template PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -1922,7 +1922,7 @@ public:
   // REVIEW: explicit or not.
   _gcr(  t_TyEl const & _rEl,
          _TyAllocator const & _rA = _TyAllocator() )
-		: m_pgco( t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
+		: m_pgco( t_TyGCO::template PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
   {
   }
 
@@ -1956,7 +1956,7 @@ public:
 	void	Create1(	t_TyP1 _r1,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+    _TyGCO * pgco = t_TyGCO::template PGCOCreate1< t_TyP1 >( _r1, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1965,7 +1965,7 @@ public:
 	void	Create2(	t_TyP1 _r1, t_TyP2 _r2,
 									_TyAllocator const & _rA = _TyAllocator() )
 	{
-    _TyGCO * pgco = t_TyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+    _TyGCO * pgco = t_TyGCO::template PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		_Release();
 		m_pgco = pgco;
 	}
@@ -1990,7 +1990,7 @@ public:
                           t_TyP1 _r1,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate1< t_TyP1 >( _r1, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::template PGCOCreate1< t_TyP1 >( _r1, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -2000,7 +2000,7 @@ public:
                           t_TyP1 _r1, t_TyP2 _r2,
 									        _TyAllocator const & _rA = _TyAllocator() )
 	  {
-      _TyGCO * pgco = t_TyPolyGCO::_STLP_TEMPLATE PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
+      _TyGCO * pgco = t_TyPolyGCO::template PGCOCreate2< t_TyP1, t_TyP2 >( _r1, _r2, _rA );
 		  _r._Release();
 		  _r.m_pgco = pgco;
 	  }
@@ -2141,7 +2141,7 @@ public:
 
   _gcr_create(  _TyDerived const & _rd,
                 _TyAllocator const & _rA = _TyAllocator() )
-    : _TyBase( t_TyGCODerived::_STLP_TEMPLATE PGCOCreate1< _TyDerived const & >( _rd, _rA ) )
+    : _TyBase( t_TyGCODerived::template PGCOCreate1< _TyDerived const & >( _rd, _rA ) )
   {
   }
 };
