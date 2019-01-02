@@ -38,7 +38,7 @@ class _fcallobj
 public:
 
   _fcallobj() _BIEN_NOTHROW = default; // construct empty.
-  _fcallobj(_fcallobj const &) _BIEN_NOTHROW = default; // allow copy of another _fcallobj - but both *will* be signalled or not.
+  _fcallobj(_fcallobj const &) _BIEN_NOTHROW = delete; // allow copy of another _fcallobj - but both *will* be signalled or not.
   _fcallobj & operator = (_fcallobj const &) = delete; // we could allow assigment but I don't need it at this point.
 
   template < typename t__TyF = t_TyF >
