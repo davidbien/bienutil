@@ -32,7 +32,8 @@ namespace std // This may be STLport as well, depending on how we are compiled.
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
 template < class t_TyAllocator = allocator< char > >
-class _t__Named_exception : public exception {
+class _t__Named_exception : public exception 
+{
 public:
   typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
   typedef exception _tyExceptionBase;
@@ -42,7 +43,8 @@ public:
     strncpy( m_rgcExceptionName, "_t__Named_exception", s_stBufSize );
     m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
-  _t__Named_exception(const string_type& __str) {
+  _t__Named_exception(const string_type& __str) 
+  {
     strncpy(m_rgcExceptionName, __str.c_str(), s_stBufSize);
     m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
@@ -56,12 +58,15 @@ public:
 
   void SetWhat(const char * _pszWhat, size_t _stLen)
   {
-    size_t stMinLen = (std::min)(_stLen, s_stBufSize);
+    size_t stMinLen = (std::min)((size_t)s_stBufSize,_stLen);
     strncpy(m_rgcExceptionName, _pszWhat, stMinLen);
     m_rgcExceptionName[stMinLen - 1] = '\0';
   }
 private:
-  static const size_t s_stBufSize = 512;
+  enum : size_t // clang didn't like the static const size_t declaration somehow - this works but also required a cast above.
+  {
+    s_stBufSize = 512
+  };
   char m_rgcExceptionName[s_stBufSize];
 };
 
