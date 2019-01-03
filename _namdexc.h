@@ -39,18 +39,30 @@ public:
 
   _t__Named_exception()
   {
-    strncpy( _M_name, "_t__Named_exception", _S_bufsize );
-    _M_name[_S_bufsize - 1] = '\0';
+    strncpy( m_rgcExceptionName, "_t__Named_exception", s_stBufSize );
+    m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
   _t__Named_exception(const string_type& __str) {
-    strncpy(_M_name, __str.c_str(), _S_bufsize);
-    _M_name[_S_bufsize - 1] = '\0';
+    strncpy(m_rgcExceptionName, __str.c_str(), s_stBufSize);
+    m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
-  virtual const char* what() const _BIEN_NOTHROW { return _M_name; }
+  virtual const char* what() const _BIEN_NOTHROW { return m_rgcExceptionName; }
 
+  template < class t__TyTraits, class t__TyAllocator >
+  void SetWhat(basic_string<char, t__TyTraits, t__TyAllocator> const & _str)
+  {
+    SetWhat(_str.c_str(), _str.length());
+  }
+
+  void SetWhat(const char * _pszWhat, size_t _stLen)
+  {
+    size_t stMinLen = (std::min)(_stLen, s_stBufSize);
+    strncpy(m_rgcExceptionName, _pszWhat, stMinLen);
+    m_rgcExceptionName[stMinLen - 1] = '\0';
+  }
 private:
-  enum { _S_bufsize = 256 };
-  char _M_name[_S_bufsize];
+  static const size_t s_stBufSize = 512;
+  char m_rgcExceptionName[s_stBufSize];
 };
 
 } // namespace std
