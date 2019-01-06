@@ -48,4 +48,8 @@
 
 #include <cstring>
 
+#ifndef offsetof
+#define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
+#endif // offsetof
+
 #endif //!__BIENUTIL_H
