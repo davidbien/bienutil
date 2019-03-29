@@ -47,7 +47,7 @@ unsigned int __MSBitSet32( unsigned long ulTest )
 
 // For Linux 64 bit the unsigned long is 64bits in length, for windows it is 32 bits.
 inline
-unsigned int __MSBitSet64( unsigned long ulTest )
+unsigned int __MSBitSet64( unsigned long long ulTest )
 {
 	int		iShift;
 	if ( ulTest > 0x00000000ffffffff )
@@ -114,7 +114,7 @@ unsigned int UMSBitSet( T tTest )
 	if ( sizeof( tTest ) == 4 )
 		return __MSBitSet32( tTest );
 	else
-		return __MSBitSet64( tTest );		
+		return __MSBitSet64( (unsigned long long)tTest );		
 }
 
 __BIENUTIL_END_NAMESPACE

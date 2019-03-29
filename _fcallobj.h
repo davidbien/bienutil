@@ -5,9 +5,10 @@
 
 // This object may or may not call a function at some point.
 
-#include <optional>
+#include <experimental/optional>
 
 __BIENUTIL_BEGIN_NAMESPACE
+using namespace std::experimental;
 
 // set_optional_false: Calls reset() on the optional object upon destruction.
 template < typename t_TyOpt >
