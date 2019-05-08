@@ -24,6 +24,7 @@ public:
   {
     m_ro.reset();
   }
+  _TyOpt m_ro;
 };
 
 template < typename t_TyF >
@@ -49,7 +50,7 @@ public:
 
   template < typename t__TyF = t_TyF >
   _fcallobj(t__TyF const & _rf) _BIEN_NOTHROW
-    : m_optF(std::inplace, _rf)
+    : m_optF(_rf)
   {
   }
 

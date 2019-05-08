@@ -389,7 +389,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 			new ( p ) _TyThis( _r1, _r2 );
 		}
 		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return pgco;
+    return p;
 	}
 
 	void		destroy( )
@@ -709,7 +709,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
       new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1, _r2 );
 		}
 		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return pgco;
+    return p;
 	}
 
 	void		destroy( )
@@ -1701,7 +1701,7 @@ public:
 	}
 	operator const t_TyEl & () const _BIEN_NOTHROW
 	{
-		return RElconst();
+		return RElConst();
 	}
 
 	t_TyEl *	operator -> ()
@@ -1725,7 +1725,7 @@ public:
 // operations:
 	_TyThis &	operator = ( _TyThis const & _rgcp ) _BIEN_NOTHROW
 	{
-		_SetEqual( rgcp.m_pgco );
+		_SetEqual( _rgcp.m_pgco );
 		return *this;
 	}
 
