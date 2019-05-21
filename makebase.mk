@@ -46,7 +46,13 @@ endif
 ifeq (1,$(TIDY))
 $(info ***TIDY BUILD***)
 ifndef TIDYFLAGS
-TIDYFLAGS := -checks=* -header-filter=.*
+ifndef TIDYCHECKFLAGS
+TIDYCHECKFLAGS := -checks=*,-fuchsia-default-arguments,-fuchsia-overloaded-operator,-fuchsia-virtual-inheritance
+ifdef MODTIDYCHECKFLAGS
+TIDYCHECKFLAGS := $(TIDYCHECKFLAGS),$(MODTIDYCHECKFLAGS)
+endif
+endif
+TIDYFLAGS := $(TIDYCHECKFLAGS) -header-filter=.*
 endif
 CC := $(CLANGTIDY)
 CXX := $(CLANGTIDY)
