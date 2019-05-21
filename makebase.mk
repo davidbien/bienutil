@@ -23,6 +23,11 @@ ifndef CC
 $(error Must define CC to be the compiler of your choice.)
 endif
 
+# Allow using newer versions of clang-tidy.
+ifndef CLANGTIDY
+CLANGTIDY := clang-tidy
+endif
+
 ifndef MAKEBASE
 $(error Must define MAKEBASE to be the location of this file so that depending on it works correctly.)
 endif
@@ -43,10 +48,10 @@ $(info ***TIDY BUILD***)
 ifndef TIDYFLAGS
 TIDYFLAGS := -checks=* -header-filter=.*
 endif
-CC := clang-tidy
-CXX := clang-tidy
+CC := $(CLANGTIDY)
+CXX := $(CLANGTIDY)
 # setup CCU to be nvcc for gcc.
-CCU := clang-tidy
+CCU := $(CLANGTIDY)
 CXXANDLINKFLAGS += -std=gnu++17 -pthread
 # Remove any existing *.tidy files from the build dir. We will always build tidy files because the user is requesting them specially.
 $(shell rm -f $(BUILD_DIR)/*.tidy >/dev/null 2>/dev/null)
@@ -129,30 +134,45 @@ $(BUILD_DIR)/%.o : %.cpp $(DEPDIR)/%.d makefile $(MAKEBASE)
 $(DEPDIR)/%.d: ;
 .PRECIOUS: $(DEPDIR)/%.d
 
-# Tidy sentinel file is deleted at the start and then touched by the default rules after running tidy.
-# We also put any output from the command in the file as well as show it on the screen.
+# Create *.tidy file from clang-tidy output. Display it to the screen if (1 != $(NOTIDYOUTPUT)).
 %.tidy : %.c
 $(BUILD_DIR)/%.tidy : %.c
+ifeq (1,$(NOTIDYOUTPUT))
+	$(CC) $(TIDYFLAGS) $< -- $(CFLAGS) > $(BUILD_DIR)/$*.tidy
+else
 	$(CC) $(TIDYFLAGS) $< -- $(CFLAGS) | tee $(BUILD_DIR)/$*.tidy
+endif
 
 %.tidy : %.cc
 $(BUILD_DIR)/%.tidy : %.cc
+ifeq (1,$(NOTIDYOUTPUT))
+	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) > $(BUILD_DIR)/$*.tidy
+else
 	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) | tee $(BUILD_DIR)/$*.tidy
+endif
 
 %.tidy : %.cxx
 $(BUILD_DIR)/%.tidy : %.cxx
+ifeq (1,$(NOTIDYOUTPUT))
+	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) > $(BUILD_DIR)/$*.tidy
+else
 	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) | tee $(BUILD_DIR)/$*.tidy
+endif
 
 %.tidy : %.cpp
 $(BUILD_DIR)/%.tidy : %.cpp
+ifeq (1,$(NOTIDYOUTPUT))
+	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) > $(BUILD_DIR)/$*.tidy
+else
 	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) | tee $(BUILD_DIR)/$*.tidy
+endif
 
 .PHONY: all clean tidy
 
 # Create dependency on all that must be overridden by the eventual makefile. This must be the first rule seen by make to make it by default.
 all:
 
-# The above allows us to use a generic clean that merely removes the build directory entirely if present.
+# The above predeclare of "all" allows us to use a generic clean that merely removes the build directory entirely if present.
 clean:
 	rm -rf $(BUILD_DIR) >/dev/null 2>/dev/null
 
