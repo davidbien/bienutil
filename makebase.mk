@@ -11,7 +11,7 @@ else
 MACHINE_ARCH = $(shell uname -m)
 endif 
 
-ifdef NDEBUG
+ifeq (1,$(NDEBUG))
 $(info ***RELEASE BUILD***)
 BUILD_DIR = Release_$(MOD_ARCH)
 else
@@ -30,14 +30,27 @@ endif
 CXXFLAGS_DEFINES =  $(MOD_DEFINES) -D_REENTRANT -D_STLP_MEMBER_TEMPLATES -D_STLP_USE_NAMESPACES -D_STLP_CLASS_PARTIAL_SPECIALIZATION -D_STLP_FUNCTION_TMPL_PARTIAL_ORDER
 CXXFLAGS_INCLUDES = -I $(HOME)/dv/bienutil -I $(HOME)/dv
 CXXFLAGS_BASE = $(CXXFLAGS_DEFINES) $(CXXFLAGS_INCLUDES)
-ifdef NDEBUG
+ifeq (1,$(NDEBUG))
 # Release flags:
-CXXANDLINKFLAGS = -O3
+CXXANDLINKFLAGS = -O3 -DNDEBUG
 else
 # Debug flags:
 CXXANDLINKFLAGS = -g
 endif
 
+ifeq (1,$(TIDY))
+$(info ***TIDY BUILD***)
+ifndef TIDYFLAGS
+TIDYFLAGS := -checks=* -header-filter=.*
+endif
+CC := clang-tidy
+CXX := clang-tidy
+# setup CCU to be nvcc for gcc.
+CCU := clang-tidy
+CXXANDLINKFLAGS += -std=gnu++17 -pthread
+# Remove any existing *.tidy files from the build dir. We will always build tidy files because the user is requesting them specially.
+$(shell rm -f $(BUILD_DIR)/*.tidy >/dev/null 2>/dev/null)
+else
 ifneq (,$(findstring nvcc,$(CC)))
 CXX := /usr/local/cuda/bin/nvcc
 # We allow CCU (cuda compiler) to be potentially clang since apparently it supports cuda natively (interestingly enough).
@@ -69,6 +82,7 @@ CXXANDLINKFLAGS += $(CLANGSANITIZE)
 CXXFLAGS_COMPILER_SPECIAL = -fdelayed-template-parsing
 endif
 endif
+endif
 
 CXXFLAGS = $(CXXFLAGS_BASE) $(CXXFLAGS_COMPILER_SPECIAL) $(CXXANDLINKFLAGS)
 
@@ -78,14 +92,15 @@ DEPDIR := .d/$(BUILD_DIR)
 $(shell mkdir -p $(BUILD_DIR) >/dev/null)
 $(shell mkdir -p $(DEPDIR) >/dev/null)
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
+
 ifeq (,$(findstring nvcc,$(CC)))
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 else
 DEPFLAGS = -MT $@ -Xcompiler="-MMD" -Xcompiler="-MP" -Xcompiler="-MF $(DEPDIR)/$*.Td"
 endif
 
-$(info CPPFLAGS: $(CPPFLAGS))
-$(info TARGET_ARCH: $(TARGET_ARCH))
+#$(info CPPFLAGS: $(CPPFLAGS))
+#$(info TARGET_ARCH: $(TARGET_ARCH))
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 COMPILE.cc = $(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
@@ -113,3 +128,33 @@ $(BUILD_DIR)/%.o : %.cpp $(DEPDIR)/%.d makefile $(MAKEBASE)
 
 $(DEPDIR)/%.d: ;
 .PRECIOUS: $(DEPDIR)/%.d
+
+# Tidy sentinel file is deleted at the start and then touched by the default rules after running tidy.
+# We also put any output from the command in the file as well as show it on the screen.
+%.tidy : %.c
+$(BUILD_DIR)/%.tidy : %.c
+	$(CC) $(TIDYFLAGS) $< -- $(CFLAGS) | tee $(BUILD_DIR)/$*.tidy
+
+%.tidy : %.cc
+$(BUILD_DIR)/%.tidy : %.cc
+	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) | tee $(BUILD_DIR)/$*.tidy
+
+%.tidy : %.cxx
+$(BUILD_DIR)/%.tidy : %.cxx
+	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) | tee $(BUILD_DIR)/$*.tidy
+
+%.tidy : %.cpp
+$(BUILD_DIR)/%.tidy : %.cpp
+	$(CXX) $(TIDYFLAGS) $< -- $(CXXFLAGS) | tee $(BUILD_DIR)/$*.tidy
+
+.PHONY: all clean tidy
+
+# Create dependency on all that must be overridden by the eventual makefile. This must be the first rule seen by make to make it by default.
+all:
+
+# The above allows us to use a generic clean that merely removes the build directory entirely if present.
+clean:
+	rm -rf $(BUILD_DIR) >/dev/null 2>/dev/null
+
+# Declare the below as a utility in case it is not declared by the containing makefile.
+tidy:
