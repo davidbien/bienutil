@@ -33,7 +33,7 @@ $(error Must define MAKEBASE to be the location of this file so that depending o
 endif
 
 CXXFLAGS_DEFINES =  $(MOD_DEFINES) -D_REENTRANT -D_STLP_MEMBER_TEMPLATES -D_STLP_USE_NAMESPACES -D_STLP_CLASS_PARTIAL_SPECIALIZATION -D_STLP_FUNCTION_TMPL_PARTIAL_ORDER
-CXXFLAGS_INCLUDES = -I $(HOME)/dv/bienutil -I $(HOME)/dv
+CXXFLAGS_INCLUDES = $(MOD_INCLUDES) -I"$(HOME)/dv/bienutil" -I"$(HOME)/dv"
 CXXFLAGS_BASE = $(CXXFLAGS_DEFINES) $(CXXFLAGS_INCLUDES)
 ifeq (1,$(NDEBUG))
 # Release flags:
@@ -72,6 +72,12 @@ CXX := /usr/local/cuda/bin/nvcc
 # We allow CCU (cuda compiler) to be potentially clang since apparently it supports cuda natively (interestingly enough).
 CCU := /usr/local/cuda/bin/nvcc 
 CXXANDLINKFLAGS += -std=c++14 -Xcompiler="-pthread"
+ifneq (1,$(NDEBUG))
+# Addition debug flags for nvcc:
+CXXANDLINKFLAGS += -G -O0
+endif
+# Generate the various compute capacities according to the project's needs:
+CUDAGENCODEOPTIONS := $(foreach gc, $(CUDAGENCODES), -gencode arch=compute_$(gc),code=sm_$(gc))
 else
 ifeq ($(CC),gcc)
 CXX := g++
@@ -109,18 +115,44 @@ $(shell mkdir -p $(BUILD_DIR) >/dev/null)
 $(shell mkdir -p $(DEPDIR) >/dev/null)
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
-ifeq (,$(findstring nvcc,$(CC)))
-DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
-else
-DEPFLAGS = -MT $@ -Xcompiler="-MMD" -Xcompiler="-MP" -Xcompiler="-MF $(DEPDIR)/$*.Td"
-endif
-
 #$(info CPPFLAGS: $(CPPFLAGS))
 #$(info TARGET_ARCH: $(TARGET_ARCH))
 
+ifeq (,$(findstring nvcc,$(CC)))
+# Normal, non-NVCC build dependency generation to a "temp .d" file:
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 COMPILE.cc = $(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 COMPILE.cu = $(CCU) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+%.o : %.c
+$(BUILD_DIR)/%.o : %.c $(DEPDIR)/%.d makefile $(MAKEBASE)
+	$(COMPILE.c) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+
+%.o : %.cc
+$(BUILD_DIR)/%.o : %.cc $(DEPDIR)/%.d makefile $(MAKEBASE)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+
+%.o : %.cxx
+$(BUILD_DIR)/%.o : %.cxx $(DEPDIR)/%.d makefile $(MAKEBASE)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+
+%.o : %.cpp
+$(BUILD_DIR)/%.o : %.cpp $(DEPDIR)/%.d makefile $(MAKEBASE)
+	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+else
+# For NVCC we compile things a bit differently.
+# For C and CPP files we just pass through the dependency parameters to the compiler and let it do the work in a single pass.
+DEPFLAGS_C = -MT $@ -Xcompiler="-MMD" -Xcompiler="-MP" -Xcompiler="-MF $(DEPDIR)/$*.Td"
+COMPILE.c = $(CC) $(DEPFLAGS_C) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) --compile -x c
+COMPILE.cc = $(CXX) $(DEPFLAGS_C) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) --compile -x c++
+# For *.cu files there are two passes. The first produces the dependencies for the makefile, the second compiles the code.
+DEPFLAGS_CU = -M -o $(DEPDIR)/$*.Td
+COMPILE.cu_dep = $(CCU) $(DEPFLAGS_CU) $(CXXFLAGS) $(CUDAGENCODEOPTIONS) $(CPPFLAGS) $(TARGET_ARCH)
+COMPILE.cu = $(CCU) $(CXXFLAGS) $(CUDAGENCODEOPTIONS) $(CPPFLAGS) $(TARGET_ARCH) --compile -x cu
 
 %.o : %.c
 $(BUILD_DIR)/%.o : %.c $(DEPDIR)/%.d makefile $(MAKEBASE)
@@ -141,6 +173,13 @@ $(BUILD_DIR)/%.o : %.cxx $(DEPDIR)/%.d makefile $(MAKEBASE)
 $(BUILD_DIR)/%.o : %.cpp $(DEPDIR)/%.d makefile $(MAKEBASE)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
 	$(POSTCOMPILE)
+
+%.o : %.cu
+$(BUILD_DIR)/%.o : %.cu $(DEPDIR)/%.d makefile $(MAKEBASE)
+	$(COMPILE.cu_dep) $<
+	$(COMPILE.cu) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+endif
 
 $(DEPDIR)/%.d: ;
 .PRECIOUS: $(DEPDIR)/%.d
