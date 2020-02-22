@@ -551,18 +551,22 @@ public:
         return true;
     }
 
-    // We expect to see exactly the passed characters in that order, otherwise we throw an error.
+    // Skip a JSON number according to the specifications of such.
+    // The interesting thing about a number is that there is no character indicating the ending 
+    //  - whereas for all other value types there is a specific character ending the value.
+    // A JSON number ends when there is a character that is not a JSON number - or the EOF in the case of a JSON stream containing a single number value.
+    // For all other JSON values you wouldn't have to worry about perhaps encountering EOF in the midst of reading the value.
     void _SkipNumber( _tyJsonReadContext & _rjrc ) const
     {
         // We will have read the first character of a number and then will need to satisfy the state machine for the number appropriately.
         bool fZeroFirst = ( _tyCharTraits::s_tc0 == _rjrc.m_tcFirst );
-        TCHAR tchCurrentChar;
+        TCHAR tchCurrentChar; // maintained as the current character.
         if ( _tyCharTraits::s_tcMinus == _rjrc.m_tcFirst )
         {
             tchCurrentChar = m_pis->ReadChar(); // This may not be EOF.
-            fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
-            if ( !fZeroFirst && ( ( tchCurrentChar < _tyCharTraits::s_tc1 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) ) )
+            if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
                 ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
+            fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
         bool fAtRootElement = !_rjrc->m_pjrcNext;
@@ -590,7 +594,7 @@ public:
             // Then according to the JSON spec we must have at least one digit here.
             tchCurrentChar = m_pis->ReadChar(); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a decimal point.", tchNext );
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             do
             {            
@@ -604,16 +608,72 @@ public:
                 ( tchCurrentChar == _tyCharTraits::s_tce ) )
         {
             // Then we might see a plus or a minus or a number - but we cannot see EOF here correctly:
-            tchCurrentChar = m_pis->ReadChar(); // This may not be EOF.
+            tchCurrentChar = m_pis->ReadChar(); // Throws on EOF.
             if (    ( tchCurrentChar == _tyCharTraits::s_tcMinus ) ||
                     ( tchCurrentChar == _tyCharTraits::s_tcPlus ) )
+                tchCurrentChar = m_pis->ReadChar(); // Then we must still find a number after - throws on EOF.
+            // Now we must see at least one digit so for the first read we throw.
+            if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
+            // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
+            do
             {
-                // Then we must see at least one digit.
-            }
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                if ( !fFoundChar )
+                    return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
+            } 
+            while ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) );
         }
         m_pis->PushBackLastChar(); // Let caller read this and decide what to do depending on context.
     }
 
+    // Skip the string starting at the current position. The '"' has already been read.
+    void _SkipString( _tyJsonReadContext & _rjrc ) const
+    {
+        // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
+        // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
+
+        for( ; ; )
+        {
+            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF found looking for end of string." ); // throws on EOF.
+            if ( tyCharTraits::s_tcDoubleQuote == tchCur )
+                break; // We have reached EOS.
+            if ( tyCharTraits::s_tcBackSlash == tchCur )
+            {
+                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
+                switch( tchCur )
+                {
+                    case tyCharTraits::s_tcDoubleQuote:
+                    case tyCharTraits::s_tcBackSlash:
+                    case tyCharTraits::s_tcForwardSlash:
+                    case tyCharTraits::s_tcb:
+                    case tyCharTraits::s_tcf:
+                    case tyCharTraits::s_tcn:
+                    case tyCharTraits::s_tcr:
+                    case tyCharTraits::s_tct:
+                        break;
+                    case tyCharTraits::s_tcu:
+                    {
+                        // Must find 4 hex digits:
+                        for ( int n=0; n < 4; ++n )
+                        {
+                            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
+                            if ( !( ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) ) ||
+                                    ( ( tchCur >= _tyCharTraits::s_tca ) && ( tchCur <= _tyCharTraits::s_tcf ) ) ||
+                                    ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) ) ) ) 
+                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                        }
+                    }
+                    default:
+                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        break;
+                }
+            }
+            // Otherwise we just continue reading.
+        }
+    }
+
+    // Just skip the zero terminated string starting at the current point in the JSON stream.
     void _SkipFixed( _tyJsonReadContext & _rjrc, const char * _pcSkip ) const
     {
         // We just cast the chars to _tyChar since that is valid for JSON files.
