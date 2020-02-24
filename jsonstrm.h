@@ -276,6 +276,10 @@ public:
         return !!m_pjvParent; // Should always have some parent - it might be ourselves.
     }
 
+    bool FEmptyValue() const
+    {
+        return !m_pvValue;
+    }
     bool FIsNull() const
     {
         return !m_pjvParent && !m_pvValue && ( ejvtJsonValueTypeCount == m_jvtType );
@@ -338,6 +342,27 @@ public:
         }
     }
 
+    // Create the JsonObject associated with this JsonValue.
+    _tyJsonObject * PCreateJsonObject()
+    {
+        assert( ejvtObject == m_jvtType );
+        _CreateValue();
+        return ( ejvtObject == m_jvtType ) ? (_tyJsonObject*)m_pvValue : 0;
+    }
+    // Create the JsonObject associated with this JsonValue.
+    _tyJsonArray * PCreateJsonArray()
+    {
+        assert( ejvtArray == m_jvtType );
+        _CreateValue();
+        return ( ejvtArray == m_jvtType ) ? (_tyJsonArray*)m_pvValue : 0;
+    }
+    _tyStdStr * PCreateStringValue()
+    {
+        assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
+        _CreateValue();
+        return ( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) ) ? (_tyStdStr*)m_pvValue : 0;
+    }
+
 protected:
     ~JsonValue() // Ensure that this JsonValue is destroyed by a trusted entity.
     {
@@ -370,6 +395,31 @@ protected:
         case ejvtNull:
         default:
             assert( 0 );
+            break;
+        }
+    }
+    void _CreateValue()
+    {
+        assert( !!m_pjvParent );
+        assert( !m_pvValue );
+        // We need to create a connected value object depending on type:
+        switch( m_jvtType )
+        {
+        case ejvtObject:
+            m_pvValue = new _tyJsonObject( m_pjvParent );
+            break;
+        case ejvtArray:
+            m_pvValue = new _tyJsonArray( m_pjvParent );
+            break;
+        case ejvtNumber:
+        case ejvtString:
+            m_pvValue = new _tyStdStr();
+            break;
+        case ejvtTrue:
+        case ejvtFalse:
+        case ejvtNull:
+        default:
+            assert( 0 ); // Shouldn't be calling for cases for which there is no value.
             break;
         }
     }
@@ -448,6 +498,11 @@ public:
     {
     }
 
+    _tyJsonValue * PJvGet() const
+    {
+        return m_pjvCur;
+    }
+
     JsonReadContext * PJrcGetNext()
     {
         return &*m_pjrcNext;
@@ -486,7 +541,6 @@ protected:
     _tyJsonValue * m_pjvCur{}; // We maintain a soft reference to the current JsonValue at this level.
     std::unique_ptr< JsonReadContext > m_pjrcNext; // Implement a simple doubly linked list.
     JsonReadContext * m_pjrcPrev{}; // soft reference to parent in list.
-    _tyFilePos m_posPreWhitespace{}; // position at the start of parsing this element - before looking for WS.
     _tyFilePos m_posStartValue{}; // The start of the value for this element - after parsing WS.
     _tyFilePos m_posEndValue{}; // The end of the value for this element - before parsing WS beyond.
     _tyChar m_tcFirst{}; // Only for the number type does this matter but since it does...
@@ -560,7 +614,7 @@ public:
     //  - whereas for all other value types there is a specific character ending the value.
     // A JSON number ends when there is a character that is not a JSON number - or the EOF in the case of a JSON stream containing a single number value.
     // For all other JSON values you wouldn't have to worry about perhaps encountering EOF in the midst of reading the value.
-    void _ReadNumber( _tyJsonReadContext & _rjrc, _tyStdStr & _rstrRead ) const
+    void _ReadNumber( _tyChar _tcFirst, bool _fAtRootElement, _tyStdStr & _rstrRead ) const
     {
         // We will only read a number up to _tyCharTraits::s_knMaxNumberLength in string length.
         const unsigned int knMaxLength = _tyCharTraits::s_knMaxNumberLength;
@@ -576,21 +630,21 @@ public:
         }
 
         // We will have read the first character of a number and then will need to satisfy the state machine for the number appropriately.
-        bool fZeroFirst = ( _tyCharTraits::s_tc0 == _rjrc.m_tcFirst );
+        bool fZeroFirst = ( _tyCharTraits::s_tc0 == _tcFirst );
         TCHAR tchCurrentChar; // maintained as the current character.
-        if ( _tyCharTraits::s_tcMinus == _rjrc.m_tcFirst )
+        if ( _tyCharTraits::s_tcMinus == _tcFirst )
         {
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
+            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
             *ptcCur++ = tchCurrentChar;
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
+                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
-        bool fAtRootElement = !_rjrc->m_pjrcNext;
+        bool _fAtRootElement = !_rjrc->m_pjrcNext;
         if ( fZeroFirst )
         {
-            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 return; // Then we read until the end of file for a JSON file containing a single number as its only element.
             *ptcCur++ = tchCurrentChar;
@@ -601,7 +655,7 @@ public:
             bool fFoundChar;
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.
                 lambdaAddCharNum( tchCurrentChar );
@@ -614,12 +668,12 @@ public:
             // Then according to the JSON spec we must have at least one digit here.
             tchCurrentChar = m_pis->ReadChar(); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
+                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             lambdaAddCharNum( tchCurrentChar );
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 lambdaAddCharNum( tchCurrentChar );
@@ -640,11 +694,11 @@ public:
             }
             // Now we must see at least one digit so for the first read we throw.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
+                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 lambdaAddCharNum( tchCurrentChar );
@@ -657,12 +711,12 @@ public:
     }
 
     // Skip a JSON number according to the specifications of such.
-    void _SkipNumber( _tyJsonReadContext & _rjrc ) const
+    void _SkipNumber( _tyChar _tcFirst, bool _fAtRootElement ) const
     {
         // We will have read the first character of a number and then will need to satisfy the state machine for the number appropriately.
-        bool fZeroFirst = ( _tyCharTraits::s_tc0 == _rjrc.m_tcFirst );
+        bool fZeroFirst = ( _tyCharTraits::s_tc0 == _tcFirst );
         TCHAR tchCurrentChar; // maintained as the current character.
-        if ( _tyCharTraits::s_tcMinus == _rjrc.m_tcFirst )
+        if ( _tyCharTraits::s_tcMinus == _tcFirst )
         {
             tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
@@ -670,10 +724,9 @@ public:
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
-        bool fAtRootElement = !_rjrc->m_pjrcNext;
         if ( fZeroFirst )
         {
-            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 return; // Then we read until the end of file for a JSON file containing a single number as its only element.
         }
@@ -683,7 +736,7 @@ public:
             bool fFoundChar;
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.
             } 
@@ -699,7 +752,7 @@ public:
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
             }
@@ -719,7 +772,7 @@ public:
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
             } 
@@ -729,7 +782,7 @@ public:
     }
 
     // Read the string starting at the current position. The '"' has already been read.
-    void _ReadString( _tyJsonReadContext & _rjrc, _tyStdStr & _rstrRead ) const
+    void _ReadString( _tyStdStr & _rstrRead ) const
     {
         assert( !_rstrRead.length() ); // We will append to the string, so if there is content it will be appended to.
         const int knLenBuffer = 1023;
@@ -814,7 +867,7 @@ public:
         _rstrRead += rgtcBuffer;
     }
     // Skip the string starting at the current position. The '"' has already been read.
-    void _SkipString( _tyJsonReadContext & _rjrc ) const
+    void _SkipString()) const
     {
         // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
         // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
@@ -833,7 +886,7 @@ public:
                     case tyCharTraits::s_tcBackSlash:
                     case tyCharTraits::s_tcForwardSlash:
                     case tyCharTraits::s_tcb:
-                    case tyCharTraits::s_tcf:
+                    case tyCharTraits::s_tcDoubleQuote:
                     case tyCharTraits::s_tcn:
                     case tyCharTraits::s_tcr:
                     case tyCharTraits::s_tct:
@@ -860,7 +913,7 @@ public:
     }
 
     // Just skip the zero terminated string starting at the current point in the JSON stream.
-    void _SkipFixed( _tyJsonReadContext & _rjrc, const char * _pcSkip ) const
+    void _SkipFixed( const char * _pcSkip ) const
     {
         // We just cast the chars to _tyChar since that is valid for JSON files.
         const char * pcCur = _pcSkip;
@@ -871,31 +924,123 @@ public:
             ThrowBadJSONFormatException( "JsonReadCursor::_SkipFixed(): Trying to skip[%s], instead of [%c] found [%TC].", _pcSkip, *pcCur, tchCur );
     }
 
-    void _SkipSimpleValue( _tyJsonReadContext & _rjrc ) const
+    void _SkipSimpleValue( EJsonValueType _jvtCur, _tyChar _tcFirst, bool _fAtRootElement ) const
     {
-        switch( _rjrc.JvtGetValueType() )
+        switch( _jvtCur )
         {
         case ejvtNumber:
-            _SkipNumber( _rjrc ); // We parse correctly for each type.
+            _SkipNumber( _tcFirst, _fAtRootElement );
             break;
         case ejvtString:
-            _SkipString( _rjrc );
+            _SkipString();
             break;
         case ejvtTrue:
-            _SkipFixed( _rjrc, "rue" );
+            _SkipFixed( "rue" );
             break;
         case ejvtFalse:
-            _SkipFixed( _rjrc, "alse" );
+            _SkipFixed( "alse" );
             break;
         case ejvtNull:
-            _SkipFixed( _rjrc, "ull" );
+            _SkipFixed( "ull" );
             break;
         default:
-            
+            assert(false);
+            break;
         }
     }
+
+    // Skip the value located at the current point in the stream.
+    void _SkipValue()
+    {
+        m_pis->SkipWhitespace();
+        // We don't expect EOF here.
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipValue(): EOF on first value char." ); // throws on EOF.
+        EJsonValueType jvtCur = _tyJsonValue::GetJvtTypeFromChar( tchCur );
+        if ( ejvtJsonValueTypeCount == jvtCur )
+            ThrowBadJSONFormatException( "JsonReadCursor::_SkipValue(): Found [%TC] when looking for value starting character.", tchCur );
+        if ( ejvtObject ==  jvtCur )
+            _SkipWholeObject();
+        else
+        if ( ejvtArray ==  jvtCur )
+            _SkipWholeArray();
+        else
+            _SkipSimpleValue( jvtCur, tchCur, false ); // we assume we aren't at the root element here since we shouldn't get here - we would have a context.
+    }
+
+    // We will have read the first '{' of the object.
+    void _SkipWholeObject()
+    {
+        m_pis->SkipWhitespace();
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF after begin bracket." ); // throws on EOF.
+        while ( tyCharTraits::s_tcDoubleQuote == tchCur )
+        {
+            _SkipString(); // Skip the key.
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking for colon." ); // throws on EOF.
+            if ( tyCharTraits::s_tcColon != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for colon.", tchCur );
+            _SkipValue(); // Skip the value.
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking comma or end of object." ); // throws on EOF.
+            if ( tyCharTraits::s_tcComma == tchCur )
+            {
+                m_pis->SkipWhitespace();
+                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking double quote." ); // throws on EOF.
+                if ( tyCharTraits::s_tcDoubleQuote != tchCur )
+                    ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote.", tchCur );
+            }
+            else
+            if ( tyCharTraits::s_tcRightCurlyBr != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for comma or right bracket.", tchCur );
+        }
+        assert( tyCharTraits::s_tcRightCurlyBr == tchCur );
+    }
+    void _SkipWholeArray()
+    {
+        m_pis->SkipWhitespace();
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF after begin bracket." ); // throws on EOF.
+        if ( tyCharTraits::s_tcRightSquareBr != tchCur )
+            m_pis->PushBackLastChar();
+        while ( tyCharTraits::s_tcRightSquareBr != tchCur )
+        {
+            _SkipValue();
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF looking for comma." ); // throws on EOF.
+            if ( tyCharTraits::s_tcComma == tchCur )
+                continue;
+            if ( tyCharTraits::s_tcRightSquareBr != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for comma or array end.", tchCur );
+        }
+        assert( tyCharTraits::s_tcRightSquareBr == tchCur );
+    }
+
+    // Skip an object with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context./
+    void _SkipObject( _tyJsonReadContext & _rjrc )
+    {
+        // We have a couple of possible starting states here:
+        // 1) We haven't read the data for this object ( !_rjrc.m_posEndValue ) in this case we expect to see "key":value, ..., "key":value }
+        //      Note that there may also be no (key,value) pairs at all - we may have an empty object.
+        // 2) We have read the data. In this case we will have also read the value and we expect to see a ',' or a '}'.
+        // 3) We have an empty object and we have read the data - in which case we have already read the final '}' of the object
+        //      and we have nothing at all to do.
+
+        if ( ejvtEndOfObject == _rjrc.JvtGetValueType() )
+            return; // Then we have already read to the end of this object.
+
+        if ( !_rjrc.m_posEndValue )
+        {
+            // Then we haven't entered this object at all and we must skip the entirety of it - and it might contain many many subobjects, etc.
+        }
+
+    }
+    // Skip an array with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
+    void _SkipArray( _tyJsonReadContext & _rjrc )
+    {
+
+    }
+
     // Skip this context - must be at the top of the context stack.
-    void _SkipContext( _tyJsonReadContext & _rjrc ) const
+    void _SkipContext( _tyJsonReadContext & _rjrc )
     {
         // Skip this context which is at the top of the stack.
         // A couple of cases here:
@@ -904,10 +1049,15 @@ public:
         if ( ( ( ejvtArray != _rjrc.JvtGetValueType() ) && ( ejvtObject != _rjrc.JvtGetValueType() ) ) )
         {
             // If we have already the value then we are done with this type.
-            if ( !!_rjrc.m_posEndValue )
-                return; // We have already fully processed this context.
-            _SkipSimpleValue( _rjrc ); // skip to the end of this value without saving the info.
+            if ( !_rjrc.m_posEndValue )
+                _SkipSimpleValue( _rjrc.JvtGetValueType(), _rjrc.m_tcFirst, !_rjrc.m_pjrcNext ); // skip to the end of this value without saving the info.
+            return; // We have already fully processed this context.
         }
+
+        if ( ejvtObject == _rjrc.JvtGetValueType() )
+            _SkipObject( _rjrc );
+        else
+            _SkipArray( _rjrc );
     }
 
     // Skip and close all contexts above the current context in the context stack.
@@ -957,34 +1107,17 @@ public:
     void AttachRoot( t_tyJsonInputStream & _ris )
     {
         assert( !FAttached() ); // We shouldn't have attached to the stream yet.
-        std::unique_ptr< _tyJsonValue > pjvRootVal = td::make_unique<_tyJsonValue>();
+        std::unique_ptr< _tyJsonValue > pjvRootVal = std::make_unique<_tyJsonValue>();
         std::unique_ptr< _tyJsonReadContext > pjrcRoot = std::make_unique<_tyJsonReadContext>( &*pjvRootVal, (_tyJsonReadContext*)nullptr_t );
-        pjrcRoot->m_posPreWhitespace = _ris.PosGet();
         _ris.SkipWhitespace();
         pjrcRoot->m_posStartValue = _ris.PosGet();
         assert( !pjrcRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
-        if ( _ris.FAtEof() )
-        {
-            // A completely empty file is not a valid JSON file because it doesn't contain an actual JSON value.
-            // So we throw:
-            throw bad_json_stream( "Empty JSON file." );
-        }
+    
         // The first non-whitespace character tells us what the value type is:
-        pjrcRoot->m_tcFirst = _ris.ReadChar();
+        pjrcRoot->m_tcFirst = _ris.ReadChar( "JsonReadCursor::AttachRoot(): Empty JSON file." );
         pjvRootVal->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrcRoot->m_tcFirst ) );
         if ( ejvtJsonValueTypeCount == pjvRootVal->JvtGetValueType() )
-        {
-            static const int nbufsize = 1024;
-            char buf[ nbufsize+1 ];
-            { //B
-                char bufFmt[ nbufsize+1 ];
-                snprintf( bufFmt, sizeof(bufFmt), "Bad first JSON value character found[%s].", _tyCharTraits::s_szFormatChar );
-                bufFmt[nbufsize] = 0;
-                snprintf( buf, sizeof(buf), bufFmt, pjrcRoot->m_tcFirst );
-                buf[nbufsize] = 0;
-            } //EB
-            throw bad_json_stream( buf );
-        }
+            ThrowBadJSONFormatException( "JsonReadCursor::AttachRoot(): Found [%TC] when looking for value starting character.", pjrcRoot->m_tcFirst );
         // Set up current state:
         m_pjrcContextStack.swap( pjrcRoot ); // swap with any existing stack.
         m_pjrcCurrent = &*m_pjrcContextStack; // current position is soft reference.
@@ -1013,39 +1146,84 @@ public:
         //      a) For empty arrays we still create the subobject, it will just return that there are no values in the array.
         // In fact we must not have read the current value since we would have already pushed the context onto the stack and thus we wouldn't be here.
         assert( !m_pjrcCurrent->m_posEndValue );
+
         // We should be at the start of the value plus 1 character - this is important as we will be registered with the input stream throughout the streaming.
         assert( ( pjrcRoot->m_posStartValue + sizeof(_tyChar) ) == m_pis->PosGet() );
         m_pis->SkipWhitespace();
 
+        std::unique_ptr< _tyJsonReadContext > pjrcNewRoot;
         if ( ejvtObject == m_pjrcCurrent->JvtGetValueType() )
         {
             // For valid JSON we may see 2 different things here:
             // 1) '"': Indicates we have a label for the first (key,value) pair of the object.
             // 2) '}': Indicates that we have an empty object.
-            _tyChar tchCur = pjrcRoot->m_tcFirst = m_pis->ReadChar(); // throws on eof.
-            if ( _tyCharTraits::s_tcRightCurlyBr == tchCur )
+            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first character of an object." ); // throws on eof.
+            if ( ( _tyCharTraits::s_tcRightCurlyBr != tchCur ) && ( _tyCharTraits::s_tcDoubleQuote != tchCur ) )
+                ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first character of object.", tchCur );
+            
+            // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
+            _tyJsonObject * pjoNew = m_pjrcCurrent->PJvGet()->PCreateJsonObject();
+            pjrcNewRoot = std::make_unique<_tyJsonReadContext>( pjoNew->PJvGet(), nullptr_t );
+            if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
             {
-                // Then empty object found. In this case we leave the 
+                _ReadString( pjoNew->m_strCurKey ); // Might throw for any number of reasons. This may be the empty string.
+                m_pis->SkipWhitespace();
+                tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for colon on first object pair." ); // throws on eof.
+                if ( _tyCharTraits::s_tcColon != tchCur )
+                    ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for colon on first object pair.", tchCur );
+                m_pis->SkipWhitespace();
+                pjrcNewRoot->m_posStartValue = m_pis->PosGet();
+                assert( !pjrcNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+                // The first non-whitespace character tells us what the value type is:
+                pjrcNewRoot->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first object value." );
+                pjrcNewRoot->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrcRoot->m_tcFirst ) );
+                if ( ejvtJsonValueTypeCount == pjrcNewRoot->JvtGetValueType() )
+                    ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for value starting character.", pjrcNewRoot->m_tcFirst );
+            }
+            else
+            {
+                // We are an empty object but we need to push ourselves onto the context stack anyway because then things all work the same.
+                pjrcNewRoot->m_posEndValue = pjrcNewRoot->m_posStartValue = m_pis->PosGet();
+                pjrcNewRoot->SetValueType( ejvtEndOfObject ); // Use special value type to indicate we are at the "end of the set of objects".
             }
         }
-        else // array.
+        else // Array.
         {
             // For valid JSON we may see 2 different things here:
-            // 1) ']': Indicates that we have an empty array.
-            // 2) any value beginning character: Then this is the first value of the array.
-            _tyChar tchCur = pjrcRoot->m_tcFirst = m_pis->ReadChar(); // throws on eof.
-            if ( _tyCharTraits::s_tcRightSquareBr == tchCur )
+            // 1) ']': Indicates that we have an empty object.
+            // 2) A valid "value starting" character indicates the start of the first value of the array.
+            _tyFilePos posStartValue = m_pis->PosGet();
+            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first character of an array." ); // throws on eof.
+            EJsonValueType jvtCur = _tyJsonValue::GetJvtTypeFromChar( tchCur );
+            if ( ( _tyCharTraits::s_tcRightSquareBr != tchCur ) && ( ejvtJsonValueTypeCount == jvtCur ) )
+                ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first char of array value.", tchCur );
+            
+            // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
+            _tyJsonArray * pjaNew = m_pjrcCurrent->PJvGet()->PCreateJsonArray();
+            pjrcNewRoot = std::make_unique<_tyJsonReadContext>( pjaNew->PJvGet(), nullptr_t );
+            if ( ejvtJsonValueTypeCount != jvtCur )
             {
-                // Then empty object found. In this case we leave the 
+                pjrcNewRoot->m_posStartValue = posStartValue;
+                assert( !pjrcNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+                // The first non-whitespace character tells us what the value type is:
+                pjrcNewRoot->m_tcFirst = tchCur;
+                pjrcNewRoot->SetValueType( jvtCur );
+            }
+            else
+            {
+                // We are an empty object but we need to push ourselves onto the context stack anyway because then things all work the same.
+                pjrcNewRoot->m_posEndValue = pjrcNewRoot->m_posStartValue = m_pis->PosGet();
+                pjrcNewRoot->SetValueType( ejvtEndOfArray ); // Use special value type to indicate we are at the "end of the set of objects".
             }
         }
-        
-
-
-
-
+    
+        // Push the new context onto the context stack:
+        _tyJsonReadContext::PushStack( m_pjrcContextStack, pjrcNewRoot );
+        m_pjrcCurrent = &*m_pjrcContextStack; // current position is soft reference.
+        return true; // We did go down.
     }
 
+    // Move up in the context - this is significantly easier to implement than FMoveDown().
     bool FMoveUp()
     {
         assert( FAttached() ); // We should have been attached to a file by now.
