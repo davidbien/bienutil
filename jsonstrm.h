@@ -1044,7 +1044,7 @@ public:
         while ( tyCharTraits::s_tcRightCurlyBr !=tchCur )
         {
             if ( tyCharTraits::s_tcComma != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or object end.", tchCur );
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for double quote." ); // throws on EOF.
             if ( tyCharTraits::s_tcDoubleQuote != tchCur )
@@ -1063,7 +1063,39 @@ public:
     // Skip an array with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
     void _SkipArray( _tyJsonReadContext & _rjrc )
     {
+        // We have a couple of possible starting states here:
+        // 1) We haven't read the data for this array ( !_rjrc.m_posEndValue ) in this case we expect to see value, ..., value }
+        //      Note that there may also be no values at all - we may have an empty array.
+        // 2) We have read the data. In this case we will have also read the value and we expect to see a ',' or a ']'.
+        // 3) We have an empty object and we have read the data - in which case we have already read the final ']' of the object
+        //      and we have nothing at all to do.
 
+        if ( ejvtEndOfArray == _rjrc.JvtGetValueType() )
+            return; // Then we have already read to the end of this object.
+
+        if ( !_rjrc.m_posEndValue )
+        {
+            _SkipWholeArray(); // this expects that we have read the first '['.
+            // Now indicate that we are at the end of the array.
+            _rjrc.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
+            _rjrc.SetValueType( ejvtEndOfArray );
+            return;
+        }
+
+        // Then we have partially iterated the object. All contexts above us are closed which means we should find
+        //  either a comma or end square bracket.
+        m_pis->SkipWhitespace();
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end array ] or comma." ); // throws on EOF.
+        while ( tyCharTraits::s_tcRightSquareBr !=tchCur )
+        {
+            if ( tyCharTraits::s_tcComma != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
+            m_pis->SkipWhitespace();
+            _SkipValue();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end array ] or comma." ); // throws on EOF.
+        }
+        _rjrc.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
+        _rjrc.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
     }
 
     // Skip this context - must be at the top of the context stack.
