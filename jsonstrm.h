@@ -796,12 +796,12 @@ public:
 
         for( ; ; )
         {
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF found looking for end of string." ); // throws on EOF.
+            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for end of string." ); // throws on EOF.
             if ( tyCharTraits::s_tcDoubleQuote == tchCur )
                 break; // We have reached EOS.
             if ( tyCharTraits::s_tcBackSlash == tchCur )
             {
-                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
+                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
                 switch( tchCur )
                 {
                     case tyCharTraits::s_tcDoubleQuote:
@@ -830,7 +830,7 @@ public:
                         // Must find 4 hex digits:
                         for ( int n=0; n < 4; ++n, ( uCurrentMultiplier >>= 8 ) )
                         {
-                            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
+                            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
                             if ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) )
                                 uHex += uCurrentMultiplier * ( tchCur - _tyCharTraits::s_tc0 );
                             else
@@ -840,18 +840,18 @@ public:
                             if ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) )
                                 uHex += uCurrentMultiplier * ( 10 + ( tchCur - _tyCharTraits::s_tcA ) );
                             else
-                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
                         }
                         // If we are supposed to throw on overflow then check for it, otherwise just truncate to the character type silently.
                         if ( _tyCharTraits::s_fThrowOnUnicodeOverflow && ( sizeof(_tyChar) < sizeof(uHex) ) )
                         {
                             if ( uHex >= ( 1u << ( CHAR_BIT * sizeof(_tyChar) ) ) )
-                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Unicode hex overflow [%u].", uHex );
+                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Unicode hex overflow [%u].", uHex );
                         }
                         tchCur = (_tyChar)uHex;
                     }
                     default:
-                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
                         break;
                 }
             }
@@ -867,19 +867,19 @@ public:
         _rstrRead += rgtcBuffer;
     }
     // Skip the string starting at the current position. The '"' has already been read.
-    void _SkipString() const
+    void _SkipRemainingString() const
     {
         // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
         // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
 
         for( ; ; )
         {
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF found looking for end of string." ); // throws on EOF.
+            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for end of string." ); // throws on EOF.
             if ( tyCharTraits::s_tcDoubleQuote == tchCur )
                 break; // We have reached EOS.
             if ( tyCharTraits::s_tcBackSlash == tchCur )
             {
-                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
+                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
                 switch( tchCur )
                 {
                     case tyCharTraits::s_tcDoubleQuote:
@@ -896,15 +896,15 @@ public:
                         // Must find 4 hex digits:
                         for ( int n=0; n < 4; ++n )
                         {
-                            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
+                            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
                             if ( !( ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) ) ||
                                     ( ( tchCur >= _tyCharTraits::s_tca ) && ( tchCur <= _tyCharTraits::s_tcf ) ) ||
                                     ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) ) ) ) 
-                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
                         }
                     }
                     default:
-                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
                         break;
                 }
             }
@@ -932,7 +932,7 @@ public:
             _SkipNumber( _tcFirst, _fAtRootElement );
             break;
         case ejvtString:
-            _SkipString();
+            _SkipRemainingString();
             break;
         case ejvtTrue:
             _SkipFixed( "rue" );
@@ -950,6 +950,7 @@ public:
     }
 
     // Skip the value located at the current point in the stream.
+    // Expects that the entire value is present on the JSON stream - i.e. we will not have read the first character...
     void _SkipValue()
     {
         m_pis->SkipWhitespace();
@@ -974,7 +975,7 @@ public:
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF after begin bracket." ); // throws on EOF.
         while ( tyCharTraits::s_tcDoubleQuote == tchCur )
         {
-            _SkipString(); // Skip the key.
+            _SkipRemainingString(); // Skip the key.
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking for colon." ); // throws on EOF.
             if ( tyCharTraits::s_tcColon != tchCur )
@@ -990,11 +991,12 @@ public:
                     ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote.", tchCur );
             }
             else
-            if ( tyCharTraits::s_tcRightCurlyBr != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for comma or right bracket.", tchCur );
+                break;
         }
-        assert( tyCharTraits::s_tcRightCurlyBr == tchCur );
+        if ( tyCharTraits::s_tcRightCurlyBr != tchCur )
+            ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote or comma or right bracket.", tchCur );
     }
+    // We will have read the first '[' of the array.
     void _SkipWholeArray()
     {
         m_pis->SkipWhitespace();
@@ -1011,7 +1013,6 @@ public:
             if ( tyCharTraits::s_tcRightSquareBr != tchCur )
                 ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for comma or array end.", tchCur );
         }
-        assert( tyCharTraits::s_tcRightSquareBr == tchCur );
     }
 
     // Skip an object with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
@@ -1029,10 +1030,9 @@ public:
 
         if ( !_rjrc.m_posEndValue )
         {
-            // Then we have read just the first character of the object "{". We can push this character back on the stack and just skip the entire value.
-            _rjrc.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
             _SkipWholeObject(); // this expects that we have read the first '{'.
             // Now indicate that we are at the end of the object.
+            _rjrc.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
             _rjrc.SetValueType( ejvtEndOfObject );
             return;
         }
@@ -1040,18 +1040,25 @@ public:
         // Then we have partially iterated the object. All contexts above us are closed which means we should find
         //  either a comma or end curly bracket.
         m_pis->SkipWhitespace();
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for next object element." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
         while ( tyCharTraits::s_tcRightCurlyBr !=tchCur )
         {
             if ( tyCharTraits::s_tcComma != tchCur )
                 ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
-
-
-
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for double quote." ); // throws on EOF.
+            if ( tyCharTraits::s_tcDoubleQuote != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking key start double quote.", tchCur );
+            _SkipRemainingString();
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for colon." ); // throws on EOF.
+            if ( tyCharTraits::s_tcColon != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for colon.", tchCur );
+            _SkipValue();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
         }
-
-
-
+        _rjrc.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
+        _rjrc.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
     }
     // Skip an array with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
     void _SkipArray( _tyJsonReadContext & _rjrc )
