@@ -705,7 +705,7 @@ public:
             } 
             while ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) );
         }
-        m_pis->PushBackLastChar(); // Let caller read this and decide what to do depending on context.
+        m_pis->PushBackLastChar(); // Let caller read this and decide what to do depending on context - we don't expect a specific character.
         *ptcCur++ = _tyChar(0);
         _rstrRead = rgtcBuffer; // Copy the number into the return buffer.
     }
@@ -778,7 +778,7 @@ public:
             } 
             while ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) );
         }
-        m_pis->PushBackLastChar(); // Let caller read this and decide what to do depending on context.
+        m_pis->PushBackLastChar(); // Let caller read this and decide what to do depending on context - we don't expect a specific character here.
     }
 
     // Read the string starting at the current position. The '"' has already been read.
@@ -867,7 +867,7 @@ public:
         _rstrRead += rgtcBuffer;
     }
     // Skip the string starting at the current position. The '"' has already been read.
-    void _SkipString()) const
+    void _SkipString() const
     {
         // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
         // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
@@ -1000,7 +1000,7 @@ public:
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF after begin bracket." ); // throws on EOF.
         if ( tyCharTraits::s_tcRightSquareBr != tchCur )
-            m_pis->PushBackLastChar();
+            m_pis->PushBackLastChar(); // Don't send an expected character as it is from the set of value-starting characters.
         while ( tyCharTraits::s_tcRightSquareBr != tchCur )
         {
             _SkipValue();
@@ -1014,7 +1014,7 @@ public:
         assert( tyCharTraits::s_tcRightSquareBr == tchCur );
     }
 
-    // Skip an object with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context./
+    // Skip an object with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
     void _SkipObject( _tyJsonReadContext & _rjrc )
     {
         // We have a couple of possible starting states here:
@@ -1029,8 +1029,28 @@ public:
 
         if ( !_rjrc.m_posEndValue )
         {
-            // Then we haven't entered this object at all and we must skip the entirety of it - and it might contain many many subobjects, etc.
+            // Then we have read just the first character of the object "{". We can push this character back on the stack and just skip the entire value.
+            _rjrc.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
+            _SkipWholeObject(); // this expects that we have read the first '{'.
+            // Now indicate that we are at the end of the object.
+            _rjrc.SetValueType( ejvtEndOfObject );
+            return;
         }
+
+        // Then we have partially iterated the object. All contexts above us are closed which means we should find
+        //  either a comma or end curly bracket.
+        m_pis->SkipWhitespace();
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for next object element." ); // throws on EOF.
+        while ( tyCharTraits::s_tcRightCurlyBr !=tchCur )
+        {
+            if ( tyCharTraits::s_tcComma != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
+
+
+
+        }
+
+
 
     }
     // Skip an array with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
