@@ -1163,19 +1163,28 @@ public:
                 (   ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) &&
                     ( ejvtArray != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) ) )
             ThrowBadSemanticUse( "JsonReadCursor::FNextElement(): Not located at an object or array." );
+        
+        if (    ( m_pjrcCurrent->JvtGetValueType() == ejvtEndOfObject ) ||
+                ( m_pjrcCurrent->JvtGetValueType() == ejvtEndOfArray ) )
+        {
+            assert( ( m_pjrcCurrent->JvtGetValueType() == ejvtEndOfObject ) == ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) ); // Would be weird if it didn't match.
+            return false; // We are already at the end of the iteration.
+
+        }
+        // Perform common tasks:
+        // We may be at the leaf of the current pathway when calling this or we may be in the middle of some pathway.
+        // We must close any contexts above this object first.
+        SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
+        // Now just skip the value at the top of the stack but don't close it:
+        _SkipContext( *m_pjrcCurrent );
+        // Now we are going to look for a comma or an right curly/square bracket:
+        m_pis->SkipWhitespace();
+        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object/array }/] or comma." ); // throws on EOF.
+
         if ( ejvtObject == m_pjrcCurrent->m_pjrcNext->JvtGetValueType() )
         {
-            _tyJsonObject * pjoCur = m_pjrcCurrent->m_pjrcNext->PGetJsonObject();
-            if ( pjoCur->FEmptyObject() ) // This returns true when the object is either initially empty or we are at the end of the set of (key,value) pairs.
-                return false;
-            // We may be at the leaf of the current pathway when calling this or we may be in the middle of some pathway.
-            // We must close any contexts above this object first.
-            SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
-            // Now just skip the value at the top of the stack but don't close it:
-            _SkipContext( *m_pjrcCurrent );
-            // Now we are going to look for a comma or an right curly bracket:
-            m_pis->SkipWhitespace();
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object } or comma." ); // throws on EOF.
+            _tyJsonObject * pjoCur = m_pjrcCurrent->m_pjrcNext->PGetJsonObject();            
+            assert( !pjoCur->FEmptyObject() );
             if ( tyCharTraits::s_tcRightCurlyBr == tchCur )
             {
                 m_pjrcCurrent->SetEndOfIteration();
@@ -1196,14 +1205,29 @@ public:
             tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for colon." ); // throws on EOF.
             if ( tyCharTraits::s_tcColon != tchCur )
                 ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for colon.", tchCur );
-            m_pis->SkipWhitespace();
-
-
         }
         else
         {
-
+            _tyJsonArray * pjaCur = m_pjrcCurrent->m_pjrcNext->PGetJsonArray();            
+            assert( !pjaCur->FEmptyArray() );
+            if ( tyCharTraits::s_tcRightSquareBr == tchCur )
+            {
+                m_pjrcCurrent->SetEndOfIteration();
+                pjaCur->SetEndOfIteration();
+                return false; // We reached the end of the iteration.
+            }
+            m_pis->SkipWhitespace();
+            if ( tyCharTraits::s_tcComma != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or array end.", tchCur );
         }
+        m_pis->SkipWhitespace();
+        m_pjrcCurrent->m_posStartValue = m_pis->PosGet();
+        assert( !m_pjrcCurrent->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant) - this should have been cleared above.
+        // The first non-whitespace character tells us what the value type is:
+        m_pjrcCurrent->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for next object/array value." );
+        m_pjrcCurrent->SetValueType( _tyJsonValue::GetJvtTypeFromChar( m_pjrcCurrent->m_tcFirst ) );
+        if ( ejvtJsonValueTypeCount == m_pjrcCurrent->JvtGetValueType() )
+            ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for value starting character.", m_pjrcCurrent->m_tcFirst );
     }
         
     // Attach to the root of the JSON value tree.
