@@ -85,10 +85,21 @@ CXX := g++
 CCU := /usr/local/cuda/bin/nvcc
 CXXANDLINKFLAGS += -std=gnu++17 -pthread
 else
-CXX := clang 
-# setup CCU to be clang for clang - just in case it supports it the same as nvcc, etc (i.e. we don't know anything yet, just putting this here).
-CCU := clang
-CXXANDLINKFLAGS += -std=gnu++17 -pthread
+ifneq (,$(findstring clang,$(CC)))
+# Allow the use of any version of clang by copying CC.
+CXX := $(CC)
+CXXANDLINKFLAGS += -std=gnu++17 -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
+# setup CCU to be clang for clang - separate out the cuda specific compile and link flags.
+CCU := $(CC)
+CUDAGENCODEOPTIONS := $(foreach gc, $(CUDAGENCODES), --cuda-gpu-arch=sm_$(gc))
+CCUANDLINKFLAGS += $(CUDAGENCODEOPTIONS)
+ifneq (1,$(NDEBUG))
+CXXANDLINKFLAGS += -O0
+CCUANDLINKFLAGS += --cuda-noopt-device-debug
+# --no-cuda-version-check -fcuda-short-ptr -fcuda-rdc -fcuda-approx-transcendentals -nocudainc -nocudalib --cuda-path-ignore-env --cuda-path=<arg> --ptxas-path=<arg>
+endif
+# Generate the various compute capacities according to the project's needs:
+# clang doesn't allow separating the codegen from the arch.
 # ASAN_OPTIONS=check_initialization_order=1
 # ASAN_OPTIONS=detect_leaks=1
 # ASAN_OPTIONS=detect_stack_use_after_return=1
@@ -102,13 +113,16 @@ CXXANDLINKFLAGS += -std=gnu++17 -pthread
 #-fsanitize-blacklist=blacklist.txt 
 CXXANDLINKFLAGS += $(CLANGSANITIZE)
 CXXFLAGS_COMPILER_SPECIAL = -fdelayed-template-parsing
+else
+$(error Unrecognized compiler $(CC) - cannot continue.)
+endif
 endif
 endif
 endif
 
 CXXFLAGS = $(CXXFLAGS_BASE) $(CXXFLAGS_COMPILER_SPECIAL) $(CXXANDLINKFLAGS)
 
-LINKFLAGS = $(CXXANDLINKFLAGS) -lstdc++ 
+LINKFLAGS = $(CXXANDLINKFLAGS) -lstdc++
 
 DEPDIR := .d/$(BUILD_DIR)
 $(shell mkdir -p $(BUILD_DIR) >/dev/null)
@@ -123,7 +137,7 @@ ifeq (,$(findstring nvcc,$(CC)))
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 COMPILE.c = $(CC) $(DEPFLAGS) $(CFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 COMPILE.cc = $(CXX) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
-COMPILE.cu = $(CCU) $(DEPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
+COMPILE.cu = $(CCU) $(DEPFLAGS) $(CXXFLAGS) $(CCUANDLINKFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 %.o : %.c
 $(BUILD_DIR)/%.o : %.c $(DEPDIR)/%.d makefile $(MAKEBASE)
 	$(COMPILE.c) $(OUTPUT_OPTION) $<
@@ -142,6 +156,11 @@ $(BUILD_DIR)/%.o : %.cxx $(DEPDIR)/%.d makefile $(MAKEBASE)
 %.o : %.cpp
 $(BUILD_DIR)/%.o : %.cpp $(DEPDIR)/%.d makefile $(MAKEBASE)
 	$(COMPILE.cc) $(OUTPUT_OPTION) $<
+	$(POSTCOMPILE)
+
+%.o : %.cu
+$(BUILD_DIR)/%.o : %.cu $(DEPDIR)/%.d makefile $(MAKEBASE)
+	$(COMPILE.cu) $(OUTPUT_OPTION) $<
 	$(POSTCOMPILE)
 else
 # For NVCC we compile things a bit differently.
