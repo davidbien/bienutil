@@ -201,6 +201,9 @@ enum _EJsonValueType : char
     ejvtTrue,
     ejvtFalse,
     ejvtNull,
+    ejvtLastJsonSpecifiedValue = ejvtNull,
+    ejvtEndOfObject, // This pseudo value type indicates that the iteration of the parent object has reached its end.
+    ejvtEndOfArray, // This pseudo value type indicates that the iteration of the parent array has reached its end.
     ejvtJsonValueTypeCount
 };
 typedef _EJsonValueType EJsonValueType;
@@ -261,6 +264,13 @@ public:
     {
         if ( m_pvValue )
             _DestroyValue();
+    }
+
+    // Set that this value is at the end of the iteration according to <_fObject>.
+    void SetEndOfIteration( bool _fObject )
+    {
+        DestroyValue();
+        m_jvtType = _fObject ? ejvtEndOfObject : ejvtEndOfArray;
     }
 
     void SetPjvParent( const JsonValue * _pjvParent )
@@ -451,6 +461,13 @@ public:
     void GetKey( _tyStdStr & _strCurKey ) const 
     {
         _strCurKey = m_strCurKey;
+    }
+
+    // Set the JsonObject for the end of iteration.
+    void SetEndOfIteration( bool _fObject )
+    {
+        m_strCurKey.clear();
+        m_jsvCur.SetEndOfIteration( _fObject );
     }
 
 protected:
@@ -1105,18 +1122,21 @@ public:
         // A couple of cases here:
         // 1) We are a non-hierarchical type: i.e. not array or object. In this case we merely have to read the value.
         // 2) We are an object or array. In this case we have to read until the end of the object or array.
-        if ( ( ( ejvtArray != _rjrc.JvtGetValueType() ) && ( ejvtObject != _rjrc.JvtGetValueType() ) ) )
-        {
-            // If we have already the value then we are done with this type.
-            if ( !_rjrc.m_posEndValue )
-                _SkipSimpleValue( _rjrc.JvtGetValueType(), _rjrc.m_tcFirst, !_rjrc.m_pjrcNext ); // skip to the end of this value without saving the info.
-            return; // We have already fully processed this context.
-        }
-
         if ( ejvtObject == _rjrc.JvtGetValueType() )
             _SkipObject( _rjrc );
         else
+        if ( ejvtArray == _rjrc.JvtGetValueType() )
             _SkipArray( _rjrc );
+        else
+        {
+            // If we have already the value then we are done with this type.
+            if ( !_rjrc.m_posEndValue )
+            {
+                _SkipSimpleValue( _rjrc.JvtGetValueType(), _rjrc.m_tcFirst, !_rjrc.m_pjrcNext ); // skip to the end of this value without saving the info.
+                _rjrc.m_posEndValue = m_pis->PosGet(); // Update this for completeness in all scenarios.
+            }
+            return; // We have already fully processed this context.
+        }
     }
 
     // Skip and close all contexts above the current context in the context stack.
@@ -1151,9 +1171,34 @@ public:
             // We may be at the leaf of the current pathway when calling this or we may be in the middle of some pathway.
             // We must close any contexts above this object first.
             SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
-            pjoCur->GetKey( _rstrKey );
-            _rjvt = m_pjrcCurrent->JvtGetValueType(); // This is the value type for this key string. We may not have read the actual value yet.
-            return true;
+            // Now just skip the value at the top of the stack but don't close it:
+            _SkipContext( *m_pjrcCurrent );
+            // Now we are going to look for a comma or an right curly bracket:
+            m_pis->SkipWhitespace();
+            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object } or comma." ); // throws on EOF.
+            if ( tyCharTraits::s_tcRightCurlyBr == tchCur )
+            {
+                m_pjrcCurrent->SetEndOfIteration();
+                pjoCur->SetEndOfIteration();
+                return false; // We reached the end of the iteration.
+            }
+            m_pis->SkipWhitespace();
+            if ( tyCharTraits::s_tcComma != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or object end.", tchCur );
+            // Now we will read the key string of the next element into <pjoCur>.
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for double quote." ); // throws on EOF.
+            if ( tyCharTraits::s_tcDoubleQuote != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking key start double quote.", tchCur );
+            pjoCur->m_strCurKey.clear();
+            _ReadString( pjoCur->m_strCurKey ); // Might throw for any number of reasons. This may be the empty string.
+            m_pis->SkipWhitespace();
+            tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for colon." ); // throws on EOF.
+            if ( tyCharTraits::s_tcColon != tchCur )
+                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for colon.", tchCur );
+            m_pis->SkipWhitespace();
+
+
         }
         else
         {
