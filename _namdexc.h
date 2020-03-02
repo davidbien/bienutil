@@ -136,4 +136,56 @@ private:
 #pragma pop_macro("std")
 #endif //__NAMDDEXC_STDBASE
 
+// ExceptionUsage: Provide some useful template methods for throw exception with variable number of arguments.
+template < class t_tyException >
+struct ExceptionUsage
+{
+    typedef t_tyException _TyException;
+  
+    static void ThrowFileLine( const char * _pcFile, int _nLine, const char * _pcFmt, ... )
+    {
+        // We add _psFile:[_nLine]: to the start of the format string.
+        const int knBuf = NAMEDEXC_BUFSIZE;
+        char rgcBuf[knBuf+1];
+        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+        rgcBuf[knBuf] = 0;
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw exc;
+    }
+    static void ThrowFileLineErrno( const char * _pcFile, int _nLine, int _errno, const char * _pcFmt, ... )
+    {
+        // We add _psFile:[_nLine]: to the start of the format string.
+        const int knBuf = NAMEDEXC_BUFSIZE;
+        char rgcBuf[knBuf+1];
+        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+        rgcBuf[knBuf] = 0;
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw exc;
+    }
+    static void Throw( const char * _pcFmt, ... )
+    {
+        va_list ap;
+        va_start( ap, _pcFmt );
+        _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw exc;
+    }
+    static void ThrowErrno( int _errno, const char * _pcFmt, ... )
+    {
+        va_list ap;
+        va_start( ap, _pcFmt );
+        _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw exc;
+    }
+};
+
 #endif //___NAMDEXC_H___

@@ -48,25 +48,74 @@ class JsonReadCursor;
 #pragma push_macro("std")
 #undef std
 #endif //__NAMDDEXC_STDBASE
+
+// This exception will get thrown when there is an issue with the JSON stream.
 template < class t_tyCharTraits >
-class bad_json_stream : public std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR >
+class bad_json_stream_exception : public std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR >
 {
     typedef std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
 public:
     typedef t_tyCharTraits _tyCharTraits;
 
-    bad_json_stream( const string_type & __s, int _nErrno = 0 ) 
+    bad_json_stream_exception( const string_type & __s, int _nErrno = 0 ) 
         : _TyBase( __s, _nErrno ) 
     {
     }
-    bad_json_stream( int _errno, const char * _pcFmt, va_list args ) 
+    bad_json_stream_exception( const char * _pcFmt, va_list args ) 
+    {
+        RenderVA( _pcFmt, args );
+    }
+    bad_json_stream_exception( int _errno, const char * _pcFmt, va_list args ) 
         : _TyBase( _errno )
     {
+        RenderVA( _pcFmt, args );
+    }
+    void RenderVA( const char * _pcFmt, va_list args )
+    {
         // When we see %TC we should substitute the formating for the type of characters in t_tyCharTraits.
-        const int knBuf = 4096;
+        const int knBuf = NAMEDEXC_BUFSIZE;
         char rgcBuf[knBuf+1];
         char * pcBufCur = rgcBuf;
-        char * const pcBufTail = rgcBuf + 4096;
+        char * const pcBufTail = rgcBuf + NAMEDEXC_BUFSIZE;
+        for ( const char * pcFmtCur = _pcFmt; !!*_pcFmt && ( pcBufCur != pcBufTail ); ++_pcFmt )
+        {
+            if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[0] == 'C' ) )
+            {
+                const char * pcCharFmtCur = _tyCharTraits::s_szFormatChar;
+                for ( ; !!*pcCharFmtCur && ( pcBufCur != pcBufTail ); ++pcCharFmtCur )
+                    *pcBufCur++ = *pcCharFmtCur;
+            }
+            else
+                *pcBufCur++ = *_pcFmt;
+        }
+        *pcBufTail = 0;
+
+        _tyBase::RenderVA( rgcBuf, args ); // Render into the exception description buffer.
+    }
+};
+// By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
+#define THROWBADJSONSTREAM( MESG, ARGS... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLine( __FILE__, __LINE__, MESG, ARGS )
+#define THROWBADJSONSTREAMERRNO( ERRNO, MESG, ARGS... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineErrno( __FILE__, __LINE__, ERRNO, MESG, ARGS )
+
+// This exception will get thrown if the user of the read cursor does something inappropriate given the current context.
+template < class t_tyCharTraits >
+class json_stream_bad_semantic_usage_exception : public std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR >
+{
+    typedef std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+
+    json_stream_bad_semantic_usage_exception( const string_type & __s ) 
+        : _TyBase( __s ) 
+    {
+    }
+    json_stream_bad_semantic_usage_exception( const char * _pcFmt, va_list args ) 
+    {
+        // When we see %TC we should substitute the formating for the type of characters in t_tyCharTraits.
+        const int knBuf = NAMEDEXC_BUFSIZE;
+        char rgcBuf[knBuf+1];
+        char * pcBufCur = rgcBuf;
+        char * const pcBufTail = rgcBuf + NAMEDEXC_BUFSIZE;
         for ( const char * pcFmtCur = _pcFmt; !!*_pcFmt && ( pcBufCur != pcBufTail ); ++_pcFmt )
         {
             if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[0] == 'C' ) )
@@ -82,57 +131,9 @@ public:
 
         RenderVA( rgcBuf, args ); // Render into the exception description buffer.
     }
-
-    static void ThrowBadJsonStream( int _nLine, const char * _pcFile, const char * _pcFmt, ... )
-    {
-        // We add _psFile:[_nLine]: to the start of the format string.
-        const int knBuf = 4096;
-        char rgcBuf[knBuf+1];
-        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
-        rgcBuf[knBuf] = 0;
-
-        va_list ap;
-        va_start( ap, _pcFmt );
-        bad_json_stream bjs( 0, rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw bjs;
-    }
-    static void ThrowBadJsonStreamErrno( int _nLine, const char * _pcFile, int _errno, const char * _pcFmt, ... )
-    {
-        // We add _psFile:[_nLine]: to the start of the format string.
-        const int knBuf = 4096;
-        char rgcBuf[knBuf+1];
-        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
-        rgcBuf[knBuf] = 0;
-
-        va_list ap;
-        va_start( ap, _pcFmt );
-        bad_json_stream bjs( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw bjs;
-    }
-    static void ThrowBadJsonStream( const char * _pcFmt, ... )
-    {
-        va_list ap;
-        va_start( ap, _pcFmt );
-        bad_json_stream bjs( 0, rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw bjs;
-    }
-    static void ThrowBadJsonStreamErrno( int _errno, const char * _pcFmt, ... )
-    {
-        va_list ap;
-        va_start( ap, _pcFmt );
-        bad_json_stream bjs( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw bjs;
-    }
-protected:
 };
-
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSTREAM( MESG, ARGS... ) bad_json_stream::ThrowBadJsonStream( __LINE__, __FILE__, MESG, ARGS )
-#define THROWBADJSONSTREAMERRNO( ERRNO, MESG, ARGS... ) bad_json_stream::ThrowBadJsonStream( __LINE__, __FILE__, ERRNO, MESG, ARGS )
+#define THROWBADJSONSEMANTICUSE( MESG, ARGS... ) ExceptionUsage<json_stream_bad_semantic_usage_exception>::ThrowFileLine( __FILE__, __LINE__, MESG, ARGS )
 
 #ifdef __NAMDDEXC_STDBASE
 #pragma pop_macro("std")
@@ -278,10 +279,12 @@ public:
 template < class t_tyCharTraits >
 class JsonLinuxInputStream : public JsonInputStreamBase< t_tyCharTraits, ssize_t >
 {
+    typedef JsonLinuxInputStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef ssize_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
     JsonLinuxInputStream() = default;
 
@@ -299,6 +302,13 @@ public:
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::Open(): Unable to open() file [%s]", _szFilename );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    }
+
+    void AttachReadCursor( _tyJsonReadCursor & _rjrc )
+    {
+        assert( !_rjrc.FAttached() );
+        assert( FOpened() );
+        _rjrc.AttachRoot( *this );
     }
 
     void SkipWhitespace() 
@@ -388,7 +398,7 @@ public:
 
     void PushBackLastChar()
     {
-        assert( !m_fHasLookahead );
+        assert( !m_fHasLookahead ); // support single character lookahead only.
         m_fHasLookahead = true;
     }
 
@@ -768,6 +778,7 @@ protected:
     JsonReadContext * m_pjrcPrev{}; // soft reference to parent in list.
     _tyFilePos m_posStartValue{}; // The start of the value for this element - after parsing WS.
     _tyFilePos m_posEndValue{}; // The end of the value for this element - before parsing WS beyond.
+    int m_nObjectOrArrayElement{}; // The index of the object or array that this context's value corresponds to.
     _tyChar m_tcFirst{}; // Only for the number type does this matter but since it does...
 };
 
@@ -822,9 +833,9 @@ public:
         // So, we need to have a parent value and that parent value should correspond to an object.
         // Otherwise we throw an "invalid semantic use" exception.
         if ( !FAttached() )
-            ThrowBadSemanticUse( "JsonReadCursor::FGetKeyCurrent(): Not attached to any JSON file." );
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not attached to any JSON file." );
         if ( !m_pjrcCurrent || !m_pjrcCurrent->m_pjrcNext || ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) )
-            ThrowBadSemanticUse( "JsonReadCursor::FGetKeyCurrent(): Not located at an object so no key available." );
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not located at an object so no key available." );
         // If the key value in the object is the empty string then this is an empty object and we return false.
         _tyJsonObject * pjoCur = m_pjrcCurrent->m_pjrcNext->PGetJsonObject();
         if ( pjoCur->FEmptyObject() ) // This returns true when the object is either initially empty or we are at the end of the set of (key,value) pairs.
@@ -832,6 +843,11 @@ public:
         pjoCur->GetKey( _rstrKey );
         _rjvt = m_pjrcCurrent->JvtGetValueType(); // This is the value type for this key string. We may not have read the actual value yet.
         return true;
+    }
+    EJsonValueType JvtGetValueType() const
+    {
+        assert( FAttached() );
+        return m_pjrcCurrent->JvtGetValueType();
     }
 
     // Read a JSON number according to the specifications of such.
