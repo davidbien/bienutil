@@ -29,11 +29,14 @@
 namespace std // This may be STLport as well, depending on how we are compiled.
 {
 
+#define NAMEDEXC_BUFSIZE 4096
+
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
 template < class t_TyAllocator = allocator< char > >
 class _t__Named_exception : public exception 
 {
+  typedef exception _TyBase;
 public:
   typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
   typedef exception _tyExceptionBase;
@@ -62,12 +65,69 @@ public:
     strncpy(m_rgcExceptionName, _pszWhat, stMinLen);
     m_rgcExceptionName[stMinLen - 1] = '\0';
   }
+
+  void RenderVA( const char * _pcFmt, va_list args )
+  {
+    m_rgcExceptionName[0] = 0;
+    (void)vsnprintf( m_rgcExceptionName, s_stBufSize, _pcFmt, args );
+    m_rgcExceptionName[s_stBufSize - 1] = 0;
+  }
 private:
   enum : size_t // clang didn't like the static const size_t declaration somehow - this works but also required a cast above.
   {
-    s_stBufSize = 512
+    s_stBufSize = NAMEDEXC_BUFSIZE
   };
   char m_rgcExceptionName[s_stBufSize];
+};
+
+template < class t_TyAllocator = allocator< char > >
+class _t__Named_exception_errno : public _t__Named_exception< t_TyAllocator >
+{
+  typedef _t__Named_exception< t_TyAllocator > _TyBase;
+public:
+  typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
+  typedef _t__Named_exception< t_TyAllocator > _tyExceptionBase;
+
+  _t__Named_exception_errno( int _errno = 0 )
+    : _TyBase(),
+      m_errno( _errno )
+  {
+  }
+  _t__Named_exception_errno( const string_type& __str, int _errno = 0 ) 
+    : _TyBase( __str ),
+      m_errno( _errno )
+  {
+  }
+
+  using _TyBase::what;
+  using _TyBase::SetWhat;
+  void RenderVA( const char * _pcFmt, va_list args )
+  {
+    _TyBase::RenderVA( _pcFmt, args );
+    if ( m_errno )
+    {
+      // Add the errno description onto the end of the error string.
+      const int knErrorMesg = 1024;
+      char rgcErrorMesg[ knErrorMesg ];
+      if ( !!strerror_r( m_errno, rgcBuf, knErrorMesg ) )
+        snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", m_errno );
+      rgcErrorMesg[knErrorMesg-1] = 0;
+
+      const int knBuf = NAMEDEXC_BUFSIZE;
+      char rgcBuf[knBuf];
+      snprintf( rgcBuf, knBuf, "%s %s", m_rgcExceptionName, rgcErrorMesg );
+      rgcBuf[knBuf-1] = 0;
+      memcpy( m_rgcExceptionName, rgcBuf, NAMEDEXC_BUFSIZE ); // Update the description of the exception with the description of the errno.
+    }
+  }
+
+  int Errno() const { return m_errno; }
+  void SetErrno( int _errno )
+  {
+    m_errno = _errno;
+  }
+private:
+  int m_errno;
 };
 
 } // namespace std

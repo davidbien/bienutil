@@ -2,6 +2,7 @@
 
 #include <string>
 #include <memory>
+#include <unistd.h>
 
 #include "_dbgthrw.h"
 #include "_namdexc.h"
@@ -47,12 +48,92 @@ class JsonReadCursor;
 #pragma push_macro("std")
 #undef std
 #endif //__NAMDDEXC_STDBASE
-class bad_json_stream : public std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR >
+template < class t_tyCharTraits >
+class bad_json_stream : public std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR >
 {
-  typedef std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
+    typedef std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
 public:
-  bad_json_stream( const string_type & __s ) : _TyBase( __s ) {}
+    typedef t_tyCharTraits _tyCharTraits;
+
+    bad_json_stream( const string_type & __s, int _nErrno = 0 ) 
+        : _TyBase( __s, _nErrno ) 
+    {
+    }
+    bad_json_stream( int _errno, const char * _pcFmt, va_list args ) 
+        : _TyBase( _errno )
+    {
+        // When we see %TC we should substitute the formating for the type of characters in t_tyCharTraits.
+        const int knBuf = 4096;
+        char rgcBuf[knBuf+1];
+        char * pcBufCur = rgcBuf;
+        char * const pcBufTail = rgcBuf + 4096;
+        for ( const char * pcFmtCur = _pcFmt; !!*_pcFmt && ( pcBufCur != pcBufTail ); ++_pcFmt )
+        {
+            if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[0] == 'C' ) )
+            {
+                const char * pcCharFmtCur = _tyCharTraits::s_szFormatChar;
+                for ( ; !!*pcCharFmtCur && ( pcBufCur != pcBufTail ); ++pcCharFmtCur )
+                    *pcBufCur++ = *pcCharFmtCur;
+            }
+            else
+                *pcBufCur++ = *_pcFmt;
+        }
+        *pcBufTail = 0;
+
+        RenderVA( rgcBuf, args ); // Render into the exception description buffer.
+    }
+
+    static void ThrowBadJsonStream( int _nLine, const char * _pcFile, const char * _pcFmt, ... )
+    {
+        // We add _psFile:[_nLine]: to the start of the format string.
+        const int knBuf = 4096;
+        char rgcBuf[knBuf+1];
+        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+        rgcBuf[knBuf] = 0;
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        bad_json_stream bjs( 0, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw bjs;
+    }
+    static void ThrowBadJsonStreamErrno( int _nLine, const char * _pcFile, int _errno, const char * _pcFmt, ... )
+    {
+        // We add _psFile:[_nLine]: to the start of the format string.
+        const int knBuf = 4096;
+        char rgcBuf[knBuf+1];
+        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+        rgcBuf[knBuf] = 0;
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        bad_json_stream bjs( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw bjs;
+    }
+    static void ThrowBadJsonStream( const char * _pcFmt, ... )
+    {
+        va_list ap;
+        va_start( ap, _pcFmt );
+        bad_json_stream bjs( 0, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw bjs;
+    }
+    static void ThrowBadJsonStreamErrno( int _errno, const char * _pcFmt, ... )
+    {
+        va_list ap;
+        va_start( ap, _pcFmt );
+        bad_json_stream bjs( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+        va_end( ap );
+        throw bjs;
+    }
+protected:
 };
+
+// By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
+#define THROWBADJSONSTREAM( MESG, ARGS... ) bad_json_stream::ThrowBadJsonStream( __LINE__, __FILE__, MESG, ARGS )
+#define THROWBADJSONSTREAMERRNO( ERRNO, MESG, ARGS... ) bad_json_stream::ThrowBadJsonStream( __LINE__, __FILE__, ERRNO, MESG, ARGS )
+
 #ifdef __NAMDDEXC_STDBASE
 #pragma pop_macro("std")
 #endif //__NAMDDEXC_STDBASE
@@ -111,10 +192,10 @@ struct JsonCharTraits< char >
     static const _tyChar s_tcu = 'u';    
 
     // The formatting command to format a single character using printf style.
-    static _tyLPCSTR s_szFormatChar; // = "%c";
+    static const char * s_szFormatChar; // = "%c";
 };
 
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szFormatChar = "%c";
+const char * JsonCharTraits< char >::s_szFormatChar = "%c";
 
 // JsonCharTraits< wchar_t > : Traits for 16bit char representation.
 template <>
@@ -170,15 +251,16 @@ struct JsonCharTraits< wchar_t >
     static const _tyChar s_tcu = L'u';
 
     // The formatting command to format a single character using printf style.
-    static _tyLPCSTR s_szFormatChar; // = L"%c";
+    static const char * s_szFormatChar; // = L"%c";
 };
 
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szFormatChar = L"%c";
+const char * JsonCharTraits< wchar_t >::s_szFormatChar = "%lc";
 
 // JsonInputStream: Base class for input streams.
 template < class t_tyCharTraits, class t_tyFilePos >
 class JsonInputStreamBase
 {
+public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef t_tyFilePos _tyFilePos;
 };
@@ -187,8 +269,134 @@ class JsonInputStreamBase
 template < class t_tyCharTraits, class t_tyFilePos >
 class JsonOutputStreamBase
 {
+public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef t_tyFilePos _tyFilePos;
+};
+
+// JsonLinuxInputStream: A class using open(), read(), etc.
+template < class t_tyCharTraits >
+class JsonLinuxInputStream : public JsonInputStreamBase< t_tyCharTraits, ssize_t >
+{
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef ssize_t _tyFilePos;
+
+    JsonLinuxInputStream() = default;
+
+    bool FOpened() const
+    {
+        return -1 != m_fd;
+    }
+
+    // Throws on open failure.
+    void Open( const char * _szFilename )
+    {
+        assert( !FOpened() );
+        m_fd = open( _szFilename, O_RDONLY );
+        if ( -1 == m_fd )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::Open(): Unable to open() file [%s]", _szFilename );
+        m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
+        m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    }
+
+    void SkipWhitespace() 
+    {
+        // We will keep reading characters until we find non-whitespace:
+        if ( m_fHasLookahead && !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            return;
+        ssize_t sstRead;
+        for ( ; ; )
+        {
+            sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
+            if ( -1 == sstRead )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() failed for file [%s]", m_szFilename.c_str() );
+            if ( sstRead != sizeof m_tcLookahead )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
+            
+            if ( !sstRead )
+            {
+                m_fHasLookahead = false;
+                return; // We have skipped the whitespace until we hit EOF.
+            }
+            if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            {
+                m_fHasLookahead = true;
+                return;
+            }
+        }
+    }
+
+    // Throws if lseek() fails.
+    _tyFilePos PosGet() const
+    {
+        assert( FOpened() );
+        _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
+        if ( -1 == pos )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
+        return pos;
+    }
+    // Read a single character from the file - always throw on EOF.
+    _tyChar ReadChar( const char * _pcEOFMessage )
+    {
+        assert( FOpened() );
+        if ( m_fHasLookahead )
+        {
+            m_fHasLookahead = false;
+            return m_tcLookahead;
+        }
+        ssize_t sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
+        if ( sstRead != sizeof m_tcLookahead )
+        {
+            if ( -1 == sstRead )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::ReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
+            else
+            {
+                assert( !sstRead ); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
+                THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
+            }
+        }
+        assert( !m_fHasLookahead );
+    }
+    
+    bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage );
+    {
+        assert( FOpened() );
+        if ( m_fHasLookahead )
+        {
+            m_fHasLookahead = false;
+            return m_tcLookahead;
+        }
+        ssize_t sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
+        if ( sstRead != sizeof m_tcLookahead )
+        {
+            if ( -1 == sstRead )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
+            else
+            if ( !!sstRead )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
+            else
+            {
+                if ( _fThrowOnEOF )
+                    THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void PushBackLastChar()
+    {
+        assert( !m_fHasLookahead );
+        m_fHasLookahead = true;
+    }
+
+protected:
+    std::basic_string<char> m_szFilename;
+    int m_fd{-1}; // file descriptor.
+    _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
+    bool m_fHasLookahead{false};
 };
 
 // _EJsonValueType: The types of values in a JsonValue object.
@@ -661,7 +869,7 @@ public:
         bool _fAtRootElement = !_rjrc->m_pjrcNext;
         if ( fZeroFirst )
         {
-            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 return; // Then we read until the end of file for a JSON file containing a single number as its only element.
             *ptcCur++ = tchCurrentChar;
@@ -672,7 +880,7 @@ public:
             bool fFoundChar;
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.
                 lambdaAddCharNum( tchCurrentChar );
@@ -690,7 +898,7 @@ public:
             lambdaAddCharNum( tchCurrentChar );
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 lambdaAddCharNum( tchCurrentChar );
@@ -715,7 +923,7 @@ public:
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 lambdaAddCharNum( tchCurrentChar );
@@ -743,7 +951,7 @@ public:
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
         if ( fZeroFirst )
         {
-            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 return; // Then we read until the end of file for a JSON file containing a single number as its only element.
         }
@@ -753,7 +961,7 @@ public:
             bool fFoundChar;
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.
             } 
@@ -769,7 +977,7 @@ public:
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
             }
@@ -789,7 +997,7 @@ public:
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
             } 
