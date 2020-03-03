@@ -191,11 +191,17 @@ struct JsonCharTraits< char >
     static const _tyChar s_tcs = 's';
     static const _tyChar s_tcn = 'n';
     static const _tyChar s_tcu = 'u';    
+    static _tyLPCSTR s_szWhiteSpace; // = " \t\n\r";
+    static bool FIsWhitespace( _tyChar _tc )
+    {
+        return ( ( ' ' == _tc ) || ( '\t' == _tc ) || ( '\n' == _tc ) || ( '\r' == _tc ) );
+    }
 
     // The formatting command to format a single character using printf style.
     static const char * s_szFormatChar; // = "%c";
 };
 
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szWhiteSpace = " \t\n\r";
 const char * JsonCharTraits< char >::s_szFormatChar = "%c";
 
 // JsonCharTraits< wchar_t > : Traits for 16bit char representation.
@@ -250,11 +256,17 @@ struct JsonCharTraits< wchar_t >
     static const _tyChar s_tcs = L's';
     static const _tyChar s_tcn = L'n';
     static const _tyChar s_tcu = L'u';
+    static _tyLPCSTR s_szWhiteSpace; // = L" \t\n\r";
+    static bool FIsWhitespace( _tyChar _tc )
+    {
+        return ( ( L' ' == _tc ) || ( L'\t' == _tc ) || ( L'\n' == _tc ) || ( L'\r' == _tc ) );
+    }
 
     // The formatting command to format a single character using printf style.
-    static const char * s_szFormatChar; // = L"%c";
+    static const char * s_szFormatChar; // = "%lc";
 };
 
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szWhiteSpace = L" \t\n\r";
 const char * JsonCharTraits< wchar_t >::s_szFormatChar = "%lc";
 
 // JsonInputStream: Base class for input streams.
@@ -310,6 +322,7 @@ public:
         assert( FOpened() );
         _rjrc.AttachRoot( *this );
     }
+
 
     void SkipWhitespace() 
     {
@@ -415,6 +428,7 @@ enum _EJsonValueType : char
     ejvtObject,
     ejvtArray,
     ejvtNumber,
+    ejvtFirstJsonSimpleValue = ejvtNumber,
     ejvtString,
     ejvtTrue,
     ejvtFalse,
@@ -590,6 +604,13 @@ public:
         _CreateValue();
         return ( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) ) ? (_tyStdStr*)m_pvValue : 0;
     }
+    _tyStdStr * PGetStringValue()
+    {
+        assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
+        if ( !m_pvValue )
+            _CreateValue();
+        return ( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) ) ? (_tyStdStr*)m_pvValue : 0;
+    }
 
 protected:
     ~JsonValue() // Ensure that this JsonValue is destroyed by a trusted entity.
@@ -628,15 +649,16 @@ protected:
     }
     void _CreateValue()
     {
-        assert( !!m_pjvParent );
         assert( !m_pvValue );
         // We need to create a connected value object depending on type:
         switch( m_jvtType )
         {
         case ejvtObject:
+            assert( !!m_pjvParent );
             m_pvValue = new _tyJsonObject( m_pjvParent );
             break;
         case ejvtArray:
+            assert( !!m_pjvParent );
             m_pvValue = new _tyJsonArray( m_pjvParent );
             break;
         case ejvtNumber:
@@ -726,6 +748,7 @@ public:
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef JsonValue< _tyCharTraits > _tyJsonValue;
     typedef typename t_tyJsonInputStream::_tyFilePos _tyFilePos;
+    using _tyStdStr = _tyCharTraits::_tyStdStr;
 
     JsonReadContext( _tyJsonValue * _pjvCur = nullptr_t, JsonReadContext * _pjrcPrev = nullptr_t )
         :   m_pjrcPrev( _pjrcPrev ),
@@ -753,6 +776,12 @@ public:
         if ( !m_pjvCur )
             return ejvtJsonValueTypeCount;
         return m_pjvCur->JvtGetValueType();
+    }
+
+    _tyStdStr * PGetStringValue() const
+    {
+        assert( !!m_pjvCur );
+        return !m_pjvCur ? 0 : m_pjvCur->PGetStringValue();
     }
 
     // Push _pjrcNewHead as the new head of stack before _pjrcHead.
@@ -805,7 +834,7 @@ public:
         assert( !m_pjrcCurrent == !m_pis );
         assert( !m_pjrcRootVal == !m_pis );
         assert( !m_pjrcContextStack == !m_pis );
-        // Make sure that the current context is in the current context stack.
+        // Make sure that the current context is in the context stack.
         const _tyJsonReadContext * pjrcCheck = &*m_pjrcContextStack;
         for ( ; !!pjrcCheck && ( pjrcCheck != m_pjrcCurrent ); pjrcCheck = pjrcCheck->PJrcGetNext() )
             ;
@@ -832,8 +861,6 @@ public:
         // This should only be called when we are inside of an object's value.
         // So, we need to have a parent value and that parent value should correspond to an object.
         // Otherwise we throw an "invalid semantic use" exception.
-        if ( !FAttached() )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not attached to any JSON file." );
         if ( !m_pjrcCurrent || !m_pjrcCurrent->m_pjrcNext || ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) )
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not located at an object so no key available." );
         // If the key value in the object is the empty string then this is an empty object and we return false.
@@ -848,6 +875,148 @@ public:
     {
         assert( FAttached() );
         return m_pjrcCurrent->JvtGetValueType();
+    }
+    bool FIsValueNull() const
+    {
+        ejvtNull == JvtGetValueType();
+    }
+
+    // Get a string representation of the value.
+    // This is a semantic error if this is an aggregate value (object or array).
+    void GetValue( _tyStdStr & _strValue ) const
+    {
+        assert( FAttached() );
+        if ( FAtAggregateValue() )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(string): At an aggregate value - object or array." );
+
+        EJsonValueType jvt = JvtGetValueType();
+        if ( ( ejvtEndOfObject == jvt ) || ( ejvtEndOfArray == jvt ) )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(string): No value located at end of object or array." );
+        
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+        
+        switch( JvtGetValueType() )
+        {
+        case ejvtNumber:
+        case ejvtString:
+            _strValue = *m_pjrcCurrent->PGetStringValue();
+            break;
+        case ejvtTrue:
+            _strValue = "true";
+            break;
+        case ejvtFalse:
+            _strValue = "false";
+            break;
+        case ejvtNull:
+            _strValue = "null";
+            break;
+        }
+    }
+    void GetValue( bool & _rf ) const
+    {
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+        
+        switch( JvtGetValueType() )
+        {
+        default:
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(bool): Not at a boolean value type." );
+            break;
+        case ejvtTrue:
+            _rf = true;
+            break;
+        case ejvtFalse:
+            _rf = false;
+            break;
+        }
+    }
+    void GetValue( int & _rInt ) const
+    {
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+
+        if ( ejvtNumber != JvtGetValueType() ) 
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(int): Not at a numeric value type." );
+
+        // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
+        int iRet = sscanf( "%d", &_rInt );
+        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+    }
+    void GetValue( long & _rLong ) const
+    {
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+
+        if ( ejvtNumber != JvtGetValueType() ) 
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long): Not at a numeric value type." );
+
+        // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
+        int iRet = sscanf( "%ld", &_rLong );
+        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+    }
+    void GetValue( float & _rFloat ) const
+    {
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+
+        if ( ejvtNumber != JvtGetValueType() ) 
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(float): Not at a numeric value type." );
+
+        int iRet = sscanf( "%e", &_rFloat );
+        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+    }
+    void GetValue( double & _rDouble ) const
+    {
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+
+        if ( ejvtNumber != JvtGetValueType() ) 
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(double): Not at a numeric value type." );
+
+        int iRet = sscanf( "%le", &_rDouble );
+        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+    }
+    void GetValue( long double & _rLongDouble ) const
+    {
+        // Now check if we haven't read the value yet because then we gotta read it.
+        if ( !m_pjrcCurrent->m_posEndValue )
+            _ReadSimpleValue();
+
+        if ( ejvtNumber != JvtGetValueType() ) 
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long double): Not at a numeric value type." );
+
+        int iRet = sscanf( "%Le", &_rLongDouble );
+        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+    }
+
+    // This will read any unread value into the value object
+    void _ReadSimpleValue()
+    {
+        assert( !m_pjrcCurrent->m_posEndValue );
+        EJsonValueType jvt = JvtGetValueType();
+        assert( ( jvt >= ejvtFirstJsonSimpleValue ) && ( jvt <= ejvtLastJsonSpecifiedValue ) ); // Should be handled by caller.
+        switch( jvt )
+        {
+        case ejvtNumber:
+            _ReadNumber( m_pjrcCurrent->m_tcFirst, !m_pjrcCurrent->m_pjrcNext, *m_pjrcCurrent->PGetStringValue() );
+            break;
+        case ejvtString:
+            _ReadString( *m_pjrcCurrent->PGetStringValue() );
+            break;
+        case ejvtTrue:
+        case ejvtFalse:
+        case ejvtNull:
+            _SkipSimpleValue(); // We just skip remaining value checking that it is correct.
+            break;
+        }
+        m_pjrcCurrent->m_posEndValue = m_pis->PosGet();
     }
 
     // Read a JSON number according to the specifications of such.
