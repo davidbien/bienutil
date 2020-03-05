@@ -684,54 +684,111 @@ protected:
     EJsonValueType m_jvtType{ejvtJsonValueTypeCount}; // Type of the JsonValue.
 };
 
+// JsonAggregate:
+// This may be JsonObject or JsonArray
+template < class t_tyCharTraits >
+class JsonAggregate
+{
+    typedef JsonAggregate _tyThis;
+public:
+    JsonAggregate( const JsonValue * _pjvParent )
+    {
+        m_jvCur.SetPjvParent( _pjvParent ); // Link the contained value to the parent value. This is a soft reference - we assume any parent will always exist.
+    }
+
+    const _tyJsonValue & RJvGet() const
+    {
+        return m_jvCur;
+    }
+     _tyJsonValue & RJvGet()
+    {
+        return m_jvCur;
+    }
+
+    int NElement() const
+    {
+        return m_nObjectOrArrayElement;
+    }
+    void SetNElement( int _nObjectOrArrayElement ) const
+    {
+        m_nObjectOrArrayElement = _nObjectOrArrayElement;
+    }
+    void IncElement()
+    {
+        ++m_nObjectOrArrayElement;
+    }
+
+    void SetEndOfIteration( bool _fObject )
+    {
+        m_jvCur.SetEndOfIteration( _fObject );
+    }
+protected:
+    JsonValue m_jvCur; // The current JsonValue for this object.
+    int m_nObjectOrArrayElement{}; // The index of the object or array that this context's value corresponds to.
+};
+
+
 // class JsonObject:
 // This represents an object containing key:value pairs.
 template < class t_tyCharTraits >
-class JsonObject
+class JsonObject : protected JsonAggregate< t_tyCharTraits >
 {
+    typedef JsonAggregate< t_tyCharTraits > _tyBase;
     typedef JsonObject _tyThis;
 public:
     using _tyCharTraits = t_tyCharTraits;
     using _tyStdStr = _tyCharTraits::_tyStdStr;
 
     JsonObject( const JsonValue * _pjvParent )
+        : _tyBase( _pjvParent )
     {
-        m_jsvCur.SetPjvParent( _pjvParent ); // Link the contained value to the parent value. This is a soft reference - we assume any parent will always exist.
     }
+    using _tyBase::RJvGet;
+    using _tyBase::NElement;
+    using _tyBase::SetNElement;
+    using _tyBase::IncElement;
+
     void GetKey( _tyStdStr & _strCurKey ) const 
     {
         _strCurKey = m_strCurKey;
     }
 
     // Set the JsonObject for the end of iteration.
-    void SetEndOfIteration( bool _fObject )
+    void SetEndOfIteration()
     {
+        _tyBase::SetEndOfIteration( true );
         m_strCurKey.clear();
-        m_jsvCur.SetEndOfIteration( _fObject );
     }
 
 protected:
     _tyStdStr m_strCurKey; // The current label for this object.
-    JsonValue m_jsvCur; // The current JsonValue for this object.
 };
 
 // JsonArray:
 // This represents an JSON array containing multiple values.
 template < class t_tyCharTraits >
-class JsonArray
+class JsonArray : protected JsonAggregate< t_tyCharTraits >
 {
+    typedef JsonAggregate< t_tyCharTraits > _tyBase;
     typedef JsonArray _tyThis;
 public:
     using _tyCharTraits = t_tyCharTraits;
     using _tyStdStr = _tyCharTraits::_tyStdStr;
 
     JsonArray( const JsonValue * _pjvParent )
+        : _tyBase( _pjvParent )
     {
-        m_jsvCur.SetPjvParent( _pjvParent ); // Link the contained value to the parent value. This is a soft reference - we assume any parent will always exist.
     }
+    using _tyBase::RJvGet;
+    using _tyBase::NElement;
+    using _tyBase::SetNElement;
+    using _tyBase::IncElement;
 
-protected:
-    JsonValue m_jsvCur; // The current JsonValue for this object.
+    // Set the JsonArray for the end of iteration.
+    void SetEndOfIteration()
+    {
+        _tyBase::SetEndOfIteration( false );
+    }
 };
 
 // JsonReadContext:
@@ -807,7 +864,6 @@ protected:
     JsonReadContext * m_pjrcPrev{}; // soft reference to parent in list.
     _tyFilePos m_posStartValue{}; // The start of the value for this element - after parsing WS.
     _tyFilePos m_posEndValue{}; // The end of the value for this element - before parsing WS beyond.
-    int m_nObjectOrArrayElement{}; // The index of the object or array that this context's value corresponds to.
     _tyChar m_tcFirst{}; // Only for the number type does this matter but since it does...
 };
 
