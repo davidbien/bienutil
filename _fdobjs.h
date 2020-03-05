@@ -1,9 +1,9 @@
 #pragma once
-
 // _fdobjs.h
 // FdObj: Object(s) for the management lifetime of an fd.
 
 // FdObj: The basest object just knows about the fd and will close it if open on destruct.
+// Note that this object is not explicitly multithread aware.
 class FdObj
 {
   typedef FdObj _tyThis;
@@ -12,15 +12,28 @@ public:
     : m_fd(-1)
   {
   }
-  ~FdObj()
+  FdObj(int _fd)
+    : m_fd(_fd)
   {
-    (void)_Close(m_fd);
+  }
+  virtual ~FdObj()
+  {
+    if (FIsOpen())
+      (void)_Close(m_fd); // Nothing to do about close errors on this codepath - throwing out of destructor is against the rules.
+  }
+private:
+  void _SetFd(int _fd) // This to be used by inheriting classes in constructors.
+  {
+    assert(!FIsOpen());
+    m_fd = _fd;
   }
   static int _Close(int _fd)
   {
-    return (-1 != _fd) ? 0 : close(_fd);
+    assert(-1 != _fd);
+    return close(_fd);
   }
-  int Close()
+public:
+  virtual int Close()
   {
     if (FIsOpen())
     {
