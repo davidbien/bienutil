@@ -72,7 +72,7 @@ public:
     (void)vsnprintf( m_rgcExceptionName, s_stBufSize, _pcFmt, args );
     m_rgcExceptionName[s_stBufSize - 1] = 0;
   }
-private:
+protected:
   enum : size_t // clang didn't like the static const size_t declaration somehow - this works but also required a cast above.
   {
     s_stBufSize = NAMEDEXC_BUFSIZE
@@ -109,7 +109,7 @@ public:
       // Add the errno description onto the end of the error string.
       const int knErrorMesg = 1024;
       char rgcErrorMesg[ knErrorMesg ];
-      if ( !!strerror_r( m_errno, rgcBuf, knErrorMesg ) )
+      if ( !!strerror_r( m_errno, rgcErrorMesg, knErrorMesg ) )
         snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", m_errno );
       rgcErrorMesg[knErrorMesg-1] = 0;
 
@@ -126,7 +126,8 @@ public:
   {
     m_errno = _errno;
   }
-private:
+protected:
+  using _TyBase::m_rgcExceptionName;
   int m_errno;
 };
 
@@ -140,52 +141,58 @@ private:
 template < class t_tyException >
 struct ExceptionUsage
 {
-    typedef t_tyException _TyException;
-  
-    static void ThrowFileLine( const char * _pcFile, int _nLine, const char * _pcFmt, ... )
-    {
-        // We add _psFile:[_nLine]: to the start of the format string.
-        const int knBuf = NAMEDEXC_BUFSIZE;
-        char rgcBuf[knBuf+1];
-        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
-        rgcBuf[knBuf] = 0;
+  typedef t_tyException _TyException;
 
-        va_list ap;
-        va_start( ap, _pcFmt );
-        _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw exc;
-    }
-    static void ThrowFileLineErrno( const char * _pcFile, int _nLine, int _errno, const char * _pcFmt, ... )
-    {
-        // We add _psFile:[_nLine]: to the start of the format string.
-        const int knBuf = NAMEDEXC_BUFSIZE;
-        char rgcBuf[knBuf+1];
-        snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
-        rgcBuf[knBuf] = 0;
+  static void ThrowFileLine( const char * _pcFile, int _nLine, const char * _pcFmt, ... )
+  {
+    // We add _psFile:[_nLine]: to the start of the format string.
+    const int knBuf = NAMEDEXC_BUFSIZE;
+    char rgcBuf[knBuf+1];
+    snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+    rgcBuf[knBuf] = 0;
 
-        va_list ap;
-        va_start( ap, _pcFmt );
-        _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw exc;
-    }
-    static void Throw( const char * _pcFmt, ... )
-    {
-        va_list ap;
-        va_start( ap, _pcFmt );
-        _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw exc;
-    }
-    static void ThrowErrno( int _errno, const char * _pcFmt, ... )
-    {
-        va_list ap;
-        va_start( ap, _pcFmt );
-        _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
-        va_end( ap );
-        throw exc;
-    }
+    va_list ap;
+    va_start( ap, _pcFmt );
+    _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    va_end( ap );
+    throw exc;
+  }
+  static void ThrowFileLineErrno( const char * _pcFile, int _nLine, int _errno, const char * _pcFmt, ... )
+  {
+    // We add _psFile:[_nLine]: to the start of the format string.
+    const int knBuf = NAMEDEXC_BUFSIZE;
+    char rgcBuf[knBuf+1];
+    snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+    rgcBuf[knBuf] = 0;
+
+    va_list ap;
+    va_start( ap, _pcFmt );
+    _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    va_end( ap );
+    throw exc;
+  }
+  static void Throw( const char * _pcFmt, ... )
+  {
+    va_list ap;
+    va_start( ap, _pcFmt );
+    _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    va_end( ap );
+    throw exc;
+  }
+  static void ThrowErrno( int _errno, const char * _pcFmt, ... )
+  {
+    va_list ap;
+    va_start( ap, _pcFmt );
+    _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    va_end( ap );
+    throw exc;
+  }
+
+  // Log the exception to any diagnostics we might have.
+  static void LogException( const _TyException & _rexc )
+  {
+    SysLog::
+  }
 };
 
 #endif //___NAMDEXC_H___

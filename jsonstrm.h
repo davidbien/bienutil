@@ -3,9 +3,14 @@
 #include <string>
 #include <memory>
 #include <unistd.h>
+#include <stdexcept>
+#include <fcntl.h>
 
-#include "_dbgthrw.h"
+#include "bienutil.h"
 #include "_namdexc.h"
+#include "_debug.h"
+#include "_util.h"
+#include "_dbgthrw.h"
 
 // jsonstrm.h
 // This implements JSON streaming in/out.
@@ -90,7 +95,7 @@ public:
         }
         *pcBufTail = 0;
 
-        _tyBase::RenderVA( rgcBuf, args ); // Render into the exception description buffer.
+        _TyBase::RenderVA( rgcBuf, args ); // Render into the exception description buffer.
     }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
@@ -133,7 +138,7 @@ public:
     }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSEMANTICUSE( MESG, ARGS... ) ExceptionUsage<json_stream_bad_semantic_usage_exception>::ThrowFileLine( __FILE__, __LINE__, MESG, ARGS )
+#define THROWBADJSONSEMANTICUSE( MESG... ) ExceptionUsage<json_stream_bad_semantic_usage_exception<_tyCharTraits>>::ThrowFileLine( __FILE__, __LINE__, MESG )
 
 #ifdef __NAMDDEXC_STDBASE
 #pragma pop_macro("std")
@@ -157,7 +162,7 @@ struct JsonCharTraits< char >
     static const _tyChar s_tcColon = ':';
     static const _tyChar s_tcComma = ',';
     static const _tyChar s_tcPeriod = '.';
-    static const _tyChar s_tcDoubleQuotes = '"';
+    static const _tyChar s_tcDoubleQuote = '"';
     static const _tyChar s_tcBackSlash = '\\';
     static const _tyChar s_tcForwardSlash = '/';
     static const _tyChar s_tcMinus = '-';
@@ -190,7 +195,11 @@ struct JsonCharTraits< char >
     static const _tyChar s_tcl = 'l';
     static const _tyChar s_tcs = 's';
     static const _tyChar s_tcn = 'n';
-    static const _tyChar s_tcu = 'u';    
+    static const _tyChar s_tcBackSpace = '\b';
+    static const _tyChar s_tcFormFeed = '\f';
+    static const _tyChar s_tcNewline = '\n';
+    static const _tyChar s_tcCarriageReturn = '\r';
+    static const _tyChar s_tcTab = '\t';
     static _tyLPCSTR s_szWhiteSpace; // = " \t\n\r";
     static bool FIsWhitespace( _tyChar _tc )
     {
@@ -222,7 +231,7 @@ struct JsonCharTraits< wchar_t >
     static const _tyChar s_tcColon = L':';
     static const _tyChar s_tcComma = L',';
     static const _tyChar s_tcPeriod = L'.';
-    static const _tyChar s_tcDoubleQuotes = L'"';
+    static const _tyChar s_tcDoubleQuote = L'"';
     static const _tyChar s_tcBackSlash = L'\\';
     static const _tyChar s_tcForwardSlash = L'/';
     static const _tyChar s_tcMinus = L'-';
@@ -255,7 +264,11 @@ struct JsonCharTraits< wchar_t >
     static const _tyChar s_tcl = L'l';
     static const _tyChar s_tcs = L's';
     static const _tyChar s_tcn = L'n';
-    static const _tyChar s_tcu = L'u';
+    static const _tyChar s_tcBackSpace = L'\b';
+    static const _tyChar s_tcFormFeed = L'\f';
+    static const _tyChar s_tcNewline = L'\n';
+    static const _tyChar s_tcCarriageReturn = L'\r';
+    static const _tyChar s_tcTab = L'\t';
     static _tyLPCSTR s_szWhiteSpace; // = L" \t\n\r";
     static bool FIsWhitespace( _tyChar _tc )
     {
@@ -299,30 +312,66 @@ public:
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
     JsonLinuxInputStream() = default;
+    ~JsonLinuxInputStream()
+    {
+        if ( m_fOwnFdLifetime && FOpened() )
+        {
+            m_fOwnFdLifetime = false; // prevent reentry though we know it should never happen.
+            _Close( m_fd );
+        }
+    }
 
     bool FOpened() const
     {
         return -1 != m_fd;
     }
 
-    // Throws on open failure.
+    // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
     {
         assert( !FOpened() );
         m_fd = open( _szFilename, O_RDONLY );
-        if ( -1 == m_fd )
+        if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::Open(): Unable to open() file [%s]", _szFilename );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
+        m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
     }
 
+    // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdin which is usually at FD 0 unless reopen()ed.
+    void AttachFd( int _fd )
+    {
+        assert( !FOpened() );
+        assert( _fd != -1 );
+        m_fd = _fd;
+        m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
+        m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
+        m_szFilename.clear(); // No filename indicates we are attached to "some fd".
+    }
+
+    int Close()
+    {
+        if ( FOpened() )
+        {
+            int fd = m_fd;
+            m_fd = 0;
+            if ( m_fOwnFdLifetime )
+                return _Close( fd );
+        }
+        return 0;
+    }
+    static int _Close( int _fd )
+    {
+        return close( _fd );
+    }
+
+    // Attach to this FOpened() JsonLinuxInputStream.
     void AttachReadCursor( _tyJsonReadCursor & _rjrc )
     {
         assert( !_rjrc.FAttached() );
         assert( FOpened() );
         _rjrc.AttachRoot( *this );
     }
-
 
     void SkipWhitespace() 
     {
@@ -358,6 +407,8 @@ public:
         _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
         if ( -1 == pos )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
+        if ( m_fHasLookahead )
+            pos -= sizeof m_tcLookahead; // Since we have a lookahead we are actually one character before.
         return pos;
     }
     // Read a single character from the file - always throw on EOF.
@@ -381,9 +432,10 @@ public:
             }
         }
         assert( !m_fHasLookahead );
+        return m_tcLookahead;
     }
     
-    bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage );
+    bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage )
     {
         assert( FOpened() );
         if ( m_fHasLookahead )
@@ -420,6 +472,7 @@ protected:
     int m_fd{-1}; // file descriptor.
     _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
     bool m_fHasLookahead{false};
+    bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
 };
 
 // _EJsonValueType: The types of values in a JsonValue object.
@@ -448,29 +501,34 @@ class JsonValue
     typedef JsonValue _tyThis;
 public:
     using _tyCharTraits = t_tyCharTraits;
-    using _tyStdStr = _tyCharTraits::_tyStdStr;
+    using _tyChar = typename _tyCharTraits::_tyChar;
+    using _tyStdStr = typename _tyCharTraits::_tyStdStr;
     using _tyJsonObject = JsonObject< t_tyCharTraits >;
     using _tyJsonArray = JsonArray< t_tyCharTraits >;
 
     // Note that this JsonValue very well may be referred to by a parent JsonValue.
     // JsonValues must be destructed carefully.
 
-    JsonValue() = default;
     JsonValue( const JsonValue& ) = delete;
     JsonValue& operator=( const JsonValue& ) = delete;
 
-    JsonValue( JsonValue * _pjvParent = nullptr_t, EJsonValueType _jvtType = ejvtJsonValueTypeCount )
+    JsonValue( JsonValue * _pjvParent = nullptr, EJsonValueType _jvtType = ejvtJsonValueTypeCount )
         :   m_pjvParent( _pjvParent ),
             m_jvtType( _jvtType )
     {
         assert( !m_pvValue ); // Should have been zeroed by default member initialization on site.
     }
-
     JsonValue( JsonValue && _rr )
     {
         assert( FIsNull() );
         swap( _rr );
     }
+    ~JsonValue()
+    {
+        if ( m_pvValue )
+            _DestroyValue();
+    }
+
     JsonValue & operator = ( JsonValue && _rr )
     {
         Destroy();
@@ -535,6 +593,10 @@ public:
     {
         return m_jvtType;
     }
+    void SetValueType( EJsonValueType _jvt )
+    {
+        m_jvtType = _jvt;
+    }
 
     // We assume that we have sole use of this input stream - as any such sharing would need complex guarding otherwise.
     // We should never need to backtrack when reading from the stream - we may need to fast forward for sure but not backtrack.
@@ -571,7 +633,7 @@ public:
             case _tyCharTraits::s_tc8:
             case _tyCharTraits::s_tc9:
                 return ejvtNumber;
-            case _tyCharTraits::s_tcDoubleQuotes:
+            case _tyCharTraits::s_tcDoubleQuote:
                 return ejvtString;
             case _tyCharTraits::s_tcf:
                 return ejvtFalse;
@@ -584,18 +646,30 @@ public:
         }
     }
 
-    // Create the JsonObject associated with this JsonValue.
     _tyJsonObject * PCreateJsonObject()
     {
         assert( ejvtObject == m_jvtType );
         _CreateValue();
         return ( ejvtObject == m_jvtType ) ? (_tyJsonObject*)m_pvValue : 0;
     }
-    // Create the JsonObject associated with this JsonValue.
+    _tyJsonObject * PGetJsonObject()
+    {
+        assert( ejvtObject == m_jvtType );
+        if ( !m_pvValue )
+            _CreateValue();
+        return ( ejvtObject == m_jvtType ) ? (_tyJsonObject*)m_pvValue : 0;
+    }
     _tyJsonArray * PCreateJsonArray()
     {
         assert( ejvtArray == m_jvtType );
         _CreateValue();
+        return ( ejvtArray == m_jvtType ) ? (_tyJsonArray*)m_pvValue : 0;
+    }
+    _tyJsonArray * PGetJsonArray()
+    {
+        assert( ejvtArray == m_jvtType );
+        if ( !m_pvValue )
+            _CreateValue();
         return ( ejvtArray == m_jvtType ) ? (_tyJsonArray*)m_pvValue : 0;
     }
     _tyStdStr * PCreateStringValue()
@@ -613,16 +687,11 @@ public:
     }
 
 protected:
-    ~JsonValue() // Ensure that this JsonValue is destroyed by a trusted entity.
-    {
-        if ( m_pvValue )
-            _DestroyValue();
-    }
     void _DestroyValue()
     {
         void * pvValue = m_pvValue;
         m_pvValue = 0;
-        _DestroyValue( pvValue )
+        _DestroyValue( pvValue );
     }
     void _DestroyValue( void * _pvValue )
     {
@@ -677,7 +746,7 @@ protected:
     const JsonValue * m_pjvParent{}; // We make this const and then const_cast<> as needed.
     void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
     // m_pvValue is one of:
-    // for ejvtTrue, ejvtFalse, ejvtNull: nullptr_t
+    // for ejvtTrue, ejvtFalse, ejvtNull: nullptr
     // for ejvtObject: JsonObject *
     // for ejvtArray: JsonArray *
     // for ejvtNumber, ejvtString: _tyStdStr *
@@ -691,7 +760,9 @@ class JsonAggregate
 {
     typedef JsonAggregate _tyThis;
 public:
-    JsonAggregate( const JsonValue * _pjvParent )
+    typedef JsonValue< t_tyCharTraits > _tyJsonValue;
+
+    JsonAggregate( const _tyJsonValue * _pjvParent )
     {
         m_jvCur.SetPjvParent( _pjvParent ); // Link the contained value to the parent value. This is a soft reference - we assume any parent will always exist.
     }
@@ -723,23 +794,23 @@ public:
         m_jvCur.SetEndOfIteration( _fObject );
     }
 protected:
-    JsonValue m_jvCur; // The current JsonValue for this object.
+    _tyJsonValue m_jvCur; // The current JsonValue for this object.
     int m_nObjectOrArrayElement{}; // The index of the object or array that this context's value corresponds to.
 };
-
 
 // class JsonObject:
 // This represents an object containing key:value pairs.
 template < class t_tyCharTraits >
-class JsonObject : protected JsonAggregate< t_tyCharTraits >
+class JsonObject : protected JsonAggregate< t_tyCharTraits > // use protected because we don't want a virtual destructor.
 {
     typedef JsonAggregate< t_tyCharTraits > _tyBase;
     typedef JsonObject _tyThis;
 public:
     using _tyCharTraits = t_tyCharTraits;
-    using _tyStdStr = _tyCharTraits::_tyStdStr;
+    typedef JsonValue< t_tyCharTraits > _tyJsonValue;
+    using _tyStdStr = typename _tyCharTraits::_tyStdStr;
 
-    JsonObject( const JsonValue * _pjvParent )
+    JsonObject( const _tyJsonValue * _pjvParent )
         : _tyBase( _pjvParent )
     {
     }
@@ -752,6 +823,14 @@ public:
     {
         _strCurKey = m_strCurKey;
     }
+    void ClearKey()
+    {
+        m_strCurKey.clear();
+    }
+    void SwapKey( _tyStdStr & _rstr )
+    {
+        m_strCurKey.swap( _rstr );
+    }
 
     // Set the JsonObject for the end of iteration.
     void SetEndOfIteration()
@@ -759,8 +838,12 @@ public:
         _tyBase::SetEndOfIteration( true );
         m_strCurKey.clear();
     }
-
+    bool FEndOfIteration() const
+    {
+        return m_jvCur.JvtGetValueType() == ejvtEndOfObject;
+    }
 protected:
+    using _tyBase::m_jvCur;
     _tyStdStr m_strCurKey; // The current label for this object.
 };
 
@@ -773,9 +856,10 @@ class JsonArray : protected JsonAggregate< t_tyCharTraits >
     typedef JsonArray _tyThis;
 public:
     using _tyCharTraits = t_tyCharTraits;
-    using _tyStdStr = _tyCharTraits::_tyStdStr;
+    typedef JsonValue< t_tyCharTraits > _tyJsonValue;
+    using _tyStdStr = typename _tyCharTraits::_tyStdStr;
 
-    JsonArray( const JsonValue * _pjvParent )
+    JsonArray( const _tyJsonValue * _pjvParent )
         : _tyBase( _pjvParent )
     {
     }
@@ -788,6 +872,11 @@ public:
     void SetEndOfIteration()
     {
         _tyBase::SetEndOfIteration( false );
+    }
+    using _tyBase::m_jvCur;
+    bool FEndOfIteration() const
+    {
+        return m_jvCur.JvtGetValueType() == ejvtEndOfArray;
     }
 };
 
@@ -804,11 +893,13 @@ public:
     typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef JsonValue< _tyCharTraits > _tyJsonValue;
+    typedef JsonObject< _tyCharTraits > _tyJsonObject;
+    typedef JsonArray< _tyCharTraits > _tyJsonArray;
     typedef typename t_tyJsonInputStream::_tyFilePos _tyFilePos;
-    using _tyStdStr = _tyCharTraits::_tyStdStr;
+    using _tyStdStr = typename _tyCharTraits::_tyStdStr;
 
-    JsonReadContext( _tyJsonValue * _pjvCur = nullptr_t, JsonReadContext * _pjrcPrev = nullptr_t )
-        :   m_pjrcPrev( _pjrcPrev ),
+    JsonReadContext( _tyJsonValue * _pjvCur = nullptr, JsonReadContext * _pjrxPrev = nullptr )
+        :   m_pjrxPrev( _pjrxPrev ),
             m_pjvCur( _pjvCur )
     {
     }
@@ -817,14 +908,24 @@ public:
     {
         return m_pjvCur;
     }
+    _tyJsonObject * PGetJsonObject() const
+    {
+        assert( !!m_pjvCur );
+        return m_pjvCur->PGetJsonObject();
+    }
+    _tyJsonArray * PGetJsonArray() const
+    {
+        assert( !!m_pjvCur );
+        return m_pjvCur->PGetJsonArray();
+    }
 
     JsonReadContext * PJrcGetNext()
     {
-        return &*m_pjrcNext;
+        return &*m_pjrxNext;
     }
     const JsonReadContext * PJrcGetNext() const
     {
-        return &*m_pjrcNext;
+        return &*m_pjrxNext;
     }
 
     EJsonValueType JvtGetValueType() const
@@ -834,6 +935,12 @@ public:
             return ejvtJsonValueTypeCount;
         return m_pjvCur->JvtGetValueType();
     }
+    void SetValueType( EJsonValueType _jvt )
+    {
+        assert( !!m_pjvCur );
+        if ( !!m_pjvCur )
+            m_pjvCur->SetValueType( _jvt );
+    }
 
     _tyStdStr * PGetStringValue() const
     {
@@ -841,30 +948,91 @@ public:
         return !m_pjvCur ? 0 : m_pjvCur->PGetStringValue();
     }
 
-    // Push _pjrcNewHead as the new head of stack before _pjrcHead.
-    static void PushStack( std::unique_ptr< JsonReadContext > & _pjrcHead, std::unique_ptr< JsonReadContext > & _pjrcNewHead )
+    void SetEndOfIteration( _tyFilePos _pos )
     {
-        assert( !_pjrcHead->m_pjrcPrev );
-        assert( !_pjrcNewHead->m_pjrcPrev );
-        assert( !_pjrcNewHead->m_pjrcNext );
-        _pjrcHead->m_pjrcPrev = this; // soft link.
-        _pjrcNewHead->m_pjrcNext.swap( _pjrcHead );
-        _pjrcHead.swap( _pjrcNewHead ); // new head is now the head and it points at old head.
+        m_tcFirst = 0;
+        m_posStartValue = m_posEndValue = _pos;
+        // The value is set to EndOfIteration separately.
     }
-    static void PopStack( std::unique_ptr< JsonReadContext > & _pjrcHead )
+
+    // Push _pjrxNewHead as the new head of stack before _pjrxHead.
+    static void PushStack( std::unique_ptr< JsonReadContext > & _pjrxHead, std::unique_ptr< JsonReadContext > & _pjrxNewHead )
     {
-        std::unique_ptr< JsonReadContext > pjrcOldHead;
-        _pjrcHead.swap( pjrcOldHead );
-        pjrcOldHead->m_pjrcNext.swap( _pjrcHead );
+        if ( !!_pjrxHead )
+        {
+            assert( !_pjrxHead->m_pjrxPrev );
+            assert( !_pjrxNewHead->m_pjrxPrev );
+            assert( !_pjrxNewHead->m_pjrxNext );
+            _pjrxHead->m_pjrxPrev = &*_pjrxNewHead; // soft link.
+            _pjrxNewHead->m_pjrxNext.swap( _pjrxHead );
+        }
+        _pjrxHead.swap( _pjrxNewHead ); // new head is now the head and it points at old head.
+    }
+    static void PopStack( std::unique_ptr< JsonReadContext > & _pjrxHead )
+    {
+        std::unique_ptr< JsonReadContext > pjrxOldHead;
+        _pjrxHead.swap( pjrxOldHead );
+        pjrxOldHead->m_pjrxNext.swap( _pjrxHead );
     }
 
 protected:
     _tyJsonValue * m_pjvCur{}; // We maintain a soft reference to the current JsonValue at this level.
-    std::unique_ptr< JsonReadContext > m_pjrcNext; // Implement a simple doubly linked list.
-    JsonReadContext * m_pjrcPrev{}; // soft reference to parent in list.
+    std::unique_ptr< JsonReadContext > m_pjrxNext; // Implement a simple doubly linked list.
+    JsonReadContext * m_pjrxPrev{}; // soft reference to parent in list.
     _tyFilePos m_posStartValue{}; // The start of the value for this element - after parsing WS.
     _tyFilePos m_posEndValue{}; // The end of the value for this element - before parsing WS beyond.
     _tyChar m_tcFirst{}; // Only for the number type does this matter but since it does...
+};
+
+// JsonRestoreContext:
+// Restores the context to formerly current context upon end object lifetime.
+template < class t_tyJsonInputStream >
+class JsonRestoreContext
+{
+    typedef JsonRestoreContext _tyThis;
+public:
+    typedef t_tyJsonInputStream _tyJsonInputStream;
+    typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
+    typedef JsonReadCursor< t_tyJsonInputStream > _tyJsonReadCursor;
+    typedef JsonReadContext< t_tyJsonInputStream > _tyJsonReadContext;
+
+    JsonRestoreContext() = default;
+    JsonRestoreContext( _tyJsonReadCursor & _jrc )
+        :   m_pjrc( &_jrc ),
+            m_pjrx( &_jrc.GetCurrentContext() )
+    {
+    }
+    ~JsonRestoreContext()
+    {
+        if ( !!m_pjrx && !!m_pjrc )
+        {
+            // We cannot be throwing out of a destructor because that f's things up (for one we might be in the middle of a stack unwinding due to a previous throw).
+            // So we handle any thrown exceptions locally and log.
+            try
+            {
+                m_pjrc->MoveToContext( *m_pjrx );
+            }
+            catch( std::exception & rexc )
+            {
+                fprintf( stderr, "Exception caught in ~JsonRestoreContext(): %s.", rexc.what() );
+            }
+        }
+    }
+
+    // This one does potentially throw since we are not within a destructor.
+    void Release()
+    {
+        if ( !!m_pjrx && !!m_pjrc )
+        {
+            _tyJsonReadCursor * pjrc = m_pjrc;
+            m_pjrc = 0;
+            m_pjrc->MoveToContext( *m_pjrx );
+        }
+    }
+
+protected:
+    _tyJsonReadCursor * m_pjrc{};
+    const _tyJsonReadContext * m_pjrx{};
 };
 
 // class JsonReadCursor:
@@ -874,12 +1042,15 @@ class JsonReadCursor
     typedef JsonReadCursor _tyThis;
 public:
     typedef t_tyJsonInputStream _tyJsonInputStream;
+    typedef typename t_tyJsonInputStream::_tyFilePos _tyFilePos;
     typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef JsonValue< _tyCharTraits > _tyJsonValue;
     typedef JsonObject< _tyCharTraits > _tyJsonObject;
-    typedef JsonReadContext< _tyCharTraits > _tyJsonReadContext;
-    using _tyStdStr = _tyCharTraits::_tyStdStr;
+    typedef JsonArray< _tyCharTraits > _tyJsonArray;
+    typedef JsonReadContext< t_tyJsonInputStream > _tyJsonReadContext;
+    typedef JsonRestoreContext< t_tyJsonInputStream > _tyJsonRestoreContext;
+    using _tyStdStr = typename _tyCharTraits::_tyStdStr;
 
     JsonReadCursor() = default;
     JsonReadCursor( JsonReadCursor const & ) = delete;
@@ -887,14 +1058,14 @@ public:
 
     void AssertValid() const 
     {
-        assert( !m_pjrcCurrent == !m_pis );
-        assert( !m_pjrcRootVal == !m_pis );
-        assert( !m_pjrcContextStack == !m_pis );
+        assert( !m_pjrxCurrent == !m_pis );
+        assert( !m_pjrxRootVal == !m_pis );
+        assert( !m_pjrxContextStack == !m_pis );
         // Make sure that the current context is in the context stack.
-        const _tyJsonReadContext * pjrcCheck = &*m_pjrcContextStack;
-        for ( ; !!pjrcCheck && ( pjrcCheck != m_pjrcCurrent ); pjrcCheck = pjrcCheck->PJrcGetNext() )
+        const _tyJsonReadContext * pjrxCheck = &*m_pjrxContextStack;
+        for ( ; !!pjrxCheck && ( pjrxCheck != m_pjrxCurrent ); pjrxCheck = pjrxCheck->PJrcGetNext() )
             ;
-        assert( !!pjrcCheck ); // If this fails then the current context is not in the content stack - this is bad.
+        assert( !!pjrxCheck ); // If this fails then the current context is not in the content stack - this is bad.
     }
     bool FAttached() const 
     {
@@ -902,35 +1073,49 @@ public:
         return !!m_pis;
     }
 
+    const _tyJsonReadContext & GetCurrentContext() const
+    {
+        assert( !!m_pjrxCurrent );
+        return *m_pjrxCurrent;
+    }
+
     // Returns true if the current value is an aggregate value - object or array.
     bool FAtAggregateValue() const 
     {
         AssertValid();
-        return !!m_pjrcCurrent && 
-            ( ( ejvtArray == m_pjrcCurrent->JvtGetValueType() ) || ( ejvtObject == m_pjrcCurrent->JvtGetValueType() ) );
+        return !!m_pjrxCurrent && 
+            ( ( ejvtArray == m_pjrxCurrent->JvtGetValueType() ) || ( ejvtObject == m_pjrxCurrent->JvtGetValueType() ) );
+    }
+    // Return if we are at the end of the iteration of an aggregate (object or array).
+    bool FAtEndOfAggregate() const 
+    {
+        AssertValid();
+        return !!m_pjrxCurrent && 
+            ( ( ejvtEndOfArray == m_pjrxCurrent->JvtGetValueType() ) || ( ejvtEndOfObject == m_pjrxCurrent->JvtGetValueType() ) );
     }
 
     // Get the current key if there is a current key.
     bool FGetKeyCurrent( _tyStdStr & _rstrKey, EJsonValueType & _rjvt ) const
     {
         assert( FAttached() );
+        if ( FAtEndOfAggregate() )
+            return false;
         // This should only be called when we are inside of an object's value.
         // So, we need to have a parent value and that parent value should correspond to an object.
         // Otherwise we throw an "invalid semantic use" exception.
-        if ( !m_pjrcCurrent || !m_pjrcCurrent->m_pjrcNext || ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) )
+        if ( !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) )
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not located at an object so no key available." );
         // If the key value in the object is the empty string then this is an empty object and we return false.
-        _tyJsonObject * pjoCur = m_pjrcCurrent->m_pjrcNext->PGetJsonObject();
-        if ( pjoCur->FEmptyObject() ) // This returns true when the object is either initially empty or we are at the end of the set of (key,value) pairs.
-            return false;
+        _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();
+        assert( !pjoCur->FEndOfIteration() );
         pjoCur->GetKey( _rstrKey );
-        _rjvt = m_pjrcCurrent->JvtGetValueType(); // This is the value type for this key string. We may not have read the actual value yet.
+        _rjvt = m_pjrxCurrent->JvtGetValueType(); // This is the value type for this key string. We may not have read the actual value yet.
         return true;
     }
     EJsonValueType JvtGetValueType() const
     {
         assert( FAttached() );
-        return m_pjrcCurrent->JvtGetValueType();
+        return m_pjrxCurrent->JvtGetValueType();
     }
     bool FIsValueNull() const
     {
@@ -950,14 +1135,14 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(string): No value located at end of object or array." );
         
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
         
         switch( JvtGetValueType() )
         {
         case ejvtNumber:
         case ejvtString:
-            _strValue = *m_pjrcCurrent->PGetStringValue();
+            _strValue = *m_pjrxCurrent->PGetStringValue();
             break;
         case ejvtTrue:
             _strValue = "true";
@@ -973,7 +1158,7 @@ public:
     void GetValue( bool & _rf ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
         
         switch( JvtGetValueType() )
@@ -992,7 +1177,7 @@ public:
     void GetValue( int & _rInt ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
@@ -1005,7 +1190,7 @@ public:
     void GetValue( long & _rLong ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
@@ -1018,7 +1203,7 @@ public:
     void GetValue( float & _rFloat ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
@@ -1030,7 +1215,7 @@ public:
     void GetValue( double & _rDouble ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
@@ -1042,7 +1227,7 @@ public:
     void GetValue( long double & _rLongDouble ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrcCurrent->m_posEndValue )
+        if ( !m_pjrxCurrent->m_posEndValue )
             _ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
@@ -1055,16 +1240,16 @@ public:
     // This will read any unread value into the value object
     void _ReadSimpleValue()
     {
-        assert( !m_pjrcCurrent->m_posEndValue );
+        assert( !m_pjrxCurrent->m_posEndValue );
         EJsonValueType jvt = JvtGetValueType();
         assert( ( jvt >= ejvtFirstJsonSimpleValue ) && ( jvt <= ejvtLastJsonSpecifiedValue ) ); // Should be handled by caller.
         switch( jvt )
         {
         case ejvtNumber:
-            _ReadNumber( m_pjrcCurrent->m_tcFirst, !m_pjrcCurrent->m_pjrcNext, *m_pjrcCurrent->PGetStringValue() );
+            _ReadNumber( m_pjrxCurrent->m_tcFirst, !m_pjrxCurrent->m_pjrxNext, *m_pjrxCurrent->PGetStringValue() );
             break;
         case ejvtString:
-            _ReadString( *m_pjrcCurrent->PGetStringValue() );
+            _ReadString( *m_pjrxCurrent->PGetStringValue() );
             break;
         case ejvtTrue:
         case ejvtFalse:
@@ -1072,7 +1257,7 @@ public:
             _SkipSimpleValue(); // We just skip remaining value checking that it is correct.
             break;
         }
-        m_pjrcCurrent->m_posEndValue = m_pis->PosGet();
+        m_pjrxCurrent->m_posEndValue = m_pis->PosGet();
     }
 
     // Read a JSON number according to the specifications of such.
@@ -1086,12 +1271,12 @@ public:
         const unsigned int knMaxLength = _tyCharTraits::s_knMaxNumberLength;
         _tyChar rgtcBuffer[ knMaxLength + 1 ];
         _tyChar * ptcCur = rgtcBuffer;
-        *ptcCur++ = _rjrc.m_tcFirst;
+        *ptcCur++ = _rjrx.m_tcFirst;
 
         auto lambdaAddCharNum = [&]( _tyChar _tch )
         { 
             if ( ptcCur == rgtcBuffer + knMaxLength )
-                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Overflow of max JSON number length of [%u].", knMaxLength );
+                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Overflow of max JSON number length of [%u].", knMaxLength );
             *ptcCur++ = _tch;
         }
 
@@ -1103,11 +1288,11 @@ public:
             tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
             *ptcCur++ = tchCurrentChar;
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
+                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
-        bool _fAtRootElement = !_rjrc->m_pjrcNext;
+        bool _fAtRootElement = !_rjrx->m_pjrxNext;
         if ( fZeroFirst )
         {
             bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
@@ -1134,7 +1319,7 @@ public:
             // Then according to the JSON spec we must have at least one digit here.
             tchCurrentChar = m_pis->ReadChar(); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
+                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             lambdaAddCharNum( tchCurrentChar );
             do
@@ -1160,7 +1345,7 @@ public:
             }
             // Now we must see at least one digit so for the first read we throw.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
+                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
@@ -1181,12 +1366,12 @@ public:
     {
         // We will have read the first character of a number and then will need to satisfy the state machine for the number appropriately.
         bool fZeroFirst = ( _tyCharTraits::s_tc0 == _tcFirst );
-        TCHAR tchCurrentChar; // maintained as the current character.
+        _tyChar tchCurrentChar; // maintained as the current character.
         if ( _tyCharTraits::s_tcMinus == _tcFirst )
         {
             tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
@@ -1212,9 +1397,9 @@ public:
         if ( tchCurrentChar == _tyCharTraits::s_tcPeriod )
         {
             // Then according to the JSON spec we must have at least one digit here.
-            tchCurrentChar = m_pis->ReadChar(); // throw on EOF.
+            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             do
             {            
@@ -1228,13 +1413,13 @@ public:
                 ( tchCurrentChar == _tyCharTraits::s_tce ) )
         {
             // Then we might see a plus or a minus or a number - but we cannot see EOF here correctly:
-            tchCurrentChar = m_pis->ReadChar(); // Throws on EOF.
+            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
             if (    ( tchCurrentChar == _tyCharTraits::s_tcMinus ) ||
                     ( tchCurrentChar == _tyCharTraits::s_tcPlus ) )
-                tchCurrentChar = m_pis->ReadChar(); // Then we must still find a number after - throws on EOF.
+                tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after an exponent indicator with plus/minus." ); // Then we must still find a number after - throws on EOF.
             // Now we must see at least one digit so for the first read we throw.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after an exponent indicator (e/E).", tchCurrentChar );
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
@@ -1263,33 +1448,33 @@ public:
         for( ; ; )
         {
             _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for end of string." ); // throws on EOF.
-            if ( tyCharTraits::s_tcDoubleQuote == tchCur )
+            if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
                 break; // We have reached EOS.
-            if ( tyCharTraits::s_tcBackSlash == tchCur )
+            if ( _tyCharTraits::s_tcBackSlash == tchCur )
             {
                 tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
                 switch( tchCur )
                 {
-                    case tyCharTraits::s_tcDoubleQuote:
-                    case tyCharTraits::s_tcBackSlash:
-                    case tyCharTraits::s_tcForwardSlash:
+                    case _tyCharTraits::s_tcDoubleQuote:
+                    case _tyCharTraits::s_tcBackSlash:
+                    case _tyCharTraits::s_tcForwardSlash:
                         break;   // Just use tchCur.
-                    case tyCharTraits::s_tcb:
-                        tchCur = tyCharTraits::s_tcBackSpace;
+                    case _tyCharTraits::s_tcb:
+                        tchCur = _tyCharTraits::s_tcBackSpace;
                         break;
-                    case tyCharTraits::s_tcf:
-                        tchCur = tyCharTraits::s_tcBackSpace;
+                    case _tyCharTraits::s_tcf:
+                        tchCur = _tyCharTraits::s_tcFormFeed;
                         break;
-                    case tyCharTraits::s_tcn:
-                        tchCur = tyCharTraits::s_tcNewline;
+                    case _tyCharTraits::s_tcn:
+                        tchCur = _tyCharTraits::s_tcNewline;
                         break;
-                    case tyCharTraits::s_tcr:
-                        tchCur = tyCharTraits::s_tcCarriageReturn;
+                    case _tyCharTraits::s_tcr:
+                        tchCur = _tyCharTraits::s_tcCarriageReturn;
                         break;
-                    case tyCharTraits::s_tct:
-                        tchCur = tyCharTraits::s_tcTab;
+                    case _tyCharTraits::s_tct:
+                        tchCur = _tyCharTraits::s_tcTab;
                         break;
-                    case tyCharTraits::s_tcu:
+                    case _tyCharTraits::s_tcu:
                     {
                         unsigned int uHex = 0; // Accumulate the hex amount.
                         unsigned int uCurrentMultiplier = ( 1 << 24 );
@@ -1306,18 +1491,18 @@ public:
                             if ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) )
                                 uHex += uCurrentMultiplier * ( 10 + ( tchCur - _tyCharTraits::s_tcA ) );
                             else
-                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                                THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
                         }
                         // If we are supposed to throw on overflow then check for it, otherwise just truncate to the character type silently.
                         if ( _tyCharTraits::s_fThrowOnUnicodeOverflow && ( sizeof(_tyChar) < sizeof(uHex) ) )
                         {
                             if ( uHex >= ( 1u << ( CHAR_BIT * sizeof(_tyChar) ) ) )
-                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Unicode hex overflow [%u].", uHex );
+                                THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Unicode hex overflow [%u].", uHex );
                         }
                         tchCur = (_tyChar)uHex;
                     }
                     default:
-                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
                         break;
                 }
             }
@@ -1341,23 +1526,23 @@ public:
         for( ; ; )
         {
             _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for end of string." ); // throws on EOF.
-            if ( tyCharTraits::s_tcDoubleQuote == tchCur )
+            if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
                 break; // We have reached EOS.
-            if ( tyCharTraits::s_tcBackSlash == tchCur )
+            if ( _tyCharTraits::s_tcBackSlash == tchCur )
             {
                 tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
                 switch( tchCur )
                 {
-                    case tyCharTraits::s_tcDoubleQuote:
-                    case tyCharTraits::s_tcBackSlash:
-                    case tyCharTraits::s_tcForwardSlash:
-                    case tyCharTraits::s_tcb:
-                    case tyCharTraits::s_tcDoubleQuote:
-                    case tyCharTraits::s_tcn:
-                    case tyCharTraits::s_tcr:
-                    case tyCharTraits::s_tct:
+                    case _tyCharTraits::s_tcDoubleQuote:
+                    case _tyCharTraits::s_tcBackSlash:
+                    case _tyCharTraits::s_tcForwardSlash:
+                    case _tyCharTraits::s_tcb:
+                    case _tyCharTraits::s_tcf:
+                    case _tyCharTraits::s_tcn:
+                    case _tyCharTraits::s_tcr:
+                    case _tyCharTraits::s_tct:
                         break;
-                    case tyCharTraits::s_tcu:
+                    case _tyCharTraits::s_tcu:
                     {
                         // Must find 4 hex digits:
                         for ( int n=0; n < 4; ++n )
@@ -1366,11 +1551,11 @@ public:
                             if ( !( ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) ) ||
                                     ( ( tchCur >= _tyCharTraits::s_tca ) && ( tchCur <= _tyCharTraits::s_tcf ) ) ||
                                     ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) ) ) ) 
-                                ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                                THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
                         }
                     }
                     default:
-                        ThrowBadJSONFormatException( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
                         break;
                 }
             }
@@ -1384,10 +1569,10 @@ public:
         // We just cast the chars to _tyChar since that is valid for JSON files.
         const char * pcCur = _pcSkip;
         _tyChar tchCur;
-        for ( ; !!*pcCur && ( _tyChar( *pcCur ) == ( tchCur = m_pis->ReadChar() ) ); ++pcCur )
+        for ( ; !!*pcCur && ( _tyChar( *pcCur ) == ( tchCur = m_pis->ReadChar("JsonReadCursor::_SkipFixed(): Hit EOF trying to skip fixed string.") ) ); ++pcCur )
             ;
         if ( *pcCur )
-            ThrowBadJSONFormatException( "JsonReadCursor::_SkipFixed(): Trying to skip[%s], instead of [%c] found [%TC].", _pcSkip, *pcCur, tchCur );
+            THROWBADJSONSTREAM( "JsonReadCursor::_SkipFixed(): Trying to skip[%s], instead of [%c] found [%TC].", _pcSkip, *pcCur, tchCur );
     }
 
     void _SkipSimpleValue( EJsonValueType _jvtCur, _tyChar _tcFirst, bool _fAtRootElement ) const
@@ -1424,7 +1609,7 @@ public:
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipValue(): EOF on first value char." ); // throws on EOF.
         EJsonValueType jvtCur = _tyJsonValue::GetJvtTypeFromChar( tchCur );
         if ( ejvtJsonValueTypeCount == jvtCur )
-            ThrowBadJSONFormatException( "JsonReadCursor::_SkipValue(): Found [%TC] when looking for value starting character.", tchCur );
+            THROWBADJSONSTREAM( "JsonReadCursor::_SkipValue(): Found [%TC] when looking for value starting character.", tchCur );
         if ( ejvtObject ==  jvtCur )
             _SkipWholeObject();
         else
@@ -1439,67 +1624,67 @@ public:
     {
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF after begin bracket." ); // throws on EOF.
-        while ( tyCharTraits::s_tcDoubleQuote == tchCur )
+        while ( _tyCharTraits::s_tcDoubleQuote == tchCur )
         {
             _SkipRemainingString(); // Skip the key.
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking for colon." ); // throws on EOF.
-            if ( tyCharTraits::s_tcColon != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for colon.", tchCur );
+            if ( _tyCharTraits::s_tcColon != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for colon.", tchCur );
             _SkipValue(); // Skip the value.
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking comma or end of object." ); // throws on EOF.
-            if ( tyCharTraits::s_tcComma == tchCur )
+            if ( _tyCharTraits::s_tcComma == tchCur )
             {
                 m_pis->SkipWhitespace();
                 tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking double quote." ); // throws on EOF.
-                if ( tyCharTraits::s_tcDoubleQuote != tchCur )
-                    ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote.", tchCur );
+                if ( _tyCharTraits::s_tcDoubleQuote != tchCur )
+                    THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote.", tchCur );
             }
             else
                 break;
         }
-        if ( tyCharTraits::s_tcRightCurlyBr != tchCur )
-            ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote or comma or right bracket.", tchCur );
+        if ( _tyCharTraits::s_tcRightCurlyBr != tchCur )
+            THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote or comma or right bracket.", tchCur );
     }
     // We will have read the first '[' of the array.
     void _SkipWholeArray()
     {
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF after begin bracket." ); // throws on EOF.
-        if ( tyCharTraits::s_tcRightSquareBr != tchCur )
+        if ( _tyCharTraits::s_tcRightSquareBr != tchCur )
             m_pis->PushBackLastChar(); // Don't send an expected character as it is from the set of value-starting characters.
-        while ( tyCharTraits::s_tcRightSquareBr != tchCur )
+        while ( _tyCharTraits::s_tcRightSquareBr != tchCur )
         {
             _SkipValue();
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF looking for comma." ); // throws on EOF.
-            if ( tyCharTraits::s_tcComma == tchCur )
+            if ( _tyCharTraits::s_tcComma == tchCur )
                 continue;
-            if ( tyCharTraits::s_tcRightSquareBr != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for comma or array end.", tchCur );
+            if ( _tyCharTraits::s_tcRightSquareBr != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for comma or array end.", tchCur );
         }
     }
 
     // Skip an object with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
-    void _SkipObject( _tyJsonReadContext & _rjrc )
+    void _SkipObject( _tyJsonReadContext & _rjrx )
     {
         // We have a couple of possible starting states here:
-        // 1) We haven't read the data for this object ( !_rjrc.m_posEndValue ) in this case we expect to see "key":value, ..., "key":value }
+        // 1) We haven't read the data for this object ( !_rjrx.m_posEndValue ) in this case we expect to see "key":value, ..., "key":value }
         //      Note that there may also be no (key,value) pairs at all - we may have an empty object.
         // 2) We have read the data. In this case we will have also read the value and we expect to see a ',' or a '}'.
         // 3) We have an empty object and we have read the data - in which case we have already read the final '}' of the object
         //      and we have nothing at all to do.
 
-        if ( ejvtEndOfObject == _rjrc.JvtGetValueType() )
+        if ( ejvtEndOfObject == _rjrx.JvtGetValueType() )
             return; // Then we have already read to the end of this object.
 
-        if ( !_rjrc.m_posEndValue )
+        if ( !_rjrx.m_posEndValue )
         {
             _SkipWholeObject(); // this expects that we have read the first '{'.
             // Now indicate that we are at the end of the object.
-            _rjrc.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
-            _rjrc.SetValueType( ejvtEndOfObject );
+            _rjrx.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
+            _rjrx.SetValueType( ejvtEndOfObject );
             return;
         }
 
@@ -1507,44 +1692,44 @@ public:
         //  either a comma or end curly bracket.
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
-        while ( tyCharTraits::s_tcRightCurlyBr !=tchCur )
+        while ( _tyCharTraits::s_tcRightCurlyBr !=tchCur )
         {
-            if ( tyCharTraits::s_tcComma != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or object end.", tchCur );
+            if ( _tyCharTraits::s_tcComma != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or object end.", tchCur );
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for double quote." ); // throws on EOF.
-            if ( tyCharTraits::s_tcDoubleQuote != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking key start double quote.", tchCur );
+            if ( _tyCharTraits::s_tcDoubleQuote != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking key start double quote.", tchCur );
             _SkipRemainingString();
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for colon." ); // throws on EOF.
-            if ( tyCharTraits::s_tcColon != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for colon.", tchCur );
+            if ( _tyCharTraits::s_tcColon != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for colon.", tchCur );
             _SkipValue();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
         }
-        _rjrc.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
-        _rjrc.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
+        _rjrx.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
+        _rjrx.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
     }
     // Skip an array with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
-    void _SkipArray( _tyJsonReadContext & _rjrc )
+    void _SkipArray( _tyJsonReadContext & _rjrx )
     {
         // We have a couple of possible starting states here:
-        // 1) We haven't read the data for this array ( !_rjrc.m_posEndValue ) in this case we expect to see value, ..., value }
+        // 1) We haven't read the data for this array ( !_rjrx.m_posEndValue ) in this case we expect to see value, ..., value }
         //      Note that there may also be no values at all - we may have an empty array.
         // 2) We have read the data. In this case we will have also read the value and we expect to see a ',' or a ']'.
         // 3) We have an empty object and we have read the data - in which case we have already read the final ']' of the object
         //      and we have nothing at all to do.
 
-        if ( ejvtEndOfArray == _rjrc.JvtGetValueType() )
+        if ( ejvtEndOfArray == _rjrx.JvtGetValueType() )
             return; // Then we have already read to the end of this object.
 
-        if ( !_rjrc.m_posEndValue )
+        if ( !_rjrx.m_posEndValue )
         {
             _SkipWholeArray(); // this expects that we have read the first '['.
             // Now indicate that we are at the end of the array.
-            _rjrc.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
-            _rjrc.SetValueType( ejvtEndOfArray );
+            _rjrx.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
+            _rjrx.SetValueType( ejvtEndOfArray );
             return;
         }
 
@@ -1552,37 +1737,37 @@ public:
         //  either a comma or end square bracket.
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end array ] or comma." ); // throws on EOF.
-        while ( tyCharTraits::s_tcRightSquareBr !=tchCur )
+        while ( _tyCharTraits::s_tcRightSquareBr !=tchCur )
         {
-            if ( tyCharTraits::s_tcComma != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
+            if ( _tyCharTraits::s_tcComma != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
             m_pis->SkipWhitespace();
             _SkipValue();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end array ] or comma." ); // throws on EOF.
         }
-        _rjrc.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
-        _rjrc.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
+        _rjrx.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
+        _rjrx.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
     }
 
     // Skip this context - must be at the top of the context stack.
-    void _SkipContext( _tyJsonReadContext & _rjrc )
+    void _SkipContext( _tyJsonReadContext & _rjrx )
     {
         // Skip this context which is at the top of the stack.
         // A couple of cases here:
         // 1) We are a non-hierarchical type: i.e. not array or object. In this case we merely have to read the value.
         // 2) We are an object or array. In this case we have to read until the end of the object or array.
-        if ( ejvtObject == _rjrc.JvtGetValueType() )
-            _SkipObject( _rjrc );
+        if ( ejvtObject == _rjrx.JvtGetValueType() )
+            _SkipObject( _rjrx );
         else
-        if ( ejvtArray == _rjrc.JvtGetValueType() )
-            _SkipArray( _rjrc );
+        if ( ejvtArray == _rjrx.JvtGetValueType() )
+            _SkipArray( _rjrx );
         else
         {
             // If we have already the value then we are done with this type.
-            if ( !_rjrc.m_posEndValue )
+            if ( !_rjrx.m_posEndValue )
             {
-                _SkipSimpleValue( _rjrc.JvtGetValueType(), _rjrc.m_tcFirst, !_rjrc.m_pjrcNext ); // skip to the end of this value without saving the info.
-                _rjrc.m_posEndValue = m_pis->PosGet(); // Update this for completeness in all scenarios.
+                _SkipSimpleValue( _rjrx.JvtGetValueType(), _rjrx.m_tcFirst, !_rjrx.m_pjrxNext ); // skip to the end of this value without saving the info.
+                _rjrx.m_posEndValue = m_pis->PosGet(); // Update this for completeness in all scenarios.
             }
             return; // We have already fully processed this context.
         }
@@ -1592,11 +1777,26 @@ public:
     void SkipAllContextsAboveCurrent()
     {
        AssertValid(); 
-       while ( &*m_pjrcContextStack != m_pjrcCurrent )
+       while ( &*m_pjrxContextStack != m_pjrxCurrent )
        {
-           _SkipContext( *m_pjrcContextStack );
-           _tyJsonReadContext::PopStack( m_pjrcContextStack );
+           _SkipContext( *m_pjrxContextStack );
+           _tyJsonReadContext::PopStack( m_pjrxContextStack );
        }
+    }
+    void SkipTopContext()
+    {
+        _SkipContext( *m_pjrxCurrent );
+    }
+    // Move to the given context which must be in the context stack.
+    // If it isn't in the context stack then a json_stream_bad_semantic_usage_exception() is thrown.
+    void MoveToContext( const _tyJsonReadContext & _rjrx )
+    {
+        _tyJsonReadContext * pjrxFound = &*m_pjrxContextStack;
+        for ( ; !!pjrxFound && ( pjrxFound != &_rjrx ); pjrxFound = pjrxFound->PJrcGetNext() )
+            ;
+        if ( !pjrxFound )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::MoveToContext(): Context not found in context stack." );
+        m_pjrxCurrent = pjrxFound;
     }
 
     // Move the the next element of the object or array. Return false if this brings us to the end of the entity.
@@ -1606,17 +1806,15 @@ public:
         // This should only be called when we are inside of an object or array.
         // So, we need to have a parent value and that parent value should correspond to an object or array.
         // Otherwise we throw an "invalid semantic use" exception.
-        if ( !FAttached() )
-            ThrowBadSemanticUse( "JsonReadCursor::FNextElement(): Not attached to any JSON file." );
-        if (    !m_pjrcCurrent || !m_pjrcCurrent->m_pjrcNext || 
-                (   ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) &&
-                    ( ejvtArray != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) ) )
-            ThrowBadSemanticUse( "JsonReadCursor::FNextElement(): Not located at an object or array." );
+        if (    !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || 
+                (   ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) &&
+                    ( ejvtArray != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) ) )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::FNextElement(): Not located at an object or array." );
         
-        if (    ( m_pjrcCurrent->JvtGetValueType() == ejvtEndOfObject ) ||
-                ( m_pjrcCurrent->JvtGetValueType() == ejvtEndOfArray ) )
+        if (    ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) ||
+                ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfArray ) )
         {
-            assert( ( m_pjrcCurrent->JvtGetValueType() == ejvtEndOfObject ) == ( ejvtObject != m_pjrcCurrent->m_pjrcNext->JvtGetValueType() ) ); // Would be weird if it didn't match.
+            assert( ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) == ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) ); // Would be weird if it didn't match.
             return false; // We are already at the end of the iteration.
 
         }
@@ -1625,58 +1823,60 @@ public:
         // We must close any contexts above this object first.
         SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
         // Now just skip the value at the top of the stack but don't close it:
-        _SkipContext( *m_pjrcCurrent );
+        _SkipContext( *m_pjrxCurrent );
         // Now we are going to look for a comma or an right curly/square bracket:
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object/array }/] or comma." ); // throws on EOF.
 
-        if ( ejvtObject == m_pjrcCurrent->m_pjrcNext->JvtGetValueType() )
+        if ( ejvtObject == m_pjrxCurrent->m_pjrxNext->JvtGetValueType() )
         {
-            _tyJsonObject * pjoCur = m_pjrcCurrent->m_pjrcNext->PGetJsonObject();            
-            assert( !pjoCur->FEmptyObject() );
-            if ( tyCharTraits::s_tcRightCurlyBr == tchCur )
+            _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();            
+            assert( !pjoCur->FEndOfIteration() );
+            if ( _tyCharTraits::s_tcRightCurlyBr == tchCur )
             {
-                m_pjrcCurrent->SetEndOfIteration();
+                m_pjrxCurrent->SetEndOfIteration( m_pis->PosGet() );
                 pjoCur->SetEndOfIteration();
                 return false; // We reached the end of the iteration.
             }
             m_pis->SkipWhitespace();
-            if ( tyCharTraits::s_tcComma != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or object end.", tchCur );
+            if ( _tyCharTraits::s_tcComma != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or object end.", tchCur );
             // Now we will read the key string of the next element into <pjoCur>.
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for double quote." ); // throws on EOF.
-            if ( tyCharTraits::s_tcDoubleQuote != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking key start double quote.", tchCur );
-            pjoCur->m_strCurKey.clear();
-            _ReadString( pjoCur->m_strCurKey ); // Might throw for any number of reasons. This may be the empty string.
+            if ( _tyCharTraits::s_tcDoubleQuote != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking key start double quote.", tchCur );
+            _tyStdStr strNextKey;
+            _ReadString( strNextKey ); // Might throw for any number of reasons. This may be the empty string.
+            pjoCur->SwapKey( strNextKey );
             m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for colon." ); // throws on EOF.
-            if ( tyCharTraits::s_tcColon != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for colon.", tchCur );
+            if ( _tyCharTraits::s_tcColon != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for colon.", tchCur );
         }
         else
         {
-            _tyJsonArray * pjaCur = m_pjrcCurrent->m_pjrcNext->PGetJsonArray();            
-            assert( !pjaCur->FEmptyArray() );
-            if ( tyCharTraits::s_tcRightSquareBr == tchCur )
+            _tyJsonArray * pjaCur = m_pjrxCurrent->m_pjrxNext->PGetJsonArray();            
+            assert( !pjaCur->FEndOfIteration() );
+            if ( _tyCharTraits::s_tcRightSquareBr == tchCur )
             {
-                m_pjrcCurrent->SetEndOfIteration();
+                m_pjrxCurrent->SetEndOfIteration( m_pis->PosGet() );
                 pjaCur->SetEndOfIteration();
                 return false; // We reached the end of the iteration.
             }
             m_pis->SkipWhitespace();
-            if ( tyCharTraits::s_tcComma != tchCur )
-                ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or array end.", tchCur );
+            if ( _tyCharTraits::s_tcComma != tchCur )
+                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or array end.", tchCur );
         }
         m_pis->SkipWhitespace();
-        m_pjrcCurrent->m_posStartValue = m_pis->PosGet();
-        assert( !m_pjrcCurrent->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant) - this should have been cleared above.
+        m_pjrxCurrent->m_posStartValue = m_pis->PosGet();
+        assert( !m_pjrxCurrent->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant) - this should have been cleared above.
         // The first non-whitespace character tells us what the value type is:
-        m_pjrcCurrent->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for next object/array value." );
-        m_pjrcCurrent->SetValueType( _tyJsonValue::GetJvtTypeFromChar( m_pjrcCurrent->m_tcFirst ) );
-        if ( ejvtJsonValueTypeCount == m_pjrcCurrent->JvtGetValueType() )
-            ThrowBadJSONFormatException( "JsonReadCursor::FNextElement(): Found [%TC] when looking for value starting character.", m_pjrcCurrent->m_tcFirst );
+        m_pjrxCurrent->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for next object/array value." );
+        m_pjrxCurrent->SetValueType( _tyJsonValue::GetJvtTypeFromChar( m_pjrxCurrent->m_tcFirst ) );
+        if ( ejvtJsonValueTypeCount == m_pjrxCurrent->JvtGetValueType() )
+            THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for value starting character.", m_pjrxCurrent->m_tcFirst );
+        return true;
     }
         
     // Attach to the root of the JSON value tree.
@@ -1685,20 +1885,20 @@ public:
     {
         assert( !FAttached() ); // We shouldn't have attached to the stream yet.
         std::unique_ptr< _tyJsonValue > pjvRootVal = std::make_unique<_tyJsonValue>();
-        std::unique_ptr< _tyJsonReadContext > pjrcRoot = std::make_unique<_tyJsonReadContext>( &*pjvRootVal, (_tyJsonReadContext*)nullptr_t );
+        std::unique_ptr< _tyJsonReadContext > pjrxRoot = std::make_unique<_tyJsonReadContext>( &*pjvRootVal, (_tyJsonReadContext*)nullptr );
         _ris.SkipWhitespace();
-        pjrcRoot->m_posStartValue = _ris.PosGet();
-        assert( !pjrcRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+        pjrxRoot->m_posStartValue = _ris.PosGet();
+        assert( !pjrxRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
     
         // The first non-whitespace character tells us what the value type is:
-        pjrcRoot->m_tcFirst = _ris.ReadChar( "JsonReadCursor::AttachRoot(): Empty JSON file." );
-        pjvRootVal->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrcRoot->m_tcFirst ) );
+        pjrxRoot->m_tcFirst = _ris.ReadChar( "JsonReadCursor::AttachRoot(): Empty JSON file." );
+        pjvRootVal->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrxRoot->m_tcFirst ) );
         if ( ejvtJsonValueTypeCount == pjvRootVal->JvtGetValueType() )
-            ThrowBadJSONFormatException( "JsonReadCursor::AttachRoot(): Found [%TC] when looking for value starting character.", pjrcRoot->m_tcFirst );
+            THROWBADJSONSTREAM( "JsonReadCursor::AttachRoot(): Found [%TC] when looking for value starting character.", pjrxRoot->m_tcFirst );
         // Set up current state:
-        m_pjrcContextStack.swap( pjrcRoot ); // swap with any existing stack.
-        m_pjrcCurrent = &*m_pjrcContextStack; // current position is soft reference.
-        m_pjrcRootVal.swap( pjvRootVal ); // swap in root value for tree.
+        m_pjrxContextStack.swap( pjrxRoot ); // swap with any existing stack.
+        m_pjrxCurrent = &*m_pjrxContextStack; // current position is soft reference.
+        m_pjrxRootVal.swap( pjvRootVal ); // swap in root value for tree.
         m_pis = &_ris;
     }
 
@@ -1710,9 +1910,9 @@ public:
             return false; // Then we are at a leaf value.
 
         // If we have a parent then that is where we need to go - nothing to do besides that:
-        if ( m_pjrcCurrent->m_pjrcPrev )
+        if ( m_pjrxCurrent->m_pjrxPrev )
         {
-            m_pjrcCurrent = m_pjrcCurrent->m_pjrcPrev;
+            m_pjrxCurrent = m_pjrxCurrent->m_pjrxPrev;
             return true;
         }
 
@@ -1722,46 +1922,48 @@ public:
         // 2) For arrays we read the first character of the first value in the array.
         //      a) For empty arrays we still create the subobject, it will just return that there are no values in the array.
         // In fact we must not have read the current value since we would have already pushed the context onto the stack and thus we wouldn't be here.
-        assert( !m_pjrcCurrent->m_posEndValue );
+        assert( !m_pjrxCurrent->m_posEndValue );
 
         // We should be at the start of the value plus 1 character - this is important as we will be registered with the input stream throughout the streaming.
-        assert( ( pjrcRoot->m_posStartValue + sizeof(_tyChar) ) == m_pis->PosGet() );
+        assert( ( m_pjrxCurrent->m_posStartValue + sizeof(_tyChar) ) == m_pis->PosGet() );
         m_pis->SkipWhitespace();
 
-        std::unique_ptr< _tyJsonReadContext > pjrcNewRoot;
-        if ( ejvtObject == m_pjrcCurrent->JvtGetValueType() )
+        std::unique_ptr< _tyJsonReadContext > pjrxNewRoot;
+        if ( ejvtObject == m_pjrxCurrent->JvtGetValueType() )
         {
             // For valid JSON we may see 2 different things here:
             // 1) '"': Indicates we have a label for the first (key,value) pair of the object.
             // 2) '}': Indicates that we have an empty object.
             _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first character of an object." ); // throws on eof.
             if ( ( _tyCharTraits::s_tcRightCurlyBr != tchCur ) && ( _tyCharTraits::s_tcDoubleQuote != tchCur ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first character of object.", tchCur );
+                THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first character of object.", tchCur );
             
             // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
-            _tyJsonObject * pjoNew = m_pjrcCurrent->PJvGet()->PCreateJsonObject();
-            pjrcNewRoot = std::make_unique<_tyJsonReadContext>( pjoNew->PJvGet(), nullptr_t );
+            _tyJsonObject * pjoNew = m_pjrxCurrent->PJvGet()->PCreateJsonObject();
+            pjrxNewRoot = std::make_unique<_tyJsonReadContext>( &pjoNew->RJvGet(), nullptr );
             if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
             {
-                _ReadString( pjoNew->m_strCurKey ); // Might throw for any number of reasons. This may be the empty string.
+                _tyStdStr strFirstKey;
+                _ReadString( strFirstKey ); // Might throw for any number of reasons. This may be the empty string.
+                pjoNew->SwapKey( strFirstKey );
                 m_pis->SkipWhitespace();
                 tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for colon on first object pair." ); // throws on eof.
                 if ( _tyCharTraits::s_tcColon != tchCur )
-                    ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for colon on first object pair.", tchCur );
+                    THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for colon on first object pair.", tchCur );
                 m_pis->SkipWhitespace();
-                pjrcNewRoot->m_posStartValue = m_pis->PosGet();
-                assert( !pjrcNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+                pjrxNewRoot->m_posStartValue = m_pis->PosGet();
+                assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
                 // The first non-whitespace character tells us what the value type is:
-                pjrcNewRoot->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first object value." );
-                pjrcNewRoot->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrcRoot->m_tcFirst ) );
-                if ( ejvtJsonValueTypeCount == pjrcNewRoot->JvtGetValueType() )
-                    ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for value starting character.", pjrcNewRoot->m_tcFirst );
+                pjrxNewRoot->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first object value." );
+                pjrxNewRoot->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrxNewRoot->m_tcFirst ) );
+                if ( ejvtJsonValueTypeCount == pjrxNewRoot->JvtGetValueType() )
+                    THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for value starting character.", pjrxNewRoot->m_tcFirst );
             }
             else
             {
                 // We are an empty object but we need to push ourselves onto the context stack anyway because then things all work the same.
-                pjrcNewRoot->m_posEndValue = pjrcNewRoot->m_posStartValue = m_pis->PosGet();
-                pjrcNewRoot->SetValueType( ejvtEndOfObject ); // Use special value type to indicate we are at the "end of the set of objects".
+                pjrxNewRoot->m_posEndValue = pjrxNewRoot->m_posStartValue = m_pis->PosGet();
+                pjrxNewRoot->SetValueType( ejvtEndOfObject ); // Use special value type to indicate we are at the "end of the set of objects".
             }
         }
         else // Array.
@@ -1773,30 +1975,30 @@ public:
             _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first character of an array." ); // throws on eof.
             EJsonValueType jvtCur = _tyJsonValue::GetJvtTypeFromChar( tchCur );
             if ( ( _tyCharTraits::s_tcRightSquareBr != tchCur ) && ( ejvtJsonValueTypeCount == jvtCur ) )
-                ThrowBadJSONFormatException( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first char of array value.", tchCur );
+                THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first char of array value.", tchCur );
             
             // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
-            _tyJsonArray * pjaNew = m_pjrcCurrent->PJvGet()->PCreateJsonArray();
-            pjrcNewRoot = std::make_unique<_tyJsonReadContext>( pjaNew->PJvGet(), nullptr_t );
+            _tyJsonArray * pjaNew = m_pjrxCurrent->PJvGet()->PCreateJsonArray();
+            pjrxNewRoot = std::make_unique<_tyJsonReadContext>( &pjaNew->RJvGet(), nullptr );
             if ( ejvtJsonValueTypeCount != jvtCur )
             {
-                pjrcNewRoot->m_posStartValue = posStartValue;
-                assert( !pjrcNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+                pjrxNewRoot->m_posStartValue = posStartValue;
+                assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
                 // The first non-whitespace character tells us what the value type is:
-                pjrcNewRoot->m_tcFirst = tchCur;
-                pjrcNewRoot->SetValueType( jvtCur );
+                pjrxNewRoot->m_tcFirst = tchCur;
+                pjrxNewRoot->SetValueType( jvtCur );
             }
             else
             {
                 // We are an empty object but we need to push ourselves onto the context stack anyway because then things all work the same.
-                pjrcNewRoot->m_posEndValue = pjrcNewRoot->m_posStartValue = m_pis->PosGet();
-                pjrcNewRoot->SetValueType( ejvtEndOfArray ); // Use special value type to indicate we are at the "end of the set of objects".
+                pjrxNewRoot->m_posEndValue = pjrxNewRoot->m_posStartValue = m_pis->PosGet();
+                pjrxNewRoot->SetValueType( ejvtEndOfArray ); // Use special value type to indicate we are at the "end of the set of objects".
             }
         }
     
         // Push the new context onto the context stack:
-        _tyJsonReadContext::PushStack( m_pjrcContextStack, pjrcNewRoot );
-        m_pjrcCurrent = &*m_pjrcContextStack; // current position is soft reference.
+        _tyJsonReadContext::PushStack( m_pjrxContextStack, pjrxNewRoot );
+        m_pjrxCurrent = &*m_pjrxContextStack; // current position is soft reference.
         return true; // We did go down.
     }
 
@@ -1804,9 +2006,9 @@ public:
     bool FMoveUp()
     {
         assert( FAttached() ); // We should have been attached to a file by now.
-        if ( !!m_pjrcCurrent->m_pjrcNext )
+        if ( !!m_pjrxCurrent->m_pjrxNext )
         {
-            m_pjrcCurrent = &*m_pjrcCurrent->m_pjrcNext;
+            m_pjrxCurrent = &*m_pjrxCurrent->m_pjrxNext;
             return true;
         }
         return false; // ain't nowhere to go.
@@ -1817,14 +2019,14 @@ public:
         AssertValid();
         _r.AssertValid();
         std::swap( m_pis, _r.m_pis );
-        std::swap( m_pjrcCurrent, _r.m_pjrcCurrent );
-        m_pjrcRootVal.swap( _r.m_pjrcRootVal );
-        m_pjrcContextStack.swap( _r.m_pjrcContextStack );
+        std::swap( m_pjrxCurrent, _r.m_pjrxCurrent );
+        m_pjrxRootVal.swap( _r.m_pjrxRootVal );
+        m_pjrxContextStack.swap( _r.m_pjrxContextStack );
     }
 
 protected:
-    _tyJsonInputStream m_pis{}; // Soft reference to stream from which we read.
-    std::unique_ptr< _tyJsonValue > m_pjrcRootVal; // Hard reference to the root value of the value tree.
-    std::unique_ptr< _tyJsonReadContext > m_pjrcContextStack; // Implement a simple doubly linked list.
-    _tyJsonReadContext * m_pjrcCurrent{}; // The current cursor position within context stack.
+    _tyJsonInputStream * m_pis{}; // Soft reference to stream from which we read.
+    std::unique_ptr< _tyJsonValue > m_pjrxRootVal; // Hard reference to the root value of the value tree.
+    std::unique_ptr< _tyJsonReadContext > m_pjrxContextStack; // Implement a simple doubly linked list.
+    _tyJsonReadContext * m_pjrxCurrent{}; // The current cursor position within context stack.
 };
