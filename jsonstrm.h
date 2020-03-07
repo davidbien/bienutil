@@ -99,8 +99,8 @@ public:
     }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSTREAM( MESG, ARGS... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLine( __FILE__, __LINE__, MESG, ARGS )
-#define THROWBADJSONSTREAMERRNO( ERRNO, MESG, ARGS... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineErrno( __FILE__, __LINE__, ERRNO, MESG, ARGS )
+#define THROWBADJSONSTREAM( MESG... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLine( __FILE__, __LINE__, MESG )
+#define THROWBADJSONSTREAMERRNO( ERRNO, MESG... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineErrno( __FILE__, __LINE__, ERRNO, MESG )
 
 // This exception will get thrown if the user of the read cursor does something inappropriate given the current context.
 template < class t_tyCharTraits >
@@ -464,6 +464,7 @@ public:
     void PushBackLastChar()
     {
         assert( !m_fHasLookahead ); // support single character lookahead only.
+        assert( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
         m_fHasLookahead = true;
     }
 
@@ -723,12 +724,10 @@ protected:
         switch( m_jvtType )
         {
         case ejvtObject:
-            assert( !!m_pjvParent );
-            m_pvValue = new _tyJsonObject( m_pjvParent );
+            m_pvValue = new _tyJsonObject( this );
             break;
         case ejvtArray:
-            assert( !!m_pjvParent );
-            m_pvValue = new _tyJsonArray( m_pjvParent );
+            m_pvValue = new _tyJsonArray( this );
             break;
         case ejvtNumber:
         case ejvtString:
@@ -1062,10 +1061,13 @@ public:
         assert( !m_pjrxRootVal == !m_pis );
         assert( !m_pjrxContextStack == !m_pis );
         // Make sure that the current context is in the context stack.
-        const _tyJsonReadContext * pjrxCheck = &*m_pjrxContextStack;
-        for ( ; !!pjrxCheck && ( pjrxCheck != m_pjrxCurrent ); pjrxCheck = pjrxCheck->PJrcGetNext() )
-            ;
-        assert( !!pjrxCheck ); // If this fails then the current context is not in the content stack - this is bad.
+        if ( !!m_pjrxContextStack )
+        {
+            const _tyJsonReadContext * pjrxCheck = &*m_pjrxContextStack;
+            for ( ; !!pjrxCheck && ( pjrxCheck != m_pjrxCurrent ); pjrxCheck = pjrxCheck->PJrcGetNext() )
+                ;
+            assert( !!pjrxCheck ); // If this fails then the current context is not in the content stack - this is bad.
+        }
     }
     bool FAttached() const 
     {
@@ -1438,9 +1440,8 @@ public:
         assert( !_rstrRead.length() ); // We will append to the string, so if there is content it will be appended to.
         const int knLenBuffer = 1023;
         _tyChar rgtcBuffer[ knLenBuffer+1 ]; // We will append a zero when writing to the string.
-        rgtcBuffer[0] = 0; // preterminate
-        _tyChar * ptchCur;
-        int knLenUsed = 0;
+        rgtcBuffer[knLenBuffer] = 0; // preterminate end.
+        _tyChar * ptchCur = rgtcBuffer;
 
         // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
         // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
@@ -1838,7 +1839,6 @@ public:
                 pjoCur->SetEndOfIteration();
                 return false; // We reached the end of the iteration.
             }
-            m_pis->SkipWhitespace();
             if ( _tyCharTraits::s_tcComma != tchCur )
                 THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or object end.", tchCur );
             // Now we will read the key string of the next element into <pjoCur>.
@@ -1870,12 +1870,13 @@ public:
         }
         m_pis->SkipWhitespace();
         m_pjrxCurrent->m_posStartValue = m_pis->PosGet();
-        assert( !m_pjrxCurrent->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant) - this should have been cleared above.
+        m_pjrxCurrent->m_posEndValue = 0; // Reset this to zero because we haven't yet read the value for this next element yet.
         // The first non-whitespace character tells us what the value type is:
         m_pjrxCurrent->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for next object/array value." );
         m_pjrxCurrent->SetValueType( _tyJsonValue::GetJvtTypeFromChar( m_pjrxCurrent->m_tcFirst ) );
         if ( ejvtJsonValueTypeCount == m_pjrxCurrent->JvtGetValueType() )
             THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for value starting character.", m_pjrxCurrent->m_tcFirst );
+        m_pjrxCurrent->m_pjrxNext->m_posEndValue = m_pis->PosGet(); // Update this as we iterate though there is no real reason to - might help with debugging.
         return true;
     }
         
@@ -1996,6 +1997,8 @@ public:
             }
         }
     
+        // Indicate that we have the end position of the aggregate we moved into:
+        m_pjrxCurrent->m_posEndValue = m_pis->PosGet();
         // Push the new context onto the context stack:
         _tyJsonReadContext::PushStack( m_pjrxContextStack, pjrxNewRoot );
         m_pjrxCurrent = &*m_pjrxContextStack; // current position is soft reference.
