@@ -477,6 +477,109 @@ protected:
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
 };
 
+// JsonLinuxOutputStream: A class using open(), read(), etc.
+template < class t_tyCharTraits >
+class JsonLinuxOutputStream : public JsonOutputStreamBase< t_tyCharTraits, ssize_t >
+{
+    typedef JsonLinuxOutputStream _tyThis;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef ssize_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+
+    JsonLinuxOutputStream() = default;
+    ~JsonLinuxOutputStream()
+    {
+        if ( m_fOwnFdLifetime && FOpened() )
+        {
+            m_fOwnFdLifetime = false; // prevent reentry though we know it should never happen.
+            (void)_Close( m_fd );
+        }
+    }
+
+    bool FOpened() const
+    {
+        return -1 != m_fd;
+    }
+
+    // Throws on open failure. This object owns the lifetime of the file descriptor.
+    void Open( const char * _szFilename )
+    {
+        assert( !FOpened() );
+        m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC );
+        if ( !FOpened() )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::Open(): Unable to open() file [%s]", _szFilename );
+        m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
+        m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    }
+
+    // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdout which is usually at FD 1 (unless reopen()ed).
+    void AttachFd( int _fd )
+    {
+        assert( !FOpened() );
+        assert( _fd != -1 );
+        m_fd = _fd;
+        m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
+        m_szFilename.clear(); // No filename indicates we are attached to "some fd".
+    }
+
+    int Close()
+    {
+        if ( FOpened() )
+        {
+            int fd = m_fd;
+            m_fd = 0;
+            if ( m_fOwnFdLifetime )
+                return _Close( fd );
+        }
+        return 0;
+    }
+    static int _Close( int _fd )
+    {
+        return close( _fd );
+    }
+
+    // Read a single character from the file - always throw on EOF.
+    void WriteChar( _tyChar _tc )
+    {
+        assert( FOpened() );
+        ssize_t sstWrote = write( m_fd, &_tc, sizeof _tc );
+        if ( sstWrote != sizeof _tc )
+        {
+            if ( -1 == sstWrote )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::ReadChar(): write() failed for file [%s]", m_szFilename.c_str() );
+            else
+                THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
+        }
+    }
+    // We must ensure to escape any double quotes in any key string...
+    void WriteString( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
+    {
+        assert( FOpened() );
+        size_t stLen = (size_t)_sstLen;
+        if ( _sstLen < 0 )
+            stLen = _tyCharTraits::StrLen( _psz );
+#error must escape only double quotes in this string.
+        if ( !!stLen )
+        {
+            ssize_t sstWrote = write( m_fd, _psz, stLen );
+            if ( (size_t)sstWrote != stLen )
+            {
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::ReadChar(): write() failed for file [%s]", m_szFilename.c_str() );
+                else
+                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, stLen, m_szFilename.c_str() );
+            }
+        }
+    }
+
+protected:
+    std::basic_string<char> m_szFilename;
+    int m_fd{-1}; // file descriptor.
+    bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
+};
+
 // _EJsonValueType: The types of values in a JsonValue object.
 enum _EJsonValueType : char
 {
@@ -751,6 +854,91 @@ protected:
     // for ejvtArray: JsonArray *
     // for ejvtNumber, ejvtString: _tyStdStr *
     EJsonValueType m_jvtType{ejvtJsonValueTypeCount}; // Type of the JsonValue.
+};
+
+// JsonValueLife:
+// This class is used to write JSON files.
+template < class t_tyJsonOutputStream >
+class JsonValueLife
+{
+    typedef JsonValueLife _tyThis;
+public:
+    typedef t_tyJsonOutputStream _tyJsonOutputStream;
+    typedef typename t_tyJsonOutputStream::_tyCharTraits _tyCharTraits;
+    typedef JsonValue< _tyCharTraits > _tyJsonValue;
+    JsonValueLife() = delete; // Must have a reference to the JsonOutputStream - though we may change this later.
+    JsonValueLife( t_tyJsonOutputStream & _rjos, EJsonValueType _jvt, bool _fWriteComma = false )
+        :   m_rjos( _rjos ),
+            m_jv( nullptr, _jvt )
+    {
+        _WritePreamble( _fWriteComma );
+    }
+    JsonValueLife( bool _fWriteComma, JsonValueLife & _jvl, EJsonValueType _jvt )
+        :   m_rjos( _jvl.m_rjos ),
+            m_jv( _jvl.PjvGet(), _jvt ) // Link to parent JsonValue.
+    {
+        _WritePreamble( _fWriteComma );
+    }
+    void _WritePreamble( bool _fWriteComma )
+    {
+        if ( _fWriteComma )
+            m_rjos.WriteChar( _tyCharTraits::s_tcComma );
+        // For aggregate types we will need to write something to the output stream right away.
+        if ( ejvtObject == _jvt )
+            m_rjos.WriteChar( _tyCharTraits::s_tcLeftCurlyBr );
+        else
+        if ( ejvtArray == _jvt )
+            m_rjos.WriteChar( _tyCharTraits::s_tcLeftSquareBr );
+    }
+    JsonValueLife( bool _fWriteComma, _tyJsonValueLife & _jvl, _tyLPCSTR _pszKey, EJsonValueType _jvt )
+        :   _tyBase( false, _jvl, _jvt, false )
+    {
+        WritePreamble( _fWriteComma, _pszKey );
+    }
+    void _WritePreamble( bool _fWriteComma, _tyLPCSTR _pszKey )
+    {
+        if ( _fWriteComma )
+            m_rjos.WriteChar( _tyCharTraits::s_tcComma );
+        m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
+        m_rjos.WriteString( _pszKey );
+        m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
+        m_rjos.WriteChar( _tyCharTraits::s_tcColon );
+        
+        // For aggregate types we will need to write something to the output stream right away.
+        if ( ejvtObject == _jvt )
+            m_rjos.WriteChar( _tyCharTraits::s_tcLeftCurlyBr );
+        else
+        if ( ejvtArray == _jvt )
+            m_rjos.WriteChar( _tyCharTraits::s_tcLeftSquareBr );
+    }
+    ~JsonValueLife()
+    {
+        try // Should never throw out of a destructor, but the problem is that we should since we won't know that something went wrong.
+        {
+            _WritePostamble(); // The postamble is written here for all objects.
+        }
+        catch( const std::exception& e )
+        {
+            m_rjos.SetException( e, e.what() ); // We save this in the stream and we will check the stream afterwards to see if we failed.
+            std::cerr << e.what() << '\n';
+        }
+    }
+    void _WritePostamble()
+    {
+        if ( ejvtObject == _jvt )
+            m_rjos.WriteChar( _tyCharTraits::s_tcRightCurlyBr );
+        else
+        if ( ejvtArray == _jvt )
+            m_rjos.WriteChar( _tyCharTraits::s_tcRightSquareBr );
+        else
+        {
+            // Then we will write the simple value in m_jv.
+        }
+        
+    }
+protected:
+    _tyJsonOutputStream & m_rjos;
+    _tyJsonValue m_jv;        
 };
 
 // JsonAggregate:
