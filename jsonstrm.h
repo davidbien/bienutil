@@ -458,6 +458,7 @@ public:
                 return false;
             }
         }
+        _rtch = m_tcLookahead;
         return true;
     }
 
@@ -972,6 +973,7 @@ public:
         std::unique_ptr< JsonReadContext > pjrxOldHead;
         _pjrxHead.swap( pjrxOldHead );
         pjrxOldHead->m_pjrxNext.swap( _pjrxHead );
+        _pjrxHead->m_pjrxPrev = 0;
     }
 
 protected:
@@ -1823,8 +1825,6 @@ public:
         // We may be at the leaf of the current pathway when calling this or we may be in the middle of some pathway.
         // We must close any contexts above this object first.
         SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
-        // Now just skip the value at the top of the stack but don't close it:
-        _SkipContext( *m_pjrxCurrent );
         // Now we are going to look for a comma or an right curly/square bracket:
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object/array }/] or comma." ); // throws on EOF.
