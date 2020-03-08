@@ -200,17 +200,35 @@ struct JsonCharTraits< char >
     static const _tyChar s_tcNewline = '\n';
     static const _tyChar s_tcCarriageReturn = '\r';
     static const _tyChar s_tcTab = '\t';
+    static _tyLPCSTR s_szTrue; // = "true";
+    static _tyLPCSTR s_szFalse; // = "false";
+    static _tyLPCSTR s_szNull; // = "null";
     static _tyLPCSTR s_szWhiteSpace; // = " \t\n\r";
+    static _tyLPCSTR s_szEscapeStringChars; // = "\\\"\b\f\t\n\r";
+    // The formatting command to format a single character using printf style.
+    static const char * s_szFormatChar; // = "%c";
+
+    static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
+
     static bool FIsWhitespace( _tyChar _tc )
     {
         return ( ( ' ' == _tc ) || ( '\t' == _tc ) || ( '\n' == _tc ) || ( '\r' == _tc ) );
     }
-
-    // The formatting command to format a single character using printf style.
-    static const char * s_szFormatChar; // = "%c";
+    static size_t StrLen( _tyLPCSTR _psz )
+    {
+        return strlen( _psz );
+    }
+    static size_t StrCSpn( _tyLPCSTR _psz, _tyLPCSTR _pszCharSet )
+    { 
+        return strcspn( _psz, _pszCharSet );
+    }
 };
 
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szTrue = "true";
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szFalse = "false";
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szNull = "null";
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szWhiteSpace = " \t\n\r";
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szEscapeStringChars = "\\\"\b\f\t\n\r";
 const char * JsonCharTraits< char >::s_szFormatChar = "%c";
 
 // JsonCharTraits< wchar_t > : Traits for 16bit char representation.
@@ -269,17 +287,35 @@ struct JsonCharTraits< wchar_t >
     static const _tyChar s_tcNewline = L'\n';
     static const _tyChar s_tcCarriageReturn = L'\r';
     static const _tyChar s_tcTab = L'\t';
+    static _tyLPCSTR s_szTrue; // = L"true";
+    static _tyLPCSTR s_szFalse; // = L"false";
+    static _tyLPCSTR s_szNull; // = L"null";
     static _tyLPCSTR s_szWhiteSpace; // = L" \t\n\r";
+    static _tyLPCSTR s_szEscapeStringChars; // = L"\\\"\b\f\t\n\r";
+    // The formatting command to format a single character using printf style.
+    static const char * s_szFormatChar; // = "%lc";
+
+    static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
+
     static bool FIsWhitespace( _tyChar _tc )
     {
         return ( ( L' ' == _tc ) || ( L'\t' == _tc ) || ( L'\n' == _tc ) || ( L'\r' == _tc ) );
     }
-
-    // The formatting command to format a single character using printf style.
-    static const char * s_szFormatChar; // = "%lc";
+    static size_t StrLen( _tyLPCSTR _psz )
+    {
+        return wcslen( _psz );
+    }
+    static size_t StrCSpn( _tyLPCSTR _psz, _tyLPCSTR _pszCharSet )
+    { 
+        return wcscspn( _psz, _pszCharSet );
+    }
 };
 
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szTrue = L"true";
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szFalse = L"false";
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szNull = L"null";
 JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szWhiteSpace = L" \t\n\r";
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szEscapeStringChars = L"\\\"\b\f\t\n\r";
 const char * JsonCharTraits< wchar_t >::s_szFormatChar = "%lc";
 
 // JsonInputStream: Base class for input streams.
@@ -485,6 +521,7 @@ class JsonLinuxOutputStream : public JsonOutputStreamBase< t_tyCharTraits, ssize
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef ssize_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
@@ -496,6 +533,17 @@ public:
             m_fOwnFdLifetime = false; // prevent reentry though we know it should never happen.
             (void)_Close( m_fd );
         }
+    }
+
+    // This is a manner of indicating that something happened during streaming.
+    // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
+    void SetExceptionString( const char * _szWhat )
+    {
+        m_szExceptionString = _szWhat;
+    }
+    bool FGetExceptionString( std::string & _rstrExceptionString )
+    {
+        _rstrExceptionString = m_szExceptionString;
     }
 
     bool FOpened() const
@@ -553,29 +601,65 @@ public:
                 THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
         }
     }
-    // We must ensure to escape any double quotes in any key string...
-    void WriteString( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
+    // We must ensure to escape any forward slashes and double quotes in any key string...
+    // "/s" would be escaped as "///s" for instance.
+    // Also we should escape characters that have escape sequences and aren't editor-friendly like backspace and formfeed.
+    void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
         assert( FOpened() );
         size_t stLen = (size_t)_sstLen;
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
-#error must escape only double quotes in this string.
-        if ( !!stLen )
+        // When we are escaping the string we write piecewise.
+        _tyLPCSTR pszWrite = _psz;
+        while ( !!stLen )
         {
-            ssize_t sstWrote = write( m_fd, _psz, stLen );
-            if ( (size_t)sstWrote != stLen )
+            ssize_t stLenWrite = _fEscape ? _tyCharTraits::StrCSpn( pszWrite, _tyCharTraits::s_szEscapeStringChars ) : stLen;
+            ssize_t sstWrote = 0;
+            if ( stLenWrite )
+                sstWrote = write( m_fd, pszWrite, stLenWrite );
+            if ( (size_t)sstWrote != stLenWrite )
             {
                 if ( -1 == sstWrote )
                     THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::ReadChar(): write() failed for file [%s]", m_szFilename.c_str() );
                 else
                     THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, stLen, m_szFilename.c_str() );
             }
+            stLen -= stLenWrite;
+            pszWrite += stLenWrite;
+            if ( !stLen )
+                return; // the overwhelming case is we return here.
+            WriteChar( _tyCharTraits::s_tcForwardSlash ); // use for error handling.
+            // If we haven't written the whole string then we encountered a character we need to escape.
+            switch( *pszWrite )
+            {
+            case _tyCharTraits::s_tcBackSpace:
+                WriteChar( _tyCharTraits::s_tcb );
+            break;
+            case _tyCharTraits::s_tcFormFeed:
+                WriteChar( _tyCharTraits::s_tcf );
+            break;
+            case _tyCharTraits::s_tcNewline:
+                WriteChar( _tyCharTraits::s_tcn );
+            break;
+            case _tyCharTraits::s_tcCarriageReturn:
+                WriteChar( _tyCharTraits::s_tcr );
+            break;
+            case _tyCharTraits::s_tcTab:
+                WriteChar( _tyCharTraits::s_tct );
+            break;
+            default:
+                WriteChar( *pszWrite );
+            break;
+            }
+            ++pszWrite;
+            --stLen;
         }
     }
 
 protected:
     std::basic_string<char> m_szFilename;
+    std::basic_string<char> m_szExceptionString;
     int m_fd{-1}; // file descriptor.
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
 };
@@ -632,6 +716,15 @@ public:
     {
         if ( m_pvValue )
             _DestroyValue();
+    }
+
+    // Take ownership of the value passed by the caller.
+    void SetValue( _tyStdStr && _rrstrValue )
+    {
+        if ( m_pvValue )
+            *(_tyStdStr*)m_pvValue = std::move( _rrstrValue );
+        else
+            m_pvValue = new _tyStdStr( std::move( _rrstrValue ) );
     }
 
     JsonValue & operator = ( JsonValue && _rr )
@@ -751,13 +844,38 @@ public:
         }
     }
 
+    template < class t_tyJsonOutputStream >
+    void WriteSimpleValue( t_tyJsonOutputStream & _rjos ) const 
+    {
+        switch( m_jvtType )
+        {
+        case ejvtNumber:
+        case ejvtString:
+            assert( !!m_pvValue ); // We expect this to be populated but we will gracefully fail.
+            _rjos.WriteString( ejvtString == m_jvtType, PGetStringValue()->c_str(), PGetStringValue()->length() );
+            break;
+        case ejvtTrue:
+            _rjos.WriteString( false, _tyCharTraits::s_szTrue, 4 );
+            break;
+        case ejvtFalse:
+            _rjos.WriteString( false, _tyCharTraits::s_szFalse, 5 );
+            break;
+        case ejvtNull:
+            _rjos.WriteString( false, _tyCharTraits::s_szNull, 4 );
+            break;
+        default:
+            assert( 0 );
+            break;
+        }
+    }
+
     _tyJsonObject * PCreateJsonObject()
     {
         assert( ejvtObject == m_jvtType );
         _CreateValue();
         return ( ejvtObject == m_jvtType ) ? (_tyJsonObject*)m_pvValue : 0;
     }
-    _tyJsonObject * PGetJsonObject()
+    _tyJsonObject * PGetJsonObject() const
     {
         assert( ejvtObject == m_jvtType );
         if ( !m_pvValue )
@@ -770,7 +888,7 @@ public:
         _CreateValue();
         return ( ejvtArray == m_jvtType ) ? (_tyJsonArray*)m_pvValue : 0;
     }
-    _tyJsonArray * PGetJsonArray()
+    _tyJsonArray * PGetJsonArray() const
     {
         assert( ejvtArray == m_jvtType );
         if ( !m_pvValue )
@@ -783,7 +901,7 @@ public:
         _CreateValue();
         return ( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) ) ? (_tyStdStr*)m_pvValue : 0;
     }
-    _tyStdStr * PGetStringValue()
+    _tyStdStr * PGetStringValue() const
     {
         assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
         if ( !m_pvValue )
@@ -821,7 +939,7 @@ protected:
             break;
         }
     }
-    void _CreateValue()
+    void _CreateValue() const
     {
         assert( !m_pvValue );
         // We need to create a connected value object depending on type:
@@ -847,7 +965,7 @@ protected:
     }
 
     const JsonValue * m_pjvParent{}; // We make this const and then const_cast<> as needed.
-    void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
+    mutable void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
     // m_pvValue is one of:
     // for ejvtTrue, ejvtFalse, ejvtNull: nullptr
     // for ejvtObject: JsonObject *
@@ -865,21 +983,23 @@ class JsonValueLife
 public:
     typedef t_tyJsonOutputStream _tyJsonOutputStream;
     typedef typename t_tyJsonOutputStream::_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
+    typedef typename _tyCharTraits::_tyStdStr _tyStdStr;
     typedef JsonValue< _tyCharTraits > _tyJsonValue;
     JsonValueLife() = delete; // Must have a reference to the JsonOutputStream - though we may change this later.
     JsonValueLife( t_tyJsonOutputStream & _rjos, EJsonValueType _jvt, bool _fWriteComma = false )
         :   m_rjos( _rjos ),
             m_jv( nullptr, _jvt )
     {
-        _WritePreamble( _fWriteComma );
+        _WritePreamble( _fWriteComma, _jvt );
     }
     JsonValueLife( bool _fWriteComma, JsonValueLife & _jvl, EJsonValueType _jvt )
         :   m_rjos( _jvl.m_rjos ),
-            m_jv( _jvl.PjvGet(), _jvt ) // Link to parent JsonValue.
+            m_jv( &_jvl.RJvGet(), _jvt ) // Link to parent JsonValue.
     {
-        _WritePreamble( _fWriteComma );
+        _WritePreamble( _fWriteComma, _jvt );
     }
-    void _WritePreamble( bool _fWriteComma )
+    void _WritePreamble( bool _fWriteComma, EJsonValueType _jvt )
     {
         if ( _fWriteComma )
             m_rjos.WriteChar( _tyCharTraits::s_tcComma );
@@ -890,17 +1010,18 @@ public:
         if ( ejvtArray == _jvt )
             m_rjos.WriteChar( _tyCharTraits::s_tcLeftSquareBr );
     }
-    JsonValueLife( bool _fWriteComma, _tyJsonValueLife & _jvl, _tyLPCSTR _pszKey, EJsonValueType _jvt )
-        :   _tyBase( false, _jvl, _jvt, false )
+    JsonValueLife( bool _fWriteComma, JsonValueLife & _jvl, _tyLPCSTR _pszKey, EJsonValueType _jvt )
+        :   m_rjos( _jvl.m_rjos ),
+            m_jv( &_jvl.RJvGet(), _jvt ) // Link to parent JsonValue.
     {
-        WritePreamble( _fWriteComma, _pszKey );
+        _WritePreamble( _fWriteComma, _pszKey, _jvt );
     }
-    void _WritePreamble( bool _fWriteComma, _tyLPCSTR _pszKey )
+    void _WritePreamble( bool _fWriteComma, _tyLPCSTR _pszKey, EJsonValueType _jvt )
     {
         if ( _fWriteComma )
             m_rjos.WriteChar( _tyCharTraits::s_tcComma );
         m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
-        m_rjos.WriteString( _pszKey );
+        m_rjos.WriteString( true, _pszKey );
         m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
         m_rjos.WriteChar( _tyCharTraits::s_tcColon );
         
@@ -919,26 +1040,36 @@ public:
         }
         catch( const std::exception& e )
         {
-            m_rjos.SetException( e, e.what() ); // We save this in the stream and we will check the stream afterwards to see if we failed.
-            std::cerr << e.what() << '\n';
+            m_rjos.SetExceptionString( e.what() ); // We save this in the stream and we will check the stream afterwards to see if we failed.
         }
     }
     void _WritePostamble()
     {
-        if ( ejvtObject == _jvt )
+        if ( ejvtObject == m_jv.JvtGetValueType() )
             m_rjos.WriteChar( _tyCharTraits::s_tcRightCurlyBr );
         else
-        if ( ejvtArray == _jvt )
+        if ( ejvtArray == m_jv.JvtGetValueType() )
             m_rjos.WriteChar( _tyCharTraits::s_tcRightSquareBr );
         else
         {
-            // Then we will write the simple value in m_jv.
+            // Then we will write the simple value in m_jv. There should be a non-empty value there.
+            m_jv.WriteSimpleValue( m_rjos );
         }
-        
+    }
+
+    _tyJsonValue const & RJvGet() const { return m_jv; }
+    _tyJsonValue & RJvGet() { return m_jv; }
+    EJsonValueType JvtGetValueType() const
+    {
+        return m_jv.JvtGetValueType();
+    }
+    void SetValue( _tyStdStr && _rrstrValue )
+    {
+        m_jv.SetValue( std::move( _rrstrValue ) );
     }
 protected:
     _tyJsonOutputStream & m_rjos;
-    _tyJsonValue m_jv;        
+    _tyJsonValue m_jv;
 };
 
 // JsonAggregate:
@@ -1328,7 +1459,7 @@ public:
         
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
         
         switch( JvtGetValueType() )
         {
@@ -1345,13 +1476,16 @@ public:
         case ejvtNull:
             _strValue = "null";
             break;
+        default:
+            assert(0);
+            _strValue = "***ERROR***";
         }
     }
     void GetValue( bool & _rf ) const
     {
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
         
         switch( JvtGetValueType() )
         {
@@ -1370,7 +1504,7 @@ public:
     {
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(int): Not at a numeric value type." );
@@ -1383,7 +1517,7 @@ public:
     {
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long): Not at a numeric value type." );
@@ -1396,7 +1530,7 @@ public:
     {
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(float): Not at a numeric value type." );
@@ -1420,7 +1554,7 @@ public:
     {
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
 
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long double): Not at a numeric value type." );
@@ -1446,7 +1580,10 @@ public:
         case ejvtTrue:
         case ejvtFalse:
         case ejvtNull:
-            _SkipSimpleValue(); // We just skip remaining value checking that it is correct.
+            _SkipSimpleValue( jvt, m_pjrxCurrent->m_tcFirst, !m_pjrxCurrent->m_pjrxNext ); // We just skip remaining value checking that it is correct.
+            break;
+        default:
+            assert(0);
             break;
         }
         m_pjrxCurrent->m_posEndValue = m_pis->PosGet();
@@ -1463,18 +1600,18 @@ public:
         const unsigned int knMaxLength = _tyCharTraits::s_knMaxNumberLength;
         _tyChar rgtcBuffer[ knMaxLength + 1 ];
         _tyChar * ptcCur = rgtcBuffer;
-        *ptcCur++ = _rjrx.m_tcFirst;
+        *ptcCur++ = _tcFirst;
 
         auto lambdaAddCharNum = [&]( _tyChar _tch )
         { 
             if ( ptcCur == rgtcBuffer + knMaxLength )
                 THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Overflow of max JSON number length of [%u].", knMaxLength );
             *ptcCur++ = _tch;
-        }
+        };
 
         // We will have read the first character of a number and then will need to satisfy the state machine for the number appropriately.
         bool fZeroFirst = ( _tyCharTraits::s_tc0 == _tcFirst );
-        TCHAR tchCurrentChar; // maintained as the current character.
+        _tyChar tchCurrentChar; // maintained as the current character.
         if ( _tyCharTraits::s_tcMinus == _tcFirst )
         {
             tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
@@ -1484,7 +1621,6 @@ public:
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
-        bool _fAtRootElement = !_rjrx->m_pjrxNext;
         if ( fZeroFirst )
         {
             bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
@@ -1509,7 +1645,7 @@ public:
         if ( tchCurrentChar == _tyCharTraits::s_tcPeriod )
         {
             // Then according to the JSON spec we must have at least one digit here.
-            tchCurrentChar = m_pis->ReadChar(); // throw on EOF.
+            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
                 THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
@@ -1527,12 +1663,12 @@ public:
                 ( tchCurrentChar == _tyCharTraits::s_tce ) )
         {
             // Then we might see a plus or a minus or a number - but we cannot see EOF here correctly:
-            tchCurrentChar = m_pis->ReadChar(); // Throws on EOF.
+            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
             lambdaAddCharNum( tchCurrentChar );
             if (    ( tchCurrentChar == _tyCharTraits::s_tcMinus ) ||
                    ( tchCurrentChar == _tyCharTraits::s_tcPlus ) )
             {
-                tchCurrentChar = m_pis->ReadChar(); // Then we must still find a number after - throws on EOF.
+                tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after an exponent indicator with plus/minus." ); // Then we must still find a number after - throws on EOF.
                 lambdaAddCharNum( tchCurrentChar );
             }
             // Now we must see at least one digit so for the first read we throw.
