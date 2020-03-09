@@ -759,11 +759,9 @@ public:
     void Destroy() // Destroy and make null.
     {
         if ( m_pvValue )
-        {
             _DestroyValue();
-            m_pjvParent = 0;
-            m_jvtType = ejvtJsonValueTypeCount;
-        }
+        m_pjvParent = 0;
+        m_jvtType = ejvtJsonValueTypeCount;
         assert( FIsNull() );
     }
     void DestroyValue() // Just destroy and nullify any associated dynamically allocated value.
@@ -2335,6 +2333,8 @@ public:
         // We may be at the leaf of the current pathway when calling this or we may be in the middle of some pathway.
         // We must close any contexts above this object first.
         SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
+        // Close the top context:
+        m_pjrxCurrent->PJvGet()->Destroy();
         // Now we are going to look for a comma or an right curly/square bracket:
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object/array }/] or comma." ); // throws on EOF.
@@ -2450,7 +2450,6 @@ public:
                 THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first character of object.", tchCur );
             
             // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
-            m_pjrxCurrent->PJvGet()->DestroyValue(); // First destroy any value present.
             _tyJsonObject * pjoNew = m_pjrxCurrent->PJvGet()->PCreateJsonObject();
             pjrxNewRoot = std::make_unique<_tyJsonReadContext>( &pjoNew->RJvGet(), nullptr );
             if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
@@ -2490,7 +2489,6 @@ public:
                 THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first char of array value.", tchCur );
             
             // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
-            m_pjrxCurrent->PJvGet()->DestroyValue(); // First destroy any value present.
             _tyJsonArray * pjaNew = m_pjrxCurrent->PJvGet()->PCreateJsonArray();
             pjrxNewRoot = std::make_unique<_tyJsonReadContext>( &pjaNew->RJvGet(), nullptr );
             if ( ejvtJsonValueTypeCount != jvtCur )
