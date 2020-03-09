@@ -555,7 +555,7 @@ public:
     void Open( const char * _szFilename )
     {
         assert( !FOpened() );
-        m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC );
+        m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::Open(): Unable to open() file [%s]", _szFilename );
         m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
@@ -614,19 +614,19 @@ public:
         _tyLPCSTR pszWrite = _psz;
         while ( !!stLen )
         {
-            ssize_t stLenWrite = _fEscape ? _tyCharTraits::StrCSpn( pszWrite, _tyCharTraits::s_szEscapeStringChars ) : stLen;
+            ssize_t sstLenWrite = _fEscape ? _tyCharTraits::StrCSpn( pszWrite, _tyCharTraits::s_szEscapeStringChars ) : stLen;
             ssize_t sstWrote = 0;
-            if ( stLenWrite )
-                sstWrote = write( m_fd, pszWrite, stLenWrite );
-            if ( (size_t)sstWrote != stLenWrite )
+            if ( sstLenWrite )
+                sstWrote = write( m_fd, pszWrite, sstLenWrite );
+            if ( sstWrote != sstLenWrite )
             {
                 if ( -1 == sstWrote )
                     THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::ReadChar(): write() failed for file [%s]", m_szFilename.c_str() );
                 else
                     THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, stLen, m_szFilename.c_str() );
             }
-            stLen -= stLenWrite;
-            pszWrite += stLenWrite;
+            stLen -= sstLenWrite;
+            pszWrite += sstLenWrite;
             if ( !stLen )
                 return; // the overwhelming case is we return here.
             WriteChar( _tyCharTraits::s_tcForwardSlash ); // use for error handling.
@@ -698,7 +698,6 @@ public:
     // Note that this JsonValue very well may be referred to by a parent JsonValue.
     // JsonValues must be destructed carefully.
 
-    JsonValue( const JsonValue& ) = delete;
     JsonValue& operator=( const JsonValue& ) = delete;
 
     JsonValue( JsonValue * _pjvParent = nullptr, EJsonValueType _jvtType = ejvtJsonValueTypeCount )
@@ -707,9 +706,15 @@ public:
     {
         assert( !m_pvValue ); // Should have been zeroed by default member initialization on site.
     }
+    JsonValue( JsonValue const & _r )
+        :   m_pjvParent( _r.m_pjvParent ),
+            m_jvtType( _r.m_jvtType )
+    {
+        if ( !!_r.m_pvValue ) // If the value is populated then copy it.
+            _CreateValue( _r );
+    }
     JsonValue( JsonValue && _rr )
     {
-        assert( FIsNull() );
         swap( _rr );
     }
     ~JsonValue()
@@ -718,13 +723,11 @@ public:
             _DestroyValue();
     }
 
-    // Take ownership of the value passed by the caller.
-    void SetValue( _tyStdStr && _rrstrValue )
+    // Take ownership of the value passed by the caller - just swap it in.
+    void SetValue( JsonValue && _rr )
     {
-        if ( m_pvValue )
-            *(_tyStdStr*)m_pvValue = std::move( _rrstrValue );
-        else
-            m_pvValue = new _tyStdStr( std::move( _rrstrValue ) );
+        std::swap( _rr.m_jvtType, m_jvtType );
+        std::swap( _rr.m_pvValue, m_pvValue );
     }
 
     JsonValue & operator = ( JsonValue && _rr )
@@ -732,11 +735,11 @@ public:
         Destroy();
         swap( _rr );
     }
-    void swap( JsonValue && _rr )
+    void swap( JsonValue & _r )
     {
-        std::swap( _rr.m_pjvParent, m_pjvParent );
-        std::swap( _rr.m_pvValue, m_pvValue );
-        std::swap( _rr.m_jvtType, m_jvtType );
+        std::swap( _r.m_pjvParent, m_pjvParent );
+        std::swap( _r.m_pvValue, m_pvValue );
+        std::swap( _r.m_jvtType, m_jvtType );
     }
     void Destroy() // Destroy and make null.
     {
@@ -963,6 +966,34 @@ protected:
             break;
         }
     }
+    // Create a new value that is a copy of from the passed JsonValue.
+    void _CreateValue( JsonValue const & _r ) const
+    {
+        assert( !m_pvValue );
+        assert( m_jvtType == _r.m_jvtType ); // handled by caller.
+        assert( !!_r.m_pvValue );
+
+        // We need to create a connected value object depending on type:
+        switch( m_jvtType )
+        {
+        case ejvtObject:
+            m_pvValue = new _tyJsonObject( *_r.PGetJsonObject() );
+            break;
+        case ejvtArray:
+            m_pvValue = new _tyJsonArray( *_r.PGetJsonArray() );
+            break;
+        case ejvtNumber:
+        case ejvtString:
+            m_pvValue = new _tyStdStr( *_r.PGetStringValue() );
+            break;
+        case ejvtTrue:
+        case ejvtFalse:
+        case ejvtNull:
+        default:
+            assert( 0 ); // Shouldn't be calling for cases for which there is no value.
+            break;
+        }
+    }
 
     const JsonValue * m_pjvParent{}; // We make this const and then const_cast<> as needed.
     mutable void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
@@ -1063,9 +1094,9 @@ public:
     {
         return m_jv.JvtGetValueType();
     }
-    void SetValue( _tyStdStr && _rrstrValue )
+    void SetValue( _tyJsonValue && _rrjvValue )
     {
-        m_jv.SetValue( std::move( _rrstrValue ) );
+        m_jv.SetValue( std::move( _rrjvValue ) );
     }
 protected:
     _tyJsonOutputStream & m_rjos;
@@ -1085,6 +1116,7 @@ public:
     {
         m_jvCur.SetPjvParent( _pjvParent ); // Link the contained value to the parent value. This is a soft reference - we assume any parent will always exist.
     }
+    JsonAggregate( const JsonAggregate & _r ) = default; // standard copy constructor works.
 
     const _tyJsonValue & RJvGet() const
     {
@@ -1133,6 +1165,7 @@ public:
         : _tyBase( _pjvParent )
     {
     }
+    JsonObject( JsonObject const & _r ) = default;
     using _tyBase::RJvGet;
     using _tyBase::NElement;
     using _tyBase::SetNElement;
@@ -1182,6 +1215,7 @@ public:
         : _tyBase( _pjvParent )
     {
     }
+    JsonArray( JsonArray const & _r ) = default;
     using _tyBase::RJvGet;
     using _tyBase::NElement;
     using _tyBase::SetNElement;
@@ -1443,6 +1477,25 @@ public:
     bool FIsValueNull() const
     {
         ejvtNull == JvtGetValueType();
+    }
+
+    // Get a full copy of the JsonValue. We allow this to work with any type of JsonValue for completeness.
+    void GetValue( _tyJsonValue & _rjvValue ) const
+    {
+        assert( FAttached() );
+        EJsonValueType jvt = JvtGetValueType();
+        if ( ( ejvtEndOfObject == jvt ) || ( ejvtEndOfArray == jvt ) )
+        {
+            _rjvValue.SetEndOfIteration( ejvtEndOfObject == jvt );
+            return;
+        }
+        
+        // Now check if we haven't read the simple value yet because then we gotta read it.
+        if ( ( ejvtObject != jvt ) && ( ejvtArray != jvt ) && !m_pjrxCurrent->m_posEndValue )
+            const_cast< _tyThis * >( this )->_ReadSimpleValue();
+        
+        _tyJsonValue jvLocal( *m_pjrxCurrent->PJvGet() ); // copy into local then swap values with passed value - solves all sorts of potential issues with initial conditions.
+        _rjvValue.swap( jvLocal );
     }
 
     // Get a string representation of the value.
@@ -1763,11 +1816,11 @@ public:
     // Read the string starting at the current position. The '"' has already been read.
     void _ReadString( _tyStdStr & _rstrRead ) const
     {
-        assert( !_rstrRead.length() ); // We will append to the string, so if there is content it will be appended to.
         const int knLenBuffer = 1023;
         _tyChar rgtcBuffer[ knLenBuffer+1 ]; // We will append a zero when writing to the string.
         rgtcBuffer[knLenBuffer] = 0; // preterminate end.
         _tyChar * ptchCur = rgtcBuffer;
+        _rstrRead.clear();
 
         // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
         // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
