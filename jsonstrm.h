@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdexcept>
 #include <fcntl.h>
+#include <limits.h>
 
 #include "bienutil.h"
 #include "_namdexc.h"
