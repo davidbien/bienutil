@@ -11,12 +11,20 @@
 #include <string>
 #include <memory>
 
-template < class t_tySelector >
+struct ScanDirectory_SelectAll
+{
+    bool operator()( const struct dirent & _rdeFilter )
+    {
+        return true;
+    }
+};
+
+template < class t_tySelector = ScanDirectory_SelectAll >
 class ScanDirectory
 {
     typedef ScanDirectory _tyThis;
 public:
-    ScanDirectory( const char * _pszDir, t_tySelector const & _selector )
+    ScanDirectory( const char * _pszDir, t_tySelector const & _selector = t_tySelector() )
         :   m_strDir( _pszDir ),
             m_selector( _selector )
     {
