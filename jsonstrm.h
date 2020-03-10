@@ -697,6 +697,17 @@ public:
             m_fHasLookahead = true;
     }
 
+    int ICompare( _tyThis const & _rOther ) const
+    {
+        if ( m_stMapped < _rOther.m_stMapped )
+            return -1;
+        else
+        if ( m_stMapped > _rOther.m_stMapped )
+            return 1;
+        
+        return memcmp( m_pvMapped, _rOther.m_pvMapped, m_stMapped );
+    }
+
 protected:
     std::basic_string<char> m_szFilename;
     void * m_pvMapped{MAP_FAILED};
@@ -1983,7 +1994,7 @@ public:
         {
             bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
-                return; // Then we read until the end of file for a JSON file containing a single number as its only element.
+                goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.
             *ptcCur++ = tchCurrentChar;
         }
         else // ( !fZeroFirst )
@@ -1994,7 +2005,7 @@ public:
             {            
                 bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
-                    return; // Then we read until the end of file for a JSON file containing a single number as its only element.
+                    goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.
                 if ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) )
                     lambdaAddCharNum( tchCurrentChar );
                 else
@@ -2004,6 +2015,7 @@ public:
     
         if ( tchCurrentChar == _tyCharTraits::s_tcPeriod )
         {
+            lambdaAddCharNum( tchCurrentChar ); // Don't miss your period.
             // Then according to the JSON spec we must have at least one digit here.
             tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
@@ -2014,7 +2026,7 @@ public:
             {            
                 bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
-                    return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
+                    goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 if ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) )
                     lambdaAddCharNum( tchCurrentChar );
                 else
@@ -2024,6 +2036,7 @@ public:
         if (    ( tchCurrentChar == _tyCharTraits::s_tcE ) ||
                 ( tchCurrentChar == _tyCharTraits::s_tce ) )
         {
+            lambdaAddCharNum( tchCurrentChar );
             // Then we might see a plus or a minus or a number - but we cannot see EOF here correctly:
             tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
             lambdaAddCharNum( tchCurrentChar );
@@ -2041,7 +2054,7 @@ public:
             {
                 bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
-                    return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
+                    goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 if ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) )
                     lambdaAddCharNum( tchCurrentChar );
                 else
@@ -2049,6 +2062,7 @@ public:
             } 
         }
         m_pis->PushBackLastChar( true ); // Let caller read this and decide what to do depending on context - we don't expect a specific character.
+Label_DreadedLabel: // Just way too easy to do it this way.
         *ptcCur++ = _tyChar(0);
         _rstrRead = rgtcBuffer; // Copy the number into the return buffer.
     }
