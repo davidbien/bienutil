@@ -1,11 +1,16 @@
 #pragma once
 
+// jsonstrm.h
+// Templates to implement JSON input/output streaming. STAX design allows streaming of very large JSON files.
+// dbien: 17FEB2020
+
 #include <string>
 #include <memory>
 #include <unistd.h>
 #include <stdexcept>
 #include <fcntl.h>
 #include <limits.h>
+#include <sys/mman.h>
 
 #include "bienutil.h"
 #include "_namdexc.h"
@@ -527,6 +532,180 @@ protected:
     _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
     bool m_fHasLookahead{false};
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
+};
+
+// JsonLinuxInputMemMappedStream: A class using open(), read(), etc.
+template < class t_tyCharTraits >
+class JsonLinuxInputMemMappedStream : public JsonInputStreamBase< t_tyCharTraits, ssize_t >
+{
+    typedef JsonLinuxInputMemMappedStream _tyThis;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef ssize_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+
+    JsonLinuxInputMemMappedStream() = default;
+    ~JsonLinuxInputMemMappedStream()
+    {
+        (void)Close();
+    }
+
+    bool FOpened() const
+    {
+        return FFileOpened() && FFileMapped();
+    }
+    bool FFileOpened() const
+    {
+        return -1 != m_fd;
+    }
+    bool FFileMapped() const
+    {
+        return MAP_FAILED != m_pvMapped;
+    }
+    bool FEOF() const
+    {
+        assert( FOpened() );
+        return ( m_ptcMappedEnd == m_ptcMappedCur ) && !m_fHasLookahead;
+    }
+
+    // Throws on open failure. This object owns the lifetime of the file descriptor.
+    void Open( const char * _szFilename )
+    {
+        assert( !FOpened() );
+        Close();
+        m_fd = open( _szFilename, O_RDONLY );
+        if ( !FFileOpened() )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
+        // Now get the size of the file and then map it.
+        _tyFilePos posEnd = lseek( m_fd, 0, SEEK_END );
+        if ( 0 == posEnd )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): File [%s] is empty - it contains no JSON value.", _szFilename );
+        if ( !!( posEnd % sizeof(_tyChar) ) )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
+        // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
+        if ( -1 == posEnd )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Attempting to seek to EOF failed for [%s]", _szFilename );
+        m_pvMapped = mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
+        if ( m_pvMapped == MAP_FAILED )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
+        m_stMapped = posEnd;
+        m_ptcMappedCur = (_tyChar*)m_pvMapped;
+        m_ptcMappedEnd = m_ptcMappedCur + ( m_stMapped / sizeof(_tyChar) );
+        m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
+        m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    }
+
+    int Close()
+    {
+        if ( FFileMapped() )
+        {
+            assert( FOpened() );
+            void * pvMapped = m_pvMapped;
+            m_pvMapped = 0;
+            size_t stMapped = m_stMapped;
+            m_stMapped = 0;
+            _Unmap( pvMapped, stMapped );
+        }
+        if ( FOpened() )
+        {
+            int fd = m_fd;
+            m_fd = 0;
+            return _Close( fd );
+        }
+        return 0;
+    }
+    static int _Unmap( void * _pvMapped, size_t _stMapped )
+    {
+        return munmap( _pvMapped, _stMapped );
+    }
+    static int _Close( int _fd )
+    {
+        return close( _fd );
+    }
+
+    // Attach to this FOpened() JsonLinuxInputStream.
+    void AttachReadCursor( _tyJsonReadCursor & _rjrc )
+    {
+        assert( !_rjrc.FAttached() );
+        assert( FOpened() );
+        _rjrc.AttachRoot( *this );
+    }
+
+    void SkipWhitespace() 
+    {
+        // We will keep reading characters until we find non-whitespace:
+        if ( m_fHasLookahead && !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            return;
+        m_fHasLookahead = false;
+        for ( ; ; )
+        {
+            if ( FEOF() )
+                return; // We have skipped the whitespace until we hit EOF.
+            m_tcLookahead = *m_ptcMappedCur++;
+            if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            {
+                m_fHasLookahead = true;
+                return;
+            }
+        }
+    }
+
+    // Throws if lseek() fails.
+    _tyFilePos PosGet() const
+    {
+        assert( FOpened() );
+        return ( ( m_ptcMappedCur - (_tyChar*)m_pvMapped ) - (size_t)m_fHasLookahead ) * sizeof(_tyChar);
+    }
+    // Read a single character from the file - always throw on EOF.
+    _tyChar ReadChar( const char * _pcEOFMessage )
+    {
+        assert( FOpened() );
+        if ( m_fHasLookahead )
+        {
+            m_fHasLookahead = false;
+            return m_tcLookahead;
+        }
+        if ( FEOF() )
+            THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
+        return m_tcLookahead = *m_ptcMappedCur++;
+    }
+    
+    bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage )
+    {
+        assert( FOpened() );
+        if ( m_fHasLookahead )
+        {
+            m_fHasLookahead = false;
+            return m_tcLookahead;
+        }
+        if ( FEOF() )
+        {
+            if ( _fThrowOnEOF )
+                THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
+            return false;
+        }
+        _rtch = m_tcLookahead = *m_ptcMappedCur++;
+        return true;
+    }
+
+    void PushBackLastChar( bool _fMightBeWhitespace = false )
+    {
+        assert( !m_fHasLookahead ); // support single character lookahead only.
+        assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
+        if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            m_fHasLookahead = true;
+    }
+
+protected:
+    std::basic_string<char> m_szFilename;
+    void * m_pvMapped{MAP_FAILED};
+    _tyChar * m_ptcMappedCur{};
+    _tyChar * m_ptcMappedEnd{};
+    size_t m_stMapped{};
+    int m_fd{-1}; // file descriptor.
+    _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
+    bool m_fHasLookahead{false};
 };
 
 // JsonLinuxOutputStream: A class using open(), read(), etc.
@@ -2544,3 +2723,67 @@ protected:
     std::unique_ptr< _tyJsonReadContext > m_pjrxContextStack; // Implement a simple doubly linked list.
     _tyJsonReadContext * m_pjrxCurrent{}; // The current cursor position within context stack.
 };
+
+// Helper/example methods - these are use in jsonpp.cpp:
+namespace JSONStream
+{
+
+// Input only method - just read the file and don't do anything with the data.
+template < class t_tyJsonInputStream >
+void StreamReadJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc )
+{
+    if ( _jrc.FAtAggregateValue() )
+    {
+        // save state, move down, and recurse.
+        typename JsonReadCursor< t_tyJsonInputStream >::_tyJsonRestoreContext jrx( _jrc ); // Restore to current context on destruct.
+        bool f = _jrc.FMoveDown();
+        assert(f);
+        for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+            StreamReadJsonValue( _jrc );
+    }
+    else
+    {
+        // discard value.
+        _jrc.SkipTopContext();
+    }
+}
+
+// Input/output method. Read the file and write it with no whitespace.
+template < class t_tyJsonInputStream, class t_tyJsonOutputStream >
+void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, JsonValueLife< t_tyJsonOutputStream > & _jvl )
+{
+    if ( _jrc.FAtAggregateValue() )
+    {
+        // save state, move down, and recurse.
+        typename JsonReadCursor< t_tyJsonInputStream >::_tyJsonRestoreContext jrx( _jrc ); // Restore to current context on destruct.
+        bool f = _jrc.FMoveDown();
+        assert(f);
+        for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+        {
+            if ( ejvtObject == _jvl.JvtGetValueType() )
+            {
+                // For a value inside of an object we have to act specially because there will be a label to this value.
+                typename JsonReadCursor< t_tyJsonInputStream >::_tyStdStr strKey;
+                EJsonValueType jvt;
+                bool fGotKey = _jrc.FGetKeyCurrent( strKey, jvt );
+                assert( fGotKey ); // We should get a key here always and really we should throw if not.
+                JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, strKey.c_str(), _jrc.JvtGetValueType() );
+                StreamReadWriteJsonValue( _jrc, jvlObjectElement );
+            }
+            else // array.
+            {
+                JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, _jrc.JvtGetValueType() );
+                StreamReadWriteJsonValue( _jrc, jvlArrayElement );
+            }
+        }
+    }
+    else
+    {
+        // Copy the value into the output stream.
+        typename JsonValueLife< t_tyJsonOutputStream >::_tyJsonValue jvValue; // Make a copy of the current 
+        _jrc.GetValue( jvValue );
+        _jvl.SetValue( std::move( jvValue ) );
+    }
+}
+
+} // namespace JSONStream
