@@ -2,11 +2,8 @@
 
 // scandir.h
 // Implement a simple class that can be used to produce files names in a directory, etc.
-// Note that this is meant to be used with a "uniquely named lambda selector functor".
-// Because scandir has no concept of a handle nor can you pass it a void pointer we must
-//  ensure that each instantiation is a unique template.
-// Note that this imposes several limitations on the usage of any one version of the class.
-// We could also fix this by only allowing one thread into NDoScan at any one time with a member mutex.
+// Due to limitations of scandir we must use a static thread-local-storage pointer to find our
+// class during the filter callback inside of scandir().
 // dbien: 09MAR2020
 
 #include <sys/types.h>
@@ -23,14 +20,10 @@ public:
         :   m_strDir( _pszDir ),
             m_selector( _selector )
     {
-        assert( !s_pThis );
-        s_pThis = this;
     }
     ~ScanDirectory()
     {
         _FreeEntries();
-        assert( this == s_pThis );
-        s_pThis = nullptr;
     }
 
     // Perform or reperform the scan using the current parameters.
@@ -39,7 +32,13 @@ public:
     {
         _FreeEntries();
         struct dirent ** ppdeEntries;
+        // We are pretty sure that scandir cannot throw a C++ exception. It could crash, perhaps, but not much we can do about that and C++ object won't be unwound on a crash.
+        // Therefore set the TLS pointer for this here since this thread clearly cannot be in this place twice.
+        assert( !s_tls_pThis );
+        s_tls_pThis = this;
         int nScandir = scandir( m_strDir.c_str(), &ppdeEntries, ScanDirectory::StaticFilterDirEnts, alphasort );
+        assert( this == s_tls_pThis );
+        s_tls_pThis = nullptr;
         if ( -1 == nScandir )
             return -1; // Allow caller to deal with repercussions.
         m_nEntries = nScandir;
@@ -111,7 +110,7 @@ protected:
     }
     static int StaticFilterDirEnts( const struct dirent * _pdeFilter )
     {
-        return s_pThis->FilterDirEnts( _pdeFilter );
+        return s_tls_pThis->FilterDirEnts( _pdeFilter );
     }
 
     std::string m_strDir;
@@ -121,8 +120,8 @@ protected:
     t_tySelector m_selector;
     bool m_fIncludeDirectories{false};
     bool m_fIncludeCurParentDirs{false}; // Only included if also m_fIncludeDirectories.
-    static _tyThis * s_pThis; // This is a pointer to the this pointer for the *unique class*.
+    static __thread _tyThis * s_tls_pThis; // This is a pointer to the this pointer for the *unique class*.
 };
 
-template < class t_tySelector > ScanDirectory< t_tySelector > *
-ScanDirectory< t_tySelector >::s_pThis = nullptr;
+template < class t_tySelector > __thread ScanDirectory< t_tySelector > *
+ScanDirectory< t_tySelector >::s_tls_pThis = nullptr;
