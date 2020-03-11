@@ -212,6 +212,8 @@ struct JsonCharTraits< char >
     static _tyLPCSTR s_szNull; // = "null";
     static _tyLPCSTR s_szWhiteSpace; // = " \t\n\r";
     static _tyLPCSTR s_szCRLF; // = "\r\n";
+    static const _tyChar s_tcFirstUnprintableChar = '\01';
+    static const _tyChar s_tcLastUnprintableChar = '\37';
     static _tyLPCSTR s_szEscapeStringChars; // = "\\\"\b\f\t\n\r";
     // The formatting command to format a single character using printf style.
     static const char * s_szFormatChar; // = "%c";
@@ -229,6 +231,20 @@ struct JsonCharTraits< char >
     static size_t StrCSpn( _tyLPCSTR _psz, _tyLPCSTR _pszCharSet )
     { 
         return strcspn( _psz, _pszCharSet );
+    }
+    static size_t StrCSpn( _tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet )
+    {
+        _tyLPCSTR pszCur = _psz;
+        for ( ; !!*pszCur && ( ( *pszCur < _tcBegin ) || ( *pszCur >= _tcEnd ) ); ++pszCur )
+        {
+            // Passed the first test, now ensure it isn't one of the _pszCharSet chars:
+            _tyLPCSTR pszCharSetCur = _pszCharSet;
+            for ( ; !!*pszCharSetCur && ( *pszCharSetCur != *pszCur ); ++pszCharSetCur )
+                ;
+            if ( !!*pszCharSetCur )
+                break;
+        }
+        return pszCur - _psz;
     }
     static void MemSet( _tyLPSTR _psz, _tyChar _tc, size_t _n )
     { 
@@ -306,6 +322,8 @@ struct JsonCharTraits< wchar_t >
     static _tyLPCSTR s_szNull; // = L"null";
     static _tyLPCSTR s_szWhiteSpace; // = L" \t\n\r";
     static _tyLPCSTR s_szCRLF; // = L"\r\n";
+    static const _tyChar s_tcFirstUnprintableChar = L'\01';
+    static const _tyChar s_tcLastUnprintableChar = L'\37';
     static _tyLPCSTR s_szEscapeStringChars; // = L"\\\"\b\f\t\n\r";
     // The formatting command to format a single character using printf style.
     static const char * s_szFormatChar; // = "%lc";
@@ -323,6 +341,20 @@ struct JsonCharTraits< wchar_t >
     static size_t StrCSpn( _tyLPCSTR _psz, _tyLPCSTR _pszCharSet )
     { 
         return wcscspn( _psz, _pszCharSet );
+    }
+    static size_t StrCSpn( _tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet )
+    {
+        _tyLPCSTR pszCur = _psz;
+        for ( ; !!*pszCur && ( ( *pszCur < _tcBegin ) || ( *pszCur >= _tcEnd ) ); ++pszCur )
+        {
+            // Passed the first test, now ensure it isn't one of the _pszCharSet chars:
+            _tyLPCSTR pszCharSetCur = _pszCharSet;
+            for ( ; !!*pszCharSetCur && ( *pszCharSetCur != *pszCur ); ++pszCharSetCur )
+                ;
+            if ( !!*pszCharSetCur )
+                break;
+        }
+        return pszCur - _psz;
     }
     static void MemSet( _tyLPSTR _psz, _tyChar _tc, size_t _n )
     { 
@@ -815,12 +847,16 @@ public:
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
-            assert( stLen <= _tyCharTraits::StrCSpn( _psz, _tyCharTraits::s_szEscapeStringChars ) );
+            assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                        _tyCharTraits::s_szEscapeStringChars ) );
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
         while ( !!stLen )
         {
-            ssize_t sstLenWrite = _fEscape ? _tyCharTraits::StrCSpn( pszWrite, _tyCharTraits::s_szEscapeStringChars ) : stLen;
+            ssize_t sstLenWrite = _fEscape ? _tyCharTraits::StrCSpn( pszWrite,
+                                                                    _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                                    _tyCharTraits::s_szEscapeStringChars ) 
+                                            : stLen;
             ssize_t sstWrote = 0;
             if ( sstLenWrite )
                 sstWrote = write( m_fd, pszWrite, sstLenWrite );
@@ -854,8 +890,17 @@ public:
             case _tyCharTraits::s_tcTab:
                 WriteChar( _tyCharTraits::s_tct );
             break;
-            default:
+            case _tyCharTraits::s_tcBackSlash:
+            case _tyCharTraits::s_tcDoubleQuote:
                 WriteChar( *pszWrite );
+            break;
+            default:
+                // Unprintable character between 0 and 31. We'll use the \uXXXX method for this character.
+                WriteChar( _tyCharTraits::s_tcu );
+                WriteChar( _tyCharTraits::s_tc0 );
+                WriteChar( _tyCharTraits::s_tc0 );
+                WriteChar( _tyChar( '0' + ( *pszWrite / 16 ) ) );
+                WriteChar( _tyChar( ( *pszWrite % 16 ) < 10 ? ( '0' + ( *pszWrite % 16 ) ) : ( 'A' + ( *pszWrite % 16 ) - 10 ) ) );
             break;
             }
             ++pszWrite;
@@ -2182,9 +2227,9 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                     case _tyCharTraits::s_tcu:
                     {
                         unsigned int uHex = 0; // Accumulate the hex amount.
-                        unsigned int uCurrentMultiplier = ( 1 << 24 );
+                        unsigned int uCurrentMultiplier = ( 1 << 12 );
                         // Must find 4 hex digits:
-                        for ( int n=0; n < 4; ++n, ( uCurrentMultiplier >>= 8 ) )
+                        for ( int n=0; n < 4; ++n, ( uCurrentMultiplier >>= 4 ) )
                         {
                             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
                             if ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) )
@@ -2205,6 +2250,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                                 THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Unicode hex overflow [%u].", uHex );
                         }
                         tchCur = (_tyChar)uHex;
+                        break;
                     }
                     default:
                         THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
