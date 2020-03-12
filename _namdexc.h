@@ -148,7 +148,7 @@ struct ExceptionUsage
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
     char rgcBuf[knBuf+1];
-    snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+    snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
     rgcBuf[knBuf] = 0;
 
     va_list ap;
@@ -162,7 +162,7 @@ struct ExceptionUsage
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
     char rgcBuf[knBuf+1];
-    snprintf( rgcBuf, knBuf, "%s[%d]: %s", _pcFile, _nLine, _pcFmt );
+    snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
     rgcBuf[knBuf] = 0;
 
     va_list ap;

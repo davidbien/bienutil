@@ -88,18 +88,19 @@ public:
         char rgcBuf[knBuf+1];
         char * pcBufCur = rgcBuf;
         char * const pcBufTail = rgcBuf + NAMEDEXC_BUFSIZE;
-        for ( const char * pcFmtCur = _pcFmt; !!*_pcFmt && ( pcBufCur != pcBufTail ); ++_pcFmt )
+        for ( const char * pcFmtCur = _pcFmt; !!*pcFmtCur && ( pcBufCur != pcBufTail ); ++pcFmtCur )
         {
-            if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[0] == 'C' ) )
+            if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[2] == 'C' ) )
             {
+                pcFmtCur += 2;
                 const char * pcCharFmtCur = _tyCharTraits::s_szFormatChar;
                 for ( ; !!*pcCharFmtCur && ( pcBufCur != pcBufTail ); ++pcCharFmtCur )
                     *pcBufCur++ = *pcCharFmtCur;
             }
             else
-                *pcBufCur++ = *_pcFmt;
+                *pcBufCur++ = *pcFmtCur;
         }
-        *pcBufTail = 0;
+        *pcBufCur = 0;
 
         _TyBase::RenderVA( rgcBuf, args ); // Render into the exception description buffer.
     }
@@ -634,7 +635,7 @@ public:
         {
             assert( FOpened() );
             void * pvMapped = m_pvMapped;
-            m_pvMapped = 0;
+            m_pvMapped = MAP_FAILED;
             size_t stMapped = m_stMapped;
             m_stMapped = 0;
             _Unmap( pvMapped, stMapped );
@@ -645,6 +646,7 @@ public:
             m_fd = 0;
             return _Close( fd );
         }
+        assert(!FOpened());
         return 0;
     }
     static int _Unmap( void * _pvMapped, size_t _stMapped )
@@ -1249,7 +1251,15 @@ protected:
     }
 
     const JsonValue * m_pjvParent{}; // We make this const and then const_cast<> as needed.
-    mutable void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
+    union
+    {
+        mutable void * m_pvValue{};
+        mutable _tyStdStr * m_pstrValue;
+        mutable _tyJsonObject * m_pjoValue;
+        mutable _tyJsonArray * m_pjaValue;
+    };
+    
+    //mutable void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
     // m_pvValue is one of:
     // for ejvtTrue, ejvtFalse, ejvtNull: nullptr
     // for ejvtObject: JsonObject *
@@ -1668,6 +1678,13 @@ public:
         m_posStartValue = m_posEndValue = _pos;
         // The value is set to EndOfIteration separately.
     }
+    bool FEndOfIteration() const
+    {
+        bool fEnd = (  ( ( JvtGetValueType() == ejvtObject ) && !!m_pjvCur->PGetJsonObject() && m_pjvCur->PGetJsonObject()->FEndOfIteration() )
+                    || ( ( JvtGetValueType() == ejvtArray ) && !!m_pjvCur->PGetJsonArray() && m_pjvCur->PGetJsonArray()->FEndOfIteration() ) );
+        //assert( !fEnd || !m_tcFirst ); - dbien: should figure out where I am setting end-of and also reset this to 0.
+        return fEnd;
+    }
 
     // Push _pjrxNewHead as the new head of stack before _pjrxHead.
     static void PushStack( std::unique_ptr< JsonReadContext > & _pjrxHead, std::unique_ptr< JsonReadContext > & _pjrxNewHead )
@@ -1924,7 +1941,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(int): Not at a numeric value type." );
 
         // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
-        int iRet = sscanf( "%d", &_rInt );
+        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%d", &_rInt );
         assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
     void GetValue( long & _rLong ) const
@@ -1937,7 +1954,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long): Not at a numeric value type." );
 
         // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
-        int iRet = sscanf( "%ld", &_rLong );
+        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%ld", &_rLong );
         assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
     void GetValue( float & _rFloat ) const
@@ -1949,7 +1966,7 @@ public:
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(float): Not at a numeric value type." );
 
-        int iRet = sscanf( "%e", &_rFloat );
+        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%e", &_rFloat );
         assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
     void GetValue( double & _rDouble ) const
@@ -1961,7 +1978,7 @@ public:
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(double): Not at a numeric value type." );
 
-        int iRet = sscanf( "%le", &_rDouble );
+        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%le", &_rDouble );
         assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
     void GetValue( long double & _rLongDouble ) const
@@ -1973,7 +1990,7 @@ public:
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long double): Not at a numeric value type." );
 
-        int iRet = sscanf( "%Le", &_rLongDouble );
+        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%Le", &_rLongDouble );
         assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
 
@@ -2435,7 +2452,6 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             _SkipWholeObject(); // this expects that we have read the first '{'.
             // Now indicate that we are at the end of the object.
             _rjrx.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
-            _rjrx.SetValueType( ejvtEndOfObject );
             return;
         }
 
@@ -2457,10 +2473,12 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             if ( _tyCharTraits::s_tcColon != tchCur )
                 THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for colon.", tchCur );
             _SkipValue();
+            m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
         }
-        _rjrx.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
-        _rjrx.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
+        _tyJsonObject * pjoCur = _rjrx.PGetJsonObject();            
+        _rjrx.SetEndOfIteration( m_pis->PosGet() ); // Indicate that we have iterated to the end of this object.
+        pjoCur->SetEndOfIteration();
     }
     // Skip an array with an associated context. This will potentially recurse into SkipWholeObject(), SkipWholeArray(), etc. which will not have an associated context.
     void _SkipArray( _tyJsonReadContext & _rjrx )
@@ -2480,7 +2498,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             _SkipWholeArray(); // this expects that we have read the first '['.
             // Now indicate that we are at the end of the array.
             _rjrx.m_posEndValue = m_pis->PosGet(); // Indicate that we have read the value.
-            _rjrx.SetValueType( ejvtEndOfArray );
+            //_rjrx.SetValueType( ejvtEndOfArray );
             return;
         }
 
@@ -2494,10 +2512,12 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                 THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or array end.", tchCur );
             m_pis->SkipWhitespace();
             _SkipValue();
+            m_pis->SkipWhitespace();
             tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end array ] or comma." ); // throws on EOF.
         }
-        _rjrx.m_posEndValue = m_pis->PosGet(); // Update the end to the current end as usual.
-        _rjrx.SetValueType( ejvtEndOfObject ); // Indicate that we have iterated to the end of this object.
+        _tyJsonArray * pjaCur = _rjrx.PGetJsonArray();            
+        _rjrx.SetEndOfIteration( m_pis->PosGet() ); // Indicate that we have iterated to the end of this object.
+        pjaCur->SetEndOfIteration();
     }
 
     // Skip this context - must be at the top of the context stack.
@@ -2567,14 +2587,20 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         {
             assert( ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) == ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) ); // Would be weird if it didn't match.
             return false; // We are already at the end of the iteration.
-
         }
         // Perform common tasks:
         // We may be at the leaf of the current pathway when calling this or we may be in the middle of some pathway.
         // We must close any contexts above this object first.
         SkipAllContextsAboveCurrent(); // Skip and close all the contexts above the current context.
-        // Close the top context:
+        // Close the top context if it is not read already:
+        if (    !m_pjrxCurrent->m_posEndValue ||
+                ( ( ( ejvtObject == m_pjrxCurrent->JvtGetValueType() ) || 
+                  ( ejvtArray == m_pjrxCurrent->JvtGetValueType() ) )
+                    && !m_pjrxCurrent->FEndOfIteration() ) )
+            SkipTopContext(); // Then skip the value at the current context.
+        // Destroy the current object regardless - we are going to the next one.
         m_pjrxCurrent->PJvGet()->Destroy();
+
         // Now we are going to look for a comma or an right curly/square bracket:
         m_pis->SkipWhitespace();
         _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object/array }/] or comma." ); // throws on EOF.
@@ -2808,7 +2834,7 @@ void StreamReadJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     }
 }
 
-// Input/output method. Read the file and write it with no whitespace.
+// Input/output method.
 template < class t_tyJsonInputStream, class t_tyJsonOutputStream >
 void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, JsonValueLife< t_tyJsonOutputStream > & _jvl )
 {
@@ -2834,6 +2860,90 @@ void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, Jso
             {
                 JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, _jrc.JvtGetValueType() );
                 StreamReadWriteJsonValue( _jrc, jvlArrayElement );
+            }
+        }
+    }
+    else
+    {
+        // Copy the value into the output stream.
+        typename JsonValueLife< t_tyJsonOutputStream >::_tyJsonValue jvValue; // Make a copy of the current 
+        _jrc.GetValue( jvValue );
+        _jvl.SetValue( std::move( jvValue ) );
+    }
+}
+
+struct JSONUnitTestContext
+{
+    bool  m_fSkippedSomething{false};
+    int m_nArrayIndexSkip{-1};
+};
+
+// Input/output method.
+template < class t_tyJsonInputStream, class t_tyJsonOutputStream >
+void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _jrc, JsonValueLife< t_tyJsonOutputStream > & _jvl, JSONUnitTestContext & _rjutx )
+{
+    if ( _jrc.FAtAggregateValue() )
+    {
+        // save state, move down, and recurse.
+        typename JsonReadCursor< t_tyJsonInputStream >::_tyJsonRestoreContext jrx( _jrc ); // Restore to current context on destruct.
+        bool f = _jrc.FMoveDown();
+        assert(f);
+        for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+        {
+            if ( ejvtObject == _jvl.JvtGetValueType() )
+            {
+                // For a value inside of an object we have to act specially because there will be a label to this value.
+                typename JsonReadCursor< t_tyJsonInputStream >::_tyStdStr strKey;
+                EJsonValueType jvt;
+                bool fGotKey = _jrc.FGetKeyCurrent( strKey, jvt );
+                if ( strKey == "skip")
+                {   
+                    _rjutx.m_fSkippedSomething = true;
+                    continue; // Skip this potentially complex value to test skipping input.
+                }
+                else
+                if ( strKey == "skipdownup")
+                {   
+                    if ( _jrc.FMoveDown() )
+                        (void)_jrc.FMoveUp();
+                    _rjutx.m_fSkippedSomething = true;
+                    continue; // Skip this potentially complex value to test skipping input.
+                }
+                else
+                if ( strKey == "skipleafup")
+                {  
+                    int nMoveDown = 0;
+                    while ( _jrc.FMoveDown() )
+                        ++nMoveDown;
+                    while ( nMoveDown-- )
+                        (void)_jrc.FMoveUp();
+                    _rjutx.m_fSkippedSomething = true;
+                    continue; // Skip this potentially complex value to test skipping input.
+                }
+                else
+                if ( strKey == "skiparray")
+                {
+                    // We expect an integer specifying which index in the next array we encounter to skip.
+                    // We will also skip this key,value pair.
+                    if ( _jrc.JvtGetValueType() == ejvtNumber )
+                        _jrc.GetValue( _rjutx.m_nArrayIndexSkip );
+                    _rjutx.m_fSkippedSomething = true;
+                    continue; // Skip this potentially complex value to test skipping input.
+                }
+
+                assert( fGotKey ); // We should get a key here always and really we should throw if not.
+                JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, strKey.c_str(), _jrc.JvtGetValueType() );
+                StreamReadWriteJsonValueUnitTest( _jrc, jvlObjectElement, _rjutx );
+            }
+            else // array.
+            {
+                if ( _jvl.NSubValuesWritten() == _rjutx.m_nArrayIndexSkip )
+                {
+                    _rjutx.m_nArrayIndexSkip = -1;
+                    continue;
+                }
+                JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, _jrc.JvtGetValueType() );
+                StreamReadWriteJsonValueUnitTest( _jrc, jvlArrayElement, _rjutx );
             }
         }
     }
