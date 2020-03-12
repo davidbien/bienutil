@@ -2875,6 +2875,7 @@ void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, Jso
 struct JSONUnitTestContext
 {
     bool  m_fSkippedSomething{false};
+    bool m_fSkipNextArray{false};
     int m_nArrayIndexSkip{-1};
 };
 
@@ -2896,6 +2897,11 @@ void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _
                 typename JsonReadCursor< t_tyJsonInputStream >::_tyStdStr strKey;
                 EJsonValueType jvt;
                 bool fGotKey = _jrc.FGetKeyCurrent( strKey, jvt );
+                if ( _rjutx.m_fSkipNextArray && ( ejvtArray == jvt ) )
+                {
+                    _rjutx.m_fSkipNextArray = false;
+                    continue; // Skip the entire array.
+                }
                 if ( strKey == "skip")
                 {   
                     _rjutx.m_fSkippedSomething = true;
@@ -2927,6 +2933,10 @@ void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _
                     // We will also skip this key,value pair.
                     if ( _jrc.JvtGetValueType() == ejvtNumber )
                         _jrc.GetValue( _rjutx.m_nArrayIndexSkip );
+                    else
+                    if ( _jrc.JvtGetValueType() == ejvtTrue )
+                        _rjutx.m_fSkipNextArray = true;
+                    
                     _rjutx.m_fSkippedSomething = true;
                     continue; // Skip this potentially complex value to test skipping input.
                 }
@@ -2941,7 +2951,7 @@ void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _
                 {
                     _rjutx.m_nArrayIndexSkip = -1;
                     continue;
-                }
+                }                
                 JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, _jrc.JvtGetValueType() );
                 StreamReadWriteJsonValueUnitTest( _jrc, jvlArrayElement, _rjutx );
             }
