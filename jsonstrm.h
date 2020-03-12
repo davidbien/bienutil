@@ -128,18 +128,19 @@ public:
         char rgcBuf[knBuf+1];
         char * pcBufCur = rgcBuf;
         char * const pcBufTail = rgcBuf + NAMEDEXC_BUFSIZE;
-        for ( const char * pcFmtCur = _pcFmt; !!*_pcFmt && ( pcBufCur != pcBufTail ); ++_pcFmt )
+        for ( const char * pcFmtCur = _pcFmt; !!*pcFmtCur && ( pcBufCur != pcBufTail ); ++pcFmtCur )
         {
-            if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[0] == 'C' ) )
+            if ( ( pcFmtCur[0] == '%' ) && ( pcFmtCur[1] == 'T' ) && ( pcFmtCur[2] == 'C' ) )
             {
+                pcFmtCur += 2;
                 const char * pcCharFmtCur = _tyCharTraits::s_szFormatChar;
                 for ( ; !!*pcCharFmtCur && ( pcBufCur != pcBufTail ); ++pcCharFmtCur )
                     *pcBufCur++ = *pcCharFmtCur;
             }
             else
-                *pcBufCur++ = *_pcFmt;
+                *pcBufCur++ = *pcFmtCur;
         }
-        *pcBufTail = 0;
+        *pcBufCur = 0;
 
         RenderVA( rgcBuf, args ); // Render into the exception description buffer.
     }
