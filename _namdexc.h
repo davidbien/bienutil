@@ -51,6 +51,10 @@ public:
     strncpy(m_rgcExceptionName, __str.c_str(), s_stBufSize);
     m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
+  _t__Named_exception( const char * _pcFmt, va_list args ) 
+  {
+      RenderVA( _pcFmt, args );
+  }
   virtual const char* what() const _BIEN_NOTHROW { return m_rgcExceptionName; }
 
   template < class t__TyTraits, class t__TyAllocator >
@@ -80,6 +84,8 @@ protected:
   char m_rgcExceptionName[s_stBufSize];
 };
 
+#define THROWNAMEDEXCEPTION( MESG... ) ExceptionUsage< std::_t__Named_exception<> >::ThrowFileLine( __FILE__, __LINE__, MESG )
+
 template < class t_TyAllocator = allocator< char > >
 class _t__Named_exception_errno : public _t__Named_exception< t_TyAllocator >
 {
@@ -97,6 +103,15 @@ public:
     : _TyBase( __str ),
       m_errno( _errno )
   {
+  }
+  _t__Named_exception_errno( int _errno, const char * _pcFmt, va_list args )
+    : m_errno( _errno )
+  {
+      RenderVA( _pcFmt, args );
+  }
+  _t__Named_exception_errno( const char * _pcFmt, va_list args ) 
+  {
+      RenderVA( _pcFmt, args );
   }
 
   using _TyBase::what;
@@ -128,7 +143,7 @@ public:
   }
 protected:
   using _TyBase::m_rgcExceptionName;
-  int m_errno;
+  int m_errno{0};
 };
 
 } // namespace std
@@ -186,12 +201,6 @@ struct ExceptionUsage
     _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
     throw exc;
-  }
-
-  // Log the exception to any diagnostics we might have.
-  static void LogException( const _TyException & _rexc )
-  {
-    SysLog::
   }
 };
 
