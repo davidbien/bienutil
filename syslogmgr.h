@@ -19,6 +19,7 @@
 #include <thread>
 #include <syslog.h>
 #include <_strutil.h>
+#include <sys/syscall.h>
 
 enum _ESysLogMessageType : char
 {
@@ -65,7 +66,18 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         // If we haven't created the SysLogMgr() on this thread then do so now.
         if ( !s_tls_pThis )
         {
-            s_tls_tidThreadId = std::this_thread::get_id();
+#if __APPLE__
+            // This gets the thread id that we see in the Console syslog, etc.
+            (void)pthread_threadid_np( 0, &s_tls_tidThreadId);
+#elif __linux__
+#ifdef SYS_gettid
+            s_tls_tidThreadId = syscall(SYS_gettid);
+#else
+#error "SYS_gettid unavailable on this system"
+#endif
+#else
+#error Need to know the OS for thread id representation.
+#endif 
             s_tls_upThis = std::make_unique< _SysLogMgr >( s_pslmOverlord ); // This ensures we destroy this before the app goes away.
             s_tls_pThis = &*s_tls_upThis; // Get the non-object pointer because thread_local objects are function calls to obtain pointer.
         }
@@ -113,7 +125,13 @@ protected:
     static thread_local std::unique_ptr< _SysLogMgr > s_tls_upThis; // This object will be created in all threads the first time something logs in that thread.
                                                                   // However the "overlord thread" will create this on purpose when it is created.
     static __thread _SysLogMgr * s_tls_pThis; // The result of the call to gettid() for this thread.
-    static thread_local std::thread::id s_tls_tidThreadId; // The result of the call to gettid() for this thread.
+#if __APPLE__
+    static __thread __uint64_t s_tls_tidThreadId; // The result of the call to gettid() for this thread.
+#elif __linux__
+    static thread_local pid_t s_tls_tidThreadId; // The result of the call to gettid() for this thread.
+#else
+#error Need to know the OS for thread id representation.
+#endif 
 };
 
 template < const int t_kiInstance >
@@ -124,8 +142,15 @@ template < const int t_kiInstance > thread_local
 std::unique_ptr< _SysLogMgr< t_kiInstance > > _SysLogMgr< t_kiInstance >::s_tls_upThis;
 template < const int t_kiInstance > __thread
 _SysLogMgr< t_kiInstance > * _SysLogMgr< t_kiInstance >::s_tls_pThis = 0;
+#if __APPLE__
+template < const int t_kiInstance > __thread
+__uint64_t _SysLogMgr< t_kiInstance >::s_tls_tidThreadId;
+#elif __linux__
 template < const int t_kiInstance > thread_local
-std::thread::id _SysLogMgr< t_kiInstance >::s_tls_tidThreadId;
+pid_t _SysLogMgr< t_kiInstance >::s_tls_tidThreadId;
+#else
+#error Need to know the OS for thread id representation.
+#endif 
 
 // Access all syslog functionality through this namespace.
 namespace n_SysLog
