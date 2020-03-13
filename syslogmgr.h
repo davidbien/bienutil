@@ -65,7 +65,7 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         // If we haven't created the SysLogMgr() on this thread then do so now.
         if ( !s_tls_pThis )
         {
-            s_tls_tidThreadId = std::__libcpp_thread_id();
+            s_tls_tidThreadId = std::this_thread::get_id();
             s_tls_upThis = std::make_unique< _SysLogMgr >( s_pslmOverlord ); // This ensures we destroy this before the app goes away.
             s_tls_pThis = &*s_tls_upThis; // Get the non-object pointer because thread_local objects are function calls to obtain pointer.
         }
@@ -113,7 +113,7 @@ protected:
     static thread_local std::unique_ptr< _SysLogMgr > s_tls_upThis; // This object will be created in all threads the first time something logs in that thread.
                                                                   // However the "overlord thread" will create this on purpose when it is created.
     static __thread _SysLogMgr * s_tls_pThis; // The result of the call to gettid() for this thread.
-    static __thread std::__libcpp_thread_id s_tls_tidThreadId; // The result of the call to gettid() for this thread.
+    static thread_local std::thread::id s_tls_tidThreadId; // The result of the call to gettid() for this thread.
 };
 
 template < const int t_kiInstance >
@@ -124,8 +124,8 @@ template < const int t_kiInstance > thread_local
 std::unique_ptr< _SysLogMgr< t_kiInstance > > _SysLogMgr< t_kiInstance >::s_tls_upThis;
 template < const int t_kiInstance > __thread
 _SysLogMgr< t_kiInstance > * _SysLogMgr< t_kiInstance >::s_tls_pThis = 0;
-template < const int t_kiInstance > __thread
-std::__libcpp_thread_id _SysLogMgr< t_kiInstance >::s_tls_tidThreadId = 0;
+template < const int t_kiInstance > thread_local
+std::thread::id _SysLogMgr< t_kiInstance >::s_tls_tidThreadId;
 
 // Access all syslog functionality through this namespace.
 namespace n_SysLog
