@@ -137,16 +137,20 @@ namespace n_SysLog
     }
     inline void Log( ESysLogMessageType _eslmtType, const char * _pcFmt, ... )
     {
+        // We add <type>: to the start of the format string.
+        std::string strFmtAnnotated;
+        PrintfStdStr( strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFmt );
+
         va_list ap;
         va_start( ap, _pcFmt );
         char tc;
-        int nRequired = vsnprintf( &tc, 1, _pcFmt, ap );
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
         va_end( ap );
         if ( nRequired < 0 )
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
         va_start( ap, _pcFmt );
         std::string strLog;
-        int nRet = NPrintfStdStr( strLog, nRequired, _pcFmt, ap );
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
         va_end( ap );
         if ( nRet < 0 )
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
@@ -156,7 +160,7 @@ namespace n_SysLog
     {
         // We add [type]:_psFile:_nLine: to the start of the format string.
         std::string strFmtAnnotated;
-        PrintfStdStr( strFmtAnnotated, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
+        PrintfStdStr( strFmtAnnotated, "<%s>:%s:%d: %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFile, _nLine, _pcFmt );
 
         va_list ap;
         va_start( ap, _pcFmt );
