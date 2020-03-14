@@ -122,7 +122,7 @@ public:
     if ( m_errno )
     {
       // Add the errno description onto the end of the error string.
-      const int knErrorMesg = 1024;
+      const int knErrorMesg = 256;
       char rgcErrorMesg[ knErrorMesg ];
       if ( !!strerror_r( m_errno, rgcErrorMesg, knErrorMesg ) )
         snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", m_errno );

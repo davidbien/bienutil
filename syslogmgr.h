@@ -202,4 +202,61 @@ namespace n_SysLog
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
         SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
     }
+// Methods including errno:
+    inline void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFmt, ... )
+    {
+        // Add the errno description onto the end of the error string.
+        const int knErrorMesg = 256;
+        char rgcErrorMesg[ knErrorMesg ];
+        if ( !!strerror_r( _errno, rgcErrorMesg, knErrorMesg ) )
+            snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", _errno );
+        rgcErrorMesg[knErrorMesg-1] = 0;
+
+        // We add <type>: to the start of the format string.
+        std::string strFmtAnnotated;
+        PrintfStdStr( strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFmt, rgcErrorMesg );
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRequired < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
+        va_start( ap, _pcFmt );
+        std::string strLog;
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRet < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
+    }
+    void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... )
+    {
+        // Add the errno description onto the end of the error string.
+        const int knErrorMesg = 256;
+        char rgcErrorMesg[ knErrorMesg ];
+        if ( !!strerror_r( _errno, rgcErrorMesg, knErrorMesg ) )
+            snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", _errno );
+        rgcErrorMesg[knErrorMesg-1] = 0;
+
+        // We add [type]:_psFile:_nLine: to the start of the format string.
+        std::string strFmtAnnotated;
+        PrintfStdStr( strFmtAnnotated, "<%s>:%s:%d: %s %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFile, _nLine, _pcFmt, rgcErrorMesg );
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRequired < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
+        va_start( ap, _pcFmt );
+        std::string strLog;
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRet < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
+    }
 } // namespace n_SysLog
