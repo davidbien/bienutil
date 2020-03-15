@@ -124,13 +124,19 @@ public:
       // Add the errno description onto the end of the error string.
       const int knErrorMesg = 256;
       char rgcErrorMesg[ knErrorMesg ];
-      if ( !!strerror_r( m_errno, rgcErrorMesg, knErrorMesg ) )
-        snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", m_errno );
+      char rgcErrorMesg2[ knErrorMesg ];
+      if ( !!strerror_r( m_errno, rgcErrorMesg2, knErrorMesg ) )
+        (void)snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", m_errno );
+      else
+      {
+        rgcErrorMesg2[knErrorMesg-1] = 0;
+        (void)snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]: %s", m_errno, rgcErrorMesg2 );
+      }
       rgcErrorMesg[knErrorMesg-1] = 0;
 
       const int knBuf = NAMEDEXC_BUFSIZE;
       char rgcBuf[knBuf];
-      snprintf( rgcBuf, knBuf, "%s %s", m_rgcExceptionName, rgcErrorMesg );
+      (void)snprintf( rgcBuf, knBuf, "%s, %s", m_rgcExceptionName, rgcErrorMesg );
       rgcBuf[knBuf-1] = 0;
       memcpy( m_rgcExceptionName, rgcBuf, NAMEDEXC_BUFSIZE ); // Update the description of the exception with the description of the errno.
     }
@@ -163,7 +169,7 @@ struct ExceptionUsage
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
     char rgcBuf[knBuf+1];
-    snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
+    (void)snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
     rgcBuf[knBuf] = 0;
 
     va_list ap;
@@ -177,7 +183,7 @@ struct ExceptionUsage
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
     char rgcBuf[knBuf+1];
-    snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
+    (void)snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
     rgcBuf[knBuf] = 0;
 
     va_list ap;

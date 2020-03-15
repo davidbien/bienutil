@@ -1050,6 +1050,18 @@ public:
     {
         m_jvtType = _jvt;
     }
+    bool FAtAggregateValue() const
+    {
+        return ( m_jvtType == ejvtObject ) || ( m_jvtType == ejvtArray );
+    }
+    bool FAtObjectValue() const
+    {
+        return ( m_jvtType == ejvtObject );
+    }
+    bool FAtArrayValue() const
+    {
+        return ( m_jvtType == ejvtArray );
+    }
 
     // We assume that we have sole use of this input stream - as any such sharing would need complex guarding otherwise.
     // We should never need to backtrack when reading from the stream - we may need to fast forward for sure but not backtrack.
@@ -1444,11 +1456,24 @@ public:
             m_pjvlParent->IncSubValuesWritten(); // We have successfully written a subobject.
     }
 
+// Accessors:
     _tyJsonValue const & RJvGet() const { return m_jv; }
     _tyJsonValue & RJvGet() { return m_jv; }
     EJsonValueType JvtGetValueType() const
     {
         return m_jv.JvtGetValueType();
+    }
+    bool FAtAggregateValue() const
+    {
+        return m_jv.FAtAggregateValue();
+    }
+    bool FAtObjectValue() const
+    {
+        return m_jv.FAtObjectValue();
+    }
+    bool FAtArrayValue() const
+    {
+        return m_jv.FAtArrayValue();
     }
     void SetValue( _tyJsonValue && _rrjvValue )
     {
@@ -1465,6 +1490,211 @@ public:
     unsigned int NCurAggrLevel() const
     {
         return m_nCurAggrLevel;
+    }
+
+// Operations:
+// Object (key,value) operations:
+    void WriteNullValue( _tyLPCSTR _pszKey )
+    {
+        assert( FAtObjectValue() );
+        if ( !FAtObjectValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(_pszKey): Writing a (key,value) pair to a non-object." );
+        JsonValueLife jvlObjectElement( *this, _pszKey, ejvtNull );
+    }
+    void WriteValue(  _tyLPCSTR _pszKey, bool _f )
+    {
+        assert( FAtObjectValue() );
+        if ( !FAtObjectValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValue(_pszKey,bool): Writing a (key,value) pair to a non-object." );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _f ? ejvtTrue : ejvtFalse );
+    }
+
+    void WriteValue( _tyLPCSTR _pszKey, _tyStdStr const & _rstrVal )
+    {
+        WriteValue( _pszKey, _rstrVal.c_str(), _rstrVal.length() );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal ) // take ownership of passed string.
+    {
+        _WriteValue( ejvtString, _pszKey, std::move( _rrstrVal ) );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    {
+        if ( _stLen < 0 )
+            _stLen = _tyCharTraits::StrLen( _pszValue );
+        _WriteValue( ejvtString, _pszKey, _pszValue, _stLen );
+    }
+    
+    template < class t_tyNum >
+    void _WriteValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszFmt, t_tyNum _num )
+    {
+      const int knNum = 512;
+      char rgcNum[ knNum ];
+      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      assert( nPrinted < knNum );
+      _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint8_t _by )
+    {
+        _WriteValue( _pszKey, "%hhu", _by );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int8_t _sby )
+    {
+        _WriteValue( _pszKey, "%hhd", _sby );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint16_t _us )
+    {
+        _WriteValue( _pszKey, "%hu", _us );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int16_t _ss )
+    {
+        _WriteValue( _pszKey, "%hd", _ss );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint32_t _ui )
+    {
+        _WriteValue( _pszKey, "%u", _ui );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int32_t _si )
+    {
+        _WriteValue( _pszKey, "%d", _si );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint64_t _ul )
+    {
+        _WriteValue( _pszKey, "%lu", _ul );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int64_t _sl )
+    {
+        _WriteValue( _pszKey, "%ld", _sl );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, double _dbl )
+    {
+        _WriteValue( _pszKey, "%f", _dbl );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, long double _ldbl )
+    {
+        _WriteValue( _pszKey, "%Lf", _ldbl );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, time_t const & _tt )
+    {
+        std::string strTime;
+        TimeToString( _tt, strTime );
+        _WriteValue( ejvtString, _pszKey, std::move( strTime ) );
+    }
+
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen )
+    {
+        assert( FAtObjectValue() );
+        if ( !FAtObjectValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
+        assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
+        jvlObjectElement.RJvGet().PCreateStringValue()->insert( 0, _pszValue, _pszValue + _stLen );
+    }
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
+    {
+        assert( FAtObjectValue() );
+        if ( !FAtObjectValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
+        *jvlObjectElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
+    }
+
+// Arrray (value) operations:
+    void WriteNullValue()
+    {
+        assert( FAtArrayValue() );
+        if ( !FAtArrayValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(): Writing a value to a non-array." );
+        JsonValueLife jvlArrayElement( *this, ejvtNull );
+    }
+    void WriteValue( bool _f )
+    {
+        assert( FAtArrayValue() );
+        if ( !FAtArrayValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(bool): Writing a value to a non-array." );
+        JsonValueLife jvlArrayElement( *this, _f ? ejvtTrue : ejvtFalse );
+    }
+
+    void WriteValue( _tyStdStr const & _rstrVal )
+    {
+        WriteValue( _rstrVal.c_str(), _rstrVal.length() );
+    }
+    void WriteValue( _tyStdStr && _rrstrVal ) // take ownership of passed string.
+    {
+        _WriteValue( ejvtString, std::move( _rrstrVal ) );
+    }
+    void WriteValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    {
+        if ( _stLen < 0 )
+            _stLen = _tyCharTraits::StrLen( _pszValue );
+        _WriteValue( ejvtString, _pszValue, _stLen );
+    }
+    
+    template < class t_tyNum >
+    void _WriteValue( _tyLPCSTR _pszFmt, t_tyNum _num )
+    {
+      const int knNum = 512;
+      char rgcNum[ knNum ];
+      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      assert( nPrinted < knNum );
+      _WriteValue( ejvtNumber, rgcNum, std::min( nPrinted, knNum-1 ) );
+    }
+    void WriteValue( uint8_t _by )
+    {
+        _WriteValue( "%hhu", _by );
+    }
+    void WriteValue( int8_t _sby )
+    {
+        _WriteValue( "%hhd", _sby );
+    }
+    void WriteValue( uint16_t _us )
+    {
+        _WriteValue( "%hu", _us );
+    }
+    void WriteValue( int16_t _ss )
+    {
+        _WriteValue( "%hd", _ss );
+    }
+    void WriteValue( uint32_t _ui )
+    {
+        _WriteValue( "%u", _ui );
+    }
+    void WriteValue( int32_t _si )
+    {
+        _WriteValue( "%d", _si );
+    }
+    void WriteValue( uint64_t _ul )
+    {
+        _WriteValue( "%lu", _ul );
+    }
+    void WriteValue( int64_t _sl )
+    {
+        _WriteValue( "%ld", _sl );
+    }
+    void WriteValue( double _dbl )
+    {
+        _WriteValue( "%lf", _dbl );
+    }
+    void WriteValue( long double _ldbl )
+    {
+        _WriteValue( "%Lf", _ldbl );
+    }
+
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszValue, ssize_t _stLen )
+    {
+        assert( FAtArrayValue() );
+        if ( !FAtArrayValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
+        assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
+        JsonValueLife jvlArrayElement( *this, _ejvt );
+        jvlArrayElement.RJvGet().PCreateStringValue()->insert( 0, _pszValue, _pszValue + _stLen );
+    }
+    void _WriteValue( EJsonValueType _ejvt, _tyStdStr && _rrstrVal )
+    {
+        assert( FAtArrayValue() );
+        if ( !FAtArrayValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
+        JsonValueLife jvlArrayElement( *this, _ejvt );
+        *jvlArrayElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
     }
 protected:
     _tyJsonOutputStream & m_rjos;
@@ -1784,6 +2014,7 @@ public:
     typedef JsonReadContext< t_tyJsonInputStream > _tyJsonReadContext;
     typedef JsonRestoreContext< t_tyJsonInputStream > _tyJsonRestoreContext;
     using _tyStdStr = typename _tyCharTraits::_tyStdStr;
+    using _tyLPCSTR = typename _tyCharTraits::_tyLPCSTR;
 
     JsonReadCursor() = default;
     JsonReadCursor( JsonReadCursor const & ) = delete;
@@ -1821,6 +2052,16 @@ public:
         AssertValid();
         return !!m_pjrxCurrent && 
             ( ( ejvtArray == m_pjrxCurrent->JvtGetValueType() ) || ( ejvtObject == m_pjrxCurrent->JvtGetValueType() ) );
+    }
+    bool FAtObjectValue() const 
+    {
+        AssertValid();
+        return !!m_pjrxCurrent && ( ejvtObject == m_pjrxCurrent->JvtGetValueType() ) ;
+    }
+    bool FAtArrayValue() const 
+    {
+        AssertValid();
+        return !!m_pjrxCurrent && ( ejvtArray == m_pjrxCurrent->JvtGetValueType() ) ;
     }
     // Return if we are at the end of the iteration of an aggregate (object or array).
     bool FAtEndOfAggregate() const 
@@ -1932,67 +2173,41 @@ public:
             break;
         }
     }
-    void GetValue( int & _rInt ) const
+    template < class t_tyNum >
+    void _GetValue( _tyLPCSTR _pszFmt, t_tyNum & _rNumber ) const
     {
-        // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrxCurrent->m_posEndValue )
-            const_cast< _tyThis * >( this )->_ReadSimpleValue();
-
         if ( ejvtNumber != JvtGetValueType() ) 
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(int): Not at a numeric value type." );
 
-        // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
-        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%d", &_rInt );
-        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
-    }
-    void GetValue( long & _rLong ) const
-    {
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
             const_cast< _tyThis * >( this )->_ReadSimpleValue();
-
-        if ( ejvtNumber != JvtGetValueType() ) 
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long): Not at a numeric value type." );
 
         // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
-        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%ld", &_rLong );
+        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), _pszFmt, &_rNumber );
         assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
-    void GetValue( float & _rFloat ) const
+    void GetValue( uint8_t & _rby ) const { _GetValue( "%hhu", _rby ); }
+    void GetValue( int8_t & _rsby ) const { _GetValue( "%hhd", _rsby ); }
+    void GetValue( uint16_t & _rus ) const { _GetValue( "%hu", _rus ); }
+    void GetValue( int16_t & _rss ) const { _GetValue( "%hd", _rss ); }
+    void GetValue( uint32_t & _rui ) const { _GetValue( "%u", _rui ); }
+    void GetValue( int32_t & _rsi ) const { _GetValue( "%d", _rsi ); }
+    void GetValue( uint64_t & _rul ) const { _GetValue( "%lu", _rul ); }
+    void GetValue( int64_t & _rsl ) const { _GetValue( "%ld", _rsl ); }
+    void GetValue( float & _rfl ) const { _GetValue( "%e", _rfl ); }
+    void GetValue( double & _rdbl ) const { _GetValue( "%le", _rdbl ); }
+    void GetValue( long double & _rldbl ) const { _GetValue( "%Le", _rldbl ); }
+
+    // Speciality values:
+    // Time - implemented on top of string of course.
+    void GetValue( time_t & _tt ) const
     {
-        // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrxCurrent->m_posEndValue )
-            const_cast< _tyThis * >( this )->_ReadSimpleValue();
-
-        if ( ejvtNumber != JvtGetValueType() ) 
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(float): Not at a numeric value type." );
-
-        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%e", &_rFloat );
-        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
-    }
-    void GetValue( double & _rDouble ) const
-    {
-        // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrxCurrent->m_posEndValue )
-            _ReadSimpleValue();
-
-        if ( ejvtNumber != JvtGetValueType() ) 
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(double): Not at a numeric value type." );
-
-        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%le", &_rDouble );
-        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
-    }
-    void GetValue( long double & _rLongDouble ) const
-    {
-        // Now check if we haven't read the value yet because then we gotta read it.
-        if ( !m_pjrxCurrent->m_posEndValue )
-            const_cast< _tyThis * >( this )->_ReadSimpleValue();
-
-        if ( ejvtNumber != JvtGetValueType() ) 
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(long double): Not at a numeric value type." );
-
-        int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), "%Le", &_rLongDouble );
-        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+        if ( ejvtString != JvtGetValueType() ) // I guess we could read a raw time_t from a number but that is not what we are expecting currently.
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(time_t): Not at a string value type." );
+        int iRet = n_TimeUtil::ITimeFromString( m_pjrxCurrent->PGetStringValue()->c_str(), _tt );
+        if ( !!iRet )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(time_t): Failed to parse a date." );
     }
 
     // This will read any unread value into the value object

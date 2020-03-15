@@ -21,7 +21,7 @@
 #include <_strutil.h>
 #include <sys/syscall.h>
 
-enum _ESysLogMessageType : char
+enum _ESysLogMessageType : uint8_t
 {
     eslmtInfo,
     eslmtWarning,
@@ -29,6 +29,145 @@ enum _ESysLogMessageType : char
     eslmtSysLogMessageTypeCount
 };
 typedef _ESysLogMessageType ESysLogMessageType;
+
+// _SysLogContext:
+// This breaks out all info from a log message so we can put it into a JSON file where it can then be put in a DB, etc.
+struct _SysLogContext
+{
+    time_t m_time;
+    std::string m_szProgramName;
+    std::string m_szFullMesg; // The full annotated message.
+    std::string m_szFile;
+#if __APPLE__
+    __uint64_t m_tidThreadId; // The result of the call to gettid() for this thread.
+#elif __linux__
+    pid_t m_tidThreadId; // The result of the call to gettid() for this thread.
+#else
+#error Need to know the OS for thread id representation.
+#endif 
+    int m_nLine;
+    int m_errno;
+    ESysLogMessageType m_eslmtType;
+
+    void Clear()
+    {
+        m_szProgramName.clear();
+        m_tidThreadId = 0;
+        m_szFullMesg.clear();
+        m_szFile.clear();
+        int m_nLine = 0;
+        m_eslmtType = eslmtSysLogMessageTypeCount;
+        m_errno = 0;
+    }
+
+    template < class t_tyJsonOutputStream >
+    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
+    {
+        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
+        assert( _jvl.FAtObjectValue() );
+        if ( _jvl.FAtObjectValue() )
+        {
+            _jvl.WriteValue( "ProgName", m_szProgramName );
+            _jvl.WriteValue( "Time", m_time );
+            _jvl.WriteValue( "ThreadId", m_tidThreadId );
+            _jvl.WriteValue( "Type", m_eslmtType );
+            _jvl.WriteValue( "Mesg", m_szFullMesg );
+            if ( !m_szFile.empty() )
+            {
+                _jvl.WriteValue( "File", m_szFile );
+                _jvl.WriteValue( "Line", m_nLine );
+            }
+            if ( !!m_errno )
+            {
+                _jvl.WriteValue( "errno", m_errno );
+                std::string strErrDesc;
+                GetErrnoDescStdStr( m_errno, strErrDesc );
+                if ( !!strErrDesc.length() )
+                    _jvl.WriteValue( "ErrnoDesc", strErrDesc );
+            }
+        }
+        else
+            THROWNAMEDEXCEPTION( "_SysLogContext::ToJSONStream(): Not at an object." );
+    }
+
+    template < class t_tyJsonInputStream >
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
+    {
+        Clear();
+        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
+        assert( _jrc.FAtObjectValue() );
+        if ( FAtObjectValue() )
+        {
+            JsonRestoreContext< t_tyJsonInputStream > jrx( _jrc );
+            if ( _jrc.FMoveDown() )
+            {
+                for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+                {
+                    // Ignore unknown stuff:
+                    typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
+                    typename _tyCharTraits::_tyStdStr strKey;
+                    EJsonValueType jvtValue;
+                    bool fGetKey = _jrc.FGetKeyCurrent( strKey, jvtValue );
+                    assert( fGetKey );
+                    if ( fGetKey )
+                    {
+                        if ( ejvtString == jvtValue )
+                        {
+                            if ( strKey == "ProgName" )
+                            {
+                                _jrc.GetValue( m_szProgramName );
+                                continue;
+                            }
+                            if ( strKey == "Time" )
+                            {
+                                _jrc.GetValue( m_time );
+                                continue;
+                            }
+                            if ( strKey == "Mesg" )
+                            {
+                                _jrc.GetValue( m_szFullMesg );
+                                continue;
+                            }
+                            if ( strKey == "File" )
+                            {
+                                _jrc.GetValue( m_szFile );
+                                continue;
+                            }
+                            continue;
+                        }
+                        if ( ejvtNumber == jvtValue )
+                        {
+                            if ( strKey == "ThreadId" )
+                            {
+                                _jrc.GetValue( m_tidThreadId );
+                                continue;
+                            }
+                            if ( strKey == "Type" )
+                            {
+                                _jrc.GetValue( m_eslmtType );
+                                continue;
+                            }
+                            if ( strKey == "Line" )
+                            {
+                                _jrc.GetValue( m_nLine );
+                                continue;
+                            }
+                            if ( strKey == "errno" )
+                            {
+                                _jrc.GetValue( m_errno );
+                                continue;
+                            }
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        else
+            THROWNAMEDEXCEPTION( "_SysLogContext::ToJSONStream(): Not at an object." );
+    }
+
+};
 
 // Templatize this merely so we don't need a cpp module.
 template < const int t_kiInstance = 0 >
@@ -119,6 +258,8 @@ protected:
 // non-static members:
     _SysLogMgr * m_pslmOverlord; // If this is zero then we are the overlord or there is no overlord.
     bool m_fCallSysLogEachThread;
+    bool m_fGenerateUniqueJSONLogFile{true}; // Generate a unique log file in the same directory as the executable and then log that log filename to the syslog.
+    std::string m_strJSONLogFile;
 // static members:
     static _SysLogMgr * s_pslmOverlord; // A pointer to the "overlord" _SysLogMgr that is running on its own thread. The lifetime for this is managed by s_tls_pThis for the overlord thread.
     static std::mutex s_mtxOverlord; // This used by overlord to guard access.
@@ -205,16 +346,14 @@ namespace n_SysLog
 // Methods including errno:
     inline void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFmt, ... )
     {
-        // Add the errno description onto the end of the error string.
-        const int knErrorMesg = 256;
-        char rgcErrorMesg[ knErrorMesg ];
-        if ( !!strerror_r( _errno, rgcErrorMesg, knErrorMesg ) )
-            snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", _errno );
-        rgcErrorMesg[knErrorMesg-1] = 0;
-
-        // We add <type>: to the start of the format string.
         std::string strFmtAnnotated;
-        PrintfStdStr( strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFmt, rgcErrorMesg );
+        { //B
+            // Add the errno description onto the end of the error string.
+            std::string strErrno;
+            GetErrnoStdStr( _errno, strErrno );
+            // We add <type>: to the start of the format string.
+            PrintfStdStr( strFmtAnnotated, "<%s>: %s, %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFmt, strErrno.c_str() );
+        } //EB
 
         va_list ap;
         va_start( ap, _pcFmt );
@@ -233,16 +372,14 @@ namespace n_SysLog
     }
     void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... )
     {
-        // Add the errno description onto the end of the error string.
-        const int knErrorMesg = 256;
-        char rgcErrorMesg[ knErrorMesg ];
-        if ( !!strerror_r( _errno, rgcErrorMesg, knErrorMesg ) )
-            snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", _errno );
-        rgcErrorMesg[knErrorMesg-1] = 0;
-
         // We add [type]:_psFile:_nLine: to the start of the format string.
         std::string strFmtAnnotated;
-        PrintfStdStr( strFmtAnnotated, "<%s>:%s:%d: %s %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFile, _nLine, _pcFmt, rgcErrorMesg );
+        { //B
+            // Add the errno description onto the end of the error string.
+            std::string strErrno;
+            GetErrnoStdStr( _errno, strErrno );
+            PrintfStdStr( strFmtAnnotated, "<%s>:%s:%d: %s, %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFile, _nLine, _pcFmt, strErrno.c_str() );
+        }
 
         va_list ap;
         va_start( ap, _pcFmt );

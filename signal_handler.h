@@ -142,6 +142,7 @@ public:
         struct sigaction & rsaOldActiom = s_rgsaOldSignalAction[ estESigTypeCount ]        
     }
 
+    static stack_t s_ssOldSigAltStack; // Save this to check out in the debugger.
     static void SetupAlternateSignalStack()
     {
         // Only create the stack if we intend to use it.
@@ -151,8 +152,8 @@ public:
         ss.ss_size = SIGSTKSZ;
         ss.ss_flags = 0;
 
-        if ( sigaltstack( &ss, NULL ) != 0 )
-            n_SysLog::Log( eslmtError, "DefaultSignalHandler::DefaultHandler(): Unrecognized signal received [%d].", _nSignal );
+        if ( sigaltstack( &ss, &s_ssOldSigAltStack ) != 0 )
+            n_SysLog::Log( eslmtError, errno, "DefaultSignalHandler::DefaultHandler(): Unrecognized signal received [%d].", _nSignal );
     }
 
     // Allow the caller to pass in a method call to determine how we will treat a given signal.

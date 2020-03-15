@@ -35,3 +35,65 @@ int NPrintfStdStr( std::basic_string< t_tyChar > & _rstr, int _nRequired, const 
     int nRet = vsnprintf( &_rstr[0], _nRequired+1, _pcFmt, _ap );
     return nRet;
 }
+
+// Return an error message string to the caller in a standard manner.
+inline void GetErrnoStdStr( int _errno, std::string & _rstr )
+{
+    const int knErrorMesg = 256;
+    char rgcErrorMesg[ knErrorMesg ];
+    if ( !strerror_r( _errno, rgcErrorMesg, knErrorMesg ) )
+    {
+        rgcErrorMesg[ knErrorMesg-1 ] = 0;
+        PrintfStdStr( _rstr, "errno:[%d]: %s", _errno, rgcErrorMesg );
+    }
+    else
+        PrintfStdStr( _rstr, "errno:[%d]", _errno );
+}
+
+// Just return the error description if found.
+inline void GetErrnoDescStdStr( int _errno, std::string & _rstr )
+{
+    const int knErrorMesg = 256;
+    char rgcErrorMesg[ knErrorMesg ];
+    if ( !strerror_r( _errno, rgcErrorMesg, knErrorMesg ) )
+        _rstr = rgcErrorMesg;
+    else
+        _rstr.clear();
+}
+
+// This method will not look for negative numbers but it can read into a signed number.
+template < class t_tyNum >
+int IReadPositiveNum( const char * _psz, ssize_t _sstLen, t_tyNum & _rNum, bool _fThrowOnError )
+{
+	_rNum = 0;
+	if ( !_psz || !*_psz )
+    {
+        if ( _fThrowOnError )
+            THROWNAMEDEXCEPTION( "ReadPositiveNum(): Null or empty string passed." );
+        return -1;
+    }
+    if ( _sstLen <= 0 )
+        _sstLen = strlen( _psz );
+    const char * pszCur = _psz;
+    const char * const pszEnd = pszCur + _sstLen;
+    for ( ; pszEnd != pszCur; ++pszCur )
+    {
+        int iCur = int(*pszCur) - int('0');
+        if ( ( iCur < 0 ) || ( iCur > 9 ) )
+        {
+            if ( _fThrowOnError )
+               THROWNAMEDEXCEPTION( "ReadPositiveNum(): Non-digit passed." );
+            return -2;
+        }
+        t_tyNum numBefore = _rNum;
+        _rNum *= 10;
+        _rNum += iCur;
+        if ( _rNum < numBefore ) // overflow.
+        {
+            if ( _fThrowOnError )
+               THROWNAMEDEXCEPTION( "ReadPositiveNum(): Overflow." );
+            return -3;
+        }
+    }
+    return 0;
+}
