@@ -777,7 +777,7 @@ public:
         }
     }
 
-    void swap( JsonLinuxOutputStream _r )
+    void swap( JsonLinuxOutputStream & _r )
     {
         _r.m_szFilename.swap( m_szFilename );
         _r.m_szExceptionString.swap( m_szExceptionString );
@@ -1369,6 +1369,15 @@ public:
             m_nSubValuesWritten( _rr.m_nSubValuesWritten ),
             m_optJsonFormatSpec( _rr.m_optJsonFormatSpec )
     {
+        _rr.SetDontWritePostAmble(); // We own this things lifetime now.
+    }
+    void SetDontWritePostAmble()
+    {
+        m_nCurAggrLevel = UINT_MAX;
+    }
+    bool FDontWritePostAmble() const
+    {
+        return m_nCurAggrLevel == UINT_MAX;
     }
 
     JsonValueLife( t_tyJsonOutputStream & _rjos, EJsonValueType _jvt, const _tyJsonFormatSpec * _pjfs = 0 )
@@ -1444,7 +1453,8 @@ public:
     {
         try // Should never throw out of a destructor, but the problem is that we should since we won't know that something went wrong.
         {
-            _WritePostamble(); // The postamble is written here for all objects.
+            if ( !FDontWritePostAmble() )
+                _WritePostamble(); // The postamble is written here for all objects.
         }
         catch( const std::exception& e )
         {
@@ -1476,11 +1486,6 @@ public:
         }
         if ( !!m_pjvlParent )
             m_pjvlParent->IncSubValuesWritten(); // We have successfully written a subobject.
-    }
-
-    void swap( JsonValueLife & _r )
-    {
-
     }
 
 // Accessors:
@@ -1620,7 +1625,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
         assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
         JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
-        jvlObjectElement.RJvGet().PCreateStringValue()->insert( jvlObjectElement.RJvGet().PCreateStringValue()->begin(), _pszValue, _pszValue + _stLen );
+        jvlObjectElement.RJvGet().PGetStringValue()->insert( jvlObjectElement.RJvGet().PGetStringValue()->begin(), _pszValue, _pszValue + _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
     {
@@ -1731,7 +1736,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
         assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
-        jvlArrayElement.RJvGet().PCreateStringValue()->insert( jvlArrayElement.RJvGet().PCreateStringValue()->begin(), _pszValue, _pszValue + _stLen );
+        jvlArrayElement.RJvGet().PGetStringValue()->insert( jvlArrayElement.RJvGet().PGetStringValue()->begin(), _pszValue, _pszValue + _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyStdStr && _rrstrVal )
     {

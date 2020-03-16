@@ -113,7 +113,7 @@ GetCurrentExecutablePath( std::string & _rstrPath )
 {
     _rstrPath.clear();
 #if __APPLE__
-	char rgBuf[PROC_PIDPATHINFO_MAXSIZE+1];
+	char rgBuf[PROC_PIDPATHINFO_MAXSIZE];
     pid_t pid = getpid();
     int iRet = proc_pidpath( pid, rgBuf, sizeof( rgBuf ) );
     assert( iRet > 0 );
@@ -126,7 +126,7 @@ GetCurrentExecutablePath( std::string & _rstrPath )
         uint32_t len = 1;
         std::string strInitPath;
         (void)_NSGetExecutablePath( &c, &len );
-        strInitPath.resize( len ); // will reserver len+1.
+        strInitPath.resize( len-1 ); // will reserver len.
         int iRet = _NSGetExecutablePath( &strInitPath[0], &len );
         assert( !iRet );
         char * cpMallocedPath = realpath( strInitPath.c_str(), 0 );
@@ -137,6 +137,9 @@ GetCurrentExecutablePath( std::string & _rstrPath )
         else
             _rstrPath = cpMallocedPath;
     }
+    std::string::size_type stLastSlash = _rstrPath.find_last_of('/');
+    if ( std::string::npos != stLastSlash )
+        _rstrPath.resize( stLastSlash+1 );
 #elif __linux__
     char * cpPath = (char *)getauxval(AT_EXECFN);
     if ( !!cpPath )

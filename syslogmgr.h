@@ -161,7 +161,7 @@ struct _SysLogContext
         assert( _jvl.FAtObjectValue() );
         if ( _jvl.FAtObjectValue() )
         {
-            _jvl.WriteValue( "Time", m_time );
+            _jvl.WriteTimeStringValue( "Time", m_time );
             _jvl.WriteValue( "Type", (uint8_t)m_eslmtType );
             _jvl.WriteValue( "Mesg", m_szFullMesg );
             if ( !m_szFile.empty() )
@@ -343,17 +343,16 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
 
         std::string strLogFile = slth.m_szProgramName;
         uuid_string_t ustUuid;
-        uuid_unparse( slth.m_uuid, ustUuid );
+        uuid_unparse_lower( slth.m_uuid, ustUuid );
         strLogFile += ".";
         strLogFile += ustUuid;
         strLogFile += ".log.json";
 
         // We must make sure we can initialize the file before we declare that it is opened.
-        _tyJsonOutputStream josThreadLog;
-        josThreadLog.Open( strLogFile.c_str() );
+        m_josThreadLog.Open( strLogFile.c_str() );
         _tyJsonFormatSpec jfs; // Make sure we pretty print the JSON to make it readable right away.
         jfs.m_nWhiteSpacePerIndent = 2;
-        _tyJsonValueLife jvlRoot( josThreadLog, ejvtObject, &jfs );
+        _tyJsonValueLife jvlRoot( m_josThreadLog, ejvtObject, &jfs );
         { //B
             // Create the SysLogThreadHeader object as the first object within the log file.
             _tyJsonValueLife jvlSysLogThreadHeader( jvlRoot, "SysLogThreadHeader", ejvtObject );
@@ -361,8 +360,7 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         } //EB
         // Now open up an array to contain the set of log message details.
         _tyJsonValueLife jvlSysLogArray( jvlRoot, "SysLog", ejvtArray );
-        // Now swap/forward everything into the object itself - we succeeded in creating the logging file.
-        josThreadLog.swap( m_josThreadLog );
+        // Now forward everything into the object itself - we succeeded in creating the logging file.
         m_optjvlRootThreadLog.emplace( std::move( jvlRoot ) );
         m_optjvlSysLogArray.emplace( std::move( jvlSysLogArray ) );
         return true;
