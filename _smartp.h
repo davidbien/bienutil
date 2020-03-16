@@ -28,7 +28,7 @@ public:
     _r.Reset();
   }
 
-  ~_sptr() __STLP_NOTHROW
+  ~_sptr() _BIEN_NOTHROW
   {
     if ( m_pt )
     {
@@ -36,16 +36,16 @@ public:
     }
   }
 
-  t_Ty *  Ptr() const __STLP_NOTHROW
+  t_Ty *  Ptr() const _BIEN_NOTHROW
   {
     return m_pt;
   }
-  t_Ty *& PtrRef() __STLP_NOTHROW
+  t_Ty *& PtrRef() _BIEN_NOTHROW
   {
     return m_pt;
   }
 
-  void  Release() __STLP_NOTHROW
+  void  Release() _BIEN_NOTHROW
   {
     if ( m_pt )
     {
@@ -55,16 +55,16 @@ public:
     }
   }
 
-  void  Reset() __STLP_NOTHROW
+  void  Reset() _BIEN_NOTHROW
   {
     m_pt = 0;
   }
-  void  Reset( t_Ty * _pt ) __STLP_NOTHROW
+  void  Reset( t_Ty * _pt ) _BIEN_NOTHROW
   {
     m_pt = _pt;
   }
 
-	t_Ty *	transfer() __STLP_NOTHROW
+	t_Ty *	transfer() _BIEN_NOTHROW
 	{
 		t_Ty * _pt = m_pt;
     Reset();
@@ -73,7 +73,7 @@ public:
 
 
   // acquire <_pt> - destruct any current object.
-  void  operator = ( t_Ty * _pt ) __STLP_NOTHROW
+  void  operator = ( t_Ty * _pt ) _BIEN_NOTHROW
   {
     Release();
     m_pt = _pt;
@@ -87,11 +87,11 @@ public:
     _r.Reset();
   }
 
-  t_Ty *  operator ->() const __STLP_NOTHROW
+  t_Ty *  operator ->() const _BIEN_NOTHROW
   {
     return m_pt;
   }
-  t_Ty &  operator *() const __STLP_NOTHROW
+  t_Ty &  operator *() const _BIEN_NOTHROW
   {
     return *m_pt;
   }
@@ -100,16 +100,49 @@ public:
   //  prevents accidental construction or assignment to
   //  a const-_TyThis - since then conversion to pointer is
   //  inaccessible.
-  operator t_Ty * () __STLP_NOTHROW
+  operator t_Ty * () _BIEN_NOTHROW
   {
     return m_pt;
   }
 
-  operator const t_Ty * () const __STLP_NOTHROW
+  operator const t_Ty * () const _BIEN_NOTHROW
   {
     return m_pt;
   }
 
+};
+
+// Implement a very simple object to call free() on a void& on destruct.
+
+class FreeVoid
+{
+  typedef FreeVoid _tyThis;
+public:
+  FreeVoid( void* _pv )
+    : m_pv(_pv)
+  { }
+  ~FreeVoid()
+  {
+    if ( m_pv )
+      free( m_pv );
+  }
+  void Clear()
+  {
+    if ( m_pv )
+    {
+      void * pv = m_pv;
+      m_pv = 0;
+      free( pv );
+    }
+  }
+  void * PvTransfer()
+  {
+      void * pv = m_pv;
+      m_pv = 0;
+      return pv;
+  }
+protected:
+  void * m_pv;
 };
 
 __BIENUTIL_END_NAMESPACE

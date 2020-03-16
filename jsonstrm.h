@@ -16,6 +16,7 @@
 #include "_namdexc.h"
 #include "_debug.h"
 #include "_util.h"
+#include "_timeutl.h"
 #include "_dbgthrw.h"
 
 // jsonstrm.h
@@ -776,6 +777,14 @@ public:
         }
     }
 
+    void swap( JsonLinuxOutputStream _r )
+    {
+        _r.m_szFilename.swap( m_szFilename );
+        _r.m_szExceptionString.swap( m_szExceptionString );
+        std::swap( _r.m_fd, m_fd );
+        std::swap( _r.m_fOwnFdLifetime, m_fOwnFdLifetime );        
+    }
+
     // This is a manner of indicating that something happened during streaming.
     // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
     void SetExceptionString( const char * _szWhat )
@@ -1322,6 +1331,7 @@ public:
     }
 
     JsonFormatSpec() = default;
+    JsonFormatSpec( JsonFormatSpec const & _r ) = default;
 
     // Use tabs or spaces.
     bool m_fUseTabs{false};
@@ -1346,12 +1356,27 @@ public:
     typedef typename _tyCharTraits::_tyStdStr _tyStdStr;
     typedef JsonValue< _tyCharTraits > _tyJsonValue;
     typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+
     JsonValueLife() = delete; // Must have a reference to the JsonOutputStream - though we may change this later.
+    JsonValueLife( JsonValueLife const & ) = delete;
+    JsonValueLife & operator=( JsonValueLife const & ) = delete;
+
+    JsonValueLife( JsonValueLife && _rr )
+        :   m_rjos( _rr.m_rjos ),
+            m_jv( std::move( _rr.m_jv ) ),
+            m_pjvlParent( _rr.m_pjvlParent ),
+            m_nCurAggrLevel( _rr.m_nCurAggrLevel ),
+            m_nSubValuesWritten( _rr.m_nSubValuesWritten ),
+            m_optJsonFormatSpec( _rr.m_optJsonFormatSpec )
+    {
+    }
+
     JsonValueLife( t_tyJsonOutputStream & _rjos, EJsonValueType _jvt, const _tyJsonFormatSpec * _pjfs = 0 )
         :   m_rjos( _rjos ),
-            m_jv( nullptr, _jvt ),
-            m_pjfs( _pjfs )
+            m_jv( nullptr, _jvt )
     {
+        if ( !!_pjfs )
+            m_optJsonFormatSpec.emplace( *_pjfs );
         _WritePreamble( _jvt );
     }
     JsonValueLife( JsonValueLife & _jvl, EJsonValueType _jvt )
@@ -1359,7 +1384,7 @@ public:
             m_pjvlParent( &_jvl ),
             m_nCurAggrLevel( _jvl.m_nCurAggrLevel+1 ),
             m_jv( &_jvl.RJvGet(), _jvt ), // Link to parent JsonValue.
-            m_pjfs( _jvl.m_pjfs )
+            m_optJsonFormatSpec( _jvl.m_optJsonFormatSpec )
     {
         _WritePreamble( _jvt );
     }
@@ -1367,13 +1392,10 @@ public:
     {
         if ( m_pjvlParent && !!m_pjvlParent->NSubValuesWritten() ) // Write a comma if we aren't the first sub value.
             m_rjos.WriteChar( _tyCharTraits::s_tcComma );
-        if ( !!m_pjfs )
+        if ( !!m_optJsonFormatSpec && !!NCurAggrLevel() )
         {
-            if ( NCurAggrLevel() )
-            {
-                m_pjfs->WriteLinefeed( m_rjos );
-                m_pjfs->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
-            }
+            m_optJsonFormatSpec->WriteLinefeed( m_rjos );
+            m_optJsonFormatSpec->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
         }
         // For aggregate types we will need to write something to the output stream right away.
         if ( ejvtObject == _jvt )
@@ -1387,7 +1409,7 @@ public:
             m_pjvlParent( &_jvl ),
             m_nCurAggrLevel( _jvl.m_nCurAggrLevel+1 ),
             m_jv( &_jvl.RJvGet(), _jvt ), // Link to parent JsonValue.
-            m_pjfs( _jvl.m_pjfs )
+            m_optJsonFormatSpec( _jvl.m_optJsonFormatSpec )
     {
         _WritePreamble( _pszKey, _jvt );
     }
@@ -1395,12 +1417,12 @@ public:
     {
         if ( m_pjvlParent && !!m_pjvlParent->NSubValuesWritten() ) // Write a comma if we aren't the first sub value.
             m_rjos.WriteChar( _tyCharTraits::s_tcComma );
-        if ( !!m_pjfs )
+        if ( !!m_optJsonFormatSpec )
         {
             if ( NCurAggrLevel() )
             {
-                m_pjfs->WriteLinefeed( m_rjos );
-                m_pjfs->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
+                m_optJsonFormatSpec->WriteLinefeed( m_rjos );
+                m_optJsonFormatSpec->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
             }
         }
         m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
@@ -1408,8 +1430,8 @@ public:
         m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
         m_rjos.WriteChar( _tyCharTraits::s_tcColon );
         
-        if ( !!m_pjfs )
-            m_pjfs->WriteSpace( m_rjos );
+        if ( !!m_optJsonFormatSpec )
+            m_optJsonFormatSpec->WriteSpace( m_rjos );
 
         // For aggregate types we will need to write something to the output stream right away.
         if ( ejvtObject == _jvt )
@@ -1434,9 +1456,9 @@ public:
         if ( !!m_nSubValuesWritten )
         {
             assert( ( ejvtObject == m_jv.JvtGetValueType() ) || ( ejvtArray == m_jv.JvtGetValueType() ) );
-            m_pjfs->WriteLinefeed( m_rjos );
+            m_optJsonFormatSpec->WriteLinefeed( m_rjos );
             if ( NCurAggrLevel() )
-                m_pjfs->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
+                m_optJsonFormatSpec->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
         }
         if ( ejvtObject == m_jv.JvtGetValueType() )
         {
@@ -1454,6 +1476,11 @@ public:
         }
         if ( !!m_pjvlParent )
             m_pjvlParent->IncSubValuesWritten(); // We have successfully written a subobject.
+    }
+
+    void swap( JsonValueLife & _r )
+    {
+
     }
 
 // Accessors:
@@ -1573,11 +1600,17 @@ public:
     {
         _WriteValue( _pszKey, "%Lf", _ldbl );
     }
-    void WriteValue( _tyLPCSTR _pszKey, time_t const & _tt )
+    void WriteTimeStringValue( _tyLPCSTR _pszKey, time_t const & _tt )
     {
         std::string strTime;
-        TimeToString( _tt, strTime );
+        n_TimeUtil::TimeToString( _tt, strTime );
         _WriteValue( ejvtString, _pszKey, std::move( strTime ) );
+    }
+    void WriteUuidStringValue( _tyLPCSTR _pszKey, uuid_t const & _uuidt )
+    {
+        uuid_string_t ustOut;
+        uuid_unparse_lower( _uuidt, ustOut );
+        _WriteValue( ejvtString, _pszKey, ustOut );
     }
 
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen )
@@ -1587,7 +1620,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
         assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
         JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
-        jvlObjectElement.RJvGet().PCreateStringValue()->insert( 0, _pszValue, _pszValue + _stLen );
+        jvlObjectElement.RJvGet().PCreateStringValue()->insert( jvlObjectElement.RJvGet().PCreateStringValue()->begin(), _pszValue, _pszValue + _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
     {
@@ -1614,6 +1647,12 @@ public:
         JsonValueLife jvlArrayElement( *this, _f ? ejvtTrue : ejvtFalse );
     }
 
+    void WriteValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    {
+        if ( _stLen < 0 )
+            _stLen = _tyCharTraits::StrLen( _pszValue );
+        _WriteValue( ejvtString, _pszValue, _stLen );
+    }
     void WriteValue( _tyStdStr const & _rstrVal )
     {
         WriteValue( _rstrVal.c_str(), _rstrVal.length() );
@@ -1622,11 +1661,17 @@ public:
     {
         _WriteValue( ejvtString, std::move( _rrstrVal ) );
     }
-    void WriteValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    void WriteTimeStringValue( time_t const & _tt )
     {
-        if ( _stLen < 0 )
-            _stLen = _tyCharTraits::StrLen( _pszValue );
-        _WriteValue( ejvtString, _pszValue, _stLen );
+        std::string strTime;
+        TimeToString( _tt, strTime );
+        _WriteValue( ejvtString, std::move( strTime ) );
+    }
+    void WriteUuidStringValue( uuid_t const & _uuidt )
+    {
+        uuid_string_t ustOut;
+        uuid_unparse_lower( _uuidt, ustOut );
+        _WriteValue( ejvtString, ustOut );
     }
     
     template < class t_tyNum >
@@ -1686,7 +1731,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
         assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
-        jvlArrayElement.RJvGet().PCreateStringValue()->insert( 0, _pszValue, _pszValue + _stLen );
+        jvlArrayElement.RJvGet().PCreateStringValue()->insert( jvlArrayElement.RJvGet().PCreateStringValue()->begin(), _pszValue, _pszValue + _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyStdStr && _rrstrVal )
     {
@@ -1698,7 +1743,7 @@ public:
     }
 protected:
     _tyJsonOutputStream & m_rjos;
-    const _tyJsonFormatSpec * m_pjfs{};
+    std::optional< const _tyJsonFormatSpec > m_optJsonFormatSpec;
     JsonValueLife * m_pjvlParent{}; // If we are at the root this will be zero.
     _tyJsonValue m_jv;
     unsigned int m_nSubValuesWritten{}; // When a sub-value finishes its writing it will cause this number to be increment. This allows us to place commas correctly, etc.
@@ -2200,14 +2245,28 @@ public:
     void GetValue( long double & _rldbl ) const { _GetValue( "%Le", _rldbl ); }
 
     // Speciality values:
-    // Time - implemented on top of string of course.
-    void GetValue( time_t & _tt ) const
+    // Human readable date/time - implemented on ejvtString.
+    void GetTimeStringValue( time_t & _tt ) const
     {
-        if ( ejvtString != JvtGetValueType() ) // I guess we could read a raw time_t from a number but that is not what we are expecting currently.
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(time_t): Not at a string value type." );
+        if ( ejvtString != JvtGetValueType() )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not at a string value type." );
         int iRet = n_TimeUtil::ITimeFromString( m_pjrxCurrent->PGetStringValue()->c_str(), _tt );
         if ( !!iRet )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(time_t): Failed to parse a date." );
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue()): Failed to parse a date/time, iRet[%d].", iRet );
+    }
+    // Human readable date/time - implemented on ejvtString.
+    void GetUuidStringValue( uuid_t & _uuidt ) const
+    {
+        if ( ejvtString != JvtGetValueType() )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not at a string value type." );
+        if ( m_pjrxCurrent->PGetStringValue()->length() < std::size( declval(uuid_string_t) )-1 )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not enough characters in the string for uuid_string_t." );
+        uuid_string_t ustUuid;
+        memcpy( &ustUuid, m_pjrxCurrent->PGetStringValue()->c_str(), sizeof ustUuid );
+        ustUuid[ std::size( ustUuid )-1 ] = 0;
+        int iRet = uuid_parse( ustUuid, _uuidt );
+        if ( !!iRet )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue()): Failed to parse a uuid from string [%s].", m_pjrxCurrent->PGetStringValue()->c_str() );
     }
 
     // This will read any unread value into the value object

@@ -4,8 +4,17 @@
 // String utilities.
 // dbien: 12MAR2020
 
+#include <stdlib.h>
+#include <libproc.h>
 #include <string>
 #include <_namdexc.h>
+#include <_smartp.h>
+#if __APPLE__
+#include <mach-o/dyld.h>
+#elif __linux__
+#include <sys/auxv.h>
+#else
+#endif
 
 // Return a string formatted like printf. Throws.
 template < class t_tyChar >
@@ -20,7 +29,7 @@ void PrintfStdStr( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFm
     if ( nRequired < 0 )
         THROWNAMEDEXCEPTION( "PrintfStdStr(): vsnprintf() returned nRequired[%d].", nRequired );
     va_start( ap, _pcFmt );
-    _rstr.resize( nRequired ); // this will reserver nRequired+1.
+    _rstr.resize( nRequired ); // this will reserve nRequired+1.
     int nRet = vsnprintf( &_rstr[0], nRequired+1, _pcFmt, ap );
     va_end( ap );
     if ( nRet < 0 )
@@ -96,4 +105,62 @@ int IReadPositiveNum( const char * _psz, ssize_t _sstLen, t_tyNum & _rNum, bool 
         }
     }
     return 0;
+}
+
+// Get the full executable path - not including the executable but yes including a final '/'.
+void
+GetCurrentExecutablePath( std::string & _rstrPath )
+{
+    _rstrPath.clear();
+#if __APPLE__
+	char rgBuf[PROC_PIDPATHINFO_MAXSIZE+1];
+    pid_t pid = getpid();
+    int iRet = proc_pidpath( pid, rgBuf, sizeof( rgBuf ) );
+    assert( iRet > 0 );
+    if ( iRet > 0 )
+        _rstrPath = rgBuf;
+    else
+    { // Then try a different way.
+        __BIENUTIL_USING_NAMESPACE
+        char c;
+        uint32_t len = 1;
+        std::string strInitPath;
+        (void)_NSGetExecutablePath( &c, &len );
+        strInitPath.resize( len ); // will reserver len+1.
+        int iRet = _NSGetExecutablePath( &strInitPath[0], &len );
+        assert( !iRet );
+        char * cpMallocedPath = realpath( strInitPath.c_str(), 0 );
+        FreeVoid fv( cpMallocedPath ); // Ensure we free.
+        assert( !!cpMallocedPath );
+        if ( !cpMallocedPath )
+            _rstrPath = strInitPath;
+        else
+            _rstrPath = cpMallocedPath;
+    }
+#elif __linux__
+    char * cpPath = (char *)getauxval(AT_EXECFN);
+    if ( !!cpPath )
+        _rstrPath = cpPath;
+    else
+    {
+        // We may have to perform multiple passes if the system is in flux - seems incredibly unlikely but we give it a go.
+        for ( int nTry = 0; nTry < 2; ++nTry ) // Only try at most twice.
+        {
+            struct stat statExe;
+            int iRet = lstat( "/proc/self/exe", &statExe );
+            assert( !iRet );
+            if ( !!iRet )
+                return; // nothing to be done about this.
+            _rstrPath.resize( statExe.st_size );
+            ssize_t len = readlink( "/proc/self/exe", &_rstrPath[0], statExe.st_size+1 );
+            if ( len > statExe.st_size )
+            {
+                _rstrPath.Clear();
+                continue;
+            }
+            return;
+        }
+    }
+#else
+#endif 
 }

@@ -20,6 +20,7 @@
 #include <syslog.h>
 #include <_strutil.h>
 #include <sys/syscall.h>
+#include <uuid/uuid.h>
 
 enum _ESysLogMessageType : uint8_t
 {
@@ -30,29 +31,122 @@ enum _ESysLogMessageType : uint8_t
 };
 typedef _ESysLogMessageType ESysLogMessageType;
 
+// _SysLogThreadHeader:
+// This contains thread level info about syslog messages that is constant for all contained messages.
+struct _SysLogThreadHeader
+{
+    std::string m_szProgramName;
+#if __APPLE__
+    __uint64_t m_tidThreadId{0}; // The result of the call to gettid() for this thread.
+#elif __linux__
+    pid_t m_tidThreadId{0}; // The result of the call to gettid() for this thread.
+#else
+#error Need to know the OS for thread id representation.
+#endif
+    time_t m_timeStart{0}; // The time that this program was started - or at least when InitSysLog() was called.
+    uuid_t m_uuid{ 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
+
+    _SysLogThreadHeader() = default;
+
+    void Clear()
+    {
+        memset( &m_uuid, 0, sizeof m_uuid );
+        assert( 1 == uuid_is_null( m_uuid ) );
+        m_szProgramName.clear();
+        m_tidThreadId = 0;
+        m_timeStart = 0;
+    }
+
+    template < class t_tyJsonOutputStream >
+    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
+    {
+        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
+        assert( _jvl.FAtObjectValue() );
+        if ( _jvl.FAtObjectValue() )
+        {
+            _jvl.WriteValue( "ProgName", m_szProgramName );
+            _jvl.WriteUuidStringValue( "uuid", m_uuid );
+            _jvl.WriteTimeStringValue( "TimeStarted", m_timeStart );
+            _jvl.WriteValue( "ThreadId", m_tidThreadId );
+        }
+        else
+            THROWNAMEDEXCEPTION( "_SysLogThreadHeader::ToJSONStream(): Not at an object." );
+    }
+
+    template < class t_tyJsonInputStream >
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
+    {
+        Clear();
+        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
+        assert( _jrc.FAtObjectValue() );
+        if ( FAtObjectValue() )
+        {
+            JsonRestoreContext< t_tyJsonInputStream > jrx( _jrc );
+            if ( _jrc.FMoveDown() )
+            {
+                for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+                {
+                    // Ignore unknown stuff:
+                    typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
+                    typename _tyCharTraits::_tyStdStr strKey;
+                    EJsonValueType jvtValue;
+                    bool fGetKey = _jrc.FGetKeyCurrent( strKey, jvtValue );
+                    assert( fGetKey );
+                    if ( fGetKey )
+                    {
+                        if ( ejvtString == jvtValue )
+                        {
+                            if ( strKey == "ProgName" )
+                            {
+                                _jrc.GetValue( m_szProgramName );
+                                continue;
+                            }
+                            if ( strKey == "TimeStarted" )
+                            {
+                                _jrc.GetTimeStringValue( m_timeStart );
+                                continue;
+                            }
+                            if ( strKey == "uuid" )
+                            {
+                                _jrc.GetUuidStringValue( m_uuid );
+                                continue;
+                            }
+                            continue;
+                        }
+                        if ( ejvtNumber == jvtValue )
+                        {
+                            if ( strKey == "ThreadId" )
+                            {
+                                _jrc.GetValue( m_tidThreadId );
+                                continue;
+                            }
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        else
+            THROWNAMEDEXCEPTION( "_SysLogThreadHeader::ToJSONStream(): Not at an object." );
+    }
+};
+
 // _SysLogContext:
 // This breaks out all info from a log message so we can put it into a JSON file where it can then be put in a DB, etc.
 struct _SysLogContext
 {
-    time_t m_time;
-    std::string m_szProgramName;
+    time_t m_time{0};
     std::string m_szFullMesg; // The full annotated message.
     std::string m_szFile;
-#if __APPLE__
-    __uint64_t m_tidThreadId; // The result of the call to gettid() for this thread.
-#elif __linux__
-    pid_t m_tidThreadId; // The result of the call to gettid() for this thread.
-#else
-#error Need to know the OS for thread id representation.
-#endif 
-    int m_nLine;
-    int m_errno;
-    ESysLogMessageType m_eslmtType;
+    int m_nLine{0};
+    int m_errno{0};
+    ESysLogMessageType m_eslmtType{eslmtSysLogMessageTypeCount};
 
-    void Clear()
+    _SysLogContext() = default;
+
+    inline void Clear()
     {
-        m_szProgramName.clear();
-        m_tidThreadId = 0;
+        m_time = 0;
         m_szFullMesg.clear();
         m_szFile.clear();
         int m_nLine = 0;
@@ -67,10 +161,8 @@ struct _SysLogContext
         assert( _jvl.FAtObjectValue() );
         if ( _jvl.FAtObjectValue() )
         {
-            _jvl.WriteValue( "ProgName", m_szProgramName );
             _jvl.WriteValue( "Time", m_time );
-            _jvl.WriteValue( "ThreadId", m_tidThreadId );
-            _jvl.WriteValue( "Type", m_eslmtType );
+            _jvl.WriteValue( "Type", (uint8_t)m_eslmtType );
             _jvl.WriteValue( "Mesg", m_szFullMesg );
             if ( !m_szFile.empty() )
             {
@@ -175,8 +267,11 @@ class _SysLogMgr
 {
     typedef _SysLogMgr _tyThis;
 protected:  // These methods aren't for general consumption. Use the s_SysLog namespace methods.
+    typedef JsonLinuxOutputStream< JsonCharTraits< char > > _tyJsonOutputStream;
+    typedef JsonFormatSpec< JsonCharTraits< char > > _tyJsonFormatSpec;
+    typedef JsonValueLife< _tyJsonOutputStream > _tyJsonValueLife;
 
-    void Log( ESysLogMessageType _eslmt, std::string && _rrStrLog )
+    void Log( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc )
     {
         int iPriority;
         switch( _eslmt )
@@ -196,10 +291,84 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         iPriority |= LOG_USER;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-security"
+        // First log.
         syslog( iPriority, _rrStrLog.c_str() );
  #pragma clang diagnostic pop
+        // Then log the context to thread logging file.
+        if ( !!_pslc && m_josThreadLog.FOpened() && !!m_optjvlRootThreadLog && !!m_optjvlSysLogArray )
+        {
+            // Create an object for this log message:
+             _tyJsonValueLife jvlSysLogContext( *m_optjvlSysLogArray, ejvtObject );
+            _pslc->ToJSONStream( jvlSysLogContext );
+        }
     }
 
+    bool FHasJSONLogFile() const
+    {
+        assert( m_josThreadLog.FOpened() == !!m_optjvlRootThreadLog );
+        assert( m_josThreadLog.FOpened() == !!m_optjvlSysLogArray );
+        return m_josThreadLog.FOpened();
+    }
+    bool FCreateUniqueJSONLogFile( const char * _pszProgramName )
+    {
+        // Don't fail running the program if we cannot create the log file.
+        try
+        {
+            return _FTryCreateUniqueJSONLogFile( _pszProgramName );
+        }
+        catch( std::exception const & exc )
+        {
+            Log( eslmtWarning, exc.what(), 0 );
+            return false;
+        }
+    }
+    bool _FTryCreateUniqueJSONLogFile( const char * _pszProgramName )
+    {
+        // Move _pszProgramName past any directory:
+        const char * pszProgNameNoPath = strrchr( _pszProgramName, '/' );
+        if ( !!pszProgNameNoPath )
+            _pszProgramName = pszProgNameNoPath + 1;
+        // Now get the executable path:
+        std::string strExePath;
+        GetCurrentExecutablePath( strExePath );
+        if ( !strExePath.length() )
+            strExePath = "./"; // Just use current working directory if we can't find exe directory.
+        assert( '/' == strExePath[ strExePath.length()-1 ] );
+        _SysLogThreadHeader slth;
+        slth.m_szProgramName = strExePath;
+        slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.
+        slth.m_timeStart = time(0);
+        uuid_generate( slth.m_uuid );
+        slth.m_tidThreadId = s_tls_tidThreadId;
+
+        std::string strLogFile = slth.m_szProgramName;
+        uuid_string_t ustUuid;
+        uuid_unparse( slth.m_uuid, ustUuid );
+        strLogFile += ".";
+        strLogFile += ustUuid;
+        strLogFile += ".log.json";
+
+        // We must make sure we can initialize the file before we declare that it is opened.
+        _tyJsonOutputStream josThreadLog;
+        josThreadLog.Open( strLogFile.c_str() );
+        _tyJsonFormatSpec jfs; // Make sure we pretty print the JSON to make it readable right away.
+        jfs.m_nWhiteSpacePerIndent = 2;
+        _tyJsonValueLife jvlRoot( josThreadLog, ejvtObject, &jfs );
+        { //B
+            // Create the SysLogThreadHeader object as the first object within the log file.
+            _tyJsonValueLife jvlSysLogThreadHeader( jvlRoot, "SysLogThreadHeader", ejvtObject );
+            slth.ToJSONStream( jvlSysLogThreadHeader );
+        } //EB
+        // Now open up an array to contain the set of log message details.
+        _tyJsonValueLife jvlSysLogArray( jvlRoot, "SysLog", ejvtArray );
+        // Now swap/forward everything into the object itself - we succeeded in creating the logging file.
+        josThreadLog.swap( m_josThreadLog );
+        m_optjvlRootThreadLog.emplace( std::move( jvlRoot ) );
+        m_optjvlSysLogArray.emplace( std::move( jvlSysLogArray ) );
+        return true;
+    }
+
+// Static method. Generally not to be called directly - use the n_SysLog methods.
     static _SysLogMgr & RGetThreadSysLogMgr()
     {
         // If we haven't created the SysLogMgr() on this thread then do so now.
@@ -226,12 +395,20 @@ public:
     static void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility )
     {
         openlog( _pszProgramName, _grfOption, _grfFacility );
+        if ( s_fGenerateUniqueJSONLogFile )
+        {
+            _SysLogMgr & rslm = _SysLogMgr::RGetThreadSysLogMgr();
+            if ( !rslm.FCreateUniqueJSONLogFile( _pszProgramName ) )
+            {
+
+            }
+        }
     }
-    static void StaticLog( ESysLogMessageType _eslmt, std::string && _rrStrLog )
+    static void StaticLog( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc )
     {
         // So the caller has given us some stuff to log and even gave us a string that we get to own.
         _SysLogMgr & rslm = RGetThreadSysLogMgr();
-        rslm.Log( _eslmt, std::move( _rrStrLog ) );
+        rslm.Log( _eslmt, std::move( _rrStrLog ), _pslc );
     }
     static const char * SzMessageType( ESysLogMessageType _eslmt )
     {
@@ -248,6 +425,10 @@ public:
             return "UknownMesgType";
         }
     }
+    static bool FStaticHasJSONLogFile()
+    {
+        return RGetThreadSysLogMgr().FHasJSONLogFile();
+    }
 
     _SysLogMgr( _SysLogMgr * _pslmOverlord )
         : m_pslmOverlord( _pslmOverlord ) // if !m_pslmOverlord then we are the overlord!!! - or there is no overlord.
@@ -257,9 +438,9 @@ public:
 protected:
 // non-static members:
     _SysLogMgr * m_pslmOverlord; // If this is zero then we are the overlord or there is no overlord.
-    bool m_fCallSysLogEachThread;
-    bool m_fGenerateUniqueJSONLogFile{true}; // Generate a unique log file in the same directory as the executable and then log that log filename to the syslog.
-    std::string m_strJSONLogFile;
+    _tyJsonOutputStream m_josThreadLog; // JSON log of details of all messages for this execution.
+    std::optional< _tyJsonValueLife > m_optjvlRootThreadLog; // The root of the thread log - we may add a footer at end of execution.
+    std::optional< _tyJsonValueLife > m_optjvlSysLogArray; // The current position within the SysLog diagnostic log message array.
 // static members:
     static _SysLogMgr * s_pslmOverlord; // A pointer to the "overlord" _SysLogMgr that is running on its own thread. The lifetime for this is managed by s_tls_pThis for the overlord thread.
     static std::mutex s_mtxOverlord; // This used by overlord to guard access.
@@ -273,6 +454,8 @@ protected:
 #else
 #error Need to know the OS for thread id representation.
 #endif 
+    static bool s_fCallSysLogEachThread;
+    static bool s_fGenerateUniqueJSONLogFile; // Generate a unique log file in the same directory as the executable and then log that log filename to the syslog.
 };
 
 template < const int t_kiInstance >
@@ -292,6 +475,10 @@ pid_t _SysLogMgr< t_kiInstance >::s_tls_tidThreadId;
 #else
 #error Need to know the OS for thread id representation.
 #endif 
+template < const int t_kiInstance >
+bool _SysLogMgr< t_kiInstance >::s_fCallSysLogEachThread = true;
+template < const int t_kiInstance >
+bool _SysLogMgr< t_kiInstance >::s_fGenerateUniqueJSONLogFile = true;
 
 // Access all syslog functionality through this namespace.
 namespace n_SysLog
@@ -320,7 +507,16 @@ namespace n_SysLog
         va_end( ap );
         if ( nRet < 0 )
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
-        SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
+        
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        _SysLogContext slx;
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
     }
     void Log( ESysLogMessageType _eslmtType, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... )
     {
@@ -341,7 +537,17 @@ namespace n_SysLog
         va_end( ap );
         if ( nRet < 0 )
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
-        SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        _SysLogContext slx;
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_szFile = _pcFile;
+            slx.m_nLine = _nLine;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
     }
 // Methods including errno:
     inline void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFmt, ... )
@@ -368,7 +574,16 @@ namespace n_SysLog
         va_end( ap );
         if ( nRet < 0 )
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
-        SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
+        _SysLogContext slx;
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_errno = _errno;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
     }
     void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... )
     {
@@ -394,6 +609,17 @@ namespace n_SysLog
         va_end( ap );
         if ( nRet < 0 )
             THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
-        SysLogMgr::StaticLog( _eslmtType, std::move(strLog) );
+        _SysLogContext slx;
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_szFile = _pcFile;
+            slx.m_nLine = _nLine;
+            slx.m_errno = _errno;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
     }
 } // namespace n_SysLog
