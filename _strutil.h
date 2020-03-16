@@ -5,14 +5,16 @@
 // dbien: 12MAR2020
 
 #include <stdlib.h>
-#include <libproc.h>
 #include <string>
 #include <_namdexc.h>
 #include <_smartp.h>
 #if __APPLE__
+#include <libproc.h>
 #include <mach-o/dyld.h>
 #elif __linux__
+#include <assert.h>
 #include <sys/auxv.h>
+#include <sys/stat.h>
 #else
 #endif
 
@@ -137,33 +139,23 @@ GetCurrentExecutablePath( std::string & _rstrPath )
         else
             _rstrPath = cpMallocedPath;
     }
-    std::string::size_type stLastSlash = _rstrPath.find_last_of('/');
-    if ( std::string::npos != stLastSlash )
-        _rstrPath.resize( stLastSlash+1 );
 #elif __linux__
     char * cpPath = (char *)getauxval(AT_EXECFN);
     if ( !!cpPath )
         _rstrPath = cpPath;
     else
     {
-        // We may have to perform multiple passes if the system is in flux - seems incredibly unlikely but we give it a go.
-        for ( int nTry = 0; nTry < 2; ++nTry ) // Only try at most twice.
-        {
-            struct stat statExe;
-            int iRet = lstat( "/proc/self/exe", &statExe );
-            assert( !iRet );
-            if ( !!iRet )
-                return; // nothing to be done about this.
-            _rstrPath.resize( statExe.st_size );
-            ssize_t len = readlink( "/proc/self/exe", &_rstrPath[0], statExe.st_size+1 );
-            if ( len > statExe.st_size )
-            {
-                _rstrPath.Clear();
-                continue;
-            }
-            return;
-        }
+        const int knBuf = PATH_MAX*4;
+        char rgcBuf[knBuf];
+        ssize_t len = readlink( "/proc/self/exe", rgcBuf, knBuf );
+        if ( len > knBuf )
+            _rstrPath.clear();
+        else
+            _rstrPath = rgcBuf;
     }
 #else
 #endif 
+    std::string::size_type stLastSlash = _rstrPath.find_last_of('/');
+    if ( std::string::npos != stLastSlash )
+        _rstrPath.resize( stLastSlash+1 );
 }

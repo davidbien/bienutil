@@ -21,6 +21,7 @@
 #include <_strutil.h>
 #include <sys/syscall.h>
 #include <uuid/uuid.h>
+typedef char uuid_string_t[37];
 
 enum _ESysLogMessageType : uint8_t
 {

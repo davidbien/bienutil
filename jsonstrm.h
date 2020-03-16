@@ -11,6 +11,8 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/mman.h>
+#include <uuid/uuid.h>
+typedef char uuid_string_t[37];
 
 #include "bienutil.h"
 #include "_namdexc.h"
@@ -1652,7 +1654,7 @@ public:
         JsonValueLife jvlArrayElement( *this, _f ? ejvtTrue : ejvtFalse );
     }
 
-    void WriteValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
     {
         if ( _stLen < 0 )
             _stLen = _tyCharTraits::StrLen( _pszValue );
