@@ -11,6 +11,8 @@ else
 MACHINE_ARCH = $(shell uname -m)
 endif 
 
+MACHINE_OS = $(shell uname)
+
 ifeq (1,$(NDEBUG))
 $(info ***RELEASE BUILD***)
 BUILD_DIR = Release_$(MOD_ARCH)
