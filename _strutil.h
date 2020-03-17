@@ -1,7 +1,7 @@
 #pragma once
 
 // _strutil.h
-// String utilities.
+// String utilities. A *very* loose and unorganized collection at this point - on a need basis - not designed.
 // dbien: 12MAR2020
 
 #include <stdlib.h>
@@ -17,6 +17,24 @@
 #include <sys/stat.h>
 #else
 #endif
+
+// StrRSpn:
+// Find the count of _pszSet chars that occur at the end of [_pszBegin,_pszEnd).
+template < class t_tyChar >
+size_t StrRSpn( const t_tyChar * _pszBegin, const t_tyChar * _pszEnd, const t_tyChar * _pszSet )
+{
+    const t_tyChar * pszCur = _pszEnd;
+    for ( ; pszCur-- != _pszBegin; )
+    {
+        const t_tyChar * pszCurSet = _pszSet;
+        for ( ; !!*pszCurSet && ( *pszCurSet != *pszCur ); ++pszCurSet )
+            ;
+        if ( !*pszCurSet )
+            break;
+    }
+    ++pszCur;
+    return _pszEnd - pszCur;
+}
 
 // Return a string formatted like printf. Throws.
 template < class t_tyChar >

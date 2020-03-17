@@ -21,7 +21,7 @@
 #include <_strutil.h>
 #include <sys/syscall.h>
 #include <uuid/uuid.h>
-typedef char uuid_string_t[37];
+#include "bientypes.h"
 
 enum _ESysLogMessageType : uint8_t
 {
@@ -278,7 +278,12 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         switch( _eslmt )
         {
         case eslmtInfo:
+#if __APPLE__
+            // Under Mac INFO messages won't show up in the Console which is kinda bogus, so mark them as WARNING.
+            iPriority = LOG_WARNING;
+#else
             iPriority = LOG_INFO;
+#endif
             break;
         case eslmtWarning:
             iPriority = LOG_WARNING;
@@ -352,7 +357,8 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         // We must make sure we can initialize the file before we declare that it is opened.
         m_josThreadLog.Open( strLogFile.c_str() );
         _tyJsonFormatSpec jfs; // Make sure we pretty print the JSON to make it readable right away.
-        jfs.m_nWhiteSpacePerIndent = 2;
+        jfs.m_nWhitespacePerIndent = 2;
+        jfs.m_fEscapePrintableWhitespace = true;
         _tyJsonValueLife jvlRoot( m_josThreadLog, ejvtObject, &jfs );
         { //B
             // Create the SysLogThreadHeader object as the first object within the log file.
@@ -363,7 +369,8 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         _tyJsonValueLife jvlSysLogArray( jvlRoot, "SysLog", ejvtArray );
         // Now forward everything into the object itself - we succeeded in creating the logging file.
         m_optjvlRootThreadLog.emplace( std::move( jvlRoot ) );
-        m_optjvlSysLogArray.emplace( std::move( jvlSysLogArray ) );
+        m_optjvlSysLogArray.emplace( std::move( jvlSysLogArray ), &*m_optjvlRootThreadLog );
+        n_SysLog::Log( eslmtInfo, "SysLogMgr: Created thread-specific JSON log file at [%s].", strLogFile.c_str() );
         return true;
     }
 

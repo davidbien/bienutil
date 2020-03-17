@@ -12,9 +12,9 @@
 #include <limits.h>
 #include <sys/mman.h>
 #include <uuid/uuid.h>
-typedef char uuid_string_t[37];
 
 #include "bienutil.h"
+#include "bientypes.h"
 #include "_namdexc.h"
 #include "_debug.h"
 #include "_util.h"
@@ -47,6 +47,8 @@ template < class t_tyCharTraits >
 class JsonArray;
 template < class t_tyJsonInputStream >
 class JsonReadCursor;
+template < class t_tyCharTraits >
+class JsonFormatSpec;
 
 #ifndef __JSONSTRM_DEFAULT_ALLOCATOR
 #if defined(_USE_STLPORT) && !defined(NDEBUG)
@@ -215,7 +217,8 @@ struct JsonCharTraits< char >
     static _tyLPCSTR s_szTrue; // = "true";
     static _tyLPCSTR s_szFalse; // = "false";
     static _tyLPCSTR s_szNull; // = "null";
-    static _tyLPCSTR s_szWhiteSpace; // = " \t\n\r";
+    static _tyLPCSTR s_szWhitespace; // = " \t\n\r";
+    static _tyLPCSTR s_szPrintableWhitespace;  // = "\t\n\r";
     static _tyLPCSTR s_szCRLF; // = "\r\n";
     static const _tyChar s_tcFirstUnprintableChar = '\01';
     static const _tyChar s_tcLastUnprintableChar = '\37';
@@ -251,6 +254,10 @@ struct JsonCharTraits< char >
         }
         return pszCur - _psz;
     }
+    static size_t StrRSpn( _tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet )
+    { 
+        return ::StrRSpn( _pszBegin, _pszEnd, _pszSet );
+    }
     static void MemSet( _tyLPSTR _psz, _tyChar _tc, size_t _n )
     { 
         (void)memset( _psz, _tc, _n );
@@ -260,7 +267,8 @@ struct JsonCharTraits< char >
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szTrue = "true";
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szFalse = "false";
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szNull = "null";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szWhiteSpace = " \t\n\r";
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szWhitespace = " \t\n\r";
+JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szPrintableWhitespace = "\t\n\r";
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szCRLF = "\r\n";
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szEscapeStringChars = "\\\"\b\f\t\n\r";
 const char * JsonCharTraits< char >::s_szFormatChar = "%c";
@@ -325,7 +333,8 @@ struct JsonCharTraits< wchar_t >
     static _tyLPCSTR s_szTrue; // = L"true";
     static _tyLPCSTR s_szFalse; // = L"false";
     static _tyLPCSTR s_szNull; // = L"null";
-    static _tyLPCSTR s_szWhiteSpace; // = L" \t\n\r";
+    static _tyLPCSTR s_szWhitespace; // = L" \t\n\r";
+    static _tyLPCSTR s_szPrintableWhitespace;  // = L"\t\n\r";
     static _tyLPCSTR s_szCRLF; // = L"\r\n";
     static const _tyChar s_tcFirstUnprintableChar = L'\01';
     static const _tyChar s_tcLastUnprintableChar = L'\37';
@@ -361,6 +370,10 @@ struct JsonCharTraits< wchar_t >
         }
         return pszCur - _psz;
     }
+    static size_t StrRSpn( _tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet )
+    { 
+        return ::StrRSpn( _pszBegin, _pszEnd, _pszSet );
+    }
     static void MemSet( _tyLPSTR _psz, _tyChar _tc, size_t _n )
     { 
         (void)wmemset( _psz, _tc, _n );
@@ -370,7 +383,8 @@ struct JsonCharTraits< wchar_t >
 JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szTrue = L"true";
 JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szFalse = L"false";
 JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szNull = L"null";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szWhiteSpace = L" \t\n\r";
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szWhitespace = L" \t\n\r";
+JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szPrintableWhitespace = L"\t\n\r";
 JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szCRLF = L"\r\n";
 JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szEscapeStringChars = L"\\\"\b\f\t\n\r";
 const char * JsonCharTraits< wchar_t >::s_szFormatChar = "%lc";
@@ -429,10 +443,11 @@ public:
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+        m_pos = 0;
     }
 
     // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdin which is usually at FD 0 unless reopen()ed.
-    void AttachFd( int _fd )
+    void AttachFd( int _fd, bool _fUseSeek = false )
     {
         assert( !FOpened() );
         assert( _fd != -1 );
@@ -440,6 +455,8 @@ public:
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename.clear(); // No filename indicates we are attached to "some fd".
+        m_fUseSeek = _fUseSeek;
+        m_pos = 0;
     }
 
     int Close()
@@ -477,9 +494,9 @@ public:
             sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
             if ( -1 == sstRead )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() failed for file [%s]", m_szFilename.c_str() );
+            m_pos += sstRead;
             if ( sstRead != sizeof m_tcLookahead )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
-            
             if ( !sstRead )
             {
                 m_fHasLookahead = false;
@@ -497,12 +514,18 @@ public:
     _tyFilePos PosGet() const
     {
         assert( FOpened() );
-        _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
-        if ( -1 == pos )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
-        if ( m_fHasLookahead )
-            pos -= sizeof m_tcLookahead; // Since we have a lookahead we are actually one character before.
-        return pos;
+        if ( m_fUseSeek )
+        {
+            _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
+            if ( -1 == pos )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
+            assert( pos == m_pos ); // These should always match.
+            if ( m_fHasLookahead )
+                pos -= sizeof m_tcLookahead; // Since we have a lookahead we are actually one character before.
+            return pos;
+        }
+        else
+            return m_pos - ( m_fHasLookahead ? sizeof m_tcLookahead : 0 );
     }
     // Read a single character from the file - always throw on EOF.
     _tyChar ReadChar( const char * _pcEOFMessage )
@@ -521,9 +544,11 @@ public:
             else
             {
                 assert( !sstRead ); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
+                m_pos += sstRead;
                 THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
             }
         }
+        m_pos += sstRead;
         assert( !m_fHasLookahead );
         return m_tcLookahead;
     }
@@ -543,7 +568,10 @@ public:
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
             else
             if ( !!sstRead )
+            {
+                m_pos += sstRead;
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
+            }
             else
             {
                 if ( _fThrowOnEOF )
@@ -551,6 +579,7 @@ public:
                 return false;
             }
         }
+        m_pos += sstRead;
         _rtch = m_tcLookahead;
         return true;
     }
@@ -565,10 +594,12 @@ public:
 
 protected:
     std::basic_string<char> m_szFilename;
+    _tyFilePos m_pos{0}; // We use this if !m_fUseSeek.
     int m_fd{-1}; // file descriptor.
     _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
     bool m_fHasLookahead{false};
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
+    bool m_fUseSeek{true}; // For STDIN we cannot use seek so we just maintain our "current" position.
 };
 
 // JsonLinuxInputMemMappedStream: A class using open(), read(), etc.
@@ -768,6 +799,7 @@ public:
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef ssize_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
 
     JsonLinuxOutputStream() = default;
     ~JsonLinuxOutputStream()
@@ -853,38 +885,90 @@ public:
                 THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
         }
     }
+    void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
+    {
+        if ( _sstLen < 0 )
+            _sstLen = _tyCharTraits::StrLen( _psz );
+        ssize_t sstWrote = write( m_fd, _psz, _sstLen );
+        if ( sstWrote != _sstLen )
+        {
+            if ( -1 == sstWrote )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
+            else
+                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, _sstLen, m_szFilename.c_str() );
+        }
+    }
     // If <_fEscape> then we escape all special characters when writing.
-    void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1 )
+    void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
         assert( FOpened() );
+        assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         size_t stLen = (size_t)_sstLen;
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
             assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
                                                         _tyCharTraits::s_szEscapeStringChars ) );
+        _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
+        if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
+
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
         while ( !!stLen )
         {
-            ssize_t sstLenWrite = _fEscape ? _tyCharTraits::StrCSpn( pszWrite,
-                                                                    _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                                    _tyCharTraits::s_szEscapeStringChars ) 
-                                            : stLen;
-            ssize_t sstWrote = 0;
-            if ( sstLenWrite )
-                sstWrote = write( m_fd, pszWrite, sstLenWrite );
-            if ( sstWrote != sstLenWrite )
+            if ( pszWrite < pszPrintableWhitespaceAtEnd )
             {
-                if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::ReadChar(): write() failed for file [%s]", m_szFilename.c_str() );
-                else
-                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::ReadChar(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, stLen, m_szFilename.c_str() );
+                ssize_t sstLenWrite = stLen;
+                if ( _fEscape )
+                {
+                    if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
+                        sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
+                                                            _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                            _tyCharTraits::s_szEscapeStringChars );
+                    else
+                    {
+                        // More complex escaping of whitespace is possible here:
+                        _tyLPCSTR pszNoEscape = pszWrite;
+                        for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
+                        {
+                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
+                            for ( ; !!*pszPrintableWS; ++pszPrintableWS )
+                            {
+                                if ( *pszNoEscape == *pszPrintableWS )
+                                    break;
+                            }
+                            if ( !!*pszPrintableWS )
+                                continue; // found printable WS that we want to print.
+                            if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
+                                    ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
+                            {
+                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
+                                for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
+                                    ;
+                                if ( !!*pszEscapeChar )
+                                    continue; // found printable WS that we want to print.
+                            }
+                        }
+                        sstLenWrite = pszNoEscape - pszWrite;
+                    }                                                                    
+                }
+                ssize_t sstWrote = 0;
+                if ( sstLenWrite )
+                    sstWrote = write( m_fd, pszWrite, sstLenWrite );
+                if ( sstWrote != sstLenWrite )
+                {
+                    if ( -1 == sstWrote )
+                        THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteString(): write() failed for file [%s]", m_szFilename.c_str() );
+                    else
+                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteString(): read() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, stLen, m_szFilename.c_str() );
+                }
+                stLen -= sstLenWrite;
+                pszWrite += sstLenWrite;
+                if ( !stLen )
+                    return; // the overwhelming case is we return here.
             }
-            stLen -= sstLenWrite;
-            pszWrite += sstLenWrite;
-            if ( !stLen )
-                return; // the overwhelming case is we return here.
+            // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
             // If we haven't written the whole string then we encountered a character we need to escape.
             switch( *pszWrite )
@@ -959,6 +1043,7 @@ public:
     using _tyStdStr = typename _tyCharTraits::_tyStdStr;
     using _tyJsonObject = JsonObject< t_tyCharTraits >;
     using _tyJsonArray = JsonArray< t_tyCharTraits >;
+    using _tyJsonFormatSpec = JsonFormatSpec< t_tyCharTraits >;
 
     // Note that this JsonValue very well may be referred to by a parent JsonValue.
     // JsonValues must be destructed carefully.
@@ -1123,7 +1208,7 @@ public:
     }
 
     template < class t_tyJsonOutputStream >
-    void WriteSimpleValue( t_tyJsonOutputStream & _rjos ) const 
+    void WriteSimpleValue( t_tyJsonOutputStream & _rjos, const _tyJsonFormatSpec * _pjfs = 0 ) const 
     {
         switch( m_jvtType )
         {
@@ -1132,7 +1217,7 @@ public:
             assert( !!m_pvValue ); // We expect this to be populated but we will gracefully fail.
             if ( ejvtString == m_jvtType )
                 _rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
-            _rjos.WriteString( ejvtString == m_jvtType, PGetStringValue()->c_str(), PGetStringValue()->length() );
+            _rjos.WriteString( ejvtString == m_jvtType, PGetStringValue()->c_str(), PGetStringValue()->length(), ejvtString == m_jvtType ? _pjfs : 0 );
             if ( ejvtString == m_jvtType )
                 _rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
             break;
@@ -1306,7 +1391,7 @@ public:
     void WriteLinefeed( t_tyJsonOutputStream & _rjos ) const
     {
         if ( m_fUseCRLF )
-            _rjos.WriteString( false, _tyCharTraits::s_szCRLF );
+            _rjos.WriteRawChars( _tyCharTraits::s_szCRLF );
         else
             _rjos.WriteChar( _tyCharTraits::s_tcNewline );
     }
@@ -1318,12 +1403,12 @@ public:
         if ( _nLevel )
         {
             // Prevent crashing:
-            unsigned int nIndent = _nLevel * m_nWhiteSpacePerIndent;
+            unsigned int nIndent = _nLevel * m_nWhitespacePerIndent;
             if ( nIndent > m_nMaximumIndent )
                 nIndent = m_nMaximumIndent;
             _tyChar * pcSpace = (_tyChar*)alloca( nIndent * sizeof(_tyChar) );
             _tyCharTraits::MemSet( pcSpace, m_fUseTabs ? _tyCharTraits::s_tcTab : _tyCharTraits::s_tcSpace, nIndent );
-            _rjos.WriteString( false, pcSpace, nIndent );
+            _rjos.WriteRawChars( pcSpace, nIndent );
         }
     }
     template < class t_tyJsonOutputStream >
@@ -1338,11 +1423,15 @@ public:
     // Use tabs or spaces.
     bool m_fUseTabs{false};
     // The number of tabs or spaces to use for each indentation.
-    unsigned int m_nWhiteSpacePerIndent{4};
+    unsigned int m_nWhitespacePerIndent{4};
     // The maximum indentation to keep things from getting out of view.
     unsigned int m_nMaximumIndent{60};
     // Should be use CR+LF (Windows style) for EOL?
     bool m_fUseCRLF{false};
+    // Should we use escape sequences for newlines, carriage returns and tabs:
+    bool m_fEscapePrintableWhitespace{true}; // Note that setting this to false violates the JSON standard - but it is useful for reading files sometimes.
+    // Should we escape such whitespace when it appears at the end of a value or the whole value is whitespace?
+    bool m_fEscapePrintableWhitespaceAtEndOfLine{true};
 };
 
 // JsonValueLife:
@@ -1363,10 +1452,10 @@ public:
     JsonValueLife( JsonValueLife const & ) = delete;
     JsonValueLife & operator=( JsonValueLife const & ) = delete;
 
-    JsonValueLife( JsonValueLife && _rr )
+    JsonValueLife( JsonValueLife && _rr, JsonValueLife * _pjvlParent = 0 )
         :   m_rjos( _rr.m_rjos ),
             m_jv( std::move( _rr.m_jv ) ),
-            m_pjvlParent( _rr.m_pjvlParent ),
+            m_pjvlParent( !_pjvlParent ? _rr.m_pjvlParent : _pjvlParent ),
             m_nCurAggrLevel( _rr.m_nCurAggrLevel ),
             m_nSubValuesWritten( _rr.m_nSubValuesWritten ),
             m_optJsonFormatSpec( _rr.m_optJsonFormatSpec )
@@ -1465,7 +1554,7 @@ public:
     }
     void _WritePostamble()
     {
-        if ( !!m_nSubValuesWritten )
+        if ( !!m_nSubValuesWritten && !!m_optJsonFormatSpec )
         {
             assert( ( ejvtObject == m_jv.JvtGetValueType() ) || ( ejvtArray == m_jv.JvtGetValueType() ) );
             m_optJsonFormatSpec->WriteLinefeed( m_rjos );
@@ -1484,7 +1573,7 @@ public:
         else
         {
             // Then we will write the simple value in m_jv. There should be a non-empty value there.
-            m_jv.WriteSimpleValue( m_rjos );
+            m_jv.WriteSimpleValue( m_rjos, !m_optJsonFormatSpec ? 0 : &*m_optJsonFormatSpec );
         }
         if ( !!m_pjvlParent )
             m_pjvlParent->IncSubValuesWritten(); // We have successfully written a subobject.
