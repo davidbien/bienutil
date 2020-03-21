@@ -2432,7 +2432,6 @@ public:
             bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.
-            *ptcCur++ = tchCurrentChar;
         }
         else // ( !fZeroFirst )
         {
