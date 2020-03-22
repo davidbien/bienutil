@@ -20,6 +20,7 @@
 #include "_util.h"
 #include "_timeutl.h"
 #include "_dbgthrw.h"
+#include "memfile.h"
 
 // jsonstrm.h
 // This implements JSON streaming in/out.
@@ -1009,6 +1010,269 @@ public:
             --stLen;
         }
     }
+
+protected:
+    std::basic_string<char> m_szFilename;
+    std::basic_string<char> m_szExceptionString;
+    int m_fd{-1}; // file descriptor.
+    bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
+};
+
+// This just writes to an in-memory stream which then can be done anything with.
+template < class t_tyCharTraits >
+class JsonOutputMemStream : public JsonOutputStreamBase< t_tyCharTraits, ssize_t >
+{
+    typedef JsonOutputMemStream _tyThis;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
+    typedef ssize_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+    typedef MemFileContainer< _tyFilePos, false > _tyMemFileContainer;
+    typedef MemStream< _tyFilePos, false > _tyMemStream;
+
+    JsonOutputMemStream()
+    {
+        _tyMemFileContainer mfcMemFile; // This creates the MemFile but then it hands it off to the MemStream and is no longer necessary.
+        mfcMemFile.OpenStream( m_msMemStream ); // get an empty stream ready for writing.
+    }
+    ~JsonOutputMemStream()
+    {
+    }
+
+    void swap( JsonOutputMemStream & _r )
+    {
+        _r.m_szExceptionString.swap( m_szExceptionString );
+        m_msMemStream.swap( _r.m_msMemStream );
+    }
+
+    // This is a manner of indicating that something happened during streaming.
+    // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
+    void SetExceptionString( const char * _szWhat )
+    {
+        m_szExceptionString = _szWhat;
+    }
+    bool FGetExceptionString( std::string & _rstrExceptionString )
+    {
+        _rstrExceptionString = m_szExceptionString;
+    }
+
+    // Read a single character from the file - always throw on EOF.
+    void WriteChar( _tyChar _tc )
+    {
+        ssize_t sstWrote = m_msMemStream.Write( &_tc, sizeof _tc );
+        if ( -1 == sstWrote )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
+        assert( sstWrote == sizeof _tc );
+    }
+    void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
+    {
+        if ( _sstLen < 0 )
+            _sstLen = _tyCharTraits::StrLen( _psz );
+        ssize_t sstWrote = m_msMemStream.Write( _psz, _sstLen );
+        if ( -1 == sstWrote )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
+        assert( sstWrote == _sstLen );
+    }
+    // If <_fEscape> then we escape all special characters when writing.
+    void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
+    {
+        assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
+        size_t stLen = (size_t)_sstLen;
+        if ( _sstLen < 0 )
+            stLen = _tyCharTraits::StrLen( _psz );
+        if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
+            assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                        _tyCharTraits::s_szEscapeStringChars ) );
+        _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
+        if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
+
+        // When we are escaping the string we write piecewise.
+        _tyLPCSTR pszWrite = _psz;
+        while ( !!stLen )
+        {
+            if ( pszWrite < pszPrintableWhitespaceAtEnd )
+            {
+                ssize_t sstLenWrite = stLen;
+                if ( _fEscape )
+                {
+                    if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
+                        sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
+                                                            _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                            _tyCharTraits::s_szEscapeStringChars );
+                    else
+                    {
+                        // More complex escaping of whitespace is possible here:
+                        _tyLPCSTR pszNoEscape = pszWrite;
+                        for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
+                        {
+                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
+                            for ( ; !!*pszPrintableWS; ++pszPrintableWS )
+                            {
+                                if ( *pszNoEscape == *pszPrintableWS )
+                                    break;
+                            }
+                            if ( !!*pszPrintableWS )
+                                continue; // found printable WS that we want to print.
+                            if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
+                                    ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
+                            {
+                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
+                                for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
+                                    ;
+                                if ( !!*pszEscapeChar )
+                                    continue; // found printable WS that we want to print.
+                            }
+                        }
+                        sstLenWrite = pszNoEscape - pszWrite;
+                    }                                                                    
+                }
+                ssize_t sstWrote = 0;
+                if ( sstLenWrite )
+                    sstWrote = m_msMemStream.Write( pszWrite, sstLenWrite );
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
+                assert( sstWrote == _sstLen );
+                stLen -= sstLenWrite;
+                pszWrite += sstLenWrite;
+                if ( !stLen )
+                    return; // the overwhelming case is we return here.
+            }
+            // else otherwise we will escape all remaining characters.
+            WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
+            // If we haven't written the whole string then we encountered a character we need to escape.
+            switch( *pszWrite )
+            {
+            case _tyCharTraits::s_tcBackSpace:
+                WriteChar( _tyCharTraits::s_tcb );
+            break;
+            case _tyCharTraits::s_tcFormFeed:
+                WriteChar( _tyCharTraits::s_tcf );
+            break;
+            case _tyCharTraits::s_tcNewline:
+                WriteChar( _tyCharTraits::s_tcn );
+            break;
+            case _tyCharTraits::s_tcCarriageReturn:
+                WriteChar( _tyCharTraits::s_tcr );
+            break;
+            case _tyCharTraits::s_tcTab:
+                WriteChar( _tyCharTraits::s_tct );
+            break;
+            case _tyCharTraits::s_tcBackSlash:
+            case _tyCharTraits::s_tcDoubleQuote:
+                WriteChar( *pszWrite );
+            break;
+            default:
+                // Unprintable character between 0 and 31. We'll use the \uXXXX method for this character.
+                WriteChar( _tyCharTraits::s_tcu );
+                WriteChar( _tyCharTraits::s_tc0 );
+                WriteChar( _tyCharTraits::s_tc0 );
+                WriteChar( _tyChar( '0' + ( *pszWrite / 16 ) ) );
+                WriteChar( _tyChar( ( *pszWrite % 16 ) < 10 ? ( '0' + ( *pszWrite % 16 ) ) : ( 'A' + ( *pszWrite % 16 ) - 10 ) ) );
+            break;
+            }
+            ++pszWrite;
+            --stLen;
+        }
+    }
+
+protected:
+    std::basic_string<char> m_szExceptionString;
+    _tyMemStream m_msMemStream;
+};
+
+// This writes to a memstream during the write and then writes the OS file on close.
+template < class t_tyCharTraits >
+class JsonLinuxOutputMemStream : protected JsonOutputMemStream< t_tyCharTraits >
+{
+    typedef JsonLinuxOutputMemStream _tyThis;
+    typedef JsonOutputMemStream< t_tyCharTraits > _tyBase;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
+    typedef ssize_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+
+    JsonLinuxOutputMemStream() = default;
+    ~JsonLinuxOutputMemStream()
+    {
+        if ( m_fOwnFdLifetime && FOpened() )
+        {
+            m_fOwnFdLifetime = false; // prevent reentry though we know it should never happen.
+            (void)_Close( m_fd );
+        }
+    }
+
+    void swap( JsonLinuxOutputMemStream & _r )
+    {
+        _tyBase::swap( _r );
+        _r.m_szFilename.swap( m_szFilename );
+        std::swap( _r.m_fd, m_fd );
+        std::swap( _r.m_fOwnFdLifetime, m_fOwnFdLifetime );        
+    }
+
+    // This is a manner of indicating that something happened during streaming.
+    // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
+    void SetExceptionString( const char * _szWhat )
+    {
+        m_szExceptionString = _szWhat;
+    }
+    bool FGetExceptionString( std::string & _rstrExceptionString )
+    {
+        _rstrExceptionString = m_szExceptionString;
+    }
+
+    bool FOpened() const
+    {
+        return -1 != m_fd;
+    }
+
+    // Throws on open failure. This object owns the lifetime of the file descriptor.
+    void Open( const char * _szFilename )
+    {
+        assert( !FOpened() );
+        m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
+        if ( !FOpened() )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputMemStream::Open(): Unable to open() file [%s]", _szFilename );
+        m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
+        m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    }
+
+    // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdout which is usually at FD 1 (unless reopen()ed).
+    void AttachFd( int _fd )
+    {
+        assert( !FOpened() );
+        assert( _fd != -1 );
+        m_fd = _fd;
+        m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
+        m_szFilename.clear(); // No filename indicates we are attached to "some fd".
+    }
+
+    int Close()
+    {
+        if ( FOpened() )
+        {
+            int fd = m_fd;
+            m_fd = 0;
+            if ( m_fOwnFdLifetime )
+                return _Close( fd );
+        }
+        return 0;
+    }
+    static int _Close( int _fd )
+    {
+        WriteMemStreamToFile( _fd ); // Catches any exception
+        return close( _fd );
+    }
+
+    using _tyBase::WriteChar;
+    using _tyBase::WriteRawChars;
+    using _tyBase::WriteString;
 
 protected:
     std::basic_string<char> m_szFilename;

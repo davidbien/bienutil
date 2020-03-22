@@ -152,6 +152,8 @@ protected:
   int m_errno{0};
 };
 
+#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG... ) ExceptionUsage< std::_t__Named_exception_errno<> >::ThrowFileLineErrno( __FILE__, __LINE__, _errno, MESG )
+
 } // namespace std
 
 #ifdef __NAMDDEXC_STDBASE
