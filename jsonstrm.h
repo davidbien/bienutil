@@ -418,7 +418,7 @@ class JsonLinuxInputStream : public JsonInputStreamBase< t_tyCharTraits, ssize_t
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
-    typedef ssize_t _tyFilePos;
+    typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
     JsonLinuxInputStream() = default;
@@ -614,7 +614,7 @@ class JsonLinuxInputMemMappedStream : public JsonInputStreamBase< t_tyCharTraits
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
-    typedef ssize_t _tyFilePos;
+    typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
     JsonLinuxInputMemMappedStream() = default;
@@ -802,7 +802,7 @@ public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
-    typedef ssize_t _tyFilePos;
+    typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
     typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
 
@@ -1027,7 +1027,7 @@ public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
-    typedef ssize_t _tyFilePos;
+    typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
     typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
     typedef MemFileContainer< _tyFilePos, false > _tyMemFileContainer;
@@ -1178,7 +1178,19 @@ public:
             --stLen;
         }
     }
-
+    void WriteMemStreamToFile( int _fd, bool _fAllowThrows )
+    {
+        try
+        {
+            m_msMemStream.WriteToFd( _fd, 0 );
+        }
+        catch( std::exception const & rexc )
+        {
+            if ( _fAllowThrows )
+                throw; // rethrow and let caller handle cuz he wants to.
+            n_SysLog::Log( eslmtError, "WriteMemStreamToFile(): Caught exception [%s].", rexc.what() );
+        }
+    }
 protected:
     std::basic_string<char> m_szExceptionString;
     _tyMemStream m_msMemStream;
@@ -1194,7 +1206,7 @@ public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
-    typedef ssize_t _tyFilePos;
+    typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
     typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
 
@@ -1253,7 +1265,7 @@ public:
         m_szFilename.clear(); // No filename indicates we are attached to "some fd".
     }
 
-    int Close()
+    int Close( bool _fAllowThrows = true )
     {
         if ( FOpened() )
         {
@@ -1264,9 +1276,10 @@ public:
         }
         return 0;
     }
-    static int _Close( int _fd )
+    using _tyBase::WriteMemStreamToFile;
+    int _Close( int _fd, bool _fAllowThrows = false )
     {
-        WriteMemStreamToFile( _fd ); // Catches any exception
+        WriteMemStreamToFile( _fd, _fAllowThrows ); // Catches any exception when !_fAllowThrows otherwise throws through.
         return close( _fd );
     }
 

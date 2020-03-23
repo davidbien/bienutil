@@ -24,7 +24,7 @@ class _MemFileBase
 protected:
     struct FakeLock { };
     typedef FakeLock _tyLock;
-    void LockMutex( _tyLock &) { }
+    void LockMutex( _tyLock &) const { }
 };
 
 // The multithreaded base.
@@ -34,12 +34,12 @@ class _MemFileBase< true >
     typedef _MemFileBase _tyThis;
 protected:
     typedef std::unique_lock< std::mutex > _tyLock;
-    void LockMutex( _tyLock & _rlock )
+    void LockMutex( _tyLock & _rlock ) const
     {
         _tyLock lock( m_mtx );
         _rlock.swap( lock );
     }
-    std::mutex m_mtx; // the mutex.
+    mutable std::mutex m_mtx; // the mutex.
 };
 
 // MemFile:
@@ -59,7 +59,7 @@ class MemFile : public _MemFileBase< t_kfMultithreaded >
 public:
     typedef t_tyFilePos _tyFilePos;
     typedef typename std::make_signed<_tyFilePos>::type _tySignedFilePos;
-    using _tyBase::_tyLock;
+    using typename _tyBase::_tyLock;
     typedef MemStream< t_tyFilePos, t_kfMultithreaded > _tyMemStream;
 
     MemFile( _tyFilePos _sizeBlock = 65536 )
@@ -71,16 +71,23 @@ public:
     {
     }
 
+    _tyFilePos GetEndPos() const
+    {
+        _tyLock lock;
+        LockMutex( lock );
+        return m_rgsImpl->NElements();
+    }
+
     // As with a file-system file this will not insert data, it will overwrite data. (note that Insert is provide below)
-    _tySignedFilePos Write( _tyFilePos _posWrite, const uint8_t * _pbyWrite, _tyFilePos _nBytes )
+    _tySignedFilePos Write( _tyFilePos _posWrite, const void * _pbyWrite, _tyFilePos _nBytes )
     {
         // If we run out of memory we should throw. There shouldn't be any other reason we should fail - barring A/V.
         _tyLock lock;
         LockMutex( lock );
-        m_rgsImpl.Overwrite( _posWrite, _pbyWrite, _nBytes );
+        m_rgsImpl.Overwrite( _posWrite, (uint8_t*)_pbyWrite, _nBytes );
         return _nBytes;
     }
-    _tySignedFilePos Read( _tyFilePos _posRead, uint8_t * _pbyRead, _tyFilePos _nBytes )
+    _tySignedFilePos Read( _tyFilePos _posRead, void * _pbyRead, _tyFilePos _nBytes )
     {
         _tyLock lock;
         LockMutex( lock );
@@ -89,7 +96,7 @@ public:
     }
 
     // Insert data into the data stream. Note that since the underlying impl is a segmented array this can be expensive.
-    _tySignedFilePos Insert( _tyFilePos _posInsert, const uint8_t * _pbyInsert, _tyFilePos _nBytes )
+    _tySignedFilePos Insert( _tyFilePos _posInsert, const void * _pbyInsert, _tyFilePos _nBytes )
     {
         // If we run out of memory we should throw. There shouldn't be any other reason we should fail - barring A/V.
         _tyLock lock;
@@ -97,7 +104,12 @@ public:
         m_rgsImpl.Insert( _posInsert, _pbyInsert, _nBytes );
         return _nBytes;
     }
-
+    void WriteToFd( int _fd, _tyFilePos _nPos = 0, _tyFilePos _nElsWrite = std::numeric_limits< _tyFilePos >::max() ) const
+    {
+        _tyLock lock;
+        LockMutex( lock );
+        m_rgsImpl.WriteToFd( _fd, _nPos, _nElsWrite );
+    }
 protected:
     using _tyBase::LockMutex;
     typedef SegArray< uint8_t, std::false_type, _tyFilePos > _tySegArrayImpl;
@@ -126,7 +138,6 @@ public:
     void OpenStream( _tyMemStream & _rStream )
     {
         _rStream._OpenStream( m_spmfMemFile );
-template < class t_tyFilePos, bool t_kfMultithreaded >
     }
 protected:
     std::shared_ptr< _tyMemFile > m_spmfMemFile; // This file that this MemFileContainer contains.
@@ -146,7 +157,44 @@ public:
 
     MemStream() = default;
 
-    _tySignedFilePos Write( const uint8_t * _pbyWrite, _tyFilePos _nBytes )
+    std::shared_ptr< _tyMemFile > const & GetMemFileSharedPtr() const
+    {
+        return m_spmfMemFile;
+    }
+
+    // Reuse existing constant SEEK_SET, SEEK_CUR and SEEK_END.
+    // Return the resultant position. We do allow the caller to seek beyond the end of the file.
+    // We don't allow the position to be set to a negative position and we will throw when that happens.
+    _tySignedFilePos Seek( _tySignedFilePos _off, int iWhence )
+    {
+        _tyFilePos posNew;
+        switch( iWhence )
+        {
+            case SEEK_SET:
+                if ( _off < 0 )
+                    THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_SET to a negative position." );
+                posNew = _off;
+                break;
+            case SEEK_CUR:
+                _tySignedFilePos sPos = m_posCur;
+                sPos += _off;
+                if ( sPos < 0 )
+                    THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_CUR to a negative position." );
+                posNew = sPos;
+                break;
+            case SEEK_END:
+                _tySignedFilePos sPos = m_spmfMemFile->GetEndPos();
+                sPos += _off;
+                if ( sPos < 0 )
+                    THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_END to a negative position." );
+                posNew = sPos;
+                break;
+            default:
+                THROWNAMEDEXCEPTION( "SegArray::Seek(): Bogus iWhence value [%d].", iWhence );
+        }
+        m_posCur = posNew;
+    }
+    _tySignedFilePos Write( const void * _pbyWrite, _tyFilePos _nBytes )
     {
         if ( !m_spmfMemFile )
         {
@@ -157,10 +205,10 @@ public:
         if ( -1 == posRet )
             return -1;
         assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
-        m_pos += posRet;
+        m_posCur += posRet;
         return posRet;
     }
-    _tySignedFilePos Read( uint8_t * _pbyRead, _tyFilePos _nBytes )
+    _tySignedFilePos Read( void * _pbyRead, _tyFilePos _nBytes )
     {
         if ( !m_spmfMemFile )
         {
@@ -170,10 +218,10 @@ public:
         _tySignedFilePos posRet = m_spmfMemFile->Read( m_posCur, _pbyRead, _nBytes );
         if ( -1 == posRet )
             return -1;
-        m_pos += posRet;
+        m_posCur += posRet;
         return posRet;
     }
-    _tySignedFilePos Insert( const uint8_t * _pbyInsert, _tyFilePos _nBytes )
+    _tySignedFilePos Insert( const void * _pbyInsert, _tyFilePos _nBytes )
     {
         if ( !m_spmfMemFile )
         {
@@ -184,10 +232,19 @@ public:
         if ( -1 == posRet )
             return -1;
         assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
-        m_pos += posRet;
+        m_posCur += posRet;
         return posRet;
     }
-
+    // This will write from the current position of this memstream until the end of the stream to the FD.
+    // That is unless you pass in overriding arguments.
+    void WriteToFd( int _fd, _tyFilePos _nPos = std::numeric_limits< _tyFilePos >::max(), _tyFilePos _nElsWrite = std::numeric_limits< _tyFilePos >::max() ) const
+    {
+        if ( !m_spmfMemFile )
+            THROWNAMEDEXCEPTIONERRNO( EBADF, "SegArray::WriteToFd(): Not connected to a file." );
+        if ( std::numeric_limits< _tyFilePos >::max() == _nPos )
+            _nPos = m_posCur;
+        m_spmfMemFile->WriteToFd( _fd, _nPos, _nElsWrite );
+    }
     
 protected:
     void _OpenStream( std::shared_ptr< _tyMemFile > const & _spmfMemFile )

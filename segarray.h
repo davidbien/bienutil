@@ -14,6 +14,7 @@ public:
     typedef typename std::integral_constant<bool, !_tyFOwnLifetime::value>::type _tyNotFOwnLifetime;
     typedef t_tyT _tyT;
     typedef t_tySizeType _tySizeType;
+    static_assert( !std::numeric_limits< _tySizeType >::is_signed );
     typedef typename std::make_signed<_tySizeType>::type _tySignedSize;
 
     SegArray( _tySizeType _nbySizeSegment = 65536/sizeof( _tyT ) )
@@ -159,7 +160,7 @@ public:
                 _nElements -= m_nElements;
                 while ( _nElements-- )
                 {
-                    new ( _PbyAllocEnd ) _tyT();
+                    new ( _PbyAllocEnd() ) _tyT();
                     ++m_nElements;
                 }
             }
@@ -178,7 +179,7 @@ public:
                 {
                     if ( !*ppbyCurAlloc )
                     {
-                        *ppbyCurAlloc = malloc( NElsPerSegment() * sizeof(_tyT) );
+                        *ppbyCurAlloc = (uint8_t*)malloc( NElsPerSegment() * sizeof(_tyT) );
                         if ( !*ppbyCurAlloc )
                             THROWNAMEDEXCEPTION( "SegArray::SetSize(): OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT) );
                     }
@@ -186,6 +187,7 @@ public:
                 m_ppbyCurSegment = m_ppbySegments + _nElements / NElsPerSegment();
                 assert( !( _nElements % NElsPerSegment() ) || !!*m_ppbyCurSegment );
                 m_ppbyEndSegments = m_ppbySegments + nBlocksNeeded;
+                m_nElements = _nElements;
             }
         }
         if ( _fCompact )
@@ -220,7 +222,7 @@ public:
         _tySizeType nBlocksNeeded = ( (m_nElements-1) / NElsPerSegment() ) + 1;
         if ( nBlocksNeeded < ( m_ppbyEndSegments - m_ppbySegments ) )
         {
-            uint8_t ** ppbyDealloc = m_ppbySegments + nBlocksNeed;
+            uint8_t ** ppbyDealloc = m_ppbySegments + nBlocksNeeded;
             for ( ; ppbyDealloc != m_ppbyEndSegments; ++ppbyDealloc )
             {
                 if ( *ppbyDealloc )
@@ -252,9 +254,9 @@ public:
             _tySizeType nElsLeft = nElsOld - _nPos;
             while( !!nElsLeft )
             {
-                _tySizeType stFwdOffDest = ((stEndDest-1) % NElsPerSegment())+1;
-                _tySizeType stFwdOffOrig = ((stEndOrig-1) % NElsPerSegment())+1;
-                _tySizeType stMin = std::min( nElsLeft, std::min( stFwdOffDest, stFwdOffOrig ) );
+                _tySizeType stBackOffDest = ((stEndDest-1) % NElsPerSegment())+1;
+                _tySizeType stBackOffOrig = ((stEndOrig-1) % NElsPerSegment())+1;
+                _tySizeType stMin = std::min( nElsLeft, std::min( stBackOffDest, stBackOffOrig ) );
                 assert( stMin ); // We should always have something here.
                 memmove( &ElGet( stEndDest - stMin ), &ElGet( stEndOrig - stMin ), stMin * sizeof( _tyT ) );
                 nElsLeft -= stMin;
@@ -269,8 +271,8 @@ public:
         const _tyT * ptEndOrig = _pt + _nEls;
         while( !!nElsLeft )
         {
-            _tySizeType stFwdOffDest = ((stEndDest-1) % NElsPerSegment())+1;
-            _tySizeType stMin = std::min( nElsLeft, stFwdOffDest );
+            _tySizeType stBackOffDest = ((stEndDest-1) % NElsPerSegment())+1;
+            _tySizeType stMin = std::min( nElsLeft, stBackOffDest );
             assert( stMin );
             memcpy( &ElGet( stEndDest - stMin ), ptEndOrig - stMin, stMin * sizeof( _tyT ) );
             nElsLeft -= stMin;
@@ -295,10 +297,10 @@ public:
         const _tyT * ptEndOrig = _pt + _nEls;
         while( !!nElsLeft )
         {
-            _tySizeType stFwdOffDest = ((stEndDest-1) % NElsPerSegment())+1;
-            _tySizeType stMin = std::min( nElsLeft, stFwdOffDest );
+            _tySizeType stBackOffDest = ((stEndDest-1) % NElsPerSegment())+1;
+            _tySizeType stMin = std::min( nElsLeft, stBackOffDest );
             assert( stMin );
-            memcpy( &ElGet( stEndDest - stMin ), ptEndOrig - stMin, stMin * sizeof( _tyT ) );
+            memcpy( &ElGet( stEndDest - stMin, true ), ptEndOrig - stMin, stMin * sizeof( _tyT ) );
             nElsLeft -= stMin;
             stEndDest -= stMin;
             ptEndOrig -= stMin;
@@ -325,8 +327,8 @@ public:
         _tyT * ptEndDest = _pt + _nEls;
         while( !!nElsLeft )
         {
-            _tySizeType stFwdOffOrig = ((stEndOrig-1) % NElsPerSegment())+1;
-            _tySizeType stMin = std::min( nElsLeft, stFwdOffOrig );
+            _tySizeType stBackOffOrig = ((stEndOrig-1) % NElsPerSegment())+1;
+            _tySizeType stMin = std::min( nElsLeft, stBackOffOrig );
             assert( stMin );
             memcpy( ptEndDest - stMin, &ElGet( stEndOrig - stMin ), stMin * sizeof( _tyT ) );
             nElsLeft -= stMin;
@@ -337,17 +339,32 @@ public:
     }
 
     // We allow writing to a file for all types because why not? It might not make sense but you can do it.
-    void WriteToFd( int _fd ) const
+    void WriteToFd( int _fd, _tySizeType _nPos = 0, _tySizeType _nElsWrite = std::numeric_limits< _tySizeType >::max() ) const
     {
-        _tySizeType nElsCur;
-        for ( _tySizeType nElsWrite = m_nElements; !!nElsWrite; nElsWrite -= nElsCur )
+        if ( std::numeric_limits< _tySizeType >::max() == _nElsWrite )
         {
-            _tySizeType nElsCur = std::min( nElsWrite, NElsPerSegment() );
-            ssize_t sstWrote = ::write( _fd, &ElGet( m_nElements - nElsWrite ), nElsCur * sizeof(_tyT) );
+            if ( _nPos > m_nElements )
+                THROWNAMEDEXCEPTION( "SegArray::WriteToFd(): Attempt to write data beyond end of segmented array." );
+            _nElsWrite = m_nElements - _nPos;
+        }
+        else
+        if ( _nPos + _nElsWrite > m_nElements )
+            THROWNAMEDEXCEPTION( "SegArray::WriteToFd(): Attempt to write data beyond end of segmented array." );
+
+        _tySizeType nElsLeft = _nElsWrite;
+        _tySizeType stCurOrig = _nPos;
+        while ( !!nElsLeft )
+        {
+            _tySizeType stFwdOffOrig = NElsPerSegment() - ( stCurOrig % NElsPerSegment() );
+            _tySizeType stMin = std::min( nElsLeft, stFwdOffOrig );
+            assert( stMin );
+            ssize_t sstWrote = ::write( _fd, &ElGet( stCurOrig ), stMin * sizeof(_tyT) );
             if ( -1 == sstWrote )
                 THROWNAMEDEXCEPTIONERRNO( errno, "SegArray::WriteToFd(): error writing to fd[%d].", _fd );
-            if ( nElsCur * sizeof(_tyT) != sstWrote )
+            if ( stMin * sizeof(_tyT) != sstWrote )
                 THROWNAMEDEXCEPTIONERRNO( errno, "SegArray::WriteToFd(): didn't write all data to fd[%d].", _fd );
+            nElsLeft -= stMin;
+            stCurOrig += stMin;
         }
     }
 
@@ -360,9 +377,9 @@ public:
         return m_nbySizeSegment / sizeof( _tyT );
     }
 
-    _tyT & ElGet( _tySizeType _nEl )
+    _tyT & ElGet( _tySizeType _nEl, bool _fMaybeEnd = false )
     {
-        if ( _nEl >= m_nElements )
+        if ( ( _nEl > m_nElements ) || ( !_fMaybeEnd && ( _nEl == m_nElements ) ) )
             THROWNAMEDEXCEPTION( "SegArray::ElGet(): Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements );
         return ((_tyT*)m_ppbySegments[ _nEl / NElsPerSegment() ])[ _nEl % NElsPerSegment() ];
     }
@@ -382,10 +399,10 @@ protected:
 
     void AllocNewSegmentPointerBlock( _tySizeType _nNewBlocks )
     {
-        uint8_t * ppbySegments = realloc( m_ppbySegments, ( ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks ) * sizeof(uint8_t*) );
+        uint8_t ** ppbySegments = (uint8_t**)realloc( m_ppbySegments, ( ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks ) * sizeof(uint8_t*) );
         if ( !ppbySegments )
             THROWNAMEDEXCEPTION( "SegArray::AllocNewSegmentPointerBlock(): OOM for realloc(%lu).", ( ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks ) * sizeof(uint8_t*) );
-        memset( ppbySegments + ( m_ppbyEndSegments - m_ppbySegments ), 0, _nNewBlocks * sizeof(uint8_t*) )
+        memset( ppbySegments + ( m_ppbyEndSegments - m_ppbySegments ), 0, _nNewBlocks * sizeof(uint8_t*) );
         m_ppbyCurSegment = ppbySegments + ( m_ppbyCurSegment - m_ppbySegments );
         m_ppbyEndSegments = ppbySegments + ( m_ppbyEndSegments - m_ppbySegments );
         m_ppbySegments = ppbySegments;
@@ -400,8 +417,8 @@ protected:
         }
         if ( !*m_ppbyCurSegment )
         {
-            assert( !( m_nElements % NElsPerSeg() ) );
-            *m_ppbyCurSegment = malloc( m_nbySizeSegment );
+            assert( !( m_nElements % NElsPerSegment() ) );
+            *m_ppbyCurSegment = (uint8_t*)malloc( m_nbySizeSegment );
             if ( !*m_ppbyCurSegment )
                 THROWNAMEDEXCEPTION( "SegArray::_PbyAllocEnd(): OOM for malloc(%lu).", m_nbySizeSegment );
         }
