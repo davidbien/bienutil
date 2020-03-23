@@ -966,7 +966,7 @@ public:
                     if ( -1 == sstWrote )
                         THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteString(): write() failed for file [%s]", m_szFilename.c_str() );
                     else
-                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteString(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, stLen, m_szFilename.c_str() );
+                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteString(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sstLenWrite, m_szFilename.c_str() );
                 }
                 stLen -= sstLenWrite;
                 pszWrite += sstLenWrite;
@@ -1019,7 +1019,7 @@ protected:
 };
 
 // This just writes to an in-memory stream which then can be done anything with.
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, size_t t_kstBlockSize = 65536 >
 class JsonOutputMemStream : public JsonOutputStreamBase< t_tyCharTraits, ssize_t >
 {
     typedef JsonOutputMemStream _tyThis;
@@ -1035,7 +1035,7 @@ public:
 
     JsonOutputMemStream()
     {
-        _tyMemFileContainer mfcMemFile; // This creates the MemFile but then it hands it off to the MemStream and is no longer necessary.
+        _tyMemFileContainer mfcMemFile( t_kstBlockSize ); // This creates the MemFile but then it hands it off to the MemStream and is no longer necessary.
         mfcMemFile.OpenStream( m_msMemStream ); // get an empty stream ready for writing.
     }
     ~JsonOutputMemStream()
@@ -1135,7 +1135,7 @@ public:
                     sstWrote = m_msMemStream.Write( pszWrite, sstLenWrite );
                 if ( -1 == sstWrote )
                     THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
-                assert( sstWrote == _sstLen );
+                assert( sstWrote == sstLenWrite );
                 stLen -= sstLenWrite;
                 pszWrite += sstLenWrite;
                 if ( !stLen )
@@ -1197,11 +1197,11 @@ protected:
 };
 
 // This writes to a memstream during the write and then writes the OS file on close.
-template < class t_tyCharTraits >
-class JsonLinuxOutputMemStream : protected JsonOutputMemStream< t_tyCharTraits >
+template < class t_tyCharTraits, size_t t_kstBlockSize = 65536 >
+class JsonLinuxOutputMemStream : protected JsonOutputMemStream< t_tyCharTraits, t_kstBlockSize >
 {
     typedef JsonLinuxOutputMemStream _tyThis;
-    typedef JsonOutputMemStream< t_tyCharTraits > _tyBase;
+    typedef JsonOutputMemStream< t_tyCharTraits, t_kstBlockSize > _tyBase;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
