@@ -21,6 +21,7 @@
 #include "_timeutl.h"
 #include "_dbgthrw.h"
 #include "memfile.h"
+#include "syslogmgr.h"
 
 // jsonstrm.h
 // This implements JSON streaming in/out.
@@ -412,7 +413,7 @@ public:
 
 // JsonLinuxInputStream: A class using open(), read(), etc.
 template < class t_tyCharTraits >
-class JsonLinuxInputStream : public JsonInputStreamBase< t_tyCharTraits, ssize_t >
+class JsonLinuxInputStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonLinuxInputStream _tyThis;
 public:
@@ -608,7 +609,7 @@ protected:
 
 // JsonLinuxInputMemMappedStream: A class using open(), read(), etc.
 template < class t_tyCharTraits >
-class JsonLinuxInputMemMappedStream : public JsonInputStreamBase< t_tyCharTraits, ssize_t >
+class JsonLinuxInputMemMappedStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonLinuxInputMemMappedStream _tyThis;
 public:
@@ -651,13 +652,13 @@ public:
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
         // Now get the size of the file and then map it.
         _tyFilePos posEnd = lseek( m_fd, 0, SEEK_END );
-        if ( 0 == posEnd )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): File [%s] is empty - it contains no JSON value.", _szFilename );
-        if ( !!( posEnd % sizeof(_tyChar) ) )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
-        // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
         if ( -1 == posEnd )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Attempting to seek to EOF failed for [%s]", _szFilename );
+        if ( 0 == posEnd )
+            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s] is empty - it contains no JSON value.", _szFilename );
+        if ( !!( posEnd % sizeof(_tyChar) ) )
+            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
+        // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
         m_pvMapped = mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
@@ -672,14 +673,14 @@ public:
     {
         if ( FFileMapped() )
         {
-            assert( FOpened() );
-            void * pvMapped = m_pvMapped;
+            assert( FFileOpened() );
+            const void * pvMapped = m_pvMapped;
             m_pvMapped = MAP_FAILED;
             size_t stMapped = m_stMapped;
             m_stMapped = 0;
             _Unmap( pvMapped, stMapped );
         }
-        if ( FOpened() )
+        if ( FFileOpened() )
         {
             int fd = m_fd;
             m_fd = 0;
@@ -688,9 +689,9 @@ public:
         assert(!FOpened());
         return 0;
     }
-    static int _Unmap( void * _pvMapped, size_t _stMapped )
+    static int _Unmap( const void * _pvMapped, size_t _stMapped )
     {
-        return munmap( _pvMapped, _stMapped );
+        return munmap( const_cast< void * >( _pvMapped ), _stMapped );
     }
     static int _Close( int _fd )
     {
@@ -728,7 +729,7 @@ public:
     _tyFilePos PosGet() const
     {
         assert( FOpened() );
-        return ( ( m_ptcMappedCur - (_tyChar*)m_pvMapped ) - (size_t)m_fHasLookahead ) * sizeof(_tyChar);
+        return ( ( m_ptcMappedCur - (const _tyChar*)m_pvMapped ) - (size_t)m_fHasLookahead ) * sizeof(_tyChar);
     }
     // Read a single character from the file - always throw on EOF.
     _tyChar ReadChar( const char * _pcEOFMessage )
@@ -784,9 +785,9 @@ public:
 
 protected:
     std::basic_string<char> m_szFilename;
-    void * m_pvMapped{MAP_FAILED};
-    _tyChar * m_ptcMappedCur{};
-    _tyChar * m_ptcMappedEnd{};
+    const void * m_pvMapped{MAP_FAILED};
+    const _tyChar * m_ptcMappedCur{};
+    const _tyChar * m_ptcMappedEnd{};
     size_t m_stMapped{};
     int m_fd{-1}; // file descriptor.
     _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
@@ -795,7 +796,7 @@ protected:
 
 // JsonLinuxOutputStream: A class using open(), read(), etc.
 template < class t_tyCharTraits >
-class JsonLinuxOutputStream : public JsonOutputStreamBase< t_tyCharTraits, ssize_t >
+class JsonLinuxOutputStream : public JsonOutputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonLinuxOutputStream _tyThis;
 public:
@@ -1018,9 +1019,294 @@ protected:
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
 };
 
+// JsonOutputMemMappedStream: A class using open(), read(), etc.
+template < class t_tyCharTraits >
+class JsonOutputMemMappedStream : public JsonOutputStreamBase< t_tyCharTraits, size_t >
+{
+    typedef JsonOutputMemMappedStream _tyThis;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
+    typedef size_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+    static const _tyFilePos s_knGrowFileByBytes = 65536*4;
+
+    JsonOutputMemMappedStream() = default;
+    ~JsonOutputMemMappedStream()
+    {
+        (void)Close();
+    }
+
+    void swap( JsonOutputMemMappedStream & _r )
+    {
+        _r.m_szFilename.swap( m_szFilename );
+        _r.m_szExceptionString.swap( m_szExceptionString );
+        std::swap( _r.m_fd, m_fd );
+        std::swap( _r.m_pvMapped, m_pvMapped );
+        std::swap( _r.m_ptcMappedCur, m_ptcMappedCur );
+        std::swap( _r.m_ptcMappedEnd, m_ptcMappedEnd );
+        std::swap( _r.m_stMapped, m_stMapped );
+    }
+
+    // This is a manner of indicating that something happened during streaming.
+    // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
+    void SetExceptionString( const char * _szWhat )
+    {
+        m_szExceptionString = _szWhat;
+    }
+    bool FGetExceptionString( std::string & _rstrExceptionString )
+    {
+        _rstrExceptionString = m_szExceptionString;
+    }
+
+    bool FOpened() const
+    {
+        return FFileOpened() && FFileMapped();
+    }
+    bool FAnyOpened() const
+    {
+        return FFileOpened() || FFileMapped();
+    }
+    bool FFileOpened() const
+    {
+        return -1 != m_fd;
+    }
+    bool FFileMapped() const
+    {
+        return MAP_FAILED != m_pvMapped;
+    }
+
+    // Throws on open failure. This object owns the lifetime of the file descriptor.
+    void Open( const char * _szFilename )
+    {
+        assert( !FAnyOpened() );
+        Close();
+        m_fd = open( _szFilename, O_RDWR | O_CREAT | O_TRUNC, 0666 );
+        if ( !FFileOpened() )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
+        // Set the initial size of the mapping to s_knGrowFileByBytes. Don't want to use ftruncate because that could be slow as it zeros all memory.
+        _tyFilePos posEnd = lseek( m_fd, s_knGrowFileByBytes-1, SEEK_SET );
+        if ( -1 == posEnd )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to lseek() failed for [%s]", _szFilename );
+        ssize_t stRet = write( m_fd, "Z", 1 ); // write a single byte to grow the file to s_knGrowFileByBytes.
+        if ( -1 == stRet )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to write() failed for [%s]", _szFilename );
+        // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to write to it.
+        m_pvMapped = mmap( 0, s_knGrowFileByBytes, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
+        if ( m_pvMapped == MAP_FAILED )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
+        m_stMapped = s_knGrowFileByBytes;
+        m_ptcMappedCur = (_tyChar*)m_pvMapped;
+        m_ptcMappedEnd = m_ptcMappedCur + ( m_stMapped / sizeof(_tyChar) );
+        m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    }
+
+    int Close()
+    {
+        int iCloseRet = 0;
+        if ( FFileMapped() )
+        {
+            assert( FFileOpened() );
+            // We need to truncate the file to m_ptcMappedCur - m_pvMapped bytes.
+            // We shouldn't throw here so we will just log an error message and set m_szExceptionString.
+            iCloseRet = ftruncate( m_fd, ( m_ptcMappedCur - (_tyChar*)m_pvMapped ) * sizeof(_tyChar) );
+            if ( -1 == iCloseRet )
+            {
+                LOGSYSLOGERRNO( eslmtError, errno, "JsonOutputMemMappedStream::Close(): ftruncate failed." );
+                m_szExceptionString = "JsonOutputMemMappedStream::Close(): ftruncate failed.";
+            }
+            void * pvMapped = m_pvMapped;
+            m_pvMapped = MAP_FAILED;
+            size_t stMapped = m_stMapped;
+            m_stMapped = 0;
+            int iUnmap = _Unmap( pvMapped, stMapped ); // We don't care if this fails pretty much.
+            assert( !iUnmap );
+        }
+        if ( FFileOpened() )
+        {
+            int fd = m_fd;
+            m_fd = 0;
+            int iRet = _Close( fd );
+            assert( !iRet );
+            if ( -1 == iRet )
+                iCloseRet = -1; // it may already be.
+        }
+        assert(!FOpened());
+        return iCloseRet;
+    }
+    static int _Unmap( void * _pvMapped, size_t _stMapped )
+    {
+        return munmap( _pvMapped, _stMapped );
+    }
+    static int _Close( int _fd )
+    {
+        return close( _fd );
+    }
+
+    // Read a single character from the file - always throw on EOF.
+    void WriteChar( _tyChar _tc )
+    {
+        _CheckGrowMap( 1 );
+        *m_ptcMappedCur++ = _tc;
+    }
+    void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
+    {
+        if ( !_sstLen )
+            return;
+        if ( _sstLen < 0 )
+            _sstLen = _tyCharTraits::StrLen( _psz );
+        _CheckGrowMap( (size_t)_sstLen );
+        memcpy( m_ptcMappedCur, _psz, _sstLen * sizeof(_tyChar) );
+        m_ptcMappedCur += _sstLen;
+    }
+    // If <_fEscape> then we escape all special characters when writing.
+    void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
+    {
+        assert( FOpened() );
+        assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
+        if ( !_sstLen )
+            return;
+        size_t stLen = (size_t)_sstLen;
+        if ( _sstLen < 0 )
+            stLen = _tyCharTraits::StrLen( _psz );
+        if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
+            assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                        _tyCharTraits::s_szEscapeStringChars ) );
+        _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
+        if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
+
+        // When we are escaping the string we write piecewise.
+        _tyLPCSTR pszWrite = _psz;
+        while ( !!stLen )
+        {
+            if ( pszWrite < pszPrintableWhitespaceAtEnd )
+            {
+                ssize_t sstLenWrite = stLen;
+                if ( _fEscape )
+                {
+                    if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
+                        sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
+                                                            _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                            _tyCharTraits::s_szEscapeStringChars );
+                    else
+                    {
+                        // More complex escaping of whitespace is possible here:
+                        _tyLPCSTR pszNoEscape = pszWrite;
+                        for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
+                        {
+                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
+                            for ( ; !!*pszPrintableWS; ++pszPrintableWS )
+                            {
+                                if ( *pszNoEscape == *pszPrintableWS )
+                                    break;
+                            }
+                            if ( !!*pszPrintableWS )
+                                continue; // found printable WS that we want to print.
+                            if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
+                                    ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
+                            {
+                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
+                                for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
+                                    ;
+                                if ( !!*pszEscapeChar )
+                                    continue; // found printable WS that we want to print.
+                            }
+                        }
+                        sstLenWrite = pszNoEscape - pszWrite;
+                    }                                                                    
+                }
+                if ( sstLenWrite )
+                {
+                    _CheckGrowMap( sstLenWrite );
+                    memcpy( m_ptcMappedCur, pszWrite, sstLenWrite * sizeof(_tyChar) );
+                    m_ptcMappedCur += sstLenWrite;
+                }
+                stLen -= sstLenWrite;
+                pszWrite += sstLenWrite;
+                if ( !stLen )
+                    return; // the overwhelming case is we return here.
+            }
+            // else otherwise we will escape all remaining characters.
+            WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
+            // If we haven't written the whole string then we encountered a character we need to escape.
+            switch( *pszWrite )
+            {
+            case _tyCharTraits::s_tcBackSpace:
+                WriteChar( _tyCharTraits::s_tcb );
+            break;
+            case _tyCharTraits::s_tcFormFeed:
+                WriteChar( _tyCharTraits::s_tcf );
+            break;
+            case _tyCharTraits::s_tcNewline:
+                WriteChar( _tyCharTraits::s_tcn );
+            break;
+            case _tyCharTraits::s_tcCarriageReturn:
+                WriteChar( _tyCharTraits::s_tcr );
+            break;
+            case _tyCharTraits::s_tcTab:
+                WriteChar( _tyCharTraits::s_tct );
+            break;
+            case _tyCharTraits::s_tcBackSlash:
+            case _tyCharTraits::s_tcDoubleQuote:
+                WriteChar( *pszWrite );
+            break;
+            default:
+                // Unprintable character between 0 and 31. We'll use the \uXXXX method for this character.
+                WriteChar( _tyCharTraits::s_tcu );
+                WriteChar( _tyCharTraits::s_tc0 );
+                WriteChar( _tyCharTraits::s_tc0 );
+                WriteChar( _tyChar( '0' + ( *pszWrite / 16 ) ) );
+                WriteChar( _tyChar( ( *pszWrite % 16 ) < 10 ? ( '0' + ( *pszWrite % 16 ) ) : ( 'A' + ( *pszWrite % 16 ) - 10 ) ) );
+            break;
+            }
+            ++pszWrite;
+            --stLen;
+        }
+    }
+
+protected:
+    void _CheckGrowMap( size_t _stByAtLeast )
+    {
+        if ( ( m_ptcMappedEnd -  m_ptcMappedCur ) < _stByAtLeast )
+            _GrowMap( _stByAtLeast );
+    }
+    void _GrowMap( size_t _stByAtLeast )
+    {
+        assert( _stByAtLeast > 0 );
+        size_t stGrowBy = ( ( ( _stByAtLeast - 1 ) / s_knGrowFileByBytes ) + 1 ) * s_knGrowFileByBytes;
+        void * pvOldMapping = m_pvMapped;
+        m_pvMapped = MAP_FAILED;
+        int iRet = munmap( pvOldMapping, m_stMapped );
+        assert( !iRet );
+        m_stMapped += stGrowBy;
+        iRet = lseek( m_fd, m_stMapped - 1, SEEK_SET );
+        if ( -1 == iRet )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): lseek() failed for file [%s].", m_szFilename.c_str() );
+        iRet = write( m_fd, "Z", 1 ); // just write a single byte to grow the file.
+        if ( -1 == iRet )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): write() failed for file [%s].", m_szFilename.c_str() );
+        m_pvMapped = mmap( 0, m_stMapped, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
+        if ( m_pvMapped == MAP_FAILED )
+            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): mmap() failed for file [%s].", m_szFilename.c_str() );
+        m_ptcMappedEnd = (_tyChar*)m_pvMapped + ( m_stMapped / sizeof( _tyChar ) );
+        m_ptcMappedCur = (_tyChar*)m_pvMapped + ( m_ptcMappedCur - (_tyChar*)pvOldMapping );
+    }
+
+    std::basic_string<char> m_szFilename;
+    std::basic_string<char> m_szExceptionString;
+    void * m_pvMapped{MAP_FAILED};
+    _tyChar * m_ptcMappedCur{};
+    _tyChar * m_ptcMappedEnd{};
+    size_t m_stMapped{};
+    int m_fd{-1}; // file descriptor.
+};
+
 // This just writes to an in-memory stream which then can be done anything with.
 template < class t_tyCharTraits, size_t t_kstBlockSize = 65536 >
-class JsonOutputMemStream : public JsonOutputStreamBase< t_tyCharTraits, ssize_t >
+class JsonOutputMemStream : public JsonOutputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonOutputMemStream _tyThis;
 public:
@@ -1925,7 +2211,7 @@ public:
     {
         if ( _stLen < 0 )
             _stLen = _tyCharTraits::StrLen( _pszValue );
-        _WriteValue( ejvtString, _pszKey, _pszValue, _stLen );
+        _WriteValue( ejvtString, _pszKey, _pszValue, (size_t)_stLen );
     }
     
     template < class t_tyNum >
@@ -1990,7 +2276,7 @@ public:
         _WriteValue( ejvtString, _pszKey, ustOut );
     }
 
-    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen )
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, size_t _stLen )
     {
         assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
@@ -2028,7 +2314,7 @@ public:
     {
         if ( _stLen < 0 )
             _stLen = _tyCharTraits::StrLen( _pszValue );
-        _WriteValue( ejvtString, _pszValue, _stLen );
+        _WriteValue( ejvtString, _pszValue, (size_t)_stLen );
     }
     void WriteValue( _tyStdStr const & _rstrVal )
     {
@@ -2101,7 +2387,7 @@ public:
         _WriteValue( "%Lf", _ldbl );
     }
 
-    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszValue, ssize_t _stLen )
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszValue, size_t _stLen )
     {
         assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
@@ -3520,6 +3806,54 @@ struct StreamJSON
                 jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
             else
                 jos.AttachFd( _prfnfdOutput.second );
+            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
+            if ( _fCheckSkippedKey )
+            {
+                n_JSONStream::JSONUnitTestContext rjutx;
+                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
+            }
+            else
+                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
+        }
+    }
+    static void Stream( const char * _pszInputFile, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        _tyJsonInputStream jis;
+        jis.Open( _pszInputFile );
+        _tyJsonReadCursor jrc;
+        jis.AttachReadCursor( jrc );
+
+        if ( _fReadOnly )
+            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
+        else
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
+            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
+            if ( _fCheckSkippedKey )
+            {
+                n_JSONStream::JSONUnitTestContext rjutx;
+                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
+            }
+            else
+                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
+        }
+    }
+    static void Stream( int _fdInput, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        _tyJsonInputStream jis;
+        jis.AttachFd( _fdInput );
+        _tyJsonReadCursor jrc;
+        jis.AttachReadCursor( jrc );
+
+        if ( _fReadOnly )
+            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
+        else
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
             _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
             if ( _fCheckSkippedKey )
             {

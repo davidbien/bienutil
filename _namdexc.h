@@ -17,6 +17,7 @@
 #define ___NAMDEXC_H___
 
 #include <string>
+#include "bienutil.h"
 
 //#define __NAMDDEXC_STDBASE
 // If this is defined then we will base the named exception on std::exception, otherwise it may be based on STLPORT's stlp_std::exception.

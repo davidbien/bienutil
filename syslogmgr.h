@@ -17,11 +17,26 @@
 
 #include <mutex>
 #include <thread>
+#include <memory>
+#include <optional>
 #include <syslog.h>
 #include <_strutil.h>
 #include <sys/syscall.h>
 #include <uuid/uuid.h>
+#include "bienutil.h"
 #include "bientypes.h"
+#include "_util.h"
+
+template < class t_tyChar >
+struct JsonCharTraits;
+template < class t_tyJsonInputStream >
+class JsonReadCursor;
+template < class t_tyJsonOutputStream >
+class JsonValueLife;
+template < class t_tyCharTraits >
+class JsonFormatSpec;
+template < class t_tyCharTraits >
+class JsonLinuxOutputStream;
 
 enum _ESysLogMessageType : uint8_t
 {
@@ -59,77 +74,9 @@ struct _SysLogThreadHeader
     }
 
     template < class t_tyJsonOutputStream >
-    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
-    {
-        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-        assert( _jvl.FAtObjectValue() );
-        if ( _jvl.FAtObjectValue() )
-        {
-            _jvl.WriteValue( "ProgName", m_szProgramName );
-            _jvl.WriteUuidStringValue( "uuid", m_uuid );
-            _jvl.WriteTimeStringValue( "TimeStarted", m_timeStart );
-            _jvl.WriteValue( "ThreadId", m_tidThreadId );
-        }
-        else
-            THROWNAMEDEXCEPTION( "_SysLogThreadHeader::ToJSONStream(): Not at an object." );
-    }
-
+    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const;
     template < class t_tyJsonInputStream >
-    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
-    {
-        Clear();
-        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-        assert( _jrc.FAtObjectValue() );
-        if ( FAtObjectValue() )
-        {
-            JsonRestoreContext< t_tyJsonInputStream > jrx( _jrc );
-            if ( _jrc.FMoveDown() )
-            {
-                for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
-                {
-                    // Ignore unknown stuff:
-                    typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
-                    typename _tyCharTraits::_tyStdStr strKey;
-                    EJsonValueType jvtValue;
-                    bool fGetKey = _jrc.FGetKeyCurrent( strKey, jvtValue );
-                    assert( fGetKey );
-                    if ( fGetKey )
-                    {
-                        if ( ejvtString == jvtValue )
-                        {
-                            if ( strKey == "ProgName" )
-                            {
-                                _jrc.GetValue( m_szProgramName );
-                                continue;
-                            }
-                            if ( strKey == "TimeStarted" )
-                            {
-                                _jrc.GetTimeStringValue( m_timeStart );
-                                continue;
-                            }
-                            if ( strKey == "uuid" )
-                            {
-                                _jrc.GetUuidStringValue( m_uuid );
-                                continue;
-                            }
-                            continue;
-                        }
-                        if ( ejvtNumber == jvtValue )
-                        {
-                            if ( strKey == "ThreadId" )
-                            {
-                                _jrc.GetValue( m_tidThreadId );
-                                continue;
-                            }
-                            continue;
-                        }
-                    }
-                }
-            }
-        }
-        else
-            THROWNAMEDEXCEPTION( "_SysLogThreadHeader::ToJSONStream(): Not at an object." );
-    }
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc );
 };
 
 // _SysLogContext:
@@ -156,110 +103,9 @@ struct _SysLogContext
     }
 
     template < class t_tyJsonOutputStream >
-    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
-    {
-        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-        assert( _jvl.FAtObjectValue() );
-        if ( _jvl.FAtObjectValue() )
-        {
-            _jvl.WriteTimeStringValue( "Time", m_time );
-            _jvl.WriteValue( "Type", (uint8_t)m_eslmtType );
-            _jvl.WriteValue( "Mesg", m_szFullMesg );
-            if ( !m_szFile.empty() )
-            {
-                _jvl.WriteValue( "File", m_szFile );
-                _jvl.WriteValue( "Line", m_nLine );
-            }
-            if ( !!m_errno )
-            {
-                _jvl.WriteValue( "errno", m_errno );
-                std::string strErrDesc;
-                GetErrnoDescStdStr( m_errno, strErrDesc );
-                if ( !!strErrDesc.length() )
-                    _jvl.WriteValue( "ErrnoDesc", strErrDesc );
-            }
-        }
-        else
-            THROWNAMEDEXCEPTION( "_SysLogContext::ToJSONStream(): Not at an object." );
-    }
-
+    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const;
     template < class t_tyJsonInputStream >
-    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
-    {
-        Clear();
-        // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-        assert( _jrc.FAtObjectValue() );
-        if ( FAtObjectValue() )
-        {
-            JsonRestoreContext< t_tyJsonInputStream > jrx( _jrc );
-            if ( _jrc.FMoveDown() )
-            {
-                for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
-                {
-                    // Ignore unknown stuff:
-                    typedef typename t_tyJsonInputStream::_tyCharTraits _tyCharTraits;
-                    typename _tyCharTraits::_tyStdStr strKey;
-                    EJsonValueType jvtValue;
-                    bool fGetKey = _jrc.FGetKeyCurrent( strKey, jvtValue );
-                    assert( fGetKey );
-                    if ( fGetKey )
-                    {
-                        if ( ejvtString == jvtValue )
-                        {
-                            if ( strKey == "ProgName" )
-                            {
-                                _jrc.GetValue( m_szProgramName );
-                                continue;
-                            }
-                            if ( strKey == "Time" )
-                            {
-                                _jrc.GetValue( m_time );
-                                continue;
-                            }
-                            if ( strKey == "Mesg" )
-                            {
-                                _jrc.GetValue( m_szFullMesg );
-                                continue;
-                            }
-                            if ( strKey == "File" )
-                            {
-                                _jrc.GetValue( m_szFile );
-                                continue;
-                            }
-                            continue;
-                        }
-                        if ( ejvtNumber == jvtValue )
-                        {
-                            if ( strKey == "ThreadId" )
-                            {
-                                _jrc.GetValue( m_tidThreadId );
-                                continue;
-                            }
-                            if ( strKey == "Type" )
-                            {
-                                _jrc.GetValue( m_eslmtType );
-                                continue;
-                            }
-                            if ( strKey == "Line" )
-                            {
-                                _jrc.GetValue( m_nLine );
-                                continue;
-                            }
-                            if ( strKey == "errno" )
-                            {
-                                _jrc.GetValue( m_errno );
-                                continue;
-                            }
-                            continue;
-                        }
-                    }
-                }
-            }
-        }
-        else
-            THROWNAMEDEXCEPTION( "_SysLogContext::ToJSONStream(): Not at an object." );
-    }
-
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc );
 };
 
 // Templatize this merely so we don't need a cpp module.
@@ -301,19 +147,19 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         syslog( iPriority, _rrStrLog.c_str() );
  #pragma clang diagnostic pop
         // Then log the context to thread logging file.
-        if ( !!_pslc && m_josThreadLog.FOpened() && !!m_optjvlRootThreadLog && !!m_optjvlSysLogArray )
+        if ( !!_pslc && !!m_pjosThreadLog && m_pjosThreadLog->FOpened() && !!m_pjvlRootThreadLog && !!m_pjvlSysLogArray )
         {
             // Create an object for this log message:
-             _tyJsonValueLife jvlSysLogContext( *m_optjvlSysLogArray, ejvtObject );
+             _tyJsonValueLife jvlSysLogContext( *m_pjvlSysLogArray, ejvtObject );
             _pslc->ToJSONStream( jvlSysLogContext );
         }
     }
 
     bool FHasJSONLogFile() const
     {
-        assert( m_josThreadLog.FOpened() == !!m_optjvlRootThreadLog );
-        assert( m_josThreadLog.FOpened() == !!m_optjvlSysLogArray );
-        return m_josThreadLog.FOpened();
+        assert( ( !!m_pjosThreadLog && m_pjosThreadLog->FOpened() ) == !!m_pjvlRootThreadLog );
+        assert( ( !!m_pjosThreadLog && m_pjosThreadLog->FOpened() ) == !!m_pjvlSysLogArray );
+        return !!m_pjosThreadLog && m_pjosThreadLog->FOpened();
     }
     bool FCreateUniqueJSONLogFile( const char * _pszProgramName )
     {
@@ -328,51 +174,7 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
             return false;
         }
     }
-    bool _FTryCreateUniqueJSONLogFile( const char * _pszProgramName )
-    {
-        // Move _pszProgramName past any directory:
-        const char * pszProgNameNoPath = strrchr( _pszProgramName, '/' );
-        if ( !!pszProgNameNoPath )
-            _pszProgramName = pszProgNameNoPath + 1;
-        // Now get the executable path:
-        std::string strExePath;
-        GetCurrentExecutablePath( strExePath );
-        if ( !strExePath.length() )
-            strExePath = "./"; // Just use current working directory if we can't find exe directory.
-        assert( '/' == strExePath[ strExePath.length()-1 ] );
-        _SysLogThreadHeader slth;
-        slth.m_szProgramName = strExePath;
-        slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.
-        slth.m_timeStart = time(0);
-        uuid_generate( slth.m_uuid );
-        slth.m_tidThreadId = s_tls_tidThreadId;
-
-        std::string strLogFile = slth.m_szProgramName;
-        uuid_string_t ustUuid;
-        uuid_unparse_lower( slth.m_uuid, ustUuid );
-        strLogFile += ".";
-        strLogFile += ustUuid;
-        strLogFile += ".log.json";
-
-        // We must make sure we can initialize the file before we declare that it is opened.
-        m_josThreadLog.Open( strLogFile.c_str() );
-        _tyJsonFormatSpec jfs; // Make sure we pretty print the JSON to make it readable right away.
-        jfs.m_nWhitespacePerIndent = 2;
-        jfs.m_fEscapePrintableWhitespace = true;
-        _tyJsonValueLife jvlRoot( m_josThreadLog, ejvtObject, &jfs );
-        { //B
-            // Create the SysLogThreadHeader object as the first object within the log file.
-            _tyJsonValueLife jvlSysLogThreadHeader( jvlRoot, "SysLogThreadHeader", ejvtObject );
-            slth.ToJSONStream( jvlSysLogThreadHeader );
-        } //EB
-        // Now open up an array to contain the set of log message details.
-        _tyJsonValueLife jvlSysLogArray( jvlRoot, "SysLog", ejvtArray );
-        // Now forward everything into the object itself - we succeeded in creating the logging file.
-        m_optjvlRootThreadLog.emplace( std::move( jvlRoot ) );
-        m_optjvlSysLogArray.emplace( std::move( jvlSysLogArray ), &*m_optjvlRootThreadLog );
-        n_SysLog::Log( eslmtInfo, "SysLogMgr: Created thread-specific JSON log file at [%s].", strLogFile.c_str() );
-        return true;
-    }
+    bool _FTryCreateUniqueJSONLogFile( const char * _pszProgramName );
 
 // Static method. Generally not to be called directly - use the n_SysLog methods.
     static _SysLogMgr & RGetThreadSysLogMgr()
@@ -444,9 +246,9 @@ public:
 protected:
 // non-static members:
     _SysLogMgr * m_pslmOverlord; // If this is zero then we are the overlord or there is no overlord.
-    _tyJsonOutputStream m_josThreadLog; // JSON log of details of all messages for this execution.
-    std::optional< _tyJsonValueLife > m_optjvlRootThreadLog; // The root of the thread log - we may add a footer at end of execution.
-    std::optional< _tyJsonValueLife > m_optjvlSysLogArray; // The current position within the SysLog diagnostic log message array.
+    std::unique_ptr< _tyJsonOutputStream > m_pjosThreadLog;
+    std::unique_ptr< _tyJsonValueLife > m_pjvlRootThreadLog; // The root of the thread log - we may add a footer at end of execution.
+    std::unique_ptr< _tyJsonValueLife > m_pjvlSysLogArray; // The current position within the SysLog diagnostic log message array.
 // static members:
     static _SysLogMgr * s_pslmOverlord; // A pointer to the "overlord" _SysLogMgr that is running on its own thread. The lifetime for this is managed by s_tls_pThis for the overlord thread.
     static std::mutex s_mtxOverlord; // This used by overlord to guard access.
@@ -485,6 +287,9 @@ template < const int t_kiInstance >
 bool _SysLogMgr< t_kiInstance >::s_fCallSysLogEachThread = true;
 template < const int t_kiInstance >
 bool _SysLogMgr< t_kiInstance >::s_fGenerateUniqueJSONLogFile = true;
+
+#define LOGSYSLOG( TYPE, MESG... ) n_SysLog::Log( TYPE, __FILE__, __LINE__, MESG )
+#define LOGSYSLOGERRNO( TYPE, ERRNO, MESG... ) n_SysLog::Log( TYPE, ERRNO, __FILE__, __LINE__, MESG )
 
 // Access all syslog functionality through this namespace.
 namespace n_SysLog

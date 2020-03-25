@@ -5,6 +5,8 @@
 // dbien: 12MAR2020
 
 #include <stdlib.h>
+#include <limits.h>
+#include <unistd.h>
 #include <string>
 #include <_namdexc.h>
 #include <_smartp.h>
