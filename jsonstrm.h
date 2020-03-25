@@ -1499,11 +1499,8 @@ public:
     JsonLinuxOutputMemStream() = default;
     ~JsonLinuxOutputMemStream()
     {
-        if ( m_fOwnFdLifetime && FOpened() )
-        {
-            m_fOwnFdLifetime = false; // prevent reentry though we know it should never happen.
-            (void)_Close( m_fd );
-        }
+        if ( FOpened() )
+            (void)Close( false );
     }
 
     void swap( JsonLinuxOutputMemStream & _r )
@@ -1551,21 +1548,21 @@ public:
         m_szFilename.clear(); // No filename indicates we are attached to "some fd".
     }
 
+    using _tyBase::WriteMemStreamToFile;
     int Close( bool _fAllowThrows = true )
     {
         if ( FOpened() )
         {
             int fd = m_fd;
             m_fd = 0;
+            WriteMemStreamToFile( fd, _fAllowThrows ); // Catches any exception when !_fAllowThrows otherwise throws through.
             if ( m_fOwnFdLifetime )
                 return _Close( fd );
         }
         return 0;
     }
-    using _tyBase::WriteMemStreamToFile;
-    int _Close( int _fd, bool _fAllowThrows = false )
+    static int _Close( int _fd )
     {
-        WriteMemStreamToFile( _fd, _fAllowThrows ); // Catches any exception when !_fAllowThrows otherwise throws through.
         return close( _fd );
     }
 
