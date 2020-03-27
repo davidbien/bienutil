@@ -5,6 +5,10 @@
 
 #include "_booltyp.h"
 
+#if (defined(__GNUC__) && !defined(__clang__))
+#define GCC_COMPILER 1
+#endif
+
 #ifdef _STLP_USE_NAMESPACES
 #define __STD_OR_GLOBAL_QUALIFIER std::
 #else //_STLP_USE_NAMESPACES

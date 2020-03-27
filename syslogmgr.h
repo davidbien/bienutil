@@ -118,49 +118,9 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
     typedef JsonFormatSpec< JsonCharTraits< char > > _tyJsonFormatSpec;
     typedef JsonValueLife< _tyJsonOutputStream > _tyJsonValueLife;
 
-    void Log( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc )
-    {
-        int iPriority;
-        switch( _eslmt )
-        {
-        case eslmtInfo:
-#if __APPLE__
-            // Under Mac INFO messages won't show up in the Console which is kinda bogus, so mark them as WARNING.
-            iPriority = LOG_WARNING;
-#else
-            iPriority = LOG_INFO;
-#endif
-            break;
-        case eslmtWarning:
-            iPriority = LOG_WARNING;
-            break;
-        default:
-            assert(0);
-        case eslmtError:
-            iPriority = LOG_ERR;
-            break;
-        }
-        iPriority |= LOG_USER;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-security"
-        // First log.
-        syslog( iPriority, _rrStrLog.c_str() );
- #pragma clang diagnostic pop
-        // Then log the context to thread logging file.
-        if ( !!_pslc && !!m_pjosThreadLog && m_pjosThreadLog->FOpened() && !!m_pjvlRootThreadLog && !!m_pjvlSysLogArray )
-        {
-            // Create an object for this log message:
-             _tyJsonValueLife jvlSysLogContext( *m_pjvlSysLogArray, ejvtObject );
-            _pslc->ToJSONStream( jvlSysLogContext );
-        }
-    }
+    void Log( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc );
 
-    bool FHasJSONLogFile() const
-    {
-        assert( ( !!m_pjosThreadLog && m_pjosThreadLog->FOpened() ) == !!m_pjvlRootThreadLog );
-        assert( ( !!m_pjosThreadLog && m_pjosThreadLog->FOpened() ) == !!m_pjvlSysLogArray );
-        return !!m_pjosThreadLog && m_pjosThreadLog->FOpened();
-    }
+    bool FHasJSONLogFile() const;
     bool FCreateUniqueJSONLogFile( const char * _pszProgramName )
     {
         // Don't fail running the program if we cannot create the log file.

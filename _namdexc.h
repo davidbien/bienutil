@@ -16,6 +16,7 @@
 #ifndef ___NAMDEXC_H___
 #define ___NAMDEXC_H___
 
+#include <stdarg.h>
 #include <string>
 #include "bienutil.h"
 
@@ -131,13 +132,27 @@ public:
       else
       {
         rgcErrorMesg2[knErrorMesg-1] = 0;
+#ifdef GCC_COMPILER
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation="
+#endif //GCC_COMPILER
         (void)snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]: %s", m_errno, rgcErrorMesg2 );
+#ifdef GCC_COMPILER
+#pragma GCC diagnostic pop
+#endif //GCC_COMPILER
       }
       rgcErrorMesg[knErrorMesg-1] = 0;
 
       const int knBuf = NAMEDEXC_BUFSIZE;
       char rgcBuf[knBuf];
+#ifdef GCC_COMPILER
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation="
+#endif //GCC_COMPILER
       (void)snprintf( rgcBuf, knBuf, "%s, %s", m_rgcExceptionName, rgcErrorMesg );
+#ifdef GCC_COMPILER
+#pragma GCC diagnostic pop
+#endif //GCC_COMPILER
       rgcBuf[knBuf-1] = 0;
       memcpy( m_rgcExceptionName, rgcBuf, NAMEDEXC_BUFSIZE ); // Update the description of the exception with the description of the errno.
     }
@@ -199,7 +214,7 @@ struct ExceptionUsage
   {
     va_list ap;
     va_start( ap, _pcFmt );
-    _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    _TyException exc( _pcFmt, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
     throw exc;
   }
@@ -207,7 +222,7 @@ struct ExceptionUsage
   {
     va_list ap;
     va_start( ap, _pcFmt );
-    _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    _TyException exc( _errno, _pcFmt, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
     throw exc;
   }

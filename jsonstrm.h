@@ -831,7 +831,7 @@ public:
     {
         m_szExceptionString = _szWhat;
     }
-    bool FGetExceptionString( std::string & _rstrExceptionString )
+    void GetExceptionString( std::string & _rstrExceptionString )
     {
         _rstrExceptionString = m_szExceptionString;
     }
@@ -1056,7 +1056,7 @@ public:
     {
         m_szExceptionString = _szWhat;
     }
-    bool FGetExceptionString( std::string & _rstrExceptionString )
+    void GetExceptionString( std::string & _rstrExceptionString )
     {
         _rstrExceptionString = m_szExceptionString;
     }
@@ -1340,7 +1340,7 @@ public:
     {
         m_szExceptionString = _szWhat;
     }
-    bool FGetExceptionString( std::string & _rstrExceptionString )
+    void GetExceptionString( std::string & _rstrExceptionString )
     {
         _rstrExceptionString = m_szExceptionString;
     }
@@ -1517,7 +1517,7 @@ public:
     {
         m_szExceptionString = _szWhat;
     }
-    bool FGetExceptionString( std::string & _rstrExceptionString )
+    void GetExceptionString( std::string & _rstrExceptionString )
     {
         _rstrExceptionString = m_szExceptionString;
     }
@@ -2324,7 +2324,7 @@ public:
     void WriteTimeStringValue( time_t const & _tt )
     {
         std::string strTime;
-        TimeToString( _tt, strTime );
+        n_TimeUtil::TimeToString( _tt, strTime );
         _WriteValue( ejvtString, std::move( strTime ) );
     }
     void WriteUuidStringValue( uuid_t const & _uuidt )
@@ -2801,7 +2801,7 @@ public:
     }
     bool FIsValueNull() const
     {
-        ejvtNull == JvtGetValueType();
+        return ejvtNull == JvtGetValueType();
     }
 
     // Get a full copy of the JsonValue. We allow this to work with any type of JsonValue for completeness.
@@ -2919,7 +2919,7 @@ public:
     {
         if ( ejvtString != JvtGetValueType() )
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not at a string value type." );
-        if ( m_pjrxCurrent->PGetStringValue()->length() < std::size( declval(uuid_string_t) )-1 )
+        if ( m_pjrxCurrent->PGetStringValue()->length() < std::size( std::declval<uuid_string_t>() ) - 1 )
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not enough characters in the string for uuid_string_t." );
         uuid_string_t ustUuid;
         memcpy( &ustUuid, m_pjrxCurrent->PGetStringValue()->c_str(), sizeof ustUuid );
@@ -3747,122 +3747,6 @@ protected:
 namespace n_JSONStream
 {
 
-template < class t_tyJsonInputStream, class t_tyJsonOutputStream >
-struct StreamJSON
-{
-    typedef t_tyJsonInputStream _tyJsonInputStream;
-    typedef t_tyJsonOutputStream _tyJsonOutputStream;
-    typedef typename _tyJsonInputStream::_tyCharTraits _tyCharTraits;
-    static_assert( std::is_same_v< _tyCharTraits, typename _tyJsonOutputStream::_tyCharTraits > );
-    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
-    typedef JsonReadCursor< _tyJsonInputStream > _tyJsonReadCursor;
-    typedef JsonValueLife< _tyJsonOutputStream > _tyJsonValueLife;
-    typedef std::pair< const char *, int > _tyPrFilenameFd;
-
-    static void Stream( const char * _pszInputFile, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
-    {
-        _tyJsonInputStream jis;
-        jis.Open( _pszInputFile );
-        _tyJsonReadCursor jrc;
-        jis.AttachReadCursor( jrc );
-
-        if ( _fReadOnly )
-            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
-        else
-        {
-            // Open the write file to which we will be streaming JSON.
-            _tyJsonOutputStream jos;
-            if ( !!_prfnfdOutput.first )
-                jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
-            else
-                jos.AttachFd( _prfnfdOutput.second );
-            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
-            if ( _fCheckSkippedKey )
-            {
-                n_JSONStream::JSONUnitTestContext rjutx;
-                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
-            }
-            else
-                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
-        }
-    }
-    static void Stream( int _fdInput, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
-    {
-        _tyJsonInputStream jis;
-        jis.AttachFd( _fdInput );
-        _tyJsonReadCursor jrc;
-        jis.AttachReadCursor( jrc );
-
-        if ( _fReadOnly )
-            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
-        else
-        {
-            // Open the write file to which we will be streaming JSON.
-            _tyJsonOutputStream jos;
-            if ( !!_prfnfdOutput.first )
-                jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
-            else
-                jos.AttachFd( _prfnfdOutput.second );
-            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
-            if ( _fCheckSkippedKey )
-            {
-                n_JSONStream::JSONUnitTestContext rjutx;
-                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
-            }
-            else
-                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
-        }
-    }
-    static void Stream( const char * _pszInputFile, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
-    {
-        _tyJsonInputStream jis;
-        jis.Open( _pszInputFile );
-        _tyJsonReadCursor jrc;
-        jis.AttachReadCursor( jrc );
-
-        if ( _fReadOnly )
-            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
-        else
-        {
-            // Open the write file to which we will be streaming JSON.
-            _tyJsonOutputStream jos;
-            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
-            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
-            if ( _fCheckSkippedKey )
-            {
-                n_JSONStream::JSONUnitTestContext rjutx;
-                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
-            }
-            else
-                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
-        }
-    }
-    static void Stream( int _fdInput, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
-    {
-        _tyJsonInputStream jis;
-        jis.AttachFd( _fdInput );
-        _tyJsonReadCursor jrc;
-        jis.AttachReadCursor( jrc );
-
-        if ( _fReadOnly )
-            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
-        else
-        {
-            // Open the write file to which we will be streaming JSON.
-            _tyJsonOutputStream jos;
-            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
-            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
-            if ( _fCheckSkippedKey )
-            {
-                n_JSONStream::JSONUnitTestContext rjutx;
-                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
-            }
-            else
-                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
-        }
-    }
-};
-
 // Input only method - just read the file and don't do anything with the data.
 template < class t_tyJsonInputStream >
 void StreamReadJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc )
@@ -4014,5 +3898,121 @@ void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _
         _jvl.SetValue( std::move( jvValue ) );
     }
 }
+
+template < class t_tyJsonInputStream, class t_tyJsonOutputStream >
+struct StreamJSON
+{
+    typedef t_tyJsonInputStream _tyJsonInputStream;
+    typedef t_tyJsonOutputStream _tyJsonOutputStream;
+    typedef typename _tyJsonInputStream::_tyCharTraits _tyCharTraits;
+    static_assert( std::is_same_v< _tyCharTraits, typename _tyJsonOutputStream::_tyCharTraits > );
+    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+    typedef JsonReadCursor< _tyJsonInputStream > _tyJsonReadCursor;
+    typedef JsonValueLife< _tyJsonOutputStream > _tyJsonValueLife;
+    typedef std::pair< const char *, int > _tyPrFilenameFd;
+
+    static void Stream( const char * _pszInputFile, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        _tyJsonInputStream jis;
+        jis.Open( _pszInputFile );
+        _tyJsonReadCursor jrc;
+        jis.AttachReadCursor( jrc );
+
+        if ( _fReadOnly )
+            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
+        else
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            if ( !!_prfnfdOutput.first )
+                jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
+            else
+                jos.AttachFd( _prfnfdOutput.second );
+            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
+            if ( _fCheckSkippedKey )
+            {
+                n_JSONStream::JSONUnitTestContext rjutx;
+                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
+            }
+            else
+                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
+        }
+    }
+    static void Stream( int _fdInput, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        _tyJsonInputStream jis;
+        jis.AttachFd( _fdInput );
+        _tyJsonReadCursor jrc;
+        jis.AttachReadCursor( jrc );
+
+        if ( _fReadOnly )
+            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
+        else
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            if ( !!_prfnfdOutput.first )
+                jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
+            else
+                jos.AttachFd( _prfnfdOutput.second );
+            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
+            if ( _fCheckSkippedKey )
+            {
+                n_JSONStream::JSONUnitTestContext rjutx;
+                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
+            }
+            else
+                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
+        }
+    }
+    static void Stream( const char * _pszInputFile, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        _tyJsonInputStream jis;
+        jis.Open( _pszInputFile );
+        _tyJsonReadCursor jrc;
+        jis.AttachReadCursor( jrc );
+
+        if ( _fReadOnly )
+            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
+        else
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
+            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
+            if ( _fCheckSkippedKey )
+            {
+                n_JSONStream::JSONUnitTestContext rjutx;
+                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
+            }
+            else
+                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
+        }
+    }
+    static void Stream( int _fdInput, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        _tyJsonInputStream jis;
+        jis.AttachFd( _fdInput );
+        _tyJsonReadCursor jrc;
+        jis.AttachReadCursor( jrc );
+
+        if ( _fReadOnly )
+            n_JSONStream::StreamReadJsonValue( jrc ); // Read the value at jrc - more specifically stream in the value.
+        else
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
+            _tyJsonValueLife jvl( jos, jrc.JvtGetValueType(), _pjfs );
+            if ( _fCheckSkippedKey )
+            {
+                n_JSONStream::JSONUnitTestContext rjutx;
+                n_JSONStream::StreamReadWriteJsonValueUnitTest( jrc, jvl, rjutx );
+            }
+            else
+                n_JSONStream::StreamReadWriteJsonValue( jrc, jvl ); // Read the value at jrc - more specifically stream in the value.
+        }
+    }
+};
 
 } // namespace n_JSONStream

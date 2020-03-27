@@ -26,10 +26,10 @@ public:
     {
         if ( !!_r.m_ppbySegments )
         {
-            ppbySegments = (uint8_t **)malloc( ( _r.m_ppbyEndSegments - _r.m_ppbySegments ) * sizeof(uint8_t *) );
+            uint8_t ** ppbySegments = (uint8_t **)malloc( ( _r.m_ppbyEndSegments - _r.m_ppbySegments ) * sizeof(uint8_t *) );
             if ( !ppbySegments )
                 THROWNAMEDEXCEPTION( "SegArray::SegArray(const&): OOM for malloc(%lu).", ( _r.m_ppbyEndSegments - _r.m_ppbySegments ) * sizeof(uint8_t *) );
-            FreeVoid fvFreeSegments( ppbySegments ); // In case we throw below.
+            ns_bienutil::FreeVoid fvFreeSegments( ppbySegments ); // In case we throw below.
             memset( ppbySegments, 0, ( _r.m_ppbyEndSegments - _r.m_ppbySegments ) * sizeof(uint8_t *) ); // not strictly necessary but nice and cheap.
             
             uint8_t ** ppbyCurThis = ppbySegments;
@@ -40,7 +40,8 @@ public:
                 uint8_t ** ppbyEndDataOther = _r.m_ppbyCurSegment;
                 if ( ( _r.m_ppbyCurSegment != _r.m_ppbyEndSegments ) && !!*_r.m_ppbyCurSegment )
                     ++ppbyEndDataOther;
-                for ( uint8_t ** ppbyCurOther = _r.m_ppbySegments; ppbyCurOther != ppbyEndDataOther; ++ppbyCurOther, ++ppbyCurThis )
+                uint8_t ** ppbyCurOther = _r.m_ppbySegments;
+                for ( ; ppbyCurOther != ppbyEndDataOther; ++ppbyCurOther, ++ppbyCurThis )
                 {
                     *ppbyCurThis = (uint8_t*)malloc( m_nbySizeSegment );
                     if ( !*ppbyCurThis )
@@ -72,7 +73,7 @@ public:
                         if ( ppbyCurOther+1 == ppbyEndDataOther ) // we are on the last segment.
                         {
                             _tySizeType nLeftOver = _r.m_nElements % NElsPerSegment();
-                            nbySizeCopy = nLeftOver * sizeof _tyT;
+                            nbySizeCopy = nLeftOver * sizeof(_tyT);
                         }
                         memcpy( *ppbyCurThis, *ppbyCurOther, nbySizeCopy );
                     }

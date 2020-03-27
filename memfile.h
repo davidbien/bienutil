@@ -157,6 +157,12 @@ public:
 
     MemStream() = default;
 
+    void swap( MemStream & _r )
+    {
+        _r.m_spmfMemFile.swap( m_spmfMemFile ); // This file to which this MemStream is connected.
+        std::swap( _r.m_posCur, m_posCur );
+    }
+
     std::shared_ptr< _tyMemFile > const & GetMemFileSharedPtr() const
     {
         return m_spmfMemFile;
@@ -176,19 +182,23 @@ public:
                 posNew = _off;
                 break;
             case SEEK_CUR:
+            {
                 _tySignedFilePos sPos = m_posCur;
                 sPos += _off;
                 if ( sPos < 0 )
                     THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_CUR to a negative position." );
                 posNew = sPos;
                 break;
+            }
             case SEEK_END:
+            {
                 _tySignedFilePos sPos = m_spmfMemFile->GetEndPos();
                 sPos += _off;
                 if ( sPos < 0 )
                     THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_END to a negative position." );
                 posNew = sPos;
                 break;
+            }
             default:
                 THROWNAMEDEXCEPTION( "SegArray::Seek(): Bogus iWhence value [%d].", iWhence );
         }

@@ -29,7 +29,7 @@ void _SysLogThreadHeader::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > 
     Clear();
     // We should be in an object in the JSONStream and we will add our (key,values) to this object.
     assert( _jrc.FAtObjectValue() );
-    if ( FAtObjectValue() )
+    if ( _jrc.FAtObjectValue() )
     {
         JsonRestoreContext< t_tyJsonInputStream > jrx( _jrc );
         if ( _jrc.FMoveDown() )
@@ -115,7 +115,7 @@ void _SysLogContext::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jr
     Clear();
     // We should be in an object in the JSONStream and we will add our (key,values) to this object.
     assert( _jrc.FAtObjectValue() );
-    if ( FAtObjectValue() )
+    if ( _jrc.FAtObjectValue() )
     {
         JsonRestoreContext< t_tyJsonInputStream > jrx( _jrc );
         if ( _jrc.FMoveDown() )
@@ -132,11 +132,6 @@ void _SysLogContext::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jr
                 {
                     if ( ejvtString == jvtValue )
                     {
-                        if ( strKey == "ProgName" )
-                        {
-                            _jrc.GetValue( m_szProgramName );
-                            continue;
-                        }
                         if ( strKey == "Time" )
                         {
                             _jrc.GetValue( m_time );
@@ -156,11 +151,6 @@ void _SysLogContext::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jr
                     }
                     if ( ejvtNumber == jvtValue )
                     {
-                        if ( strKey == "ThreadId" )
-                        {
-                            _jrc.GetValue( m_tidThreadId );
-                            continue;
-                        }
                         if ( strKey == "Type" )
                         {
                             _jrc.GetValue( m_eslmtType );
@@ -235,4 +225,55 @@ _SysLogMgr< t_kiInstance >::_FTryCreateUniqueJSONLogFile( const char * _pszProgr
     m_pjvlSysLogArray.swap( pjvlSysLogArray );
     n_SysLog::Log( eslmtInfo, "SysLogMgr: Created thread-specific JSON log file at [%s].", strLogFile.c_str() );
     return true;
+}
+
+template < const int t_kiInstance >
+void 
+_SysLogMgr< t_kiInstance >::Log( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc )
+{
+    int iPriority;
+    switch( _eslmt )
+    {
+    case eslmtInfo:
+#if __APPLE__
+        // Under Mac INFO messages won't show up in the Console which is kinda bogus, so mark them as WARNING.
+        iPriority = LOG_WARNING;
+#else
+        iPriority = LOG_INFO;
+#endif
+        break;
+    case eslmtWarning:
+        iPriority = LOG_WARNING;
+        break;
+    default:
+        assert(0);
+    case eslmtError:
+        iPriority = LOG_ERR;
+        break;
+    }
+    iPriority |= LOG_USER;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-security"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+    // First log.
+    syslog( iPriority, _rrStrLog.c_str() );
+#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
+    // Then log the context to thread logging file.
+    if ( !!_pslc && !!m_pjosThreadLog && m_pjosThreadLog->FOpened() && !!m_pjvlRootThreadLog && !!m_pjvlSysLogArray )
+    {
+        // Create an object for this log message:
+            _tyJsonValueLife jvlSysLogContext( *m_pjvlSysLogArray, ejvtObject );
+        _pslc->ToJSONStream( jvlSysLogContext );
+    }
+}
+
+template < const int t_kiInstance >
+bool
+_SysLogMgr< t_kiInstance >::FHasJSONLogFile() const
+{
+    assert( ( !!m_pjosThreadLog && m_pjosThreadLog->FOpened() ) == !!m_pjvlRootThreadLog );
+    assert( ( !!m_pjosThreadLog && m_pjosThreadLog->FOpened() ) == !!m_pjvlSysLogArray );
+    return !!m_pjosThreadLog && m_pjosThreadLog->FOpened();
 }
