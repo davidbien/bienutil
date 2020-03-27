@@ -47,6 +47,12 @@ else
 CXXANDLINKFLAGS = -g
 endif
 
+ifneq (Darwin,$(MACHINE_OS))
+ifeq (clang,$(CC))
+LINKFLAGS_BASE += -fuse-ld=lld 
+endif
+endif
+
 ifeq (1,$(TIDY))
 $(info ***TIDY BUILD***)
 ifndef TIDYFLAGS
