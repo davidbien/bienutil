@@ -194,7 +194,7 @@ struct ExceptionUsage
     va_start( ap, _pcFmt );
     _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
-    throw exc;
+    throw std::move( exc );
   }
   static void ThrowFileLineErrno( const char * _pcFile, int _nLine, int _errno, const char * _pcFmt, ... )
   {
@@ -208,7 +208,7 @@ struct ExceptionUsage
     va_start( ap, _pcFmt );
     _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
-    throw exc;
+    throw std::move( exc );
   }
   static void Throw( const char * _pcFmt, ... )
   {
@@ -216,7 +216,7 @@ struct ExceptionUsage
     va_start( ap, _pcFmt );
     _TyException exc( _pcFmt, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
-    throw exc;
+    throw std::move( exc );
   }
   static void ThrowErrno( int _errno, const char * _pcFmt, ... )
   {
@@ -224,7 +224,7 @@ struct ExceptionUsage
     va_start( ap, _pcFmt );
     _TyException exc( _errno, _pcFmt, ap ); // Don't throw in between va_start and va_end.
     va_end( ap );
-    throw exc;
+    throw std::move( exc );
   }
 };
 

@@ -28,7 +28,7 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-enum EThrowType
+enum EThrowType : unsigned int
 {
   e_ttMemory      = 0x00000001,
   e_ttFileOutput  = 0x00000002,
@@ -84,10 +84,12 @@ struct _throw_object_base
 private:
   typedef _throw_object_base _TyThis;
 public:
-  unsigned long m_rgttType;
-  const char *  m_cpFileName;
-  unsigned long m_ulLineNumber;
+  unsigned long m_rgttType{};
+  const char *  m_cpFileName{};
+  unsigned long m_ulLineNumber{};
+  static _throw_static_base ms_tsb;
 
+  _throw_object_base() = default;
   _throw_object_base( unsigned long _rgttType, 
                       const char * _cpFileName,
                       unsigned long _ulLineNumber,
@@ -103,13 +105,6 @@ public:
       _maybe_throw( _fAlwaysThrow );
     }
   }
-
-  _throw_object_base()
-  {
-  }
-
-  static _throw_static_base ms_tsb;
-
   bool  operator < ( const _TyThis & _r ) const
   {
     int iCmp = strcmp( m_cpFileName, _r.m_cpFileName );
@@ -127,16 +122,14 @@ protected:
 struct _throw_object_with_throw_rate
   : public _throw_object_base
 {
-  _throw_object_with_throw_rate( _throw_object_base & _r )
+  _throw_object_with_throw_rate() = default;
+  explicit _throw_object_with_throw_rate( _throw_object_base const & _r )
     : _throw_object_base( _r )
   {
   }
-  _throw_object_with_throw_rate()
-  {
-  }
 
-  int   m_iThrowRate;
-  bool  m_fHitOnce;
+  int m_iThrowRate{};
+  bool m_fHitOnce{};
 };
 
 struct _throw_hit_stats
@@ -146,38 +139,38 @@ struct _throw_hit_stats
 };
 
 __INLINE size_t
-_count_set_bits( int _i )
+_count_set_bits( size_t _i )
 {
-  int iSet = 0;
+  size_t stSet = 0;
   while( _i )
   {
     _i &= _i-1;
-    ++iSet;
+    ++stSet;
   }
-  return iSet;
+  return stSet;
 }
 
 struct _throw_static_base
 {
-  bool          m_fOn;
-  unsigned int  m_uRandSeed;
-  int           m_iThrowRate; 
+  bool          m_fOn{false};
+  unsigned int  m_uRandSeed{0};
+  int           m_iThrowRate{1000}; 
     // A number less than RAND_MAX that determines whether a given throw object will throw.
 
-  unsigned long m_rgttTypeAccum;
+  unsigned long m_rgttTypeAccum{0};
     // This accumulates the type of exceptions thrown.
 
   // Current throw parameters:
-  unsigned long m_rgttTypeCur;
-  const char *  m_cpFileNameCur;
-  unsigned long m_ulLineNumberCur;
+  unsigned long m_rgttTypeCur{};
+  const char *  m_cpFileNameCur{};
+  unsigned long m_ulLineNumberCur{};
 
   // Save a set of previous throw parameters for utility:
   static const int  ms_kiNumSaved = 200;
   _throw_object_base  m_rgSaved[ ms_kiNumSaved ];
 
-  unsigned      m_uNumThrows;
-  int           m_iThrowOneOnly;
+  unsigned      m_uNumThrows{0};
+  int           m_iThrowOneOnly{-1};
 
   // Determine whether we have exhausted the throw points:
   typedef map< _throw_object_base, _throw_hit_stats >::value_type _tyMapValueType;
@@ -185,22 +178,14 @@ struct _throw_static_base
                 less<_throw_object_base>,
 				__DBGTHROW_GET_ALLOCATOR(_tyMapValueType) >   _TyMapHitThrows;
   _TyMapHitThrows m_mapHitThrows;
-  unsigned      m_uHitThrows;
+  unsigned      m_uHitThrows{0};
 
   // Allow the programmer to set in a sorted array of file/line throw points
   //  with special throwing requirements:
-  _throw_object_with_throw_rate * m_ptobtrStart;
-  _throw_object_with_throw_rate * m_ptobtrEnd;
+  _throw_object_with_throw_rate * m_ptobtrStart{0};
+  _throw_object_with_throw_rate * m_ptobtrEnd{0};
   
   _throw_static_base()
-    : m_fOn( false ),
-      m_uRandSeed( 0 ),
-      m_iThrowRate( 1000 ),
-      m_rgttTypeAccum( 0 ),
-      m_uNumThrows( 0 ),
-      m_iThrowOneOnly( -1 ),
-      m_uHitThrows( 0 ),
-      m_ptobtrStart( 0 )
   {
 	  // Scale the throw rate according to the impl's RAND_MAX.
 	  const unsigned long long llMinRandMax = 0x7fff;
@@ -210,18 +195,18 @@ struct _throw_static_base
 	  m_iThrowRate = (int)llRandMax;
   }
 
-  void  set_on( bool _fOn )
+  void set_on( bool _fOn )
   {
     m_fOn = _fOn;
   }
 
-  void  set_seed( unsigned int _uRandSeed )
+  void set_seed( unsigned int _uRandSeed )
   {
     m_uRandSeed = _uRandSeed;
     srand( m_uRandSeed );
   }
 
-  void  set_throw_rate( int _iThrowRate )
+  void set_throw_rate( int _iThrowRate )
   {
     m_iThrowRate = _iThrowRate;
   }

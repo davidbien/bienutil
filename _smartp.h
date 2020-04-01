@@ -9,31 +9,33 @@ __BIENUTIL_BEGIN_NAMESPACE
 template < class t_Ty >
 class _sptr
 {
-  typedef _sptr< t_Ty >  _TyThis;
-  
+  typedef _sptr _TyThis;
   t_Ty * m_pt;
-
 public:
-
   _sptr() : m_pt( 0 )
   {
   }
-
   explicit _sptr( t_Ty * _pt ) : m_pt( _pt )
   {
   }
-
-  explicit _sptr( _TyThis & _r ) : m_pt( _r.m_pt )
+  explicit _sptr( _sptr & _r ) : m_pt( _r.m_pt )
   {
     _r.Reset();
   }
-
+  _sptr( _sptr && _rr )
+  {
+    _rr.swap( *this );
+  }
   ~_sptr() _BIEN_NOTHROW
   {
     if ( m_pt )
     {
       delete m_pt;
     }
+  }
+  void swap( _sptr & _r )
+  {
+    std:swap( _r.m_pt, m_pt );
   }
 
   t_Ty *  Ptr() const _BIEN_NOTHROW
@@ -54,7 +56,6 @@ public:
       delete _pt;
     }
   }
-
   void  Reset() _BIEN_NOTHROW
   {
     m_pt = 0;
@@ -63,8 +64,7 @@ public:
   {
     m_pt = _pt;
   }
-
-	t_Ty *	transfer() _BIEN_NOTHROW
+	t_Ty * transfer() _BIEN_NOTHROW
 	{
 		t_Ty * _pt = m_pt;
     Reset();
@@ -73,29 +73,29 @@ public:
 
 
   // acquire <_pt> - destruct any current object.
-  void  operator = ( t_Ty * _pt ) _BIEN_NOTHROW
+  _TyThis & operator = ( t_Ty * _pt ) _BIEN_NOTHROW
   {
     Release();
     m_pt = _pt;
   }
 
   // Transfers ownership from <_r>.
-  void operator = ( _TyThis & _r )
+  _TyThis & operator = ( _TyThis && _rr )
   {
     Release();
-    m_pt = _r;
-    _r.Reset();
+    this->swap( _rr );
   }
 
-  t_Ty *  operator ->() const _BIEN_NOTHROW
+  t_Ty * operator ->() const _BIEN_NOTHROW
   {
     return m_pt;
   }
-  t_Ty &  operator *() const _BIEN_NOTHROW
+  t_Ty & operator *() const _BIEN_NOTHROW
   {
     return *m_pt;
   }
 
+#if 0 // Don't see why these are desireable.
   // Make convert to object pointer a non-const member,
   //  prevents accidental construction or assignment to
   //  a const-_TyThis - since then conversion to pointer is
@@ -109,14 +109,14 @@ public:
   {
     return m_pt;
   }
-
+#endif //0
 };
 
 // Implement a very simple object to call free() on a void& on destruct.
 
 class FreeVoid
 {
-  typedef FreeVoid _tyThis;
+  typedef FreeVoid _TyThis;
 public:
   FreeVoid( void* _pv )
     : m_pv(_pv)

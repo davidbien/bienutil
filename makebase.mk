@@ -57,7 +57,7 @@ ifeq (1,$(TIDY))
 $(info ***TIDY BUILD***)
 ifndef TIDYFLAGS
 ifndef TIDYCHECKFLAGS
-TIDYCHECKFLAGS := -checks=*,-fuchsia-default-arguments,-fuchsia-overloaded-operator,-fuchsia-virtual-inheritance,-cppcoreguidelines-pro-bounds-array-to-pointer-decay,-hicpp-no-array-decay
+TIDYCHECKFLAGS := -checks=*,-fuchsia-*,-cppcoreguidelines-pro-bounds-array-to-pointer-decay,-hicpp-no-array-decay,-cppcoreguidelines-macro-usage,-modernize-use-trailing-return-type,-readability-named-parameter,-misc-non-private-member-variables-in-classes,-google-runtime-int
 ifdef MODTIDYCHECKFLAGS
 TIDYCHECKFLAGS := $(TIDYCHECKFLAGS),$(MODTIDYCHECKFLAGS)
 else

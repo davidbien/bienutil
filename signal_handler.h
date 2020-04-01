@@ -153,7 +153,7 @@ public:
         ss.ss_flags = 0;
 
         if ( sigaltstack( &ss, &s_ssOldSigAltStack ) != 0 )
-            n_SysLog::Log( eslmtError, errno, "DefaultSignalHandler::DefaultHandler(): Unrecognized signal received [%d].", _nSignal );
+            n_SysLog::Log( eslmtError, errno, "DefaultSignalHandler::SetupAlternateSignalStack(): sigaltstack() failed." );
     }
 
     // Allow the caller to pass in a method call to determine how we will treat a given signal.
