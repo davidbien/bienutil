@@ -1578,7 +1578,7 @@ protected:
 };
 
 // _EJsonValueType: The types of values in a JsonValue object.
-enum _EJsonValueType : char
+enum _EJsonValueType : uint8_t
 {
     ejvtObject,
     ejvtArray,

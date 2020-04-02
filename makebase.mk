@@ -40,7 +40,7 @@ CXXFLAGS_BASE = $(CXXFLAGS_DEFINES) $(CXXFLAGS_INCLUDES)
 ifeq (1,$(NDEBUG))
 # Release flags:
 CXXANDLINKFLAGS = -DNDEBUG -flto
-LINKFLAGS_BASE = -O3
+LINKFLAGS_BASE = -O3 -fwhole-program
 CXXFLAGS_BASE += -O3
 else
 # Debug flags:
