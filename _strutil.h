@@ -38,6 +38,18 @@ size_t StrRSpn( const t_tyChar * _pszBegin, const t_tyChar * _pszEnd, const t_ty
     return _pszEnd - pszCur;
 }
 
+template < class t_tyChar >
+size_t StrNLen( const t_tyChar * _psz, size_t _stMaxLen = std::numeric_limits< size_t >::max() )
+{
+    if ( !_psz || !_stMaxLen )
+        return 0;
+    const t_tyChar * pszMax = ( std::numeric_limits< size_t >::max() == _stMaxLen ) ? (_psz-1) : (_psz+_stMaxLen);
+    const t_tyChar * pszCur = _psz;
+    for ( ; ( pszMax !=pszCur ) && !!*pszCur; ++pszCur )
+        ;
+    return pszCur - _psz;
+}
+
 // Return a string formatted like printf. Throws.
 template < class t_tyChar >
 void PrintfStdStr( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFmt, ... )
