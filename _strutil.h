@@ -50,6 +50,14 @@ size_t StrNLen( const t_tyChar * _psz, size_t _stMaxLen = std::numeric_limits< s
     return pszCur - _psz;
 }
 
+template < class t_tyChar >
+int ICompareStr( const t_tyChar * _pszLeft, const t_tyChar * _pszRight )
+{
+    for ( ; !!*_pszLeft && ( *_pszLeft == *_pszRight ); ++_pszLeft, ++_pszRight )
+        ;
+    return ( *_pszLeft < *_pszRight ) ? -1 : ( ( *_pszLeft > *_pszRight ) ? 1 : 0 )
+}
+
 // Return a string formatted like printf. Throws.
 template < class t_tyChar >
 void PrintfStdStr( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFmt, ... )

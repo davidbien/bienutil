@@ -33,6 +33,26 @@ public:
             return;
         Assign( _psz );
     }
+    StrWRsv( StrWRsv const & _r )
+    {
+        _ClearFlags();
+        assign( _r.c_str() );
+    }
+    StrWRsv( t_tyStrBase const & _rstr )
+    {
+        _ClearFlags();
+        assign( _rstr.c_str(), _rstr.length() );
+    }
+    _tyThis & operator=( _tyThis const & _r )
+    {
+        assign( _r.c_str() );
+        return *this;
+    }
+    _tyThis & operator=( t_tyStrBase const & _rstr )
+    {
+        assign( _rstr.c_str(), _rstr.length() );
+        return *this;
+    }
     void swap( _tyThis & _r )
     {
         _tyChar rgtcBuffer[ t_kstReserve ];
@@ -67,13 +87,17 @@ public:
         _ClearFlags();
     }
 
-    void clear()
+    void _ClearStrObj()
     {
         if ( FHasStringObj() )
         {            
             _ClearFlags(); // Ensure that we don't double destruct somehow.
             static_cast< t_tyStrBase * >( m_rgtcBuffer )->~t_tyStrBase(); // destructors should never throw.
         }
+    }
+    void clear()
+    {
+        _ClearStrObj();
         m_rgtcBuffer[ 0 ] = 0; // length = 0.
     }
 
@@ -85,11 +109,7 @@ public:
             _stLen = StrNLen( _psz );
         if ( _stLen < t_kstReserve )
         {
-            if ( FHasStringObj() )
-            {
-                _ClearFlags(); // Ensure that we don't double destruct somehow.
-                static_cast< t_tyStrBase * >( m_rgtcBuffer )->~t_tyStrBase(); // destructors should never throw.
-            }
+            _ClearStrObj();
             memcpy( m_rgtcBuffer, _psz, _stLen * sizeof(_tyChar) );
             m_rgtcBuffer[ _stLen ] = 0;
         }
@@ -105,6 +125,35 @@ public:
             SetHasStringObj(); // throw-safe.
         }
         return *this;
+    }
+
+    int ICompare( _tyThis const & _r ) const
+    {
+        return ICompareStr( c_str(), _r.c_str() );
+    }
+    bool operator < ( _tyThis const & _r ) const
+    {
+        return ICompare( _r ) < 0;
+    }
+    bool operator <= ( _tyThis const & _r ) const
+    {
+        return ICompare( _r ) <= 0;
+    }
+    bool operator > ( _tyThis const & _r ) const
+    {
+        return ICompare( _r ) > 0;
+    }
+    bool operator >= ( _tyThis const & _r ) const
+    {
+        return ICompare( _r ) >= 0;
+    }
+    bool operator == ( _tyThis const & _r ) const
+    {
+        return ICompare( _r ) == 0;
+    }
+    bool operator != ( _tyThis const & _r ) const
+    {
+        return ICompare( _r ) != 0;
     }
 
 protected:
