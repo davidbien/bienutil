@@ -185,7 +185,8 @@ protected:
 };
 
 // JsoValue:
-// Every JSON object is a value.
+// Every JSON object is a value. In fact every single JSON object is represented by the class JsoValue because that is the best spacewise
+//  way of doing things. We embed the string/object/array within this class to implement the different JSON objects.
 template < class t_tyChar >
 class JsoValue
 {
@@ -200,6 +201,31 @@ protected:
     JsoValue( const JsoValue & ) = default;
     JsoValue &operator=( const JsoValue & ) = default;
 public:
+
+    static void MakeJsoValue( EJsonValueType _jvt, _tyPtrJsoValue & _ptrNew )
+    {
+        switch( _jvt )
+        {
+        case ejvtObject:
+            _ptrNew = std::make_unique< JsoObject >();
+            break;
+        case ejvtArray:
+            _ptrNew = std::make_unique< JsoArray >();
+            break;
+        case ejvtNull:
+        case ejvtFalse:
+        case ejvtTrue:
+            _ptrNew = std::make_unique< _tyJsoSimpleValue >( _jvt );
+            break;
+        case ejvtString:
+        case ejvtNumber:
+            _ptrNew = std::make_unique< JsoStrOrNum >( _jvt );
+            break;
+        default:
+            THROWJSONBADUSAGE( "JsoValue::MakeJsoValue(): Unknown JsonValueType [%hhu].", _jvt );
+            break;
+        }
+    }
 
     EJsonValueType JvtGetValueType() const
     {
@@ -320,6 +346,9 @@ public:
         THROWJSONBADUSAGE( "JsoValue::end(): Called on non-aggregate." );
     }
 
+    // Return a clone of the current object.
+    virtual void Clone( unique_ptr< JsoValue > & _rpjv ) const = 0;
+
 protected:
     EJsonValueType m_jvtType{ ejvtJsonValueTypeCount };
 };
@@ -362,6 +391,12 @@ public:
     {
         JsonValueLife jvlArrayElement( *this, m_jvtType ); // If we are here we are either writing to the root value or at an array element.
     }
+
+    // Return a clone of the current object.
+    void Clone( unique_ptr< JsoValue > & _rpjv ) const override
+    {
+        _rpjv = std::make_unique< JsoSimpleValue >( *this );
+    }
 };
 
 // JsoStrOrNum:
@@ -397,6 +432,12 @@ public:
         return m_strStrOrNum;
     }
 
+    // Return a clone of the current object.
+    void Clone( unique_ptr< JsoValue > & _rpjv ) const override
+    {
+        _rpjv = std::make_unique< JsoStrOrNum >( *this );
+    }
+
     template < class t_tyJsonInputStream >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc ) override
     {
@@ -425,11 +466,22 @@ public:
     typedef JsoStrOrNum< t_tyChar > _tyJsoStrOrNum;
     typedef std::unique_ptr< _tyJsoValue > _tyPtrJsoValue;
     typedef std::map< _tyStdStr, _tyPtrJsoValue > _tyMapValues;
+    typedef typename _tyMapValues::iterator _tyIterator;
+    typedef typename _tyMapValues::const_iterator _tyConstIterator;
 
-    JsoObject() = default;
+    JsoObject()
+    : _tyBase( ejvtObject )
+    {
+    }
     virtual ~JsoObject() = default;
     JsoObject( const JsoObject & ) = default;
     JsoObject &operator=( const JsoObject & ) = default;
+
+    // Return a clone of the current object.
+    void Clone( unique_ptr< JsoValue > & _rpjv ) const override
+    {
+        _rpjv = std::make_unique< JsoObject >( *this );
+    }
 
     void Clear()
     {
@@ -452,24 +504,7 @@ public:
             if ( !f )
                 THROWJSONBADUSAGE( "JsoObject::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly." );
             _tyPtrJsoValue ptrNew;
-            switch( jvt )
-            {
-            case ejvtObject:
-                ptrNew = std::make_unique< JsoObject >();
-                break;
-            case ejvtArray:
-                ptrNew = std::make_unique< JsoArray >();
-                break;
-            case ejvtNull:
-            case ejvtFalse:
-            case ejvtTrue:
-                ptrNew = std::make_unique< _tyJsoSimpleValue >( jvt );
-                break;
-            case ejvtString:
-            case ejvtNumber:
-                ptrNew = std::make_unique< JsoStrOrNum >( jvt );
-                break;
-            }
+            _tyBase::MakeJsoValue( jvt, ptrNew );
             ptrNew->FromJSONStream( _jrc );
             std::pair< _tyMap::iterator, bool > pib = m_mapValues.try_emplace( std::move( strKey ), std::move( ptrNew ) );
             if ( !pib.second ) // key already exists.
@@ -479,7 +514,12 @@ public:
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const override
     {
-        
+        _tyConstIterator itCur = m_mapValues.begin();
+        for ( ; itCur != m_mapValues.end; ++itCur )
+        {
+            JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, itCur->first.c_str(), itCur->second->JvtGetValueType() );
+            itCur->second->ToJSONStream( jvlObjectElement );
+        }
     }
 protected:
     _tyMapValues m_mapValues;
