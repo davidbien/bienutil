@@ -9,7 +9,7 @@
 
 // StrWRsv:
 // String with reserve. We don't store a length because we assume that in the places we will use this we won't need a length often.
-template < class t_tyStrBase = std::string, size_t t_kstReserve = 64 >
+template < class t_tyStrBase = std::string, size_t t_kstReserve = 48 >
 class StrWRsv
 {
     typedef StrWRsv _tyThis;
@@ -24,23 +24,28 @@ public:
 
     StrWRsv()
     {
-        _ClearFlags();
-    }
-    StrWRsv( _tyChar * _psz )
-    {
-        _ClearFlags();
-        if ( !_psz )
-            return;
-        Assign( _psz );
+        assert( !FHasStringObj() );
     }
     StrWRsv( StrWRsv const & _r )
     {
-        _ClearFlags();
+        assert( !FHasStringObj() );
         assign( _r.c_str() );
+    }
+    StrWRsv( StrWRsv && _rr )
+    {
+        assert( !FHasStringObj() );
+        swap( _rr );
+    }
+    StrWRsv( const _tyChar * _psz )
+    {
+        assert( !FHasStringObj() );
+        if ( !_psz )
+            return;
+        assign( _psz );
     }
     StrWRsv( t_tyStrBase const & _rstr )
     {
-        _ClearFlags();
+        assert( !FHasStringObj() );
         assign( _rstr.c_str(), _rstr.length() );
     }
     _tyThis & operator=( _tyThis const & _r )
@@ -53,6 +58,11 @@ public:
         assign( _rstr.c_str(), _rstr.length() );
         return *this;
     }
+    _tyThis & operator=( const _tyChar * _psz )
+    {
+        assign( _psz );
+        return *this;
+    }
     void swap( _tyThis & _r )
     {
         _tyChar rgtcBuffer[ t_kstReserve ];
@@ -63,7 +73,11 @@ public:
 
     const _tyChar * c_str() const
     {
-        return FHasStringObj() ? static_cast< t_tyStrBase * >( m_rgtcBuffer )->c_str() : m_rgtcBuffer;
+        return FHasStringObj() ? _PGetStrBase()->c_str() : m_rgtcBuffer;
+    }
+    size_t length() const
+    {
+        return FHasStringObj() ? _PGetStrBase()->length() : StrNLen( m_rgtcBuffer );
     }
 
     void _ClearFlags()
@@ -92,7 +106,7 @@ public:
         if ( FHasStringObj() )
         {            
             _ClearFlags(); // Ensure that we don't double destruct somehow.
-            static_cast< t_tyStrBase * >( m_rgtcBuffer )->~t_tyStrBase(); // destructors should never throw.
+            _PGetStrBase()->~t_tyStrBase(); // destructors should never throw.
         }
     }
     void clear()
@@ -101,7 +115,7 @@ public:
         m_rgtcBuffer[ 0 ] = 0; // length = 0.
     }
 
-    _tyThis & assign( _tyChar * _psz, size_t _stLen = std::numeric_limits<size_t>::max() )
+    _tyThis & assign( const _tyChar * _psz, size_t _stLen = std::numeric_limits<size_t>::max() )
     {
         if ( !_psz )
             THROWNAMEDEXCEPTION( "StrWRsv::assign(): null _psz." );
@@ -117,12 +131,42 @@ public:
         if ( FHasStringObj() )
         {
             // Then reuse the existing string object for speed:
-            static_cast< t_tyStrBase * >( m_rgtcBuffer )->assign( _psz, _stLen );
+            _PGetStrBase()->assign( _psz, _stLen );
         }
         else
         {
             new( (void*)m_rgtcBuffer ) t_tyStrBase( _psz, _stLen ); // may throw.
             SetHasStringObj(); // throw-safe.
+        }
+        return *this;
+    }
+    _tyThis & assign( const _tyChar * _pszBegin, const _tyChar * _pszEnd )
+    {
+        return assign( _pszBegin, _pszEnd, _pszEnd - _pszBegin );
+    }
+
+    _tyThis & operator += ( const _tyChar * _psz )
+    {
+        size_t stLenAdd = StrNLen( _psz );
+        if ( !FHasStringObj() )
+        {
+            size_t stLenCur = length();
+            if ( stLenCur + stLenAdd < t_kstReserve )
+            {
+                memcpy( m_rgtcBuffer + stLenCur, _psz, stLenAdd+1 ); // Since we know the addition is null terminated we can copy the null.
+            }
+            else
+            {
+                _tyChar rgInit[ stLenCur + stLenAdd ];
+                memcpy( rgInit, m_rgtcBuffer, stLenCur );
+                memcpy( rgInit + stLenCur, _psz, stLenAdd );
+                new( (void*)m_rgtcBuffer ) t_tyStrBase( rgInit, stLenCur + stLenAdd ); // may throw.
+                SetHasStringObj(); // throw-safe.
+            }
+        }
+        else
+        {
+            *_PGetStrBase() += _psz;
         }
         return *this;
     }
@@ -157,6 +201,15 @@ public:
     }
 
 protected:
+    t_tyStrBase * _PGetStrBase()
+    {
+        return static_cast< t_tyStrBase * >( (void*)m_rgtcBuffer );
+    }
+    const t_tyStrBase * _PGetStrBase() const
+    {
+        return static_cast< const t_tyStrBase * >( (const void*)m_rgtcBuffer );
+    }
+
     _tyChar m_rgtcBuffer[ t_kstReserve ]{}; // This may contain a null terminated string or it may contain the string object.
     // The last byte are the flags which are zero when we are using the buffer, and non-zero (-1) when there is a string lifetime present.
 };

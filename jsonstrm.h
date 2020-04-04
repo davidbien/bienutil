@@ -22,6 +22,7 @@
 #include "_dbgthrw.h"
 #include "memfile.h"
 #include "syslogmgr.h"
+#include "strwrsv.h"
 
 // jsonstrm.h
 // This implements JSON streaming in/out.
@@ -166,7 +167,7 @@ struct JsonCharTraits< char >
     typedef char _tyChar;
     typedef _tyChar * _tyLPSTR;
     typedef const _tyChar * _tyLPCSTR;
-    typedef std::basic_string< _tyChar > _tyStdStr;
+    typedef StrWRsv< std::basic_string< _tyChar > > _tyStdStr;
 
     static const bool s_fThrowOnUnicodeOverflow = true; // By default we throw when a unicode character value overflows the representation.
 
@@ -283,7 +284,7 @@ struct JsonCharTraits< wchar_t >
     typedef wchar_t _tyChar;
     typedef _tyChar * _tyLPSTR;
     typedef const _tyChar * _tyLPCSTR;
-    using _tyStdStr = std::basic_string< _tyChar >;
+    typedef StrWRsv< std::basic_string< _tyChar > > _tyStdStr;
 
     static const bool s_fThrowOnUnicodeOverflow = true; // By default we throw when a unicode character value overflows the representation.
 
@@ -598,7 +599,7 @@ public:
     }
 
 protected:
-    std::basic_string<char> m_szFilename;
+    std::string m_szFilename;
     _tyFilePos m_pos{0}; // We use this if !m_fUseSeek.
     int m_fd{-1}; // file descriptor.
     _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
@@ -784,7 +785,7 @@ public:
     }
 
 protected:
-    std::basic_string<char> m_szFilename;
+    std::string m_szFilename;
     const void * m_pvMapped{MAP_FAILED};
     const _tyChar * m_ptcMappedCur{};
     const _tyChar * m_ptcMappedEnd{};
@@ -1013,8 +1014,8 @@ public:
     }
 
 protected:
-    std::basic_string<char> m_szFilename;
-    std::basic_string<char> m_szExceptionString;
+    std::string m_szFilename;
+    std::string m_szExceptionString;
     int m_fd{-1}; // file descriptor.
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
 };
@@ -1295,8 +1296,8 @@ protected:
         m_ptcMappedCur = (_tyChar*)m_pvMapped + ( m_ptcMappedCur - (_tyChar*)pvOldMapping );
     }
 
-    std::basic_string<char> m_szFilename;
-    std::basic_string<char> m_szExceptionString;
+    std::string m_szFilename;
+    std::string m_szExceptionString;
     void * m_pvMapped{MAP_FAILED};
     _tyChar * m_ptcMappedCur{};
     _tyChar * m_ptcMappedEnd{};
@@ -1478,7 +1479,7 @@ public:
         }
     }
 protected:
-    std::basic_string<char> m_szExceptionString;
+    std::string m_szExceptionString;
     _tyMemStream m_msMemStream;
 };
 
@@ -1571,8 +1572,8 @@ public:
     using _tyBase::WriteString;
 
 protected:
-    std::basic_string<char> m_szFilename;
-    std::basic_string<char> m_szExceptionString;
+    std::string m_szFilename;
+    std::string m_szExceptionString;
     int m_fd{-1}; // file descriptor.
     bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
 };
@@ -2280,7 +2281,7 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
         assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
         JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
-        jvlObjectElement.RJvGet().PGetStringValue()->insert( jvlObjectElement.RJvGet().PGetStringValue()->begin(), _pszValue, _pszValue + _stLen );
+        jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
     {

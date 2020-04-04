@@ -55,7 +55,7 @@ int ICompareStr( const t_tyChar * _pszLeft, const t_tyChar * _pszRight )
 {
     for ( ; !!*_pszLeft && ( *_pszLeft == *_pszRight ); ++_pszLeft, ++_pszRight )
         ;
-    return ( *_pszLeft < *_pszRight ) ? -1 : ( ( *_pszLeft > *_pszRight ) ? 1 : 0 )
+    return ( *_pszLeft < *_pszRight ) ? -1 : ( ( *_pszLeft > *_pszRight ) ? 1 : 0 );
 }
 
 // Return a string formatted like printf. Throws.
