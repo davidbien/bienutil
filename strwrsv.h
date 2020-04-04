@@ -48,6 +48,10 @@ public:
         assert( !FHasStringObj() );
         assign( _rstr.c_str(), _rstr.length() );
     }
+    ~StrWRsv()
+    {
+        _ClearStrObj();
+    }
     _tyThis & operator=( _tyThis const & _r )
     {
         assign( _r.c_str() );
