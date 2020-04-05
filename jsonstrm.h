@@ -1465,17 +1465,19 @@ public:
             --stLen;
         }
     }
-    void WriteMemStreamToFile( int _fd, bool _fAllowThrows )
+    int IWriteMemStreamToFile( int _fd, bool _fAllowThrows ) noexcept(false)
     {
         try
         {
             m_msMemStream.WriteToFd( _fd, 0 );
+            return 0;
         }
         catch( std::exception const & rexc )
         {
             if ( _fAllowThrows )
                 throw; // rethrow and let caller handle cuz he wants to.
-            n_SysLog::Log( eslmtError, "WriteMemStreamToFile(): Caught exception [%s].", rexc.what() );
+            LOGSYSLOG( eslmtError, "IWriteMemStreamToFile(): Caught exception [%s].", rexc.what() );
+            return -1;
         }
     }
 protected:
@@ -1498,10 +1500,10 @@ public:
     typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
 
     JsonLinuxOutputMemStream() = default;
-    ~JsonLinuxOutputMemStream()
+    ~JsonLinuxOutputMemStream()  noexcept(false)
     {
         if ( FOpened() )
-            (void)Close( false );
+            (void)Close( !std::uncaught_exceptions() );
     }
 
     void swap( JsonLinuxOutputMemStream & _r )
@@ -1549,16 +1551,19 @@ public:
         m_szFilename.clear(); // No filename indicates we are attached to "some fd".
     }
 
-    using _tyBase::WriteMemStreamToFile;
+    using _tyBase::IWriteMemStreamToFile;
     int Close( bool _fAllowThrows = true )
     {
         if ( FOpened() )
         {
             int fd = m_fd;
             m_fd = 0;
-            WriteMemStreamToFile( fd, _fAllowThrows ); // Catches any exception when !_fAllowThrows otherwise throws through.
+            int iRetWrite = IWriteMemStreamToFile( fd, _fAllowThrows ); // Catches any exception when !_fAllowThrows otherwise throws through.
             if ( m_fOwnFdLifetime )
-                return _Close( fd );
+            {
+                int iRetClose = _Close( fd );
+                return !iRetWrite ? iRetClose : iRetWrite; // Return any non-zero as it indicates an error.
+            }
         }
         return 0;
     }
@@ -2105,8 +2110,10 @@ public:
         if ( ejvtArray == _jvt )
             m_rjos.WriteChar( _tyCharTraits::s_tcLeftSquareBr );
     }
-    ~JsonValueLife()
+    ~JsonValueLife() noexcept(false) // We might throw from here.
     {
+        // If we within a stack unwinding due to another exception then we don't want to throw, otherwise we do.
+        bool fInUnwinding = !!std::uncaught_exceptions();
         try // Should never throw out of a destructor, but the problem is that we should since we won't know that something went wrong.
         {
             if ( !FDontWritePostAmble() )
@@ -2114,6 +2121,9 @@ public:
         }
         catch( const std::exception& e )
         {
+            if ( !fInUnwinding )
+                throw; // don't want to throw into an unwinding due to another exception.
+            LOGSYSLOG( eslmtError, "~JsonValueLife(): Caught exception [%s].", e.what() );
             m_rjos.SetExceptionString( e.what() ); // We save this in the stream and we will check the stream afterwards to see if we failed.
         }
     }
@@ -2671,19 +2681,20 @@ public:
             m_pjrx( &_jrc.GetCurrentContext() )
     {
     }
-    ~JsonRestoreContext()
+    ~JsonRestoreContext() noexcept(false)
     {
         if ( !!m_pjrx && !!m_pjrc )
         {
-            // We cannot be throwing out of a destructor because that f's things up (for one we might be in the middle of a stack unwinding due to a previous throw).
-            // So we handle any thrown exceptions locally and log.
+            bool fInUnwinding = !!std::uncaught_exceptions();
             try
             {
                 m_pjrc->MoveToContext( *m_pjrx );
             }
             catch( std::exception & rexc )
             {
-                fprintf( stderr, "Exception caught in ~JsonRestoreContext(): %s.", rexc.what() );
+                if ( !fInUnwinding )
+                    throw;
+                LOGSYSLOG( eslmtError, "~JsonRestoreContext(): Caught exception [%s].", rexc.what() );
             }
         }
     }
@@ -2695,7 +2706,7 @@ public:
         {
             _tyJsonReadCursor * pjrc = m_pjrc;
             m_pjrc = 0;
-            m_pjrc->MoveToContext( *m_pjrx );
+            pjrc->MoveToContext( *m_pjrx );
         }
     }
 
@@ -3808,7 +3819,7 @@ void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, Jso
 
 struct JSONUnitTestContext
 {
-    bool  m_fSkippedSomething{false};
+    bool m_fSkippedSomething{false};
     bool m_fSkipNextArray{false};
     int m_nArrayIndexSkip{-1};
 };
