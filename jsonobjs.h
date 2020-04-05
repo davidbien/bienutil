@@ -366,17 +366,58 @@ public:
     void GetValue( double & _rdbl ) const { _GetValue( "%le", _rdbl ); }
     void GetValue( long double & _rldbl ) const { _GetValue( "%Le", _rldbl ); }
 
-    // abstracts:
     template < class t_tyJsonInputStream >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
         // The constructor would have already set the m_jvtType.
         assert( _jrc.JvtGetValueType() == m_jvtType );
+        switch( GetValueType() )
+        {
+        case ejvtNull:
+        case ejvtTrue:
+        case ejvtFalse:
+            break;
+        case ejvtNumber:
+        case ejvtString:
+            _jrc.GetValue( StrGet() );
+            break;
+        case ejvtObject:
+            _ObjectGet().FromJSONStream( _jrc );
+            break;
+        case ejvtArray:
+            _ArrayGet().FromJSONStream( _jrc );
+            break;
+        default:
+        case ejvtJsonValueTypeCount:
+            assert( 0 ); // should never get here - would have already failed.
+            break;
+        }    
     }
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
-        
+        switch( GetValueType() )
+        {
+        case ejvtNull:
+        case ejvtTrue:
+        case ejvtFalse:
+            _jvl.WriteValueType( GetValueType() );
+            break;
+        case ejvtNumber:
+        case ejvtString:
+            _jvl.WriteStrOrNumValue( GetValueType(), StrGet() );
+            break;
+        case ejvtObject:
+            _ObjectGet().ToJSONStream( _jvl );
+            break;
+        case ejvtArray:
+            _ArrayGet().ToJSONStream( _jvl );
+            break;
+        default:
+        case ejvtJsonValueTypeCount:
+            assert( 0 ); // should never get here - would have already failed.
+            break;
+        }    
     }
 
     // Array index can be used on either array or object.
@@ -417,22 +458,42 @@ public:
 
     iterator begin()
     {
-        if ( !FIsAggregate() )
+        if ( ejvtObject == GetValueType() )
+            return iterator( _ObjectGet().begin() );
+        else
+        if ( ejvtArray == GetValueType() )
+            return iterator( _ArrayGet().begin() );
+        else
             THROWJSONBADUSAGE( "JsoValue::begin(): Called on non-aggregate." );
     }
     const_iterator begin() const
     {
-        if ( !FIsAggregate() )
+        if ( ejvtObject == GetValueType() )
+            return const_iterator( _ObjectGet().begin() );
+        else
+        if ( ejvtArray == GetValueType() )
+            return const_iterator( _ArrayGet().begin() );
+        else
             THROWJSONBADUSAGE( "JsoValue::begin(): Called on non-aggregate." );
     }
     iterator end()
     {
-        if ( !FIsAggregate() )
+        if ( ejvtObject == GetValueType() )
+            return iterator( _ObjectGet().end() );
+        else
+        if ( ejvtArray == GetValueType() )
+            return iterator( _ArrayGet().end() );
+        else
             THROWJSONBADUSAGE( "JsoValue::end(): Called on non-aggregate." );
     }
     const_iterator end() const
     {
-        if ( !FIsAggregate() )
+        if ( ejvtObject == GetValueType() )
+            return const_iterator( _ObjectGet().end() );
+        else
+        if ( ejvtArray == GetValueType() )
+            return const_iterator( _ArrayGet().end() );
+        else
             THROWJSONBADUSAGE( "JsoValue::end(): Called on non-aggregate." );
     }
 
@@ -588,3 +649,96 @@ protected:
     _tyMapValues m_mapValues;
 };
 
+// _JsoArray:
+// This is internal impl only - never exposed to the user of JsoValue.
+template < class t_tyChar >
+class _JsoArray
+{
+    typedef _JsoArray _tyThis;
+public:
+    typedef t_tyChar _tyChar;
+    typedef const t_tyChar * _tyLPCSTR;
+    typedef std::basic_string< t_tyChar > _tyStdStr;
+    typedef StrWRsv< _tyStdStr > _tyStrWRsv; // string with reserve buffer.
+    typedef JsoValue< t_tyChar > _tyJsoValue;
+    typedef std::vector< _tyJsoValue > _tyVectorValues;
+    typedef typename _tyVectorValues::iterator _tyIterator;
+    typedef typename _tyVectorValues::const_iterator _tyConstIterator;
+    typedef _tyVectorValues::value_type _tyVectorValueType;
+
+    _JsoArray() = default;
+    ~_JsoArray() = default;
+    _JsoArray( const _JsoArray & ) = default;
+    _JsoArray &operator=( const _JsoArray & ) = default;
+
+    void Clear()
+    {
+        m_vecValues.clear();
+    }
+    _tyIterator begin()
+    {
+        return m_vecValues.begin();
+    }
+    _tyConstIterator begin() const
+    {
+        return m_vecValues.begin();
+    }
+    _tyIterator end()
+    {
+        return m_vecValues.end();
+    }
+    _tyConstIterator end() const
+    {
+        return m_vecValues.end();
+    }
+
+    // Throws if there is no such el.
+    _tyVectorValueType & GetEl( size_t _st )
+    {
+        if ( _st > m_vecValues.size() )
+            THROWJSONBADUSAGE( "_JsoArray::GetEl(): _st[%zu] exceeds array size[%zu].", _st, m_vecValues.size() );
+        _tyIterator it = m_vecValues.find( _psz );
+        if ( m_vecValues.end() == it )
+            THROWJSONBADUSAGE( "_JsoArray::GetEl(): No such key [%s]", _psz );
+    }
+    const _tyVectorValueType & GetEl( _tyLPCSTR _psz ) const
+    {
+        return const_cast< _tyThis * >( this )->GetEl( _psz );
+    }
+
+    template < class t_tyJsonInputStream >
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
+    {
+        assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        _tyBase::FromJSONStream( _jrc );
+        JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
+        if ( !_jrc.FMoveDown() )
+            THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
+        for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+        {
+            _tyStdStr strKey;
+            EJsonValueType jvt;
+            bool f = _jrc.FGetKeyCurrent( strKey, jvt );
+            if ( !f )
+                THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly." );
+            _tyPtrJsoValue ptrNew;
+            _tyBase::MakeJsoValue( jvt, ptrNew );
+            ptrNew->FromJSONStream( _jrc );
+            std::pair< _tyVector::iterator, bool > pib = m_vecValues.try_emplace( std::move( strKey ), std::move( ptrNew ) );
+            if ( !pib.second ) // key already exists.
+                THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): Duplicate key found[%s] path[%s].", strKey.c_str(), _jrc.StrCurrentPath().c_str() );
+        }
+    }
+    template < class t_tyJsonOutputStream >
+    void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
+    {
+        _tyConstIterator itCur = m_vecValues.begin();
+        for ( ; itCur != m_vecValues.end; ++itCur )
+        {
+            JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, itCur->first.c_str(), itCur->second->JvtGetValueType() );
+            itCur->second->ToJSONStream( jvlArrayElement );
+        }
+    }
+protected:
+    _tyVectorValues m_vecValues;
+};

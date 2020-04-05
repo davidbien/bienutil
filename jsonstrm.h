@@ -2199,38 +2199,48 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(_pszKey): Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, ejvtNull );
     }
-    void WriteValue(  _tyLPCSTR _pszKey, bool _f )
+    void WriteBoolValue(  _tyLPCSTR _pszKey, bool _f )
     {
         assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValue(_pszKey,bool): Writing a (key,value) pair to a non-object." );
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteBoolValue(_pszKey): Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, _f ? ejvtTrue : ejvtFalse );
     }
-
-    void WriteValue( _tyLPCSTR _pszKey, _tyStdStr const & _rstrVal )
+    void WriteValueType( _tyLPCSTR _pszKey, EJsonValueType _jvt )
     {
-        WriteValue( _pszKey, _rstrVal.c_str(), _rstrVal.length() );
+        switch( _jvt )
+        {
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+            {
+                assert( FAtArrayValue() );
+                if ( !FAtArrayValue() )
+                    THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(_pszKey): Writing a (key,value) pair to a non-object." );
+                JsonValueLife jvlArrayElement( *this, _pszKey, _jvt );
+            }
+            break;
+            default:
+                THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(_pszKey): This method only for null, true, or false." );
+            break;
+        }
     }
-    void WriteValue( _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal ) // take ownership of passed string.
+
+    void WriteStringValue( _tyLPCSTR _pszKey, _tyStdStr const & _rstrVal )
+    {
+        WriteStringValue( _pszKey, _rstrVal.c_str(), _rstrVal.length() );
+    }
+    void WriteStringValue( _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
         _WriteValue( ejvtString, _pszKey, std::move( _rrstrVal ) );
     }
-    void WriteValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    void WriteStringValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
     {
         if ( _stLen < 0 )
             _stLen = _tyCharTraits::StrLen( _pszValue );
         _WriteValue( ejvtString, _pszKey, _pszValue, (size_t)_stLen );
     }
     
-    template < class t_tyNum >
-    void _WriteValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszFmt, t_tyNum _num )
-    {
-      const int knNum = 512;
-      char rgcNum[ knNum ];
-      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
-      assert( nPrinted < knNum );
-      _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
-    }
     void WriteValue( _tyLPCSTR _pszKey, uint8_t _by )
     {
         _WriteValue( _pszKey, "%hhu", _by );
@@ -2284,24 +2294,6 @@ public:
         _WriteValue( ejvtString, _pszKey, ustOut );
     }
 
-    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, size_t _stLen )
-    {
-        assert( FAtObjectValue() );
-        if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
-        assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
-        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
-        jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
-    }
-    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
-    {
-        assert( FAtObjectValue() );
-        if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
-        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
-        *jvlObjectElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
-    }
-
 // Arrray (value) operations:
     void WriteNullValue()
     {
@@ -2310,12 +2302,31 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(): Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, ejvtNull );
     }
-    void WriteValue( bool _f )
+    void WriteBoolValue( bool _f )
     {
         assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(bool): Writing a value to a non-array." );
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteBoolValue(): Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, _f ? ejvtTrue : ejvtFalse );
+    }
+    void WriteValueType( EJsonValueType _jvt )
+    {
+        switch( _jvt )
+        {
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+            {
+                assert( FAtArrayValue() );
+                if ( !FAtArrayValue() )
+                    THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(): Writing a value to a non-array." );
+                JsonValueLife jvlArrayElement( *this, _jvt );
+            }
+            break;
+            default:
+                THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(): This method only for null, true, or false." );
+            break;
+        }
     }
 
     void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
@@ -2324,11 +2335,19 @@ public:
             _stLen = _tyCharTraits::StrLen( _pszValue );
         _WriteValue( ejvtString, _pszValue, (size_t)_stLen );
     }
-    void WriteValue( _tyStdStr const & _rstrVal )
+    template < class t_tyStr >
+    void WriteStringValue( t_tyStr const & _rstrVal )
     {
-        WriteValue( _rstrVal.c_str(), _rstrVal.length() );
+        WriteStringValue( _rstrVal.c_str(), _rstrVal.length() );
     }
-    void WriteValue( _tyStdStr && _rrstrVal ) // take ownership of passed string.
+    template < class t_tyStr >
+    void WriteStrOrNumValue( EJsonValueType _jvt, t_tyStr const & _rstrVal )
+    {
+        if ( ( ejvtString != _ejvt ) && ( ejvtNumber != _ejvt ) )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteStrOrNumValue(): This method only for numbers and strings." );
+        _WriteValue( _ejvt, _rstrVal.c_str(), _rstrVal.length() );
+    }
+    void WriteStringValue( _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
         _WriteValue( ejvtString, std::move( _rrstrVal ) );
     }
@@ -2345,15 +2364,6 @@ public:
         _WriteValue( ejvtString, ustOut );
     }
     
-    template < class t_tyNum >
-    void _WriteValue( _tyLPCSTR _pszFmt, t_tyNum _num )
-    {
-      const int knNum = 512;
-      char rgcNum[ knNum ];
-      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
-      assert( nPrinted < knNum );
-      _WriteValue( ejvtNumber, rgcNum, std::min( nPrinted, knNum-1 ) );
-    }
     void WriteValue( uint8_t _by )
     {
         _WriteValue( "%hhu", _by );
@@ -2395,6 +2405,43 @@ public:
         _WriteValue( "%Lf", _ldbl );
     }
 
+protected:
+    template < class t_tyNum >
+    void _WriteValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszFmt, t_tyNum _num )
+    {
+      const int knNum = 512;
+      char rgcNum[ knNum ];
+      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      assert( nPrinted < knNum );
+      _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
+    }
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, size_t _stLen )
+    {
+        assert( FAtObjectValue() );
+        if ( !FAtObjectValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
+        assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
+        jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
+    }
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
+    {
+        assert( FAtObjectValue() );
+        if ( !FAtObjectValue() )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
+        *jvlObjectElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
+    }
+
+    template < class t_tyNum >
+    void _WriteValue( _tyLPCSTR _pszFmt, t_tyNum _num )
+    {
+      const int knNum = 512;
+      char rgcNum[ knNum ];
+      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      assert( nPrinted < knNum );
+      _WriteValue( ejvtNumber, rgcNum, std::min( nPrinted, knNum-1 ) );
+    }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszValue, size_t _stLen )
     {
         assert( FAtArrayValue() );
@@ -2412,7 +2459,7 @@ public:
         JsonValueLife jvlArrayElement( *this, _ejvt );
         *jvlArrayElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
     }
-protected:
+
     _tyJsonOutputStream & m_rjos;
     std::optional< const _tyJsonFormatSpec > m_optJsonFormatSpec;
     JsonValueLife * m_pjvlParent{}; // If we are at the root this will be zero.

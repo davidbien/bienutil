@@ -14,7 +14,7 @@ void _SysLogThreadHeader::ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & 
     assert( _jvl.FAtObjectValue() );
     if ( _jvl.FAtObjectValue() )
     {
-        _jvl.WriteValue( "ProgName", m_szProgramName );
+        _jvl.WriteStringValue( "ProgName", m_szProgramName );
         _jvl.WriteUuidStringValue( "uuid", m_uuid );
         _jvl.WriteTimeStringValue( "TimeStarted", m_timeStart );
         _jvl.WriteValue( "ThreadId", m_tidThreadId );
@@ -90,10 +90,10 @@ void _SysLogContext::ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl 
     {
         _jvl.WriteTimeStringValue( "Time", m_time );
         _jvl.WriteValue( "Type", (uint8_t)m_eslmtType );
-        _jvl.WriteValue( "Mesg", m_szFullMesg );
+        _jvl.WriteStringValue( "Mesg", m_szFullMesg );
         if ( !m_szFile.empty() )
         {
-            _jvl.WriteValue( "File", m_szFile );
+            _jvl.WriteStringValue( "File", m_szFile );
             _jvl.WriteValue( "Line", m_nLine );
         }
         if ( !!m_errno )
@@ -102,7 +102,7 @@ void _SysLogContext::ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl 
             std::string strErrDesc;
             GetErrnoDescStdStr( m_errno, strErrDesc );
             if ( !!strErrDesc.length() )
-                _jvl.WriteValue( "ErrnoDesc", strErrDesc );
+                _jvl.WriteStringValue( "ErrnoDesc", strErrDesc );
         }
     }
     else

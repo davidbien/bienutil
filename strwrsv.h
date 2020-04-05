@@ -57,9 +57,26 @@ public:
         assign( _r.c_str() );
         return *this;
     }
+    _tyThis & operator=( _tyThis & _rr )
+    {
+        Clear();
+        swap( _rr );
+    }
     _tyThis & operator=( t_tyStrBase const & _rstr )
     {
         assign( _rstr.c_str(), _rstr.length() );
+        return *this;
+    }
+    _tyThis & operator=( t_tyStrBase && _rrstr )
+    {
+        // In this case we will use the existing string even if it is small enough to put in the buffer.
+        if ( FHasStringObj() )
+            _PGetStrBase()->swap( _rrstr );
+        else
+        {
+            new( (void*)m_rgtcBuffer ) t_tyStrBase( std::move( _rrstr ) );
+            SetHasStringObj();
+        }
         return *this;
     }
     _tyThis & operator=( const _tyChar * _psz )
