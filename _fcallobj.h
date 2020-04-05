@@ -6,6 +6,7 @@
 // This object may or may not call a function at some point.
 
 #include <optional>
+#include "jsonstrm.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -33,13 +34,10 @@ class _fcallobj
   typedef _fcallobj< t_TyF >  _TyThis;
   typedef optional< t_TyF > _TyOptF;
   _TyOptF m_optF;
-#ifdef _FCALLOBJ_TRACK_IGNORED_THROWS
-  static size_t vs_nIgnoredThrows;
-#endif //_FCALLOBJ_TRACK_IGNORED_THROWS
 public:
 
   _fcallobj() _BIEN_NOTHROW = default; // construct empty.
-  _fcallobj(_fcallobj const &) _BIEN_NOTHROW = delete; // allow copy of another _fcallobj - but both *will* be signalled or not.
+  _fcallobj(_fcallobj const &) _BIEN_NOTHROW = delete;
   _fcallobj & operator = (_fcallobj const &) = delete; // we could allow assigment but I don't need it at this point.
 
   template < typename t__TyF = t_TyF >
@@ -57,19 +55,18 @@ public:
   ~_fcallobj() _BIEN_NOTHROW
   {
     // We shouldn't throw from the destructor and we allow throwing from release() below.
+    bool fInUnwinding = !!std::uncaught_exceptions();
     try
     {
       // Technically we don't have to reset() the object explicitly here because the destructor will already do that in ~optional<>().
       if (m_optF)
         (*m_optF)();
     }
-    catch (...)
+    catch ( std::exception const & rexc )
     {
-      // we shouldn't throw out of a destructor because it could result in termination of the application.
-      // The presumption is that we are not leaking memory by doing this but I would have to verify on all compilers, etc.
-#ifdef _FCALLOBJ_TRACK_IGNORED_THROWS
-      ++vs_nIgnoredThrows;
-#endif //_FCALLOBJ_TRACK_IGNORED_THROWS
+        if ( !fInUnwinding )
+          throw; // let someone else deal with this.
+        LOGSYSLOG( eslmtError, "Caught exception during another exception's unwinding. [%s]", rexc.what() );
     }
   }
 
