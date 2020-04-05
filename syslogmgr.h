@@ -47,6 +47,20 @@ enum _ESysLogMessageType : uint8_t
 };
 typedef _ESysLogMessageType ESysLogMessageType;
 
+// Predeclare:
+namespace n_SysLog
+{
+    inline void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility );
+    inline void Log( ESysLogMessageType _eslmtType, const char * _pcFmt, ... );
+    void Log( ESysLogMessageType _eslmtType, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... );
+// Methods including errno:
+    inline void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFmt, ... );
+    void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... );
+} // namespace n_SysLog
+
+#define LOGSYSLOG( TYPE, MESG... ) n_SysLog::Log( TYPE, __FILE__, __LINE__, MESG )
+#define LOGSYSLOGERRNO( TYPE, ERRNO, MESG... ) n_SysLog::Log( TYPE, ERRNO, __FILE__, __LINE__, MESG )
+
 // _SysLogThreadHeader:
 // This contains thread level info about syslog messages that is constant for all contained messages.
 struct _SysLogThreadHeader
@@ -130,7 +144,7 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         }
         catch( std::exception const & exc )
         {
-            Log( eslmtWarning, exc.what(), 0 );
+            LOGSYSLOG( eslmtWarning, exc.what() );
             return false;
         }
     }
@@ -247,9 +261,6 @@ template < const int t_kiInstance >
 bool _SysLogMgr< t_kiInstance >::s_fCallSysLogEachThread = true;
 template < const int t_kiInstance >
 bool _SysLogMgr< t_kiInstance >::s_fGenerateUniqueJSONLogFile = true;
-
-#define LOGSYSLOG( TYPE, MESG... ) n_SysLog::Log( TYPE, __FILE__, __LINE__, MESG )
-#define LOGSYSLOGERRNO( TYPE, ERRNO, MESG... ) n_SysLog::Log( TYPE, ERRNO, __FILE__, __LINE__, MESG )
 
 // Access all syslog functionality through this namespace.
 namespace n_SysLog
