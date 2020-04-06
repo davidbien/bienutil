@@ -52,23 +52,27 @@ public:
     {
         _ClearStrObj();
     }
-    _tyThis & operator=( _tyThis const & _r )
+    _tyThis & operator = ( _tyThis const & _r )
     {
-        assign( _r.c_str(), _r.length() );
+        if ( this != &_r )
+            assign( _r.c_str(), _r.length() );
         return *this;
     }
-    _tyThis & operator=( _tyThis & _rr )
+    _tyThis & operator = ( _tyThis & _rr )
     {
-        clear();
-        swap( _rr );
+        if ( this != &_rr )
+        {
+            clear();
+            swap( _rr );
+        }
         return *this;
     }
-    _tyThis & operator=( t_tyStrBase const & _rstr )
+    _tyThis & operator = ( t_tyStrBase const & _rstr )
     {
         assign( _rstr.c_str(), _rstr.length() );
         return *this;
     }
-    _tyThis & operator=( t_tyStrBase && _rrstr )
+    _tyThis & operator = ( t_tyStrBase && _rrstr )
     {
         // In this case we will use the existing string even if it is small enough to put in the buffer.
         if ( FHasStringObj() )
@@ -80,7 +84,7 @@ public:
         }
         return *this;
     }
-    _tyThis & operator=( const _tyChar * _psz )
+    _tyThis & operator = ( const _tyChar * _psz )
     {
         assign( _psz );
         return *this;
@@ -146,7 +150,7 @@ public:
         if ( _stLen < t_kstReserve )
         {
             _ClearStrObj();
-            memcpy( m_rgtcBuffer, _psz, _stLen * sizeof(_tyChar) );
+            memmove( m_rgtcBuffer, _psz, _stLen * sizeof(_tyChar) ); // account for possible overlap.
             m_rgtcBuffer[ _stLen ] = 0;
         }
         else
@@ -185,7 +189,8 @@ public:
             size_t stLenCur = length();
             if ( stLenCur + stLenAdd < t_kstReserve )
             {
-                memcpy( m_rgtcBuffer + stLenCur, _psz, stLenAdd+1 ); // Since we know the addition is null terminated we can copy the null.
+                memcpy( m_rgtcBuffer + stLenCur, _psz, stLenAdd );
+                m_rgtcBuffer[ stLenCur + stLenAdd ] = 0;
             }
             else
             {

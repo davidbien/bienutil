@@ -75,15 +75,23 @@ public:
   // acquire <_pt> - destruct any current object.
   _TyThis & operator = ( t_Ty * _pt ) _BIEN_NOTHROW
   {
-    Release();
-    m_pt = _pt;
+    if ( _pt != m_pt )
+    {
+      Release();
+      m_pt = _pt;
+    }
+    return *this;
   }
 
   // Transfers ownership from <_r>.
   _TyThis & operator = ( _TyThis && _rr )
   {
-    Release();
-    this->swap( _rr );
+    if ( this != &_rr )
+    {
+      Release();
+      this->swap( _rr );
+    }
+    return *this;
   }
 
   t_Ty * operator ->() const _BIEN_NOTHROW

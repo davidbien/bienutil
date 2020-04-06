@@ -1649,11 +1649,14 @@ public:
         std::swap( _rr.m_jvtType, m_jvtType );
         std::swap( _rr.m_pvValue, m_pvValue );
     }
-
     JsonValue & operator = ( JsonValue && _rr )
     {
-        Destroy();
-        swap( _rr );
+        if ( this != &_rr )
+        {
+            Destroy();
+            swap( _rr );
+        }
+        return *this;
     }
     void swap( JsonValue & _r )
     {

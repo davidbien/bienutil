@@ -144,8 +144,11 @@ public:
   _TyThis & 
   operator = ( _TyThis const & _r ) _BIEN_NOTHROW
   {
-    assert( _r.m_kstBits == m_kstBits );
-    memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
+    if ( this != &_r )
+    {
+      assert( _r.m_kstBits == m_kstBits );
+      memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
+    }
     return *this;
   }
 

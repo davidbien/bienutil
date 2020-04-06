@@ -90,14 +90,22 @@ public:
     }
     JsoIterator & operator = ( JsoIterator const & _r )
     {
-        Clear();
-        m_fObjectIterator = _r.m_fObjectIterator;
-        m_fObjectIterator ? _CreateIterator( _r._GetObjectIterator() ) : _CreateIterator( _r._GetArrayIterator() );
+        if ( this != &_r )
+        {
+            Clear();
+            m_fObjectIterator = _r.m_fObjectIterator;
+            m_fObjectIterator ? _CreateIterator( _r._GetObjectIterator() ) : _CreateIterator( _r._GetArrayIterator() );
+        }
+        return *this;
     }
     JsoIterator & operator = ( JsoIterator && _rr )
     {
-        Clear();
-        swap( _rr );
+        if ( this != &_rr )
+        {
+            Clear();
+            swap( _rr );
+        }
+        return *this;
     }
 
     void swap( JsoIterator & _r )
@@ -287,56 +295,62 @@ public:
     }
     JsoValue & operator = ( const JsoValue & _r )
     {
-        SetValueType( _r.JvtGetValueType() );
-        switch( JvtGetValueType() )
+        if ( this != &_r )
         {
-        case ejvtNull:
-        case ejvtTrue:
-        case ejvtFalse:
-            break; // nothing to do
-        case ejvtNumber:
-        case ejvtString:
-            StrGet() = _r.StrGet();
-            break;
-        case ejvtObject:
-            _ObjectGet() = _r._ObjectGet();
-            break;
-        case ejvtArray:
-            _ArrayGet() = _r._ArrayGet();
-            break;
-        default:
-            assert( 0 ); // random value...
-        case ejvtJsonValueTypeCount:
-            break; // assigned to an empty object.
+            SetValueType( _r.JvtGetValueType() );
+            switch( JvtGetValueType() )
+            {
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+                break; // nothing to do
+            case ejvtNumber:
+            case ejvtString:
+                StrGet() = _r.StrGet();
+                break;
+            case ejvtObject:
+                _ObjectGet() = _r._ObjectGet();
+                break;
+            case ejvtArray:
+                _ArrayGet() = _r._ArrayGet();
+                break;
+            default:
+                assert( 0 ); // random value...
+            case ejvtJsonValueTypeCount:
+                break; // assigned to an empty object.
+            }
         }
         return *this;
     }
     JsoValue & operator = ( JsoValue && _rr )
     {
-        Clear();
-        if ( _rr.JvtGetValueType() != ejvtJsonValueTypeCount )
+        if ( this != &_r )
         {
-            switch( _rr.JvtGetValueType() )
+            Clear();
+            if ( _rr.JvtGetValueType() != ejvtJsonValueTypeCount )
             {
-            case ejvtNumber:
-            case ejvtString:
-                new( m_rgbyValBuf ) _tyStrWRsv( std::move( _rr.StrGet() ) );
-                break;
-            case ejvtObject:
-                new( m_rgbyValBuf ) _tyJsoObject( std::move( _rr._ObjectGet() ) );
-                break;
-            case ejvtArray:
-                new( m_rgbyValBuf ) _tyJsoArray( std::move( _rr._ArrayGet() ) );
-                break;
-            default:
-                assert( 0 ); // random value...
-            case ejvtNull:
-            case ejvtTrue:
-            case ejvtFalse:
-            case ejvtJsonValueTypeCount:
-                break;
+                switch( _rr.JvtGetValueType() )
+                {
+                case ejvtNumber:
+                case ejvtString:
+                    new( m_rgbyValBuf ) _tyStrWRsv( std::move( _rr.StrGet() ) );
+                    break;
+                case ejvtObject:
+                    new( m_rgbyValBuf ) _tyJsoObject( std::move( _rr._ObjectGet() ) );
+                    break;
+                case ejvtArray:
+                    new( m_rgbyValBuf ) _tyJsoArray( std::move( _rr._ArrayGet() ) );
+                    break;
+                default:
+                    assert( 0 ); // random value...
+                case ejvtNull:
+                case ejvtTrue:
+                case ejvtFalse:
+                case ejvtJsonValueTypeCount:
+                    break;
+                }
+                m_jvtType = _rr.JvtGetValueType(); // throw-safety.
             }
-            m_jvtType = _rr.JvtGetValueType(); // throw-safety.
         }
         return *this;
     }
@@ -363,6 +377,10 @@ public:
             _ClearValue();
             _AllocateValue( _jvt );
         }
+    }
+    void Clear()
+    {
+        SetValueType( ejvtJsonValueTypeCount );
     }
 
     bool FEmpty() const
@@ -401,7 +419,7 @@ public:
     {
         return ejvtArray == m_jvtType;
     }
-    void GetBOolValue( bool & _rf ) const
+    void GetBoolValue( bool & _rf ) const
     {
         if ( ejvtTrue == m_jvtType )
             _rf = true;
@@ -409,7 +427,7 @@ public:
         if ( ejvtFalse == m_jvtType )
             _rf = false;
         else
-            THROWJSONBADUSAGE( "JsoValue::GetValue(bool): Called on non-boolean." );
+            THROWJSONBADUSAGE( "JsoValue::GetBoolValue(bool): Called on non-boolean." );
     }
     const _tyStrWRsv & StrGet() const
     {
@@ -470,6 +488,141 @@ public:
     void GetValue( double & _rdbl ) const { _GetValue( "%le", _rdbl ); }
     void GetValue( long double & _rldbl ) const { _GetValue( "%Le", _rldbl ); }
 
+    // Setting methods: These overwrite the existing element at this location.
+    void SetNull()
+    {
+        SetValueType( ejvtJsonValueTypeCount );
+    }
+    void SetBoolValue( bool _f )
+    {
+        SetValueType( _f ? ejvtTrue : ejvtFalse );
+    }
+    _tyThis & operator = ( bool _f )
+    {
+        SetBoolValue( _f );
+    }
+    void SetStringValue( _tyLPCSTR _psz, size_t _stLen = std::numeric_limits< size_t >::max() )
+    {
+        if ( _stLen == std::numeric_limits< size_t >::max() )
+            _stLen = StrNLen( _psz );
+        SetValueType( ejvtString );
+        StrGet().assign( _psz, _stLen );
+    }
+    template < class t_tyStr >
+    void SetStringValue( t_tyStr const & _rstr )
+    {
+        SetStringValue( _rstr.c_str(), _rstr.length() );
+    }
+    template < class t_tyStr >
+    void SetStringValue( t_tyStr && _rrstr )
+    {
+        SetValueType( ejvtString );
+        StrGet() = std::move( _rrstr );
+    }
+    _tyThis & operator = ( const _tyStdStr & _rstr )
+    {
+        SetStringValue( _rstr.c_str(), _rstr.length() );
+        return *this;
+    }
+    _tyThis & operator = ( const _tyStrWRsv & _rstr )
+    {
+        SetStringValue( _rstr.c_str(), _rstr.length() );
+        return *this;
+    }
+    _tyThis & operator = ( _tyStdStr && _rrstr )
+    {
+        SetValueType( ejvtString );
+        StrGet() = std::move( _rrstr );
+        return *this;
+    }
+    _tyThis & operator = ( _tyStrWRsv && _rrstr )
+    {
+        SetValueType( ejvtString );
+        StrGet() = std::move( _rrstr );
+        return *this;
+    }
+
+    void SetValue( uint8_t _by )
+    {
+        _SetValue( "%hhu", _by );
+    }
+    void SetValue( int8_t _sby )
+    {
+        _SetValue( "%hhd", _sby );
+    }
+    void SetValue( uint16_t _us )
+    {
+        _SetValue( "%hu", _us );
+    }
+    _tyThis & operator = ( uint16_t _us )
+    {
+        SetValue( _us );
+        return *this;
+    }
+    void SetValue( int16_t _ss )
+    {
+        _SetValue( "%hd", _ss );
+    }
+    _tyThis & operator = ( int16_t _ss )
+    {
+        SetValue( _ss );
+        return *this;
+    }
+    void SetValue( uint32_t _ui )
+    {
+        _SetValue( "%u", _ui );
+    }
+    _tyThis & operator = ( uint32_t _ui )
+    {
+        SetValue( _ui );
+        return *this;
+    }
+    void SetValue( int32_t _si )
+    {
+        _SetValue( "%d", _si );
+    }
+    _tyThis & operator = ( int32_t _si )
+    {
+        SetValue( _si );
+        return *this;
+    }
+    void SetValue( uint64_t _ul )
+    {
+        _SetValue( "%lu", _ul );
+    }
+    _tyThis & operator = ( uint64_t _ul )
+    {
+        SetValue( _ul );
+        return *this;
+    }
+    void SetValue( int64_t _sl )
+    {
+        _SetValue( "%ld", _sl );
+    }
+    _tyThis & operator = ( int64_t _sl )
+    {
+        SetValue( _sl );
+        return *this;
+    }
+    void SetValue( double _dbl )
+    {
+        _SetValue( "%lf", _dbl );
+    }
+    _tyThis & operator = ( double _dbl )
+    {
+        SetValue( _dbl );
+        return *this;
+    }
+    void SetValue( long double _ldbl )
+    {
+        _SetValue( "%Lf", _ldbl );
+    }
+    _tyThis & operator = ( long double _ldbl )
+    {
+        SetValue( _ldbl );
+        return *this;
+    }
+
     template < class t_tyJsonInputStream >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
@@ -493,7 +646,7 @@ public:
             break;
         default:
         case ejvtJsonValueTypeCount:
-            assert( 0 ); // should never get here - would have already failed.
+            THROWJSONBADUSAGE( "JsonReadCursor::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
             break;
         }    
     }
@@ -518,7 +671,7 @@ public:
             break;
         default:
         case ejvtJsonValueTypeCount:
-            assert( 0 ); // should never get here - would have already failed.
+            THROWJSONBADUSAGE( "JsonReadCursor::ToJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
             break;
         }    
     }
@@ -558,6 +711,13 @@ public:
     {
         return _ObjectGet().GetEl( _psz );
     }
+#if 0
+    // This will either create, change or leave everything the same.
+    JsoValue & CreateEl( _tyLPCSTR _psz, EJsonValueType _jvt )
+    {
+        return _ObjectGet().GetEl( _psz );
+    }
+#endif //0
 
     iterator begin()
     {
@@ -601,6 +761,16 @@ public:
     }
 
 protected:
+    template < class t_tyNum >
+    void _SetValue( _tyLPCSTR _pszFmt, t_tyNum _num )
+    {
+      const int knNum = 512;
+      char rgcNum[ knNum ];
+      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      assert( nPrinted < knNum );
+      SetValueType( ejvtNumber );
+      StrGet().assign( rgcNum, std::min( nPrinted, knNum-1 ) );
+    }
     void _ClearValue()
     {
         EJsonValueType jvt = m_jvtType;
