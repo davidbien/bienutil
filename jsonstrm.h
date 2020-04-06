@@ -2343,9 +2343,9 @@ public:
     template < class t_tyStr >
     void WriteStrOrNumValue( EJsonValueType _jvt, t_tyStr const & _rstrVal )
     {
-        if ( ( ejvtString != _ejvt ) && ( ejvtNumber != _ejvt ) )
+        if ( ( ejvtString != _jvt ) && ( ejvtNumber != _jvt ) )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteStrOrNumValue(): This method only for numbers and strings." );
-        _WriteValue( _ejvt, _rstrVal.c_str(), _rstrVal.length() );
+        _WriteValue( _jvt, _rstrVal.c_str(), _rstrVal.length() );
     }
     void WriteStringValue( _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
@@ -2449,7 +2449,7 @@ protected:
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
         assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
-        jvlArrayElement.RJvGet().PGetStringValue()->insert( jvlArrayElement.RJvGet().PGetStringValue()->begin(), _pszValue, _pszValue + _stLen );
+        jvlArrayElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyStdStr && _rrstrVal )
     {

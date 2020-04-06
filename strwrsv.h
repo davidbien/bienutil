@@ -29,7 +29,7 @@ public:
     StrWRsv( StrWRsv const & _r )
     {
         assert( !FHasStringObj() );
-        assign( _r.c_str() );
+        assign( _r.c_str(), _r.length() );
     }
     StrWRsv( StrWRsv && _rr )
     {
@@ -54,13 +54,14 @@ public:
     }
     _tyThis & operator=( _tyThis const & _r )
     {
-        assign( _r.c_str() );
+        assign( _r.c_str(), _r.length() );
         return *this;
     }
     _tyThis & operator=( _tyThis & _rr )
     {
-        Clear();
+        clear();
         swap( _rr );
+        return *this;
     }
     _tyThis & operator=( t_tyStrBase const & _rstr )
     {
@@ -165,6 +166,16 @@ public:
     {
         return assign( _pszBegin, _pszEnd, _pszEnd - _pszBegin );
     }
+    _tyThis & assign( _tyThis const & _r )
+    {
+        return assign( _r.c_str(), _r.length() );
+    }
+    _tyThis & assign( _tyThis && _rr )
+    {
+        clear();
+        swap( _rr );
+        return *this;
+    }
 
     _tyThis & operator += ( const _tyChar * _psz )
     {
@@ -190,6 +201,17 @@ public:
             *_PGetStrBase() += _psz;
         }
         return *this;
+    }
+
+    _tyChar const & operator []( size_t _st ) const
+    {
+        assert( _st <= length() );
+        return _PGetStrBase()[_st];
+    }
+    _tyChar & operator []( size_t _st )
+    {
+        assert( _st <= length() );
+        return _PGetStrBase()[_st];
     }
 
     int ICompare( _tyThis const & _r ) const

@@ -4,6 +4,8 @@
 // JSON objects for reading/writing using jsonstrm.h.
 // dbien 01APR2020
 
+#include <vector>
+#include <map>
 #include "jsonstrm.h"
 #include "strwrsv.h"
 
@@ -22,8 +24,6 @@ class json_objects_bad_usage_exception : public std::_t__Named_exception< __JSON
 {
     typedef std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
 public:
-    typedef t_tyCharTraits _tyCharTraits;
-
     json_objects_bad_usage_exception( const string_type & __s ) 
         : _TyBase( __s ) 
     {
@@ -46,12 +46,17 @@ class JsoIterator
     typedef JsoIterator _tyThis;
 public:    
     typedef std::conditional_t< t_kfConst, typename _JsoObject< t_tyChar >::_tyConstIterator, typename _JsoObject< t_tyChar >::_tyIterator > _tyObjectIterator;
-    typedef std::conditional_t< t_kfConst, typename JsoArray< t_tyChar >::_tyConstIterator, typename JsoArray< t_tyChar >::_tyIterator > _tyArrayIterator;
+    typedef std::conditional_t< t_kfConst, typename _JsoArray< t_tyChar >::_tyConstIterator, typename _JsoArray< t_tyChar >::_tyIterator > _tyArrayIterator;
     typedef JsoValue< t_tyChar > _tyJsoValue;
     typedef std::conditional_t< t_kfConst, const _tyJsoValue, _tyJsoValue > _tyQualJsoValue;
     typedef typename _JsoObject< t_tyChar >::_tyMapValueType _tyKeyValueType; // This type is only used by objects.
     typedef std::conditional_t< t_kfConst, const _tyKeyValueType, _tyKeyValueType > _tyQualKeyValueType;
 
+    ~JsoIterator()
+    {
+        if ( !!m_pvIterator )
+            _DestroyIterator( m_pvIterator );
+    }
     JsoIterator() = default;
     JsoIterator( const JsoIterator & _r )
         : m_fObjectIterator( _r.m_fObjectIterator )
@@ -63,7 +68,6 @@ public:
     {
         m_fObjectIterator ? _CreateIterator( std::move( _rr._GetObjectIterator() ) ) : _CreateIterator( std::move( _rr._GetArrayIterator() ) );
     }
-
     explicit JsoIterator( _tyObjectIterator const & _rit )
         : m_fObjectIterator( true )
     {
@@ -84,6 +88,33 @@ public:
     {
         _CreateIterator( std::move( _rrit ) );
     }
+    JsoIterator & operator = ( JsoIterator const & _r )
+    {
+        Clear();
+        m_fObjectIterator = _r.m_fObjectIterator;
+        m_fObjectIterator ? _CreateIterator( _r._GetObjectIterator() ) : _CreateIterator( _r._GetArrayIterator() );
+    }
+    JsoIterator & operator = ( JsoIterator && _rr )
+    {
+        Clear();
+        swap( _rr );
+    }
+
+    void swap( JsoIterator & _r )
+    {
+        std::swap( m_fObjectIterator, _r.m_fObjectIterator );
+        std::swap( m_pvIterator, _r.m_pvIterator );
+    }
+
+    void Clear()
+    {
+        if ( !!m_pvIterator )
+        {
+            void * pv = m_pvIterator;
+            m_pvIterator = nullptr;
+            _DestroyIterator( pv );
+        }
+    }
 
     JsoIterator & operator ++()
     {
@@ -93,15 +124,9 @@ public:
     JsoIterator operator ++(int)
     {
         if ( m_fObjectIterator )
-        {
-            _tyObjectIterator it = _GetObjectIterator()++;
-            return JsoIterator( std::move( it ) );
-        }
+            return JsoIterator( _GetObjectIterator()++ );
         else
-        {
-            _tyArrayIterator it = _GetArrayIterator()++;
-            return JsoIterator( std::move( it ) );
-        }
+            return JsoIterator( _GetArrayIterator()++ );
     }
     JsoIterator & operator --()
     {
@@ -111,15 +136,9 @@ public:
     JsoIterator operator --(int)
     {
         if ( m_fObjectIterator )
-        {
-            _tyObjectIterator it = _GetObjectIterator()--;
-            return JsoIterator( std::move( it ) );
-        }
+            return JsoIterator( _GetObjectIterator()-- );
         else
-        {
-            _tyArrayIterator it = _GetArrayIterator()--;
-            return JsoIterator( std::move( it ) );
-        }
+            return JsoIterator( _GetArrayIterator()-- );
     }
 
     // This always returns the value for both objects and arrays since it has to return the same thing.
@@ -173,6 +192,14 @@ protected:
         assert( !m_fObjectIterator );
         m_pvIterator = new _tyArrayIterator( std::move( _rrit ) );
     }
+    void _DestroyIterator( void * _pv )
+    {
+        assert( !!_pv );
+        if ( m_fObjectIterator )
+            delete (_tyObjectIterator*)_pv;
+        else
+            delete (_tyArrayIterator*)_pv;
+    }
 
     const _tyObjectIterator & _GetObjectIterator() const
     {
@@ -209,27 +236,59 @@ class JsoValue
 {
     typedef JsoValue _tyThis;
 public:
+    typedef t_tyChar _tyChar;
+    typedef const _tyChar * _tyLPCSTR;
     typedef std::basic_string< t_tyChar > _tyStdStr;
     typedef StrWRsv< _tyStdStr > _tyStrWRsv; // string with reserve buffer.
-    typedef _JsoObject< t_tyChar > _tyJsonObject;
-    typedef _JsoArray< t_tyChar > _tyJsonArray;
+    typedef _JsoObject< t_tyChar > _tyJsoObject;
+    typedef _JsoArray< t_tyChar > _tyJsoArray;
     typedef JsoIterator< t_tyChar, false > iterator;
     typedef JsoIterator< t_tyChar, true > const_iterator;
 
+    ~JsoValue()
+    {
+        _ClearValue();
+    }
     JsoValue( EJsonValueType _jvt = ejvtJsonValueTypeCount )
     {
         if ( ejvtJsonValueTypeCount != _jvt )
             _AllocateValue( _jvt );
     }
-
     JsoValue( const JsoValue & _r )
     {
         *this = _r;
     }
+    JsoValue( JsoValue && _rr )
+    {
+        if ( _rr.JvtGetValueType() != ejvtJsonValueTypeCount )
+        {
+            switch( _rr.JvtGetValueType() )
+            {
+            case ejvtNumber:
+            case ejvtString:
+                new( m_rgbyValBuf ) _tyStrWRsv( std::move( _rr.StrGet() ) );
+                break;
+            case ejvtObject:
+                new( m_rgbyValBuf ) _tyJsoObject( std::move( _rr._ObjectGet() ) );
+                break;
+            case ejvtArray:
+                new( m_rgbyValBuf ) _tyJsoArray( std::move( _rr._ArrayGet() ) );
+                break;
+            default:
+                assert( 0 ); // random value...
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+            case ejvtJsonValueTypeCount:
+                break;
+            }
+            m_jvtType = _rr.JvtGetValueType(); // throw-safety.
+        }
+    }
     JsoValue & operator = ( const JsoValue & _r )
     {
-        SetValueType( _r.GetValueType() );
-        switch( GetValueType() )
+        SetValueType( _r.JvtGetValueType() );
+        switch( JvtGetValueType() )
         {
         case ejvtNull:
         case ejvtTrue:
@@ -250,6 +309,47 @@ public:
         case ejvtJsonValueTypeCount:
             break; // assigned to an empty object.
         }
+        return *this;
+    }
+    JsoValue & operator = ( JsoValue && _rr )
+    {
+        Clear();
+        if ( _rr.JvtGetValueType() != ejvtJsonValueTypeCount )
+        {
+            switch( _rr.JvtGetValueType() )
+            {
+            case ejvtNumber:
+            case ejvtString:
+                new( m_rgbyValBuf ) _tyStrWRsv( std::move( _rr.StrGet() ) );
+                break;
+            case ejvtObject:
+                new( m_rgbyValBuf ) _tyJsoObject( std::move( _rr._ObjectGet() ) );
+                break;
+            case ejvtArray:
+                new( m_rgbyValBuf ) _tyJsoArray( std::move( _rr._ArrayGet() ) );
+                break;
+            default:
+                assert( 0 ); // random value...
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+            case ejvtJsonValueTypeCount:
+                break;
+            }
+            m_jvtType = _rr.JvtGetValueType(); // throw-safety.
+        }
+        return *this;
+    }
+    void swap( JsoValue & _r )
+    {
+        std::swap( m_jvtType, _r.m_jvtType );
+        if ( !_r.FEmpty() || !FEmpty() )
+        {
+            uint8_t rgbyValBuf[ s_kstSizeValBuf ];
+            memcpy( rgbyValBuf, _r.m_rgbyValBuf, sizeof( m_rgbyValBuf ) );
+            memcpy( _r.m_rgbyValBuf, m_rgbyValBuf, sizeof( m_rgbyValBuf ) );
+            memcpy( m_rgbyValBuf, rgbyValBuf, sizeof( m_rgbyValBuf ) );
+        }
     }
 
     EJsonValueType JvtGetValueType() const
@@ -258,13 +358,17 @@ public:
     }
     void SetValueType( const EJsonValueType _jvt )
     {
-        if ( _jvt != m_jvt )
+        if ( _jvt != m_jvtType )
         {
             _ClearValue();
             _AllocateValue( _jvt );
         }
     }
 
+    bool FEmpty() const
+    {
+        return JvtGetValueType() == ejvtJsonValueTypeCount;
+    }
     bool FIsNull() const
     {
         return ejvtNull == m_jvtType;
@@ -297,7 +401,7 @@ public:
     {
         return ejvtArray == m_jvtType;
     }
-    void GetValue( bool & _rf ) const
+    void GetBOolValue( bool & _rf ) const
     {
         if ( ejvtTrue == m_jvtType )
             _rf = true;
@@ -311,37 +415,37 @@ public:
     {
         if ( !FIsString() && !FIsNumber() )
             THROWJSONBADUSAGE( "JsoValue::StrGet(): Called on non-string/num." );
-        return *static_cast< const _tyStrWRsv * >( m_rgbyValBuf );
+        return *static_cast< const _tyStrWRsv * >( (const void*)m_rgbyValBuf );
     }
-    _tyStdStr & StrGet()
+    _tyStrWRsv & StrGet()
     {
         if ( !FIsString() && !FIsNumber() )
             THROWJSONBADUSAGE( "JsoValue::StrGet(): Called on non-string/num." );
-        return *static_cast< _tyStrWRsv * >( m_rgbyValBuf );
+        return *static_cast< _tyStrWRsv * >( (void*)m_rgbyValBuf );
     }
-    const _tyObjectInternal & _ObjectGet() const
+    const _tyJsoObject & _ObjectGet() const
     {
         if ( !FIsObject() )
             THROWJSONBADUSAGE( "JsoValue::_ObjectGet(): Called on non-Object." );
-        return *static_cast< const _tyObjectInternal * >( m_rgbyValBuf );
+        return *static_cast< const _tyJsoObject * >( (const void*)m_rgbyValBuf );
     }
-    _tyObjectInternal & _ObjectGet()
+    _tyJsoObject & _ObjectGet()
     {
         if ( !FIsObject() )
             THROWJSONBADUSAGE( "JsoValue::_ObjectGet(): Called on non-Object." );
-        return *static_cast< _tyObjectInternal * >( m_rgbyValBuf );
+        return *static_cast< _tyJsoObject * >( (void*)m_rgbyValBuf );
     }
-    const _tyArrayInternal & _ArrayGet() const
+    const _tyJsoArray & _ArrayGet() const
     {
         if ( !FIsArray() )
             THROWJSONBADUSAGE( "JsoValue::_ArrayGet(): Called on non-Array." );
-        return *static_cast< const _tyArrayInternal * >( m_rgbyValBuf );
+        return *static_cast< const _tyJsoArray * >( (const void*)m_rgbyValBuf );
     }
-    _tyArrayInternal & _ArrayGet()
+    _tyJsoArray & _ArrayGet()
     {
         if ( !FIsArray() )
             THROWJSONBADUSAGE( "JsoValue::_ArrayGet(): Called on non-Array." );
-        return *static_cast< _tyArrayInternal * >( m_rgbyValBuf );
+        return *static_cast< _tyJsoArray * >( (void*)m_rgbyValBuf );
     }
     // Various number conversion methods.
     template < class t_tyNum >
@@ -371,7 +475,7 @@ public:
     {
         // The constructor would have already set the m_jvtType.
         assert( _jrc.JvtGetValueType() == m_jvtType );
-        switch( GetValueType() )
+        switch( JvtGetValueType() )
         {
         case ejvtNull:
         case ejvtTrue:
@@ -396,16 +500,15 @@ public:
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
-        switch( GetValueType() )
+        switch( JvtGetValueType() )
         {
         case ejvtNull:
         case ejvtTrue:
         case ejvtFalse:
-            _jvl.WriteValueType( GetValueType() );
-            break;
+            break; // nothing to do - _jvl has already been created with the correct value type.
         case ejvtNumber:
         case ejvtString:
-            _jvl.WriteStrOrNumValue( GetValueType(), StrGet() );
+            _jvl.RJvGet().PCreateStringValue()->assign( StrGet() );
             break;
         case ejvtObject:
             _ObjectGet().ToJSONStream( _jvl );
@@ -458,40 +561,40 @@ public:
 
     iterator begin()
     {
-        if ( ejvtObject == GetValueType() )
+        if ( ejvtObject == JvtGetValueType() )
             return iterator( _ObjectGet().begin() );
         else
-        if ( ejvtArray == GetValueType() )
+        if ( ejvtArray == JvtGetValueType() )
             return iterator( _ArrayGet().begin() );
         else
             THROWJSONBADUSAGE( "JsoValue::begin(): Called on non-aggregate." );
     }
     const_iterator begin() const
     {
-        if ( ejvtObject == GetValueType() )
+        if ( ejvtObject == JvtGetValueType() )
             return const_iterator( _ObjectGet().begin() );
         else
-        if ( ejvtArray == GetValueType() )
+        if ( ejvtArray == JvtGetValueType() )
             return const_iterator( _ArrayGet().begin() );
         else
             THROWJSONBADUSAGE( "JsoValue::begin(): Called on non-aggregate." );
     }
     iterator end()
     {
-        if ( ejvtObject == GetValueType() )
+        if ( ejvtObject == JvtGetValueType() )
             return iterator( _ObjectGet().end() );
         else
-        if ( ejvtArray == GetValueType() )
+        if ( ejvtArray == JvtGetValueType() )
             return iterator( _ArrayGet().end() );
         else
             THROWJSONBADUSAGE( "JsoValue::end(): Called on non-aggregate." );
     }
     const_iterator end() const
     {
-        if ( ejvtObject == GetValueType() )
+        if ( ejvtObject == JvtGetValueType() )
             return const_iterator( _ObjectGet().end() );
         else
-        if ( ejvtArray == GetValueType() )
+        if ( ejvtArray == JvtGetValueType() )
             return const_iterator( _ArrayGet().end() );
         else
             THROWJSONBADUSAGE( "JsoValue::end(): Called on non-aggregate." );
@@ -501,18 +604,18 @@ protected:
     void _ClearValue()
     {
         EJsonValueType jvt = m_jvtType;
-        m_jvtType = ejvtJsonValueTypeCount;.
+        m_jvtType = ejvtJsonValueTypeCount;
         switch( jvt )
         {
         case ejvtNumber:
         case ejvtString:
-            static_cast< _tyStrWRsv * >( m_rgbyValBuf )->~_tyStrWRsv();
+            static_cast< _tyStrWRsv * >( (void*)m_rgbyValBuf )->~_tyStrWRsv();
             break;
         case ejvtObject:
-            static_cast< _tyObjectInternal * >( m_rgbyValBuf )->~_tyObjectInternal();
+            static_cast< _tyJsoObject * >( (void*)m_rgbyValBuf )->~_tyJsoObject();
             break;
         case ejvtArray:
-            static_cast< _tyArrayInternal * >( m_rgbyValBuf )->~_tyArrayInternal();
+            static_cast< _tyJsoArray * >( (void*)m_rgbyValBuf )->~_tyJsoArray();
             break;
         default:
             assert( 0 ); // random value...
@@ -525,7 +628,7 @@ protected:
     }
     void _AllocateValue( const EJsonValueType _jvt )
     {
-        assert( ejvtJsonValueTypeCount == GetValueType() );
+        assert( ejvtJsonValueTypeCount == JvtGetValueType() );
         switch( _jvt )
         {
         case ejvtNumber:
@@ -533,10 +636,10 @@ protected:
             new( m_rgbyValBuf ) _tyStrWRsv();
             break;
         case ejvtObject:
-            new( m_rgbyValBuf ) _tyObjectInternal();
+            new( m_rgbyValBuf ) _tyJsoObject();
             break;
         case ejvtArray:
-            new( m_rgbyValBuf ) _tyArrayInternal();
+            new( m_rgbyValBuf ) _tyJsoArray();
             break;
         default:
             assert( 0 ); // random value...
@@ -550,8 +653,8 @@ protected:
     }
 
     // Put the object buffer as the first member because then it will have alignment of the object - which is 8(64bit) or 4(32bit).
-    constexpr size_t s_kstSizeValBuf = std::max( sizeof(_tyStrWRsv), std::max( sizeof(_tyJsoObject), sizeof(_tyJsoArray) ) );
-    uint8_t m_rgbyValBuf[ s_kstSizeValBuf ];
+    static constexpr size_t s_kstSizeValBuf = std::max( sizeof(_tyStrWRsv), std::max( sizeof(_tyJsoObject), sizeof(_tyJsoArray) ) );
+    uint8_t m_rgbyValBuf[ s_kstSizeValBuf ]; // We aren't initializing this on purpose.
     EJsonValueType m_jvtType{ ejvtJsonValueTypeCount };
 };
 
@@ -565,6 +668,7 @@ class _JsoObject
     typedef _JsoObject _tyThis;
 public:
     typedef t_tyChar _tyChar;
+    typedef JsonCharTraits< _tyChar > _tyCharTraits;
     typedef const t_tyChar * _tyLPCSTR;
     typedef std::basic_string< t_tyChar > _tyStdStr;
     typedef StrWRsv< _tyStdStr > _tyStrWRsv; // string with reserve buffer.
@@ -572,12 +676,34 @@ public:
     typedef std::map< _tyStrWRsv, _tyJsoValue > _tyMapValues;
     typedef typename _tyMapValues::iterator _tyIterator;
     typedef typename _tyMapValues::const_iterator _tyConstIterator;
-    typedef _tyMapValues::value_type _tyMapValueType;
+    typedef typename _tyMapValues::value_type _tyMapValueType;
 
     _JsoObject() = default;
     ~_JsoObject() = default;
     _JsoObject( const _JsoObject & ) = default;
     _JsoObject &operator=( const _JsoObject & ) = default;
+    _JsoObject( _JsoObject && ) = default;
+    _JsoObject & operator =( _JsoObject && ) = default;
+
+#ifdef NDEBUG
+    void AssertValid( bool _fRecursive ) { }
+#else
+    void AssertValid( bool _fRecursive )
+    {
+        _tyConstIterator itCur = m_mapValues.begin();
+        const _tyConstIterator itEnd = m_mapValues.end();
+        for ( ; itCur != itEnd; ++itCur )
+        {
+            _tyChar tc = itCur->first[0];
+            itCur->first[0] = 'a';
+            itCur->first[0] = tc;
+            if ( _fRecursive )
+                itCur->second.AssertValid( true );
+            else
+                assert( ejvtJsonValueTypeCount != itCur->second.JvtGetValueType() );
+        }
+    }
+#endif
 
     void Clear()
     {
@@ -616,33 +742,32 @@ public:
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
         assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
-        _tyBase::FromJSONStream( _jrc );
         JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
         if ( !_jrc.FMoveDown() )
             THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
-            _tyStdStr strKey;
+            _tyStrWRsv strKey;
             EJsonValueType jvt;
             bool f = _jrc.FGetKeyCurrent( strKey, jvt );
             if ( !f )
                 THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly." );
-            _tyPtrJsoValue ptrNew;
-            _tyBase::MakeJsoValue( jvt, ptrNew );
-            ptrNew->FromJSONStream( _jrc );
-            std::pair< _tyMap::iterator, bool > pib = m_mapValues.try_emplace( std::move( strKey ), std::move( ptrNew ) );
+            _tyJsoValue jvValue( jvt );
+            jvValue.FromJSONStream( _jrc );
+            std::pair< _tyIterator, bool > pib = m_mapValues.try_emplace( std::move( strKey ), std::move( jvValue ) );
             if ( !pib.second ) // key already exists.
-                THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): Duplicate key found[%s] path[%s].", strKey.c_str(), _jrc.StrCurrentPath().c_str() );
+                THROWBADJSONSTREAM( "_JsoObject::FromJSONStream(EJsonValueType): Duplicate key found[%s].", strKey.c_str() );
         }
     }
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
         _tyConstIterator itCur = m_mapValues.begin();
-        for ( ; itCur != m_mapValues.end; ++itCur )
+        const _tyConstIterator itEnd = m_mapValues.end();
+        for ( ; itCur !=itEnd; ++itCur )
         {
-            JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, itCur->first.c_str(), itCur->second->JvtGetValueType() );
-            itCur->second->ToJSONStream( jvlObjectElement );
+            JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, itCur->first.c_str(), itCur->second.JvtGetValueType() );
+            itCur->second.ToJSONStream( jvlObjectElement );
         }
     }
 protected:
@@ -664,12 +789,14 @@ public:
     typedef std::vector< _tyJsoValue > _tyVectorValues;
     typedef typename _tyVectorValues::iterator _tyIterator;
     typedef typename _tyVectorValues::const_iterator _tyConstIterator;
-    typedef _tyVectorValues::value_type _tyVectorValueType;
+    typedef typename _tyVectorValues::value_type _tyVectorValueType;
 
     _JsoArray() = default;
     ~_JsoArray() = default;
     _JsoArray( const _JsoArray & ) = default;
     _JsoArray &operator=( const _JsoArray & ) = default;
+    _JsoArray( _JsoArray && ) = default;
+    _JsoArray & operator =( _JsoArray && ) = default;
 
     void Clear()
     {
@@ -710,35 +837,156 @@ public:
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
         assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
-        _tyBase::FromJSONStream( _jrc );
         JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
         if ( !_jrc.FMoveDown() )
             THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
-            _tyStdStr strKey;
-            EJsonValueType jvt;
-            bool f = _jrc.FGetKeyCurrent( strKey, jvt );
-            if ( !f )
-                THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly." );
-            _tyPtrJsoValue ptrNew;
-            _tyBase::MakeJsoValue( jvt, ptrNew );
-            ptrNew->FromJSONStream( _jrc );
-            std::pair< _tyVector::iterator, bool > pib = m_vecValues.try_emplace( std::move( strKey ), std::move( ptrNew ) );
-            if ( !pib.second ) // key already exists.
-                THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): Duplicate key found[%s] path[%s].", strKey.c_str(), _jrc.StrCurrentPath().c_str() );
+            _tyJsoValue jvValue( _jrc.JvtGetValueType() );
+            jvValue.FromJSONStream( _jrc );
+            m_vecValues.emplace_back( std::move( jvValue ) );
         }
     }
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
         _tyConstIterator itCur = m_vecValues.begin();
-        for ( ; itCur != m_vecValues.end; ++itCur )
+        _tyConstIterator itEnd = m_vecValues.end();
+        for ( ; itCur != itEnd; ++itCur )
         {
-            JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, itCur->first.c_str(), itCur->second->JvtGetValueType() );
-            itCur->second->ToJSONStream( jvlArrayElement );
+            JsonValueLife< t_tyJsonOutputStream > jvlArrayElement( _jvl, itCur->JvtGetValueType() );
+            itCur->ToJSONStream( jvlArrayElement );
         }
     }
 protected:
     _tyVectorValues m_vecValues;
 };
+
+namespace n_JSONObjects
+{
+
+// Read data from a ReadCursor into a JSON object.
+template < class t_tyJsonInputStream >
+void StreamReadJsoValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, JsoValue< typename t_tyJsonInputStream::_tyChar > & _jv )
+{
+    _jv.FromJSONStream( _jrc );
+}
+
+template < class t_tyJsonInputStream >
+auto JsoValueStreamRead( JsonReadCursor< t_tyJsonInputStream > & _jrc )
+    -> JsoValue< typename t_tyJsonInputStream::_tyChar >
+{
+    JsoValue< typename t_tyJsonInputStream::_tyChar > jv( _jrc.JvtGetValueType() );
+    jv.FromJSONStream( _jrc );
+    return jv; // we expect clang/gcc to employ NRVO.
+}
+
+template < class t_tyJsonInputStream, class t_tyJsonOutputStream >
+struct StreamJSONObjects
+{
+    typedef t_tyJsonInputStream _tyJsonInputStream;
+    typedef t_tyJsonOutputStream _tyJsonOutputStream;
+    typedef typename _tyJsonInputStream::_tyCharTraits _tyCharTraits;
+    static_assert( std::is_same_v< _tyCharTraits, typename _tyJsonOutputStream::_tyCharTraits > );
+    typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+    typedef JsonReadCursor< _tyJsonInputStream > _tyJsonReadCursor;
+    typedef JsonValueLife< _tyJsonOutputStream > _tyJsonValueLife;
+    typedef std::pair< const char *, int > _tyPrFilenameFd;
+
+    static void Stream( const char * _pszInputFile, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        typedef JsoValue< typename t_tyJsonInputStream::_tyChar > _tyJsoValue;
+        _tyJsoValue jvRead;
+        {//B
+            _tyJsonInputStream jis;
+            jis.Open( _pszInputFile );
+            _tyJsonReadCursor jrc;
+            jis.AttachReadCursor( jrc );
+            jvRead.SetValueType( jrc.JvtGetValueType() );
+            jvRead.FromJSONStream( jrc );
+        }//EB
+
+        if ( !_fReadOnly )
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            if ( !!_prfnfdOutput.first )
+                jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
+            else
+                jos.AttachFd( _prfnfdOutput.second );
+            _tyJsonValueLife jvl( jos, jvRead.JvtGetValueType(), _pjfs );
+            jvRead.ToJSONStream( jvl );
+        }
+    }
+    static void Stream( int _fdInput, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        typedef JsoValue< typename t_tyJsonInputStream::_tyChar > _tyJsoValue;
+        _tyJsoValue jvRead;
+        {//B
+            _tyJsonInputStream jis;
+            jis.AttachFd( _fdInput );
+            _tyJsonReadCursor jrc;
+            jis.AttachReadCursor( jrc );
+            jvRead.SetValueType( jrc.JvtGetValueType() );
+            jvRead.FromJSONStream( jrc );
+        }//EB
+
+        if ( !_fReadOnly )
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            if ( !!_prfnfdOutput.first )
+                jos.Open( _prfnfdOutput.first ); // Open by default will truncate the file.
+            else
+                jos.AttachFd( _prfnfdOutput.second );
+            _tyJsonValueLife jvl( jos, jvRead.JvtGetValueType(), _pjfs );
+            jvRead.ToJSONStream( jvl );
+        }
+    }
+    static void Stream( const char * _pszInputFile, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        typedef JsoValue< typename t_tyJsonInputStream::_tyChar > _tyJsoValue;
+        _tyJsoValue jvRead;
+        {//B
+            _tyJsonInputStream jis;
+            jis.Open( _pszInputFile );
+            _tyJsonReadCursor jrc;
+            jis.AttachReadCursor( jrc );
+            jvRead.SetValueType( jrc.JvtGetValueType() );
+            jvRead.FromJSONStream( jrc );
+        }//EB
+
+        if ( !_fReadOnly )
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
+            _tyJsonValueLife jvl( jos, jvRead.JvtGetValueType(), _pjfs );
+            jvRead.ToJSONStream( jvl );
+        }
+    }
+    static void Stream( int _fdInput, const char * _pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec * _pjfs )
+    {
+        typedef JsoValue< typename t_tyJsonInputStream::_tyChar > _tyJsoValue;
+        _tyJsoValue jvRead;
+        {//B
+            _tyJsonInputStream jis;
+            jis.AttachFd( _fdInput );
+            _tyJsonReadCursor jrc;
+            jis.AttachReadCursor( jrc );
+            jvRead.SetValueType( jrc.JvtGetValueType() );
+            jvRead.FromJSONStream( jrc );
+        }//EB
+
+        if ( !_fReadOnly )
+        {
+            // Open the write file to which we will be streaming JSON.
+            _tyJsonOutputStream jos;
+            jos.Open( _pszOutputFile ); // Open by default will truncate the file.
+            _tyJsonValueLife jvl( jos, jvRead.JvtGetValueType(), _pjfs );
+            jvRead.ToJSONStream( jvl );
+        }
+    }
+};
+
+} // namespace n_JSONObjects
