@@ -98,7 +98,11 @@ else
 ifneq (,$(findstring clang,$(CC)))
 # Allow the use of any version of clang by copying CC.
 CXX := $(CC)
-CXXANDLINKFLAGS += -std=gnu++17 -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
+CXXANDLINKFLAGS += -std=c++20 -stdlib=libc++ -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
+LINKFLAGS_BASE += -lc++abi -lm
+ifneq (1,$(NDEBUG))
+CXXANDLINKFLAGS += -D_LIBCPP_DEBUG -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+endif #!NDEBUG
 # setup CCU to be clang for clang - separate out the cuda specific compile and link flags.
 CCU := $(CC)
 CUDAGENCODEOPTIONS := $(foreach gc, $(CUDAGENCODES), --cuda-gpu-arch=sm_$(gc))
