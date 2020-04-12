@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <string>
+#include <compare>
 #include <_namdexc.h>
 #include <_smartp.h>
 #if __APPLE__
@@ -51,11 +52,11 @@ size_t StrNLen( const t_tyChar * _psz, size_t _stMaxLen = std::numeric_limits< s
 }
 
 template < class t_tyChar >
-int ICompareStr( const t_tyChar * _pszLeft, const t_tyChar * _pszRight )
+std::strong_ordering ICompareStr( const t_tyChar * _pszLeft, const t_tyChar * _pszRight )
 {
     for ( ; !!*_pszLeft && ( *_pszLeft == *_pszRight ); ++_pszLeft, ++_pszRight )
         ;
-    return ( *_pszLeft < *_pszRight ) ? -1 : ( ( *_pszLeft > *_pszRight ) ? 1 : 0 );
+    return ( *_pszLeft < *_pszRight ) ? std::strong_ordering::less : ( ( *_pszLeft > *_pszRight ) ? std::strong_ordering::greater : std::strong_ordering::equal );
 }
 
 // Return a string formatted like printf. Throws.

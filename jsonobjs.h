@@ -384,7 +384,6 @@ public:
         SetValueType( ejvtJsonValueTypeCount );
     }
 
-#if 0
 // Compare objects:
     std::strong_ordering operator <=> ( _tyThis const & _r ) const
     {
@@ -392,9 +391,8 @@ public:
     }
     std::strong_ordering ICompare( _tyThis const & _r ) const
     {
-        int iComp = ICompareT
-        int iComp = (int)JvtGetValueType() - (int)_r.JvtGetValueType(); // Arbitrary comparison between different types.
-        if ( !iComp )
+        auto comp = (int)JvtGetValueType() <=> (int)_r.JvtGetValueType(); // Arbitrary comparison between different types.
+        if ( !comp )
         {
             switch( JvtGetValueType() )
             {
@@ -404,24 +402,23 @@ public:
                 break;
             case ejvtNumber:
             case ejvtString:
-
-                _jrc.GetValue( StrGet() );
+                // Note that I don't mean to compare numbers as numbers - only as the strings they are represented in.
+                comp = StrGet() <=> _r.StrGet();
                 break;
             case ejvtObject:
-                _ObjectGet().FromJSONStream( _jrc );
+                comp = _ObjectGet() <=> _r._ObjectGet();
                 break;
             case ejvtArray:
-                _ArrayGet().FromJSONStream( _jrc );
+                comp = _ArrayGet() <=> _r._ArrayGet();
                 break;
             default:
             case ejvtJsonValueTypeCount:
-                THROWJSONBADUSAGE( "JsonReadCursor::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
+                THROWJSONBADUSAGE( "JsoValue::ICompare(): invalid value type [%hhu].", JvtGetValueType() );
                 break;
             }
         }
-        return iComp;
+        return comp;
     }
-#endif //0
 
     bool FEmpty() const
     {
@@ -510,7 +507,7 @@ public:
     void _GetValue( _tyLPCSTR _pszFmt, t_tyNum & _rNumber ) const
     {
         if ( ejvtNumber != JvtGetValueType() ) 
-            THROWJSONBADUSAGE( "JsonReadCursor::GetValue(various int): Not at a numeric value type." );
+            THROWJSONBADUSAGE( "JsoValue::_GetValue(various int): Not at a numeric value type." );
 
         // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
         int iRet = sscanf( StrGet().c_str(), _pszFmt, &_rNumber );
@@ -686,7 +683,7 @@ public:
             break;
         default:
         case ejvtJsonValueTypeCount:
-            THROWJSONBADUSAGE( "JsonReadCursor::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
+            THROWJSONBADUSAGE( "JsoValue::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
             break;
         }    
     }
@@ -711,7 +708,7 @@ public:
             break;
         default:
         case ejvtJsonValueTypeCount:
-            THROWJSONBADUSAGE( "JsonReadCursor::ToJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
+            THROWJSONBADUSAGE( "JsoValue::ToJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
             break;
         }    
     }
@@ -948,6 +945,11 @@ public:
         return const_cast< _tyThis * >( this )->GetEl( _psz );
     }
 
+    std::strong_ordering operator <=> ( _tyThis const & _r ) const
+    {
+        return m_mapValues <=> _r.m_mapValues;
+    }
+
     template < class t_tyJsonInputStream >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
@@ -1041,6 +1043,11 @@ public:
     const _tyVectorValueType & GetEl( _tyLPCSTR _psz ) const
     {
         return const_cast< _tyThis * >( this )->GetEl( _psz );
+    }
+
+    std::strong_ordering operator <=> ( _tyThis const & _r ) const
+    {
+        return m_vecValues <=> _r.m_vecValues;
     }
 
     template < class t_tyJsonInputStream >

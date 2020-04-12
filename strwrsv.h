@@ -222,16 +222,9 @@ public:
 
     std::strong_ordering operator <=> ( _tyThis const & _r ) const
     {
-        iComp = ICompare( _r );
-        if ( iComp < 0 )
-            return std::strong_ordering::less;
-        else
-        if ( iComp > 0 )
-            return std::strong_ordering::greater;
-        else
-            return std::strong_ordering::equal;
+        return ICompare( _r );
     }
-    int ICompare( _tyThis const & _r ) const
+    std::strong_ordering ICompare( _tyThis const & _r ) const
     {
         return ICompareStr( c_str(), _r.c_str() );
     }
