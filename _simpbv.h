@@ -110,7 +110,7 @@ public:
   }
 
   // Only copy the allocator.
-  _simple_bitvec( _TyThis const & _r, __false_type )
+  _simple_bitvec( _TyThis const & _r, std::false_type )
     : m_kstBits( 0 ),
       m_kstSize( 0 ),
       _TyAllocBase( (_TyAllocBase const &)_r ),

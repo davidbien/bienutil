@@ -70,7 +70,7 @@ _IMP_PSET_TYPEID_OF( GUID, e_ptGUID );
 template < class t_Ty >
 struct _pset_type_traits
 {
-	typedef __true_type	_TyFIsFixed;	// Sometimes nice to have both a type and a bool.
+	typedef std::true_type	_TyFIsFixed;	// Sometimes nice to have both a type and a bool.
 	static const bool		ms_kfIsFixed = true;					// default is fixed size.
 	static const size_t	ms_kstSize = sizeof( t_Ty );	// default size is the in memory size.
 
@@ -120,7 +120,7 @@ struct _pset_type_traits
 template < class t_Ty >
 struct _pset_type_traits< t_Ty * >
 {
-	typedef __false_type	_TyFIsFixed;	// Sometimes nice to have both a type and a bool.
+	typedef std::false_type	_TyFIsFixed;	// Sometimes nice to have both a type and a bool.
 	static const bool		ms_kfIsFixed = false;
 	static const size_t	ms_kstSize = sizeof( t_Ty );	// size in this case is size of element.
 
@@ -627,7 +627,7 @@ public:
 	template < class t_TyValue >
 	void	_get_copy(	const _TyPropLookupFixed * _pplf, 
 										t_TyValue & _rv.
-										__true_type )	// fixed.
+										std::true_type )	// fixed.
 	{
 		_pset_type_traits< t_TyValue >::unpersist( m_cpFixed + _pplf->m_stOffset, _rv );
 	}
@@ -635,7 +635,7 @@ public:
 	template < class t_TyValue >
 	void	_get_copy(	const _TyPropLookupFixed * _pplf, 
 										t_TyValue & _rv.
-										__false_type )	// variable.
+										std::false_type )	// variable.
 	{
 		// We copy the value in:
 		const _TyPropLookupVariable * pplv = static_cast< const _TyPropLookupVariable * >( _pplf );
@@ -1049,7 +1049,7 @@ protected:
 	template < class t_TyValue >
 	void _insert_value(	t_TyValue const & _rv, 
 											_TyPropId const & _id,
-											__true_type )	// fixed size
+											std::true_type )	// fixed size
 	{
 		_TyPropLookupFixed *	pplf = find_fixed( _id );
 		if ( ( end_fixed() == pplf ) || ( _id != pplf->m_id ) )
@@ -1065,7 +1065,7 @@ protected:
 	template < class t_TyValue >
 	void _insert_value(	t_TyValue const & _rv, 
 											_TyPropId const & _id,
-											__false_type )	// variable size
+											std::false_type )	// variable size
 	{
 		_TyPropLookupVariable *	pplv = find_variable( _id );
 		if ( pplv == end_variable() || ( pplv->m_id != _id ) )
@@ -1089,7 +1089,7 @@ protected:
 	template < class t_TyValue >
 	void	_get_value( _TyPropId const & _id, 
 										t_TyValue & _rv,
-										__true_type )	// fixed.
+										std::true_type )	// fixed.
 	{
 		_TyPropLookupFixed *	pplf = find_fixed( _id );
 		if ( ( end_fixed() != pplf ) && ( _id == pplf->m_id ) )
@@ -1104,7 +1104,7 @@ protected:
 	template < class t_TyValue >
 	void	_get_value( _TyPropId const & _id, 
 										t_TyValue & _rv,
-										__false_type )	// variable.
+										std::false_type )	// variable.
 	{
 		_TyPropLookupVariable *	pplf = find_variable( _id );
 		if ( ( end_variable() != pplf ) && ( _id == pplf->m_id ) )

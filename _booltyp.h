@@ -3,7 +3,7 @@
 
 // _booltyp.h
 
-// Define the boolean types __true_type and __false_type and some related utilities.
+// Define the boolean types std::true_type and std::false_type and some related utilities.
 
 #include <type_traits>
 
@@ -15,15 +15,15 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-#if !defined( _STLP_STD ) && ( defined( __FreeBSD__ ) || defined(__APPLE__) || !defined( __GNUC__ ) ) // STLport defines these locally, FreeBSD's STL seems not to, gcc otherwise does.
-struct __true_type
+#if 0 // !defined( _STLP_STD ) && ( defined( __FreeBSD__ ) || defined(__APPLE__) || !defined( __GNUC__ ) ) // STLport defines these locally, FreeBSD's STL seems not to, gcc otherwise does.
+struct std::true_type
 {
 };
 
-struct __false_type
+struct std::false_type
 {
 };
-#endif //!_STLP_STD
+#endif // 0 !_STLP_STD
 
 #ifdef __GNUC__ // doesn't like templates declared like this.
 // Type->boolean functions:
@@ -31,12 +31,12 @@ template < class t_TyBoolean >
 bool  __FTrue( t_TyBoolean );
 
 template <>
-__INLINE bool  __FTrue( __false_type )
+__INLINE bool  __FTrue( std::false_type )
 {
   return false;
 }
 template <>
-__INLINE bool  __FTrue( __true_type )
+__INLINE bool  __FTrue( std::true_type )
 {
   return true;
 }
@@ -45,12 +45,12 @@ template < class t_TyBoolean >
 bool  __FFalse( t_TyBoolean );
 
 template <>
-__INLINE bool  __FFalse( __true_type )
+__INLINE bool  __FFalse( std::true_type )
 {
   return false;
 }
 template <>
-__INLINE bool  __FFalse( __false_type )
+__INLINE bool  __FFalse( std::false_type )
 {
   return true;
 }
@@ -61,7 +61,7 @@ template < class _TyF > struct __type_to_bool
 {
   static const bool ms_cfValue = true;
 };
-template < > struct __type_to_bool< __false_type >
+template < > struct __type_to_bool< std::false_type >
 {
   static const bool ms_cfValue = false;
 };
@@ -70,12 +70,12 @@ template < > struct __type_to_bool< __false_type >
 
 template < bool _f >  struct __boolean_type
 {
-  typedef __true_type _type;
+  typedef std::true_type _type;
 };
 template <>
 struct __boolean_type<false>
 {
-  typedef __false_type  _type;
+  typedef std::false_type  _type;
 };
 
 // Boolean operations:
@@ -132,50 +132,50 @@ struct __boolean_equals< true, true >
 template < class t_TyBoolean >
 struct __booltyp_not
 {
-  typedef __false_type  _value;
+  typedef std::false_type  _value;
 };
 template < >
-struct __booltyp_not< __false_type >
+struct __booltyp_not< std::false_type >
 {
-  typedef __true_type   _value;
+  typedef std::true_type   _value;
 };
 
 template < class t_TyBool1, class t_TyBool2 >
 struct __booltyp_and
 {
-  typedef __false_type  _value;
+  typedef std::false_type  _value;
 };
 template < >
-struct __booltyp_and< __true_type, __true_type >
+struct __booltyp_and< std::true_type, std::true_type >
 {
-  typedef __true_type   _value;
+  typedef std::true_type   _value;
 };
 
 template < class t_TyBool1, class t_TyBool2 >
 struct __booltyp_or
 {
-  typedef __true_type   _value;
+  typedef std::true_type   _value;
 };
 template < >
-struct __booltyp_or< __false_type, __false_type >
+struct __booltyp_or< std::false_type, std::false_type >
 {
-  typedef __false_type  _value;
+  typedef std::false_type  _value;
 };
 
 template < class t_TyBool1, class t_TyBool2 >
 struct __booltyp_equals
 {
-  typedef __false_type    _value;
+  typedef std::false_type    _value;
 };
 template < >
-struct __booltyp_equals< __false_type, __false_type >
+struct __booltyp_equals< std::false_type, std::false_type >
 {
-  typedef __true_type     _value;
+  typedef std::true_type     _value;
 };
 template < >
-struct __booltyp_equals< __true_type, __true_type >
+struct __booltyp_equals< std::true_type, std::true_type >
 {
-  typedef __true_type     _value;
+  typedef std::true_type     _value;
 };
 
 __BIENUTIL_END_NAMESPACE

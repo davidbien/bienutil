@@ -43,6 +43,8 @@ public:
         // We are pretty sure that scandir cannot throw a C++ exception. It could crash, perhaps, but not much we can do about that and C++ object won't be unwound on a crash.
         // Therefore set the TLS pointer for this here since this thread clearly cannot be in this place twice.
         assert( !s_tls_pThis );
+        if ( !!s_tls_pThis )
+            return -1; // This code is not reentrant.
         s_tls_pThis = this;
         int nScandir = scandir( m_strDir.c_str(), &ppdeEntries, ScanDirectory::StaticFilterDirEnts, alphasort );
         assert( this == s_tls_pThis );

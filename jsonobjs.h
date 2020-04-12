@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <map>
+#include <c++/v1/compare>
 #include "jsonstrm.h"
 #include "strwrsv.h"
 
@@ -382,6 +383,45 @@ public:
     {
         SetValueType( ejvtJsonValueTypeCount );
     }
+
+#if 0
+// Compare objects:
+    std::strong_ordering operator <=> ( _tyThis const & _r ) const
+    {
+        return ICompare( _r );
+    }
+    std::strong_ordering ICompare( _tyThis const & _r ) const
+    {
+        int iComp = ICompareT
+        int iComp = (int)JvtGetValueType() - (int)_r.JvtGetValueType(); // Arbitrary comparison between different types.
+        if ( !iComp )
+        {
+            switch( JvtGetValueType() )
+            {
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+                break;
+            case ejvtNumber:
+            case ejvtString:
+
+                _jrc.GetValue( StrGet() );
+                break;
+            case ejvtObject:
+                _ObjectGet().FromJSONStream( _jrc );
+                break;
+            case ejvtArray:
+                _ArrayGet().FromJSONStream( _jrc );
+                break;
+            default:
+            case ejvtJsonValueTypeCount:
+                THROWJSONBADUSAGE( "JsonReadCursor::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
+                break;
+            }
+        }
+        return iComp;
+    }
+#endif //0
 
     bool FEmpty() const
     {

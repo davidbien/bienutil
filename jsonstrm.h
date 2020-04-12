@@ -608,10 +608,155 @@ protected:
     bool m_fUseSeek{true}; // For STDIN we cannot use seek so we just maintain our "current" position.
 };
 
+// JsonLinuxInputFixedMemStream: Stream a fixed piece o' mem'ry at the JSON parser.
+template < class t_tyCharTraits >
+class JsonLinuxInputFixedMemStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
+{
+    typedef JsonLinuxInputFixedMemStream _tyThis;
+public:
+    typedef t_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef size_t _tyFilePos;
+    typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
+
+    JsonLinuxInputFixedMemStream() = default;
+    JsonLinuxInputFixedMemStream( _tyChar * _ptcBegin, _tyFilePos _stLen )
+    {
+        Open( _ptcBegin, _stLen );
+    }
+    ~JsonLinuxInputFixedMemStream()
+    {
+    }
+
+    bool FOpened() const
+    {
+        return MAP_FAILED != m_ptcBegin;
+    }
+    bool FEOF() const
+    {
+        assert( FOpened() );
+        return ( m_ptcEnd == m_ptcCur ) && !m_fHasLookahead;
+    }
+    _tyFilePos StLenBytes() const
+    {
+        assert( FOpened() );
+        return ( m_ptcEnd - m_ptcBegin ) * sizeof(_tyChar);
+    }
+
+    // Throws on open failure. This object owns the lifetime of the file descriptor.
+    void Open( _tyChar * _ptcBegin, _tyFilePos _stLen )
+    {
+        Close();
+        m_ptcCur = m_ptcBegin = _ptcBegin;
+        m_ptcEnd = m_ptcCur + _stLen;
+    }
+
+    void Close()
+    {
+        m_ptcBegin = (_tyChar *)MAP_FAILED;
+        m_ptcCur = (_tyChar *)MAP_FAILED;
+        m_ptcEnd = (_tyChar *)MAP_FAILED;
+        m_fHasLookahead = false;
+        m_tcLookahead = 0;
+    }
+
+    // Attach to this FOpened() JsonLinuxInputStream.
+    void AttachReadCursor( _tyJsonReadCursor & _rjrc )
+    {
+        assert( !_rjrc.FAttached() );
+        assert( FOpened() );
+        _rjrc.AttachRoot( *this );
+    }
+
+    void SkipWhitespace() 
+    {
+        // We will keep reading characters until we find non-whitespace:
+        if ( m_fHasLookahead && !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            return;
+        m_fHasLookahead = false;
+        for ( ; ; )
+        {
+            if ( FEOF() )
+                return; // We have skipped the whitespace until we hit EOF.
+            m_tcLookahead = *m_ptcCur++;
+            if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            {
+                m_fHasLookahead = true;
+                return;
+            }
+        }
+    }
+
+    _tyFilePos PosGet() const
+    {
+        assert( FOpened() );
+        return ( ( m_ptcCur - (const _tyChar*)m_ptcBegin ) - (size_t)m_fHasLookahead ) * sizeof(_tyChar);
+    }
+    // Read a single character from the file - always throw on EOF.
+    _tyChar ReadChar( const char * _pcEOFMessage, const char * _pcFilename = 0 )
+    {
+        assert( FOpened() );
+        if ( m_fHasLookahead )
+        {
+            m_fHasLookahead = false;
+            return m_tcLookahead;
+        }
+        if ( FEOF() )
+            THROWBADJSONSTREAM( "[%s]: %s", !_pcFilename ? "(no file)" : _pcFilename, _pcEOFMessage );
+        return m_tcLookahead = *m_ptcCur++;
+    }
+    
+    bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage, const char * _pcFilename = 0 )
+    {
+        assert( FOpened() );
+        if ( m_fHasLookahead )
+        {
+            _rtch = m_tcLookahead;
+            m_fHasLookahead = false;
+            return true;
+        }
+        if ( FEOF() )
+        {
+            if ( _fThrowOnEOF )
+                THROWBADJSONSTREAM( "[%s]: %s", !_pcFilename ? "(no file)" : _pcFilename, _pcEOFMessage );
+            return false;
+        }
+        _rtch = m_tcLookahead = *m_ptcCur++;
+        return true;
+    }
+
+    void PushBackLastChar( bool _fMightBeWhitespace = false )
+    {
+        assert( !m_fHasLookahead ); // support single character lookahead only.
+        assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
+        if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
+            m_fHasLookahead = true;
+    }
+
+    int ICompare( _tyThis const & _rOther ) const
+    {
+        assert( FOpened() && _rOther.FOpened() );
+        if ( StLenBytes() < _rOther.StLenBytes() )
+            return -1;
+        else
+        if ( StLenBytes() > _rOther.StLenBytes() )
+            return 1;
+        return memcmp( m_ptcBegin, _rOther.m_ptcBegin, StLenBytes() );
+    }
+
+protected:
+    const _tyChar * m_ptcBegin{(_tyChar*)MAP_FAILED};
+    const _tyChar * m_ptcCur{(_tyChar*)MAP_FAILED};
+    const _tyChar * m_ptcEnd{(_tyChar*)MAP_FAILED};
+    _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
+    bool m_fHasLookahead{false};
+};
+
 // JsonLinuxInputMemMappedStream: A class using open(), read(), etc.
 template < class t_tyCharTraits >
-class JsonLinuxInputMemMappedStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
+class JsonLinuxInputMemMappedStream : protected JsonLinuxInputFixedMemStream< t_tyCharTraits >
 {
+    typedef JsonLinuxInputFixedMemStream< t_tyCharTraits > _tyBase;
     typedef JsonLinuxInputMemMappedStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
@@ -635,13 +780,10 @@ public:
     }
     bool FFileMapped() const
     {
-        return MAP_FAILED != m_pvMapped;
+        return (_tyChar*)MAP_FAILED != m_ptcBegin;
     }
-    bool FEOF() const
-    {
-        assert( FOpened() );
-        return ( m_ptcMappedEnd == m_ptcMappedCur ) && !m_fHasLookahead;
-    }
+    using _tyBase::FEOF;
+    using _tyBase::StLenBytes;
 
     // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
@@ -660,12 +802,11 @@ public:
         if ( !!( posEnd % sizeof(_tyChar) ) )
             THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
         // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
-        m_pvMapped = mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
-        if ( m_pvMapped == MAP_FAILED )
+        m_ptcBegin = (_tyChar*)mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
+        if ( m_ptcBegin == (_tyChar*)MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
-        m_stMapped = posEnd;
-        m_ptcMappedCur = (_tyChar*)m_pvMapped;
-        m_ptcMappedEnd = m_ptcMappedCur + ( m_stMapped / sizeof(_tyChar) );
+        m_ptcCur = m_ptcBegin;
+        m_ptcEnd = m_ptcCur + ( posEnd / sizeof(_tyChar) );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
     }
@@ -675,10 +816,9 @@ public:
         if ( FFileMapped() )
         {
             assert( FFileOpened() );
-            const void * pvMapped = m_pvMapped;
-            m_pvMapped = MAP_FAILED;
-            size_t stMapped = m_stMapped;
-            m_stMapped = 0;
+            const void * pvMapped = m_ptcBegin;
+            size_t stMapped = StLenBytes();
+            _tyBase::Close();
             _Unmap( pvMapped, stMapped );
         }
         if ( FFileOpened() )
@@ -700,6 +840,8 @@ public:
     }
 
     // Attach to this FOpened() JsonLinuxInputStream.
+    // We *could* use the base's impl for this but then the read cursor only see's the base's type and not the full type.
+    // In this case that works fine but in the general case it might not. Anyway, it adds very little code to do it this way so no worries.
     void AttachReadCursor( _tyJsonReadCursor & _rjrc )
     {
         assert( !_rjrc.FAttached() );
@@ -707,92 +849,31 @@ public:
         _rjrc.AttachRoot( *this );
     }
 
-    void SkipWhitespace() 
-    {
-        // We will keep reading characters until we find non-whitespace:
-        if ( m_fHasLookahead && !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
-            return;
-        m_fHasLookahead = false;
-        for ( ; ; )
-        {
-            if ( FEOF() )
-                return; // We have skipped the whitespace until we hit EOF.
-            m_tcLookahead = *m_ptcMappedCur++;
-            if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
-            {
-                m_fHasLookahead = true;
-                return;
-            }
-        }
-    }
+    using _tyBase::SkipWhitespace;
+    using _tyBase::PosGet;
 
-    // Throws if lseek() fails.
-    _tyFilePos PosGet() const
-    {
-        assert( FOpened() );
-        return ( ( m_ptcMappedCur - (const _tyChar*)m_pvMapped ) - (size_t)m_fHasLookahead ) * sizeof(_tyChar);
-    }
     // Read a single character from the file - always throw on EOF.
     _tyChar ReadChar( const char * _pcEOFMessage )
     {
-        assert( FOpened() );
-        if ( m_fHasLookahead )
-        {
-            m_fHasLookahead = false;
-            return m_tcLookahead;
-        }
-        if ( FEOF() )
-            THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
-        return m_tcLookahead = *m_ptcMappedCur++;
+        return _tyBase::ReadChar( _pcEOFMessage, m_szFilename.c_str() );
     }
     
     bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage )
     {
-        assert( FOpened() );
-        if ( m_fHasLookahead )
-        {
-            _rtch = m_tcLookahead;
-            m_fHasLookahead = false;
-            return true;
-        }
-        if ( FEOF() )
-        {
-            if ( _fThrowOnEOF )
-                THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
-            return false;
-        }
-        _rtch = m_tcLookahead = *m_ptcMappedCur++;
-        return true;
+        return _tyBase::FReadChar( _rtch, _fThrowOnEOF, _pcEOFMessage, m_szFilename.c_str() );
     }
 
-    void PushBackLastChar( bool _fMightBeWhitespace = false )
-    {
-        assert( !m_fHasLookahead ); // support single character lookahead only.
-        assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
-        if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
-            m_fHasLookahead = true;
-    }
-
-    int ICompare( _tyThis const & _rOther ) const
-    {
-        if ( m_stMapped < _rOther.m_stMapped )
-            return -1;
-        else
-        if ( m_stMapped > _rOther.m_stMapped )
-            return 1;
-        
-        return memcmp( m_pvMapped, _rOther.m_pvMapped, m_stMapped );
-    }
+    using _tyBase::PushBackLastChar;
+    using _tyBase::ICompare;
 
 protected:
+    using _tyBase::m_ptcBegin;
+    using _tyBase::m_ptcCur;
+    using _tyBase::m_ptcEnd;
+    using _tyBase::m_tcLookahead;
+    using _tyBase::m_fHasLookahead;
     std::string m_szFilename;
-    const void * m_pvMapped{MAP_FAILED};
-    const _tyChar * m_ptcMappedCur{};
-    const _tyChar * m_ptcMappedEnd{};
-    size_t m_stMapped{};
     int m_fd{-1}; // file descriptor.
-    _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
-    bool m_fHasLookahead{false};
 };
 
 // JsonLinuxOutputStream: A class using open(), read(), etc.

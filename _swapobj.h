@@ -21,14 +21,14 @@ public:
 
   // We swap with a const object:
   _swap_object( const t_Ty & _r )
-    : m_t( _r, __false_type() ) // Only copy the allocator.
+    : m_t( _r, std::false_type() ) // Only copy the allocator.
   {
     m_t.swap( const_cast< _Ty & >( _r ) );
   }
 
   // We swap with even a const self.
   _swap_object( const _TyThis & _r )
-    : m_t( _r.m_t, __false_type() )
+    : m_t( _r.m_t, std::false_type() )
   {
     m_t.swap( const_cast< _Ty & >( _r.RObject() ) );
   }

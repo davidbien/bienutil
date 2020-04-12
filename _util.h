@@ -36,13 +36,13 @@ struct ___semantic_error_object
 template < class t_Ty1, class t_Ty2 >
 struct __IsSameType
 {
-  typedef __false_type  _TyF;
+  typedef std::false_type  _TyF;
 };
 
 template < class t_Ty >
 struct __IsSameType< t_Ty, t_Ty >
 {
-  typedef __true_type   _TyF;
+  typedef std::true_type   _TyF;
 };
 
 template < class t_Ty1, class t_Ty2 >
@@ -50,7 +50,7 @@ struct __AssertSameType;
 template < class t_Ty >
 struct __AssertSameType< t_Ty, t_Ty >
 {
-  typedef __true_type   _TyF;
+  typedef std::true_type   _TyF;
 };
 #define _pptokenpaste(x,y) x ## y
 #define pptokenpaste(x,y) _pptokenpaste(x,y)
@@ -60,17 +60,17 @@ struct __AssertSameType< t_Ty, t_Ty >
 // Whether to allow a const/non-const object reference to be transfered to
 //  a const/non-const:
 template < class _TyFromConst, class _TyToConst > struct __TransferConst;
-template <> struct __TransferConst< __true_type, __true_type > 
+template <> struct __TransferConst< std::true_type, std::true_type > 
 { 
-  typedef __true_type _TyF;
+  typedef std::true_type _TyF;
 };
-template <> struct __TransferConst< __false_type, __true_type > 
+template <> struct __TransferConst< std::false_type, std::true_type > 
 {
-  typedef __true_type _TyF;
+  typedef std::true_type _TyF;
 };
-template <> struct __TransferConst< __false_type, __false_type >
+template <> struct __TransferConst< std::false_type, std::false_type >
 { 
-  typedef __true_type _TyF;
+  typedef std::true_type _TyF;
 };
 #define __TRANSFER_CONST2( _f1, _f2 ) typedef typename __TransferConst< _f1, _f2 >::_TyF
 #define __TRANSFER_CONST( _f1, _f2 )  typedef typename __TransferConst< _f1, _f2 >::_TyF _TyFoo
@@ -79,7 +79,7 @@ template <> struct __TransferConst< __false_type, __false_type >
 template < bool _f >  struct __assert_bool;
 template <> struct __assert_bool<true>  
 { 
-  typedef __true_type _TyF;
+  typedef std::true_type _TyF;
 };
 
 #ifndef NDEBUG
@@ -99,9 +99,9 @@ template <> struct __assert_bool<true>
 
 // Assertion logic for boolean type ( i.e. not boolean const variable ):
 template < class t_TyFBoolType > struct __assert_bool_type;
-template <> struct __assert_bool_type< __true_type >
+template <> struct __assert_bool_type< std::true_type >
 { 
-  typedef __true_type _TyF;
+  typedef std::true_type _TyF;
 };
 
 #define __ASSERT_BOOL_TYPE( _f )  typedef typename __assert_bool_type< _f >::_TyF

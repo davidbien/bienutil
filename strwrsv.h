@@ -6,6 +6,7 @@
 // Wraps std::basic_string<> or any object generic with std::basic_string<>.
 
 #include <string>
+#include <compare>
 
 // StrWRsv:
 // String with reserve. We don't store a length because we assume that in the places we will use this we won't need a length often.
@@ -219,6 +220,17 @@ public:
         return _PGetStrBase()[_st];
     }
 
+    std::strong_ordering operator <=> ( _tyThis const & _r ) const
+    {
+        iComp = ICompare( _r );
+        if ( iComp < 0 )
+            return std::strong_ordering::less;
+        else
+        if ( iComp > 0 )
+            return std::strong_ordering::greater;
+        else
+            return std::strong_ordering::equal;
+    }
     int ICompare( _tyThis const & _r ) const
     {
         return ICompareStr( c_str(), _r.c_str() );
