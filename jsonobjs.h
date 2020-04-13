@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <map>
+#include <compare>
 #include <c++/v1/compare>
 #include "jsonstrm.h"
 #include "strwrsv.h"
@@ -384,7 +385,47 @@ public:
         SetValueType( ejvtJsonValueTypeCount );
     }
 
+
 // Compare objects:
+    bool operator == ( const _tyThis & _r ) const
+    {
+        return FCompare( _r );
+    }
+    bool operator != ( const _tyThis & _r ) const
+    {
+        return !FCompare( _r );
+    }
+    bool FCompare( _tyThis const & _r ) const
+    {
+        bool fSame = JvtGetValueType() == _r.JvtGetValueType(); // Arbitrary comparison between different types.
+        if ( fSame )
+        {
+            switch( JvtGetValueType() )
+            {
+            case ejvtNull:
+            case ejvtTrue:
+            case ejvtFalse:
+                break;
+            case ejvtNumber:
+            case ejvtString:
+                // Note that I don't mean to compare numbers as numbers - only as the strings they are represented in.
+                fSame = ( StrGet() == _r.StrGet() );
+                break;
+            case ejvtObject:
+                fSame = ( _ObjectGet() == _r._ObjectGet() );
+                break;
+            case ejvtArray:
+                fSame = ( _ArrayGet() == _r._ArrayGet() );
+                break;
+            default:
+            case ejvtJsonValueTypeCount:
+                THROWJSONBADUSAGE( "JsoValue::ICompare(): invalid value type [%hhu].", JvtGetValueType() );
+                break;
+            }
+        }
+        return fSame;
+    }
+
     std::strong_ordering operator <=> ( _tyThis const & _r ) const
     {
         return ICompare( _r );
@@ -392,7 +433,7 @@ public:
     std::strong_ordering ICompare( _tyThis const & _r ) const
     {
         auto comp = (int)JvtGetValueType() <=> (int)_r.JvtGetValueType(); // Arbitrary comparison between different types.
-        if ( !comp )
+        if ( 0 == comp )
         {
             switch( JvtGetValueType() )
             {
@@ -448,6 +489,10 @@ public:
     {
         return ( ejvtNumber == m_jvtType );
     }
+    bool FIsAggregate() const
+    {
+        return FIsObject() || FIsArray();
+    }
     bool FIsObject() const
     {
         return ejvtObject == m_jvtType;
@@ -455,6 +500,15 @@ public:
     bool FIsArray() const
     {
         return ejvtArray == m_jvtType;
+    }
+    size_t GetSize() const
+    {
+        if ( !FIsAggregate() )
+            THROWJSONBADUSAGE( "JsoValue::GetSize(): Called on non-aggregate." );
+        if ( FIsObject() )
+            return _ObjectGet().GetSize();
+        else
+            return _ArrayGet().GetSize();
     }
     void GetBoolValue( bool & _rf ) const
     {
@@ -706,10 +760,10 @@ public:
             _jrc.GetValue( StrGet() );
             break;
         case ejvtObject:
-            _ObjectGet().FromJSONStream( _jrc, _rfFilter );
+            _ObjectGet().FromJSONStream( _jrc, *this, _rfFilter );
             break;
         case ejvtArray:
-            _ArrayGet().FromJSONStream( _jrc, _rfFilter );
+            _ArrayGet().FromJSONStream( _jrc, *this, _rfFilter );
             break;
         default:
         case ejvtJsonValueTypeCount:
@@ -720,6 +774,7 @@ public:
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
+        assert( JvtGetValueType() == _jvl.JvtGetValueType() );
         switch( JvtGetValueType() )
         {
         case ejvtNull:
@@ -946,6 +1001,10 @@ public:
     {
         m_mapValues.clear();
     }
+    size_t GetSize() const
+    {
+        return m_mapValues.size();
+    }
     _tyIterator begin()
     {
         return m_mapValues.begin();
@@ -975,9 +1034,17 @@ public:
         return const_cast< _tyThis * >( this )->GetEl( _psz );
     }
 
+    bool operator == ( const _tyThis & _r ) const
+    {
+        return FCompare( _r );
+    }
+    bool FCompare( _tyThis const & _r ) const
+    {
+        return m_mapValues == _r.m_mapValues;
+    }
     std::strong_ordering operator <=> ( _tyThis const & _r ) const
     {
-        return m_mapValues <=> _r.m_mapValues;
+        return m_mapValues <=> _r.m_mapValues; // This doesn't compile.
     }
 
     template < class t_tyJsonInputStream >
@@ -1005,14 +1072,17 @@ public:
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, _tyJsoValue const & _rjvContainer, t_tyFilter & _rfFilter )
     {
         assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
-        if ( !_rfFilter( _rjvContainer, _jrc ) )
+#if 0 // REVIEW:<dbien>: This was an idea but it would be hard for the caller to tell what was up - i.e. in which context we were - without flags or something.
+      //    Also the same can be accomplished by merely refusing all elements below.
+        if ( !_rfFilter( _jrc, _rjvContainer ) )
             return; // Leave this object empty.
+#endif //0
         JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
         if ( !_jrc.FMoveDown() )
             THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
-            if ( !_rfFilter( _rjvContainer, _jrc ) )
+            if ( !_rfFilter( _jrc, _rjvContainer ) )
                 continue; // Skip this element.
             _tyStrWRsv strKey;
             EJsonValueType jvt;
@@ -1070,6 +1140,10 @@ public:
     {
         m_vecValues.clear();
     }
+    size_t GetSize() const
+    {
+        return m_vecValues.size();
+    }
     _tyIterator begin()
     {
         return m_vecValues.begin();
@@ -1101,6 +1175,14 @@ public:
         return const_cast< _tyThis * >( this )->GetEl( _psz );
     }
 
+    bool operator == ( const _tyThis & _r ) const
+    {
+        return FCompare( _r );
+    }
+    bool FCompare( _tyThis const & _r ) const
+    {
+        return m_vecValues == _r.m_vecValues;
+    }
     std::strong_ordering operator <=> ( _tyThis const & _r ) const
     {
         return m_vecValues <=> _r.m_vecValues;
@@ -1124,14 +1206,17 @@ public:
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, _tyJsoValue const & _rjvContainer, t_tyFilter & _rfFilter )
     {
         assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
-        if ( !_rfFilter( _rjvContainer, _jrc ) )
+#if 0 // REVIEW:<dbien>: This was an idea but it would be hard for the caller to tell what was up - i.e. in which context we were - without flags or something.
+      //    Also the same can be accomplished by merely refusing all elements below.
+        if ( !_rfFilter( _jrc, _rjvContainer ) )
             return; // Leave this array empty.
+#endif //0
         JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
         if ( !_jrc.FMoveDown() )
             THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
-            if ( !_rfFilter( _rjvContainer, _jrc ) )
+            if ( !_rfFilter( _jrc, _rjvContainer ) )
                 return; // Skip this array element.
             _tyJsoValue jvValue( _jrc.JvtGetValueType() );
             jvValue.FromJSONStream( _jrc );

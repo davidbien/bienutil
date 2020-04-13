@@ -2643,6 +2643,10 @@ public:
     using _tyBase::SetNElement;
     using _tyBase::IncElement;
 
+    const _tyStdStr & RStrKey() const
+    {
+        return m_strCurKey;
+    }
     void GetKey( _tyStdStr & _strCurKey ) const 
     {
         _strCurKey = m_strCurKey;
@@ -2942,6 +2946,17 @@ public:
             ( ( ejvtEndOfArray == m_pjrxCurrent->JvtGetValueType() ) || ( ejvtEndOfObject == m_pjrxCurrent->JvtGetValueType() ) );
     }
 
+    const _tyStdStr & RStrKey( EJsonValueType * _pjvt = 0 ) const
+    {
+        assert( FAttached() );
+        if ( FAtEndOfAggregate() || !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) )
+            THROWBADJSONSEMANTICUSE( "JsonReadCursor::RStrKey(): Mo key available." );
+        _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();
+        assert( !pjoCur->FEndOfIteration() ); // sanity
+        if ( !!_pjvt )
+            *_pjvt = m_pjrxCurrent->JvtGetValueType();
+        return pjoCur->RStrKey();
+    }
     // Get the current key if there is a current key.
     bool FGetKeyCurrent( _tyStdStr & _rstrKey, EJsonValueType & _rjvt ) const
     {
@@ -3778,6 +3793,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         m_pis = &_ris;
     }
 
+    bool FMoveDown() const
+    {
+        return const_cast< _tyThis * >( this )->FMoveDown(); // a little hacky but also the easiest.
+    }
     bool FMoveDown()
     {
         assert( FAttached() ); // We should have been attached to a file by now.
@@ -3881,6 +3900,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     }
 
     // Move up in the context - this is significantly easier to implement than FMoveDown().
+    bool FMoveUp() const
+    {
+        return const_cast< _tyThis * >( this )->FMoveUp(); // a little hacky but also the easiest.
+    }
     bool FMoveUp()
     {
         assert( FAttached() ); // We should have been attached to a file by now.
