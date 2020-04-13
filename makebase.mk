@@ -37,6 +37,7 @@ endif
 CXXFLAGS_DEFINES =  $(MOD_DEFINES) -D_REENTRANT -D_STLP_MEMBER_TEMPLATES -D_STLP_USE_NAMESPACES -D_STLP_CLASS_PARTIAL_SPECIALIZATION -D_STLP_FUNCTION_TMPL_PARTIAL_ORDER
 CXXFLAGS_INCLUDES = $(MOD_INCLUDES) -I"$(HOME)/dv/bienutil" -I"$(HOME)/dv"
 CXXFLAGS_BASE = $(CXXFLAGS_DEFINES) $(CXXFLAGS_INCLUDES)
+
 ifeq (1,$(NDEBUG))
 # Release flags:
 CXXANDLINKFLAGS = -DNDEBUG -flto
@@ -44,7 +45,20 @@ LINKFLAGS_BASE = -O3 -fwhole-program
 CXXFLAGS_BASE += -O3
 else
 # Debug flags:
-CXXANDLINKFLAGS = -g
+ifneq (Darwin,$(MACHINE_OS))
+CXXANDLINKFLAGS = -ggdb
+else
+CXXANDLINKFLAGS = -glldb
+endif
+endif
+
+#! The include of the TCMALLOC lib must be first so that it can bind to malloc before any other shared lib initializes.
+ifeq (1,$(MOD_TCMALLOC))
+ifneq (1,$(NDEBUG))
+MK_LIBS := -ltcmalloc_debug
+else
+MK_LIBS := -ltcmalloc
+endif
 endif
 
 ifneq (Darwin,$(MACHINE_OS))
@@ -99,9 +113,9 @@ ifneq (,$(findstring clang,$(CC)))
 # Allow the use of any version of clang by copying CC.
 CXX := $(CC)
 CXXANDLINKFLAGS += -std=c++20 -stdlib=libc++ -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
-LINKFLAGS_BASE += -lc++abi -lm
+MK_LIBS += -lc++abi -lm
 ifneq (1,$(NDEBUG))
-CXXANDLINKFLAGS += -D_LIBCPP_DEBUG -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
+CXXFLAGS_BASE += -D_LIBCPP_DEBUG -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
 endif #!NDEBUG
 # setup CCU to be clang for clang - separate out the cuda specific compile and link flags.
 CCU := $(CC)
@@ -136,7 +150,7 @@ endif
 
 CXXFLAGS = $(CXXFLAGS_BASE) $(CXXFLAGS_COMPILER_SPECIAL) $(CXXANDLINKFLAGS)
 
-LINKFLAGS = $(LINKFLAGS_BASE) $(CXXANDLINKFLAGS) $(MOD_LIBS) -lstdc++
+LINKFLAGS = $(LINKFLAGS_BASE) $(CXXANDLINKFLAGS) $(MK_LIBS) $(MOD_LIBS) -lstdc++
 
 DEPDIR := .d/$(BUILD_DIR)
 $(shell mkdir -p $(BUILD_DIR) >/dev/null)
