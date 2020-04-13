@@ -236,6 +236,10 @@ struct JsonCharTraits< char >
     {
         return ( ( ' ' == _tc ) || ( '\t' == _tc ) || ( '\n' == _tc ) || ( '\r' == _tc ) );
     }
+    static bool FIsIllegalChar( _tyChar _tc )
+    {
+        return !_tc; // we could expand this...
+    }
     static size_t StrLen( _tyLPCSTR _psz )
     {
         return strlen( _psz );
@@ -352,6 +356,10 @@ struct JsonCharTraits< wchar_t >
     static bool FIsWhitespace( _tyChar _tc )
     {
         return ( ( L' ' == _tc ) || ( L'\t' == _tc ) || ( L'\n' == _tc ) || ( L'\r' == _tc ) );
+    }
+    static bool FIsIllegalChar( _tyChar _tc )
+    {
+        return !_tc;
     }
     static size_t StrLen( _tyLPCSTR _psz )
     {
@@ -507,6 +515,8 @@ public:
                 m_fHasLookahead = false;
                 return; // We have skipped the whitespace until we hit EOF.
             }
+            if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
+                THROWBADJSONSTREAM( "JsonLinuxInputStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
             if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             {
                 m_fHasLookahead = true;
@@ -553,6 +563,9 @@ public:
                 THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
             }
         }
+        if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
+            THROWBADJSONSTREAM( "JsonLinuxInputStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
+
         m_pos += sstRead;
         assert( !m_fHasLookahead );
         return m_tcLookahead;
@@ -585,6 +598,8 @@ public:
                 return false;
             }
         }
+        if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
+            THROWBADJSONSTREAM( "JsonLinuxInputStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
         m_pos += sstRead;
         _rtch = m_tcLookahead;
         return true;
@@ -668,7 +683,7 @@ public:
         _rjrc.AttachRoot( *this );
     }
 
-    void SkipWhitespace() 
+    void SkipWhitespace( const char * _pcFilename = 0 ) 
     {
         // We will keep reading characters until we find non-whitespace:
         if ( m_fHasLookahead && !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
@@ -679,6 +694,8 @@ public:
             if ( FEOF() )
                 return; // We have skipped the whitespace until we hit EOF.
             m_tcLookahead = *m_ptcCur++;
+            if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
+                THROWBADJSONSTREAM( "JsonLinuxInputFixedMemStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
             if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             {
                 m_fHasLookahead = true;
@@ -698,12 +715,17 @@ public:
         assert( FOpened() );
         if ( m_fHasLookahead )
         {
+            assert( !!m_tcLookahead );
             m_fHasLookahead = false;
             return m_tcLookahead;
         }
         if ( FEOF() )
             THROWBADJSONSTREAM( "[%s]: %s", !_pcFilename ? "(no file)" : _pcFilename, _pcEOFMessage );
-        return m_tcLookahead = *m_ptcCur++;
+        assert( !!*m_ptcCur );
+        m_tcLookahead = *m_ptcCur++;
+        if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
+            THROWBADJSONSTREAM( "JsonLinuxInputFixedMemStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+        return m_tcLookahead;
     }
     
     bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage, const char * _pcFilename = 0 )
@@ -722,6 +744,8 @@ public:
             return false;
         }
         _rtch = m_tcLookahead = *m_ptcCur++;
+        if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
+            THROWBADJSONSTREAM( "JsonLinuxInputFixedMemStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return true;
     }
 
@@ -733,15 +757,16 @@ public:
             m_fHasLookahead = true;
     }
 
-    int ICompare( _tyThis const & _rOther ) const
+    std::strong_ordering ICompare( _tyThis const & _rOther ) const
     {
         assert( FOpened() && _rOther.FOpened() );
         if ( StLenBytes() < _rOther.StLenBytes() )
-            return -1;
+            return std::strong_ordering::less;
         else
         if ( StLenBytes() > _rOther.StLenBytes() )
-            return 1;
-        return memcmp( m_ptcBegin, _rOther.m_ptcBegin, StLenBytes() );
+            return std::strong_ordering::greater;
+        int iComp = memcmp( m_ptcBegin, _rOther.m_ptcBegin, StLenBytes() );
+        return ( iComp < 0 ) ? std::strong_ordering::less : ( ( iComp > 0 ) ? std::strong_ordering::greater : std::strong_ordering::equal );
     }
 
 protected:
@@ -849,7 +874,10 @@ public:
         _rjrc.AttachRoot( *this );
     }
 
-    using _tyBase::SkipWhitespace;
+    void SkipWhitespace()
+    {
+        return _tyBase::SkipWhitespace( m_szFilename.c_str() );
+    }
     using _tyBase::PosGet;
 
     // Read a single character from the file - always throw on EOF.
@@ -864,7 +892,10 @@ public:
     }
 
     using _tyBase::PushBackLastChar;
-    using _tyBase::ICompare;
+    std::strong_ordering ICompare( _tyThis const & _rOther ) const
+    {
+        return _tyBase::ICompare( _rOther );
+    }
 
 protected:
     using _tyBase::m_ptcBegin;
@@ -2198,18 +2229,10 @@ public:
     {
         // If we within a stack unwinding due to another exception then we don't want to throw, otherwise we do.
         bool fInUnwinding = !!std::uncaught_exceptions();
-        try // Should never throw out of a destructor, but the problem is that we should since we won't know that something went wrong.
-        {
-            if ( !FDontWritePostAmble() )
-                _WritePostamble(); // The postamble is written here for all objects.
-        }
-        catch( const std::exception& e )
-        {
-            if ( !fInUnwinding )
-                throw; // don't want to throw into an unwinding due to another exception.
-            LOGSYSLOG( eslmtError, "~JsonValueLife(): Caught exception [%s].", e.what() );
-            m_rjos.SetExceptionString( e.what() ); // We save this in the stream and we will check the stream afterwards to see if we failed.
-        }
+        if ( fInUnwinding )
+            return; // We can't be sure of our state and indeed we were seeing this during testing with purposefully corrupt files - which would lead to an AV.
+        if ( !FDontWritePostAmble() )
+            _WritePostamble(); // The postamble is written here for all objects.
     }
     void _WritePostamble()
     {
