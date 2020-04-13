@@ -687,6 +687,36 @@ public:
             break;
         }    
     }
+    // FromJSONStream with a filter method.
+    // The filtering takes place in the objects and arrays because these create sub-values.
+    // The filter is not applied to the root value itself.
+    template < class t_tyJsonInputStream, class t_tyFilter >
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, t_tyFilter & _rfFilter )
+    {
+        // The constructor would have already set the m_jvtType.
+        assert( _jrc.JvtGetValueType() == m_jvtType );
+        switch( JvtGetValueType() )
+        {
+        case ejvtNull:
+        case ejvtTrue:
+        case ejvtFalse:
+            break;
+        case ejvtNumber:
+        case ejvtString:
+            _jrc.GetValue( StrGet() );
+            break;
+        case ejvtObject:
+            _ObjectGet().FromJSONStream( _jrc, _rfFilter );
+            break;
+        case ejvtArray:
+            _ArrayGet().FromJSONStream( _jrc, _rfFilter );
+            break;
+        default:
+        case ejvtJsonValueTypeCount:
+            THROWJSONBADUSAGE( "JsoValue::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType() );
+            break;
+        }    
+    }
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
@@ -971,6 +1001,32 @@ public:
                 THROWBADJSONSTREAM( "_JsoObject::FromJSONStream(EJsonValueType): Duplicate key found[%s].", strKey.c_str() );
         }
     }
+    template < class t_tyJsonInputStream, class t_tyFilter >
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, _tyJsoValue const & _rjvContainer, t_tyFilter & _rfFilter )
+    {
+        assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        if ( !_rfFilter( _rjvContainer, _jrc ) )
+            return; // Leave this object empty.
+        JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
+        if ( !_jrc.FMoveDown() )
+            THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
+        for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+        {
+            if ( !_rfFilter( _rjvContainer, _jrc ) )
+                continue; // Skip this element.
+            _tyStrWRsv strKey;
+            EJsonValueType jvt;
+            bool f = _jrc.FGetKeyCurrent( strKey, jvt );
+            if ( !f )
+                THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly." );
+            _tyJsoValue jvValue( jvt );
+            jvValue.FromJSONStream( _jrc );
+            std::pair< _tyIterator, bool > pib = m_mapValues.try_emplace( std::move( strKey ), std::move( jvValue ) );
+            if ( !pib.second ) // key already exists.
+                THROWBADJSONSTREAM( "_JsoObject::FromJSONStream(EJsonValueType): Duplicate key found[%s].", strKey.c_str() );
+        }
+    }
+    
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
@@ -1064,6 +1120,25 @@ public:
             m_vecValues.emplace_back( std::move( jvValue ) );
         }
     }
+    template < class t_tyJsonInputStream, class t_tyFilter >
+    void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, _tyJsoValue const & _rjvContainer, t_tyFilter & _rfFilter )
+    {
+        assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        if ( !_rfFilter( _rjvContainer, _jrc ) )
+            return; // Leave this array empty.
+        JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
+        if ( !_jrc.FMoveDown() )
+            THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
+        for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
+        {
+            if ( !_rfFilter( _rjvContainer, _jrc ) )
+                return; // Skip this array element.
+            _tyJsoValue jvValue( _jrc.JvtGetValueType() );
+            jvValue.FromJSONStream( _jrc );
+            m_vecValues.emplace_back( std::move( jvValue ) );
+        }
+    }
+
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
