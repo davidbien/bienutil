@@ -114,9 +114,9 @@ ifneq (,$(findstring clang,$(CC)))
 CXX := $(CC)
 CXXANDLINKFLAGS += -std=c++20 -stdlib=libc++ -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
 MK_LIBS += -lc++abi -lm
-ifneq (1,$(NDEBUG))
+ifeq (1,$(MOD_DEBUG_LIBCPP))
 CXXFLAGS_BASE += -D_LIBCPP_DEBUG -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-endif #!NDEBUG
+endif #(1,$(MOD_DEBUG_LIBCPP))
 # setup CCU to be clang for clang - separate out the cuda specific compile and link flags.
 CCU := $(CC)
 CUDAGENCODEOPTIONS := $(foreach gc, $(CUDAGENCODES), --cuda-gpu-arch=sm_$(gc))

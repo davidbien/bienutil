@@ -252,13 +252,10 @@ _SysLogMgr< t_kiInstance >::Log( ESysLogMessageType _eslmt, std::string && _rrSt
         break;
     }
     iPriority |= LOG_USER;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-security"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     // First log.
     syslog( iPriority, _rrStrLog.c_str() );
-#pragma clang diagnostic pop
 #pragma GCC diagnostic pop
     // Then log the context to thread logging file.
     if ( !!_pslc && !!m_pjosThreadLog && m_pjosThreadLog->FOpened() && !!m_pjvlRootThreadLog && !!m_pjvlSysLogArray )

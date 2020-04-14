@@ -16,7 +16,8 @@ class StrWRsv
     typedef StrWRsv _tyThis;
     static_assert( t_kstReserve-1 >= sizeof( t_tyStrBase ) ); // We reserve a single byte for flags.
 public:
-    typedef typename t_tyStrBase::value_type _tyChar;
+    typedef typename t_tyStrBase::value_type value_type;
+    typedef value_type _tyChar;
     typedef typename std::make_unsigned<_tyChar>::type _tyUnsignedChar;
 
     // We can't just provide a forwarding constructor because we want to be able to capture the cases where

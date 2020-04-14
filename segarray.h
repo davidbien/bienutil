@@ -283,7 +283,7 @@ public:
     }
 
     // We enable overwriting for non-contructed types only.
-    template < class = std::enable_if_t< _tyNotFOwnLifetime::value > >
+    template < std::enable_if_t< _tyNotFOwnLifetime::value, int > = 0 >
     void Overwrite( _tySizeType _nPos, const _tyT * _pt, _tySizeType _nEls )
     {
         if ( !_nEls )
@@ -309,7 +309,7 @@ public:
     }
 
     // We enable reading for non-contructed types only.
-    template < class = std::enable_if_t< _tyNotFOwnLifetime::value > >
+    template < std::enable_if_t< _tyNotFOwnLifetime::value, int > = 0 >
     _tySignedSize Read( _tySizeType _nPos, _tyT * _pt, _tySizeType _nEls )
     {
         if ( !_nEls )

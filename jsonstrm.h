@@ -623,23 +623,23 @@ protected:
     bool m_fUseSeek{true}; // For STDIN we cannot use seek so we just maintain our "current" position.
 };
 
-// JsonLinuxInputFixedMemStream: Stream a fixed piece o' mem'ry at the JSON parser.
+// JsonInputFixedMemStream: Stream a fixed piece o' mem'ry at the JSON parser.
 template < class t_tyCharTraits >
-class JsonLinuxInputFixedMemStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
+class JsonInputFixedMemStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
 {
-    typedef JsonLinuxInputFixedMemStream _tyThis;
+    typedef JsonInputFixedMemStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
-    JsonLinuxInputFixedMemStream() = default;
-    JsonLinuxInputFixedMemStream( _tyChar * _ptcBegin, _tyFilePos _stLen )
+    JsonInputFixedMemStream() = default;
+    JsonInputFixedMemStream( const _tyChar * _ptcBegin, _tyFilePos _stLen )
     {
         Open( _ptcBegin, _stLen );
     }
-    ~JsonLinuxInputFixedMemStream()
+    ~JsonInputFixedMemStream()
     {
     }
 
@@ -659,7 +659,7 @@ public:
     }
 
     // Throws on open failure. This object owns the lifetime of the file descriptor.
-    void Open( _tyChar * _ptcBegin, _tyFilePos _stLen )
+    void Open( const _tyChar * _ptcBegin, _tyFilePos _stLen )
     {
         Close();
         m_ptcCur = m_ptcBegin = _ptcBegin;
@@ -695,7 +695,7 @@ public:
                 return; // We have skipped the whitespace until we hit EOF.
             m_tcLookahead = *m_ptcCur++;
             if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-                THROWBADJSONSTREAM( "JsonLinuxInputFixedMemStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+                THROWBADJSONSTREAM( "JsonInputFixedMemStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
             if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             {
                 m_fHasLookahead = true;
@@ -724,7 +724,7 @@ public:
         assert( !!*m_ptcCur );
         m_tcLookahead = *m_ptcCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-            THROWBADJSONSTREAM( "JsonLinuxInputFixedMemStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+            THROWBADJSONSTREAM( "JsonInputFixedMemStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return m_tcLookahead;
     }
     
@@ -745,7 +745,7 @@ public:
         }
         _rtch = m_tcLookahead = *m_ptcCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-            THROWBADJSONSTREAM( "JsonLinuxInputFixedMemStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+            THROWBADJSONSTREAM( "JsonInputFixedMemStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return true;
     }
 
@@ -779,9 +779,9 @@ protected:
 
 // JsonLinuxInputMemMappedStream: A class using open(), read(), etc.
 template < class t_tyCharTraits >
-class JsonLinuxInputMemMappedStream : protected JsonLinuxInputFixedMemStream< t_tyCharTraits >
+class JsonLinuxInputMemMappedStream : protected JsonInputFixedMemStream< t_tyCharTraits >
 {
-    typedef JsonLinuxInputFixedMemStream< t_tyCharTraits > _tyBase;
+    typedef JsonInputFixedMemStream< t_tyCharTraits > _tyBase;
     typedef JsonLinuxInputMemMappedStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
@@ -1445,6 +1445,24 @@ public:
     {
         _r.m_szExceptionString.swap( m_szExceptionString );
         m_msMemStream.swap( _r.m_msMemStream );
+    }
+
+    size_t GetLengthChars() const
+    {
+        return m_msMemStream.GetEndPos() / sizeof(_tyChar);
+    }
+    size_t GetLengthBytes() const
+    {
+        return m_msMemStream.GetEndPos();
+    }
+
+    const _tyMemStream & GetMemStream() const
+    {
+        return m_msMemStream;   
+    }
+    _tyMemStream & GetMemStream()
+    {
+        return m_msMemStream;   
     }
 
     // This is a manner of indicating that something happened during streaming.
@@ -2846,7 +2864,7 @@ public:
             bool fInUnwinding = !!std::uncaught_exceptions();
             try
             {
-                m_pjrc->MoveToContext( *m_pjrx );
+                m_pjrc->MoveToContext( *m_pjrx ); // There really no reason this should throw unless someone does something stupid - which of course happens.
             }
             catch( std::exception & rexc )
             {

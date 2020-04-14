@@ -75,7 +75,7 @@ public:
     {
         _tyLock lock;
         LockMutex( lock );
-        return m_rgsImpl->NElements();
+        return m_rgsImpl.NElements();
     }
 
     // As with a file-system file this will not insert data, it will overwrite data. (note that Insert is provide below)
@@ -84,14 +84,14 @@ public:
         // If we run out of memory we should throw. There shouldn't be any other reason we should fail - barring A/V.
         _tyLock lock;
         LockMutex( lock );
-        m_rgsImpl.Overwrite( _posWrite, (uint8_t*)_pbyWrite, _nBytes );
+        m_rgsImpl.Overwrite( _posWrite, (const uint8_t*)_pbyWrite, _nBytes );
         return _nBytes;
     }
     _tySignedFilePos Read( _tyFilePos _posRead, void * _pbyRead, _tyFilePos _nBytes )
     {
         _tyLock lock;
         LockMutex( lock );
-        _tySignedFilePos nbyRead = m_rgsImpl.CopyEls( _posRead, _pbyRead, _nBytes );
+        _tySignedFilePos nbyRead = m_rgsImpl.Read( _posRead, (uint8_t*)_pbyRead, _nBytes );
         return nbyRead;
     }
 
@@ -168,6 +168,11 @@ public:
         return m_spmfMemFile;
     }
 
+    _tyFilePos GetEndPos() const
+    {
+        return m_spmfMemFile->GetEndPos();
+    }
+
     // Reuse existing constant SEEK_SET, SEEK_CUR and SEEK_END.
     // Return the resultant position. We do allow the caller to seek beyond the end of the file.
     // We don't allow the position to be set to a negative position and we will throw when that happens.
@@ -202,7 +207,7 @@ public:
             default:
                 THROWNAMEDEXCEPTION( "SegArray::Seek(): Bogus iWhence value [%d].", iWhence );
         }
-        m_posCur = posNew;
+        return m_posCur = posNew;
     }
     _tySignedFilePos Write( const void * _pbyWrite, _tyFilePos _nBytes )
     {
