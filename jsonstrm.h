@@ -2608,8 +2608,8 @@ public:
     JsonValueLifeAbstractBase() = default;
     virtual ~JsonValueLifeAbstractBase() = default;
 
-    virtual void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) = 0;
-    virtual void NewSubValue( _tyLPCSTR _pszKey, EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) = 0;
+    virtual void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyThis > & _rNewSubValue ) = 0;
+    virtual void NewSubValue( _tyLPCSTR _pszKey, EJsonValueType _jvt, std::unique_ptr< _tyThis > & _rNewSubValue ) = 0;
 
     virtual _tyJsonValue const & RJvGet() const = 0;
     virtual _tyJsonValue & RJvGet() = 0;
@@ -2669,7 +2669,8 @@ class JsonValueLifePoly :
     typedef JsonValueLife< t_tyJsonOutputStream > _tyBase;
     typedef JsonValueLifePoly _tyThis;
 public:
-    using _tyBase::JsonValueLife; // Interesting if this inits the vtable correctly... hoping it will of course.
+    using _tyJsonValue = typename _tyBase::_tyJsonValue; // Interesting if this inits the vtable correctly... hoping it will of course.
+    using _tyLPCSTR = typename _tyBase::_tyLPCSTR;
 
     // Construct the same type of JsonValueLife that we are... duh.
     void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) override
