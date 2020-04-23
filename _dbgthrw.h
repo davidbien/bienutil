@@ -33,6 +33,8 @@ enum EThrowType : unsigned int
   e_ttMemory      = 0x00000001,
   e_ttFileOutput  = 0x00000002,
   e_ttFileInput   = 0x00000004,
+  e_ttFromDestructor= 0x00000008,
+  e_ttFatal       = 0x00000010, // This indicates that the exception cannot be recovered from. These exceptions can be turned off for testing.
 
   // This identifies areas in which "chronic" throwing would
   //  occur - i.e. indicating that the next throw point with
@@ -94,13 +96,14 @@ public:
                       const char * _cpFileName,
                       unsigned long _ulLineNumber,
                       bool _fMaybeThrow = false,
-                      bool _fAlwaysThrow = false ) :
+                      bool _fAlwaysThrow = false,
+                      bool _fInUnwind = false ) :
     m_rgttType( _rgttType ),
     m_cpFileName( _cpFileName ),
     m_ulLineNumber( _ulLineNumber )
   {
     assert( m_rgttType );
-    if ( _fMaybeThrow || _fAlwaysThrow )
+    if ( !_fInUnwind && ( _fMaybeThrow || _fAlwaysThrow ) )
     {
       _maybe_throw( _fAlwaysThrow );
     }
@@ -152,7 +155,7 @@ _count_set_bits( size_t _i )
 
 struct _throw_static_base
 {
-  bool          m_fOn{false};
+  unsigned long m_grfOn{0};
   unsigned int  m_uRandSeed{0};
   int           m_iThrowRate{1000}; 
     // A number less than RAND_MAX that determines whether a given throw object will throw.
@@ -195,9 +198,9 @@ struct _throw_static_base
 	  m_iThrowRate = (int)llRandMax;
   }
 
-  void set_on( bool _fOn )
+  void set_on( unsigned long _grfOn )
   {
-    m_fOn = _fOn;
+    m_grfOn = _grfOn;
   }
 
   void set_seed( unsigned int _uRandSeed )
@@ -270,7 +273,9 @@ struct _throw_static_base
     m_ulLineNumberCur = _ptob->m_ulLineNumber;
 
 		// If we have multiple types then choose one:
-		m_rgttTypeCur = _ptob->m_rgttType;
+		m_rgttTypeCur = _ptob->m_rgttType & ~e_ttFatal;
+    if ( !m_rgttTypeCur )
+      m_rgttTypeCur = e_ttMemory; // Default to memory if someone just set fatal.
 
 		size_t stSetBits;
 		if ( 1 < ( stSetBits = _count_set_bits( m_rgttTypeCur ) ) )
@@ -345,7 +350,10 @@ struct _throw_static_base
 
   void  _maybe_throw( _throw_object_base * _ptob, bool _fAlwaysThrow )
   {
-    if ( !m_fOn )
+    if ( !!( _ptob->m_rgttType & e_ttFatal ) && !( m_grfOn & e_ttFatal ) )
+      return;
+
+    if ( !( _ptob->m_rgttType & m_grfOn ) )
       return;
 
     // Ensure that this throw object is in the map:
@@ -408,6 +416,7 @@ _throw_object_base::_maybe_throw( bool _fAlwaysThrow )
 }
 
 #define __THROWPT( _type )  _throw_object_base( _type, __FILE__, __LINE__, true );
+#define __THROWPT_DTOR( _type, fInUnwind )  _throw_object_base( _type | e_ttFromDestructor, __FILE__, __LINE__, true, false, fInUnwind );
 #define __THROWPTALWAYS( _type )  _throw_object_base( _type, __FILE__, __LINE__, true, true );
 
 __BIENUTIL_END_NAMESPACE
@@ -415,6 +424,8 @@ __BIENUTIL_END_NAMESPACE
 #else //!__NDEBUG_THROW
 
 #define __THROWPT( _type )
+#define __THROWPT_DTOR( _type, fInUnwind )
+#define __THROWPTALWAYS( _type )
 
 #endif //!__NDEBUG_THROW
 
