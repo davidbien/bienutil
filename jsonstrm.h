@@ -1388,7 +1388,6 @@ protected:
     }
     void _GrowMap( size_t _stByAtLeast )
     {
-        assert( _stByAtLeast > 0 );
         size_t stGrowBy = ( ( ( _stByAtLeast - 1 ) / s_knGrowFileByBytes ) + 1 ) * s_knGrowFileByBytes;
         void * pvOldMapping = m_pvMapped;
         m_pvMapped = MAP_FAILED;
@@ -2591,6 +2590,245 @@ protected:
     _tyJsonValue m_jv;
     unsigned int m_nSubValuesWritten{}; // When a sub-value finishes its writing it will cause this number to be increment. This allows us to place commas correctly, etc.
     unsigned int m_nCurAggrLevel{};
+};
+
+// JsonValueLifeAbstractBase:
+// This will contain a polymorphic JsonValueLife<SomeOutputType>.
+// Then this object can be used with virtual methods in various scenarios - since templated member methods may not be virtual.
+template < class t_tyChar >
+class JsonValueLifeAbstractBase
+{
+    typedef JsonValueLifeAbstractBase _tyThis;
+public:
+    typedef t_tyChar _tyChar;
+    typedef JsonCharTraits< _tyChar > _tyCharTraits;
+    typedef JsonValue< _tyCharTraits > _tyJsonValue;
+    typedef const _tyChar * _tyLPCSTR;
+
+    JsonValueLifeAbstractBase() = default;
+    virtual ~JsonValueLifeAbstractBase() = default;
+
+    virtual void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) = 0;
+    virtual void NewSubValue( _tyLPCSTR _pszKey, EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) = 0;
+
+    virtual _tyJsonValue const & RJvGet() const = 0;
+    virtual _tyJsonValue & RJvGet() = 0;
+    virtual EJsonValueType JvtGetValueType() const = 0;
+    virtual bool FAtAggregateValue() const = 0;
+    virtual bool FAtObjectValue() const = 0;
+    virtual bool FAtArrayValue() const = 0;
+    virtual void SetValue( _tyJsonValue && _rrjvValue ) = 0;
+    virtual unsigned int NSubValuesWritten() const = 0;
+    virtual unsigned int NCurAggrLevel() const = 0;
+
+    virtual void WriteNullValue( _tyLPCSTR _pszKey ) = 0;
+    virtual void WriteBoolValue(  _tyLPCSTR _pszKey, bool _f ) = 0;
+    virtual void WriteValueType( _tyLPCSTR _pszKey, EJsonValueType _jvt ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, uint8_t _by ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, int8_t _sby ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, uint16_t _us ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, int16_t _ss ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, uint32_t _ui ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, int32_t _si ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, uint64_t _ul ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, int64_t _sl ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, double _dbl ) = 0;
+    virtual void WriteValue( _tyLPCSTR _pszKey, long double _ldbl ) = 0;
+
+    virtual void WriteNullValue() = 0;
+    virtual void WriteBoolValue( bool _f ) = 0;
+    virtual void WriteValueType( EJsonValueType _jvt ) = 0;
+    virtual void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 ) = 0;
+    template < class t_tyStr >
+    void WriteStringValue( t_tyStr const & _rstrVal )
+    {
+        WriteStringValue( _rstrVal.c_str(), _rstrVal.length() );
+    }
+    virtual void WriteValue( uint8_t _by ) = 0;
+    virtual void WriteValue( int8_t _sby ) = 0;
+    virtual void WriteValue( uint16_t _us ) = 0;
+    virtual void WriteValue( int16_t _ss ) = 0;
+    virtual void WriteValue( uint32_t _ui ) = 0;
+    virtual void WriteValue( int32_t _si ) = 0;
+    virtual void WriteValue( uint64_t _ul ) = 0;
+    virtual void WriteValue( int64_t _sl ) = 0;
+    virtual void WriteValue( double _dbl ) = 0;
+    virtual void WriteValue( long double _ldbl ) = 0;
+
+    // TODO: Add a lot more virtual methods to implement various things.
+
+
+};
+
+template < class t_tyJsonOutputStream >
+class JsonValueLifePoly : 
+    public JsonValueLifeAbstractBase< typename t_tyJsonOutputStream::_tyChar >,
+    public JsonValueLife< t_tyJsonOutputStream >
+{
+    typedef JsonValueLifeAbstractBase< typename t_tyJsonOutputStream::_tyChar > _tyAbstractBase;
+    typedef JsonValueLife< t_tyJsonOutputStream > _tyBase;
+    typedef JsonValueLifePoly _tyThis;
+public:
+    using _tyBase::JsonValueLife; // Interesting if this inits the vtable correctly... hoping it will of course.
+
+    // Construct the same type of JsonValueLife that we are... duh.
+    void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) override
+    {
+        _rNewSubValue.reset( new _tyThis( *this, _jvt ) );
+    }
+    void NewSubValue( _tyLPCSTR _pszKey, EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) override
+    {
+        _rNewSubValue.reset( new _tyThis( *this, _pszKey, _jvt ) );
+    }
+
+    _tyJsonValue const & RJvGet() const override
+    { 
+        return _tyBase::RJvGet();
+    }
+    _tyJsonValue & RJvGet() override
+    {
+        return _tyBase::RJvGet();
+    }
+    EJsonValueType JvtGetValueType() const override
+    {
+        return _tyBase::JvtGetValueType();
+    }
+    bool FAtAggregateValue() const override
+    {
+        return _tyBase::FAtAggregateValue();
+    }
+    bool FAtObjectValue() const override
+    {
+        return _tyBase::FAtObjectValue();
+    }
+    bool FAtArrayValue() const override
+    {
+        return _tyBase::FAtArrayValue();
+    }
+    void SetValue( _tyJsonValue && _rrjvValue ) override
+    {
+        _tyBase::SetValue( std::move( _rrjvValue ) );
+    }
+    unsigned int NSubValuesWritten() const override
+    {
+        return _tyBase::NSubValuesWritten();
+    }
+    unsigned int NCurAggrLevel() const override
+    {
+        return _tyBase::NCurAggrLevel();
+    }
+
+    void WriteNullValue( _tyLPCSTR _pszKey ) override
+    {
+        _tyBase::WriteNullValue( _pszKey );
+    }
+    void WriteBoolValue(  _tyLPCSTR _pszKey, bool _f ) override
+    {
+        _tyBase::WriteBoolValue( _pszKey, _f );
+    }
+    void WriteValueType( _tyLPCSTR _pszKey, EJsonValueType _jvt ) override
+    {
+        _tyBase::WriteValueType( _pszKey, _jvt );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint8_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int8_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint16_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int16_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint32_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int32_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, uint64_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, int64_t _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, double _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+    void WriteValue( _tyLPCSTR _pszKey, long double _v ) override
+    {
+        _tyBase::WriteValue( _pszKey, _v );
+    }
+
+    void WriteNullValue() override
+    {
+        _tyBase::WriteNullValue();
+    }
+    void WriteBoolValue( bool _f ) override
+    {
+        _tyBase::WriteBoolValue( _f );
+    }
+    void WriteValueType( EJsonValueType _jvt ) override
+    {
+        _tyBase::WriteValueType( _jvt );
+    }
+    void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 ) override
+    {
+        _tyBase::WriteStringValue( _pszValue, _stLen );
+    }
+    void WriteValue( uint8_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( int8_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( uint16_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( int16_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( uint32_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( int32_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( uint64_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( int64_t _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( double _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+    void WriteValue( long double _v ) override
+    {
+        _tyBase::WriteValue( _v );
+    }
+
+
 };
 
 // JsonAggregate:
