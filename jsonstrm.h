@@ -1637,7 +1637,7 @@ public:
                 for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
                 {
                     if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                        THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
+                        THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): Would lose information since high data of character gets trunctated." );
                     *pcpxCur = (_tyPersistAsChar)*pszCur;
                 }
                 ssize_t sstWrote = m_msMemStream.Write( rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
