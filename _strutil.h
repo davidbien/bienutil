@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <string>
 #include <compare>
+#include <utility>
 #include <_namdexc.h>
 #include <_smartp.h>
 #if __APPLE__
@@ -46,7 +47,7 @@ size_t StrNLen( const t_tyChar * _psz, size_t _stMaxLen = std::numeric_limits< s
         return 0;
     const t_tyChar * pszMax = ( std::numeric_limits< size_t >::max() == _stMaxLen ) ? (_psz-1) : (_psz+_stMaxLen);
     const t_tyChar * pszCur = _psz;
-    for ( ; ( pszMax !=pszCur ) && !!*pszCur; ++pszCur )
+    for ( ; ( pszMax != pszCur ) && !!*pszCur; ++pszCur )
         ;
     return pszCur - _psz;
 }
@@ -199,4 +200,42 @@ GetCurrentExecutablePath( std::string & _rstrPath )
     std::string::size_type stLastSlash = _rstrPath.find_last_of('/');
     if ( std::string::npos != stLastSlash )
         _rstrPath.resize( stLastSlash+1 );
+}
+
+template< typename t_tyChar, std::size_t t_knLength >
+struct str_array
+{
+    constexpr t_tyChar const* c_str() const { return data_; }
+    constexpr t_tyChar const* data() const { return data_; }
+    constexpr t_tyChar operator[]( std::size_t i ) const { return data_[ i ]; }
+    constexpr t_tyChar const* begin() const { return data_; }
+    constexpr t_tyChar const* end() const { return data_ + t_knLength; }
+    constexpr std::size_t size() const { return t_knLength; }
+    constexpr operator const t_tyChar * () const { return data_; }
+    // TODO: add more members of std::basic_string
+
+    t_tyChar data_[ t_knLength + 1 ];  // +1 for null-terminator
+};
+
+namespace n_StrArrayStaticCast
+{
+    template< typename t_tyCharResult, typename t_tyCharSource >
+    constexpr t_tyCharResult static_cast_ascii( t_tyCharSource x )
+    {
+        if( !( x >= 0 && x <= 127 ) )
+            THROWNAMEDEXCEPTION( "n_StrArrayStaticCast::static_cast_ascii(): Character value must be in basic ASCII range (0..127)" );
+        return static_cast<t_tyCharResult>( x );
+    }
+
+    template< typename t_tyCharResult, typename t_tyCharSource, std::size_t N, std::size_t... I >
+    constexpr str_array< t_tyCharResult, N - 1 > do_str_array_cast( const t_tyCharSource(&a)[N], std::index_sequence<I...> )
+    {
+        return { static_cast_ascii<t_tyCharResult>( a[I] )..., 0 };
+    }
+} //namespace n_StrArrayStaticCast
+
+template< typename t_tyCharResult, typename t_tyCharSource, std::size_t N, typename Indices = std::make_index_sequence< N - 1 > >
+constexpr str_array< t_tyCharResult, N - 1 > str_array_cast( const t_tyCharSource(&a)[N] )
+{
+    return n_StrArrayStaticCast::do_str_array_cast< t_tyCharResult >( a, Indices{} );
 }

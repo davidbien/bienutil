@@ -35,7 +35,7 @@ template < class t_tyJsonOutputStream >
 class JsonValueLife;
 template < class t_tyCharTraits >
 class JsonFormatSpec;
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, class t_tyPersistAsChar >
 class JsonLinuxOutputStream;
 
 enum _ESysLogMessageType : uint8_t
@@ -128,7 +128,7 @@ class _SysLogMgr
 {
     typedef _SysLogMgr _tyThis;
 protected:  // These methods aren't for general consumption. Use the s_SysLog namespace methods.
-    typedef JsonLinuxOutputStream< JsonCharTraits< char > > _tyJsonOutputStream;
+    typedef JsonLinuxOutputStream< JsonCharTraits< char >, char > _tyJsonOutputStream;
     typedef JsonFormatSpec< JsonCharTraits< char > > _tyJsonFormatSpec;
     typedef JsonValueLife< _tyJsonOutputStream > _tyJsonValueLife;
 

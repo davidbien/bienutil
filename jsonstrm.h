@@ -165,6 +165,7 @@ template <>
 struct JsonCharTraits< char >
 {
     typedef char _tyChar;
+    typedef char _tyPersistAsChar;
     typedef _tyChar * _tyLPSTR;
     typedef const _tyChar * _tyLPCSTR;
     typedef StrWRsv< std::basic_string< _tyChar > > _tyStdStr;
@@ -244,6 +245,10 @@ struct JsonCharTraits< char >
     {
         return strlen( _psz );
     }
+    static size_t StrNLen( _tyLPCSTR _psz, size_t _stLen = std::numeric_limits< size_t >::max() )
+    {
+        return ::StrNLen( _psz, _stLen );
+    }
     static size_t StrCSpn( _tyLPCSTR _psz, _tyLPCSTR _pszCharSet )
     { 
         return strcspn( _psz, _pszCharSet );
@@ -270,6 +275,14 @@ struct JsonCharTraits< char >
     { 
         (void)memset( _psz, _tc, _n );
     }
+    static int Snprintf( _tyLPSTR _psz, size_t _n, _tyLPCSTR _pszFmt, ... )
+    {
+        va_list ap;
+        va_start( ap, _pszFmt );
+        int iRet = ::vsnprintf( _psz, _n, _pszFmt, ap );
+        va_end( ap );
+        return iRet;
+    }
 };
 
 JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szTrue = "true";
@@ -286,6 +299,7 @@ template <>
 struct JsonCharTraits< wchar_t >
 {
     typedef wchar_t _tyChar;
+    typedef char16_t _tyPersistAsChar; // This is a hint and each file object can persist as it likes.
     typedef _tyChar * _tyLPSTR;
     typedef const _tyChar * _tyLPCSTR;
     typedef StrWRsv< std::basic_string< _tyChar > > _tyStdStr;
@@ -365,6 +379,10 @@ struct JsonCharTraits< wchar_t >
     {
         return wcslen( _psz );
     }
+    static size_t StrNLen( _tyLPCSTR _psz, size_t _stLen = std::numeric_limits< size_t >::max() )
+    {
+        return ::StrNLen( _psz, _stLen );
+    }
     static size_t StrCSpn( _tyLPCSTR _psz, _tyLPCSTR _pszCharSet )
     { 
         return wcscspn( _psz, _pszCharSet );
@@ -390,6 +408,14 @@ struct JsonCharTraits< wchar_t >
     static void MemSet( _tyLPSTR _psz, _tyChar _tc, size_t _n )
     { 
         (void)wmemset( _psz, _tc, _n );
+    }
+    static int Snprintf( _tyLPSTR _psz, size_t _n, _tyLPCSTR _pszFmt, ... )
+    {
+        va_list ap;
+        va_start( ap, _pszFmt );
+        int iRet = ::vswprintf( _psz, _n, _pszFmt, ap );
+        va_end( ap );
+        return iRet;
     }
 };
 
@@ -421,13 +447,14 @@ public:
 };
 
 // JsonLinuxInputStream: A class using open(), read(), etc.
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar >
 class JsonLinuxInputStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonLinuxInputStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
@@ -504,11 +531,13 @@ public:
         ssize_t sstRead;
         for ( ; ; )
         {
-            sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
+            _tyPersistAsChar cpxRead;
+            sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
+            m_tcLookahead = cpxRead;
             if ( -1 == sstRead )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() failed for file [%s]", m_szFilename.c_str() );
             m_pos += sstRead;
-            if ( sstRead != sizeof m_tcLookahead )
+            if ( sstRead != sizeof cpxRead )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
             if ( !sstRead )
             {
@@ -551,8 +580,10 @@ public:
             m_fHasLookahead = false;
             return m_tcLookahead;
         }
-        ssize_t sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
-        if ( sstRead != sizeof m_tcLookahead )
+        _tyPersistAsChar cpxRead;
+        ssize_t sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
+        m_tcLookahead = cpxRead;
+        if ( sstRead != sizeof cpxRead )
         {
             if ( -1 == sstRead )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::ReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
@@ -580,8 +611,10 @@ public:
             m_fHasLookahead = false;
             return true;
         }
-        ssize_t sstRead = read( m_fd, &m_tcLookahead, sizeof m_tcLookahead );
-        if ( sstRead != sizeof m_tcLookahead )
+        _tyPersistAsChar cpxRead;
+        ssize_t sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
+        m_tcLookahead = cpxRead;
+        if ( sstRead != sizeof cpxRead )
         {
             if ( -1 == sstRead )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
@@ -624,20 +657,21 @@ protected:
 };
 
 // JsonInputFixedMemStream: Stream a fixed piece o' mem'ry at the JSON parser.
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar >
 class JsonInputFixedMemStream : public JsonInputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonInputFixedMemStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
     JsonInputFixedMemStream() = default;
-    JsonInputFixedMemStream( const _tyChar * _ptcBegin, _tyFilePos _stLen )
+    JsonInputFixedMemStream( const _tyPersistAsChar * _pcpxBegin, _tyFilePos _stLen )
     {
-        Open( _ptcBegin, _stLen );
+        Open( _pcpxBegin, _stLen );
     }
     ~JsonInputFixedMemStream()
     {
@@ -645,32 +679,32 @@ public:
 
     bool FOpened() const
     {
-        return MAP_FAILED != m_ptcBegin;
+        return MAP_FAILED != m_pcpxBegin;
     }
     bool FEOF() const
     {
         assert( FOpened() );
-        return ( m_ptcEnd == m_ptcCur ) && !m_fHasLookahead;
+        return ( m_pcpxEnd == m_pcpxCur ) && !m_fHasLookahead;
     }
     _tyFilePos StLenBytes() const
     {
         assert( FOpened() );
-        return ( m_ptcEnd - m_ptcBegin ) * sizeof(_tyChar);
+        return ( m_pcpxEnd - m_pcpxBegin ) * sizeof(_tyPersistAsChar);
     }
 
     // Throws on open failure. This object owns the lifetime of the file descriptor.
-    void Open( const _tyChar * _ptcBegin, _tyFilePos _stLen )
+    void Open( const _tyPersistAsChar * _pcpxBegin, _tyFilePos _stLen )
     {
         Close();
-        m_ptcCur = m_ptcBegin = _ptcBegin;
-        m_ptcEnd = m_ptcCur + _stLen;
+        m_pcpxCur = m_pcpxBegin = _pcpxBegin;
+        m_pcpxEnd = m_pcpxCur + _stLen;
     }
 
     void Close()
     {
-        m_ptcBegin = (_tyChar *)MAP_FAILED;
-        m_ptcCur = (_tyChar *)MAP_FAILED;
-        m_ptcEnd = (_tyChar *)MAP_FAILED;
+        m_pcpxBegin = (_tyPersistAsChar *)MAP_FAILED;
+        m_pcpxCur = (_tyPersistAsChar *)MAP_FAILED;
+        m_pcpxEnd = (_tyPersistAsChar *)MAP_FAILED;
         m_fHasLookahead = false;
         m_tcLookahead = 0;
     }
@@ -693,7 +727,7 @@ public:
         {
             if ( FEOF() )
                 return; // We have skipped the whitespace until we hit EOF.
-            m_tcLookahead = *m_ptcCur++;
+            m_tcLookahead = *m_pcpxCur++;
             if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
                 THROWBADJSONSTREAM( "JsonInputFixedMemStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
             if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
@@ -707,7 +741,7 @@ public:
     _tyFilePos PosGet() const
     {
         assert( FOpened() );
-        return ( ( m_ptcCur - (const _tyChar*)m_ptcBegin ) - (size_t)m_fHasLookahead ) * sizeof(_tyChar);
+        return ( ( m_pcpxCur - m_pcpxBegin ) - (size_t)m_fHasLookahead ) * sizeof(_tyPersistAsChar);
     }
     // Read a single character from the file - always throw on EOF.
     _tyChar ReadChar( const char * _pcEOFMessage, const char * _pcFilename = 0 )
@@ -721,8 +755,8 @@ public:
         }
         if ( FEOF() )
             THROWBADJSONSTREAM( "[%s]: %s", !_pcFilename ? "(no file)" : _pcFilename, _pcEOFMessage );
-        assert( !!*m_ptcCur );
-        m_tcLookahead = *m_ptcCur++;
+        assert( !!*m_pcpxCur );
+        m_tcLookahead = *m_pcpxCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
             THROWBADJSONSTREAM( "JsonInputFixedMemStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return m_tcLookahead;
@@ -743,7 +777,7 @@ public:
                 THROWBADJSONSTREAM( "[%s]: %s", !_pcFilename ? "(no file)" : _pcFilename, _pcEOFMessage );
             return false;
         }
-        _rtch = m_tcLookahead = *m_ptcCur++;
+        _rtch = m_tcLookahead = *m_pcpxCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
             THROWBADJSONSTREAM( "JsonInputFixedMemStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return true;
@@ -765,20 +799,20 @@ public:
         else
         if ( StLenBytes() > _rOther.StLenBytes() )
             return std::strong_ordering::greater;
-        int iComp = memcmp( m_ptcBegin, _rOther.m_ptcBegin, StLenBytes() );
+        int iComp = memcmp( m_pcpxBegin, _rOther.m_pcpxBegin, StLenBytes() );
         return ( iComp < 0 ) ? std::strong_ordering::less : ( ( iComp > 0 ) ? std::strong_ordering::greater : std::strong_ordering::equal );
     }
 
 protected:
-    const _tyChar * m_ptcBegin{(_tyChar*)MAP_FAILED};
-    const _tyChar * m_ptcCur{(_tyChar*)MAP_FAILED};
-    const _tyChar * m_ptcEnd{(_tyChar*)MAP_FAILED};
+    const _tyPersistAsChar * m_pcpxBegin{(_tyPersistAsChar*)MAP_FAILED};
+    const _tyPersistAsChar * m_pcpxCur{(_tyPersistAsChar*)MAP_FAILED};
+    const _tyPersistAsChar * m_pcpxEnd{(_tyPersistAsChar*)MAP_FAILED};
     _tyChar m_tcLookahead{0}; // Everytime we read a character we put it in the m_tcLookahead and clear that we have a lookahead.
     bool m_fHasLookahead{false};
 };
 
 // JsonLinuxInputMemMappedStream: A class using open(), read(), etc.
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar >
 class JsonLinuxInputMemMappedStream : protected JsonInputFixedMemStream< t_tyCharTraits >
 {
     typedef JsonInputFixedMemStream< t_tyCharTraits > _tyBase;
@@ -786,6 +820,7 @@ class JsonLinuxInputMemMappedStream : protected JsonInputFixedMemStream< t_tyCha
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
 
@@ -805,7 +840,7 @@ public:
     }
     bool FFileMapped() const
     {
-        return (_tyChar*)MAP_FAILED != m_ptcBegin;
+        return (t_tyPersistAsChar*)MAP_FAILED != m_pcpxBegin;
     }
     using _tyBase::FEOF;
     using _tyBase::StLenBytes;
@@ -824,14 +859,14 @@ public:
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Attempting to seek to EOF failed for [%s]", _szFilename );
         if ( 0 == posEnd )
             THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s] is empty - it contains no JSON value.", _szFilename );
-        if ( !!( posEnd % sizeof(_tyChar) ) )
+        if ( !!( posEnd % sizeof(t_tyPersistAsChar) ) )
             THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
         // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
-        m_ptcBegin = (_tyChar*)mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
-        if ( m_ptcBegin == (_tyChar*)MAP_FAILED )
+        m_pcpxBegin = (t_tyPersistAsChar*)mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
+        if ( m_pcpxBegin == (t_tyPersistAsChar*)MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
-        m_ptcCur = m_ptcBegin;
-        m_ptcEnd = m_ptcCur + ( posEnd / sizeof(_tyChar) );
+        m_pcpxCur = m_pcpxBegin;
+        m_pcpxEnd = m_pcpxCur + ( posEnd / sizeof(t_tyPersistAsChar) );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
     }
@@ -841,7 +876,7 @@ public:
         if ( FFileMapped() )
         {
             assert( FFileOpened() );
-            const void * pvMapped = m_ptcBegin;
+            const void * pvMapped = m_pcpxBegin;
             size_t stMapped = StLenBytes();
             _tyBase::Close();
             _Unmap( pvMapped, stMapped );
@@ -898,9 +933,9 @@ public:
     }
 
 protected:
-    using _tyBase::m_ptcBegin;
-    using _tyBase::m_ptcCur;
-    using _tyBase::m_ptcEnd;
+    using _tyBase::m_pcpxBegin;
+    using _tyBase::m_pcpxCur;
+    using _tyBase::m_pcpxEnd;
     using _tyBase::m_tcLookahead;
     using _tyBase::m_fHasLookahead;
     std::string m_szFilename;
@@ -908,13 +943,14 @@ protected:
 };
 
 // JsonLinuxOutputStream: A class using open(), read(), etc.
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar >
 class JsonLinuxOutputStream : public JsonOutputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonLinuxOutputStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
@@ -991,30 +1027,89 @@ public:
         return close( _fd );
     }
 
-    // Read a single character from the file - always throw on EOF.
-    void WriteChar( _tyChar _tc )
+    void WriteByteOrderMark() const
     {
-        assert( FOpened() );
-        ssize_t sstWrote = write( m_fd, &_tc, sizeof _tc );
-        if ( sstWrote != sizeof _tc )
+        assert( 0 == ::lseek( m_fd, 0, SEEK_CUR ) );
+        uint8_t rgBOM[] = { 0xFF, 0xFE };
+        ssize_t sstWrote = write( m_fd, &rgBOM, sizeof rgBOM );
+        if ( sstWrote != sizeof rgBOM )
         {
             if ( -1 == sstWrote )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
             else
-                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
+                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof rgBOM, m_szFilename.c_str() );
+        }
+    }
+
+    void _CheckPersistedChar( _tyChar _tc )
+    {
+        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
+        {
+            if ( !!( _tc & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                THROWBADJSONSTREAM( "JsonLinuxOutputStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
+        }
+    }
+
+    // Read a single character from the file - always throw on EOF.
+    void WriteChar( _tyChar _tc )
+    {
+        assert( FOpened() );
+        _CheckPersistedChar( _tc );
+        _tyPersistAsChar cpx = (_tyPersistAsChar)_tc;
+        ssize_t sstWrote = write( m_fd, &cpx, sizeof cpx );
+        if ( sstWrote != sizeof cpx )
+        {
+            if ( -1 == sstWrote )
+                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
+            else
+                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof cpx, m_szFilename.c_str() );
         }
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
         if ( _sstLen < 0 )
             _sstLen = _tyCharTraits::StrLen( _psz );
-        ssize_t sstWrote = write( m_fd, _psz, _sstLen );
-        if ( sstWrote != _sstLen )
+        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            if ( -1 == sstWrote )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
-            else
-                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, _sstLen, m_szFilename.c_str() );
+            const size_t kstLenConvertBuf = 4096;
+            _tyPersistAsChar rgcpxConvertBuf[ kstLenConvertBuf ];
+            _tyLPCSTR const pszEnd = _psz + _sstLen;
+            _tyLPCSTR  pszCur = _psz;
+            for( ; pszEnd != pszCur; )
+            {
+                _tyPersistAsChar * pcpxCur = rgcpxConvertBuf;
+                _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
+                for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
+                {
+                    if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                    {
+                        unsigned int uCur = *pszCur;
+                        unsigned int uVal = ( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) );
+                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): Would lose information since high data of character gets trunctated uCur[%x], uVal[%x], file [%s]", uCur, uVal, m_szFilename.c_str() );
+                    }
+                    *pcpxCur = (_tyPersistAsChar)*pszCur;
+                }
+                ssize_t sstWrote = write( m_fd, rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
+                if ( sstWrote != ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) )
+                {
+                    if ( -1 == sstWrote )
+                        THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
+                    else
+                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote,
+                            ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ), m_szFilename.c_str() );
+                }
+            }
+        }
+        else
+        {
+            ssize_t sstWrote = write( m_fd, _psz, _sstLen );
+            if ( sstWrote != _sstLen )
+            {
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
+                else
+                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, _sstLen, m_szFilename.c_str() );
+            }
         }
     }
     // If <_fEscape> then we escape all special characters when writing.
@@ -1072,20 +1167,16 @@ public:
                         sstLenWrite = pszNoEscape - pszWrite;
                     }                                                                    
                 }
-                ssize_t sstWrote = 0;
                 if ( sstLenWrite )
-                    sstWrote = write( m_fd, pszWrite, sstLenWrite );
-                if ( sstWrote != sstLenWrite )
                 {
-                    if ( -1 == sstWrote )
-                        THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteString(): write() failed for file [%s]", m_szFilename.c_str() );
-                    else
-                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteString(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sstLenWrite, m_szFilename.c_str() );
+                    WriteRawChars( pszWrite, sstLenWrite );
+                    stLen -= sstLenWrite;
+                    pszWrite += sstLenWrite;
+                    if ( !stLen )
+                        return; // the overwhelming case is we return here.
                 }
-                stLen -= sstLenWrite;
-                pszWrite += sstLenWrite;
-                if ( !stLen )
-                    return; // the overwhelming case is we return here.
+                else
+                    assert( !!stLen ); // invariant.
             }
             // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
@@ -1133,13 +1224,14 @@ protected:
 };
 
 // JsonOutputMemMappedStream: A class using open(), read(), etc.
-template < class t_tyCharTraits >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar >
 class JsonOutputMemMappedStream : public JsonOutputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonOutputMemMappedStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
@@ -1158,8 +1250,8 @@ public:
         _r.m_szExceptionString.swap( m_szExceptionString );
         std::swap( _r.m_fd, m_fd );
         std::swap( _r.m_pvMapped, m_pvMapped );
-        std::swap( _r.m_ptcMappedCur, m_ptcMappedCur );
-        std::swap( _r.m_ptcMappedEnd, m_ptcMappedEnd );
+        std::swap( _r.m_cpxMappedCur, m_cpxMappedCur );
+        std::swap( _r.m_cpxMappedEnd, m_cpxMappedEnd );
         std::swap( _r.m_stMapped, m_stMapped );
     }
 
@@ -1211,8 +1303,8 @@ public:
         if ( m_pvMapped == MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
         m_stMapped = s_knGrowFileByBytes;
-        m_ptcMappedCur = (_tyChar*)m_pvMapped;
-        m_ptcMappedEnd = m_ptcMappedCur + ( m_stMapped / sizeof(_tyChar) );
+        m_cpxMappedCur = (_tyPersistAsChar*)m_pvMapped;
+        m_cpxMappedEnd = m_cpxMappedCur + ( m_stMapped / sizeof(_tyPersistAsChar) );
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
     }
 
@@ -1222,9 +1314,9 @@ public:
         if ( FFileMapped() )
         {
             assert( FFileOpened() );
-            // We need to truncate the file to m_ptcMappedCur - m_pvMapped bytes.
+            // We need to truncate the file to m_cpxMappedCur - m_pvMapped bytes.
             // We shouldn't throw here so we will just log an error message and set m_szExceptionString.
-            iCloseRet = ftruncate( m_fd, ( m_ptcMappedCur - (_tyChar*)m_pvMapped ) * sizeof(_tyChar) );
+            iCloseRet = ftruncate( m_fd, ( m_cpxMappedCur - (_tyPersistAsChar*)m_pvMapped ) * sizeof(_tyPersistAsChar) );
             if ( -1 == iCloseRet )
             {
                 LOGSYSLOGERRNO( eslmtError, errno, "JsonOutputMemMappedStream::Close(): ftruncate failed." );
@@ -1258,11 +1350,21 @@ public:
         return close( _fd );
     }
 
+    void _CheckPersistedChar( _tyChar _tc )
+    {
+        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
+        {
+            if ( !!( _tc & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                THROWBADJSONSTREAM( "JsonOutputMemMappedStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
+        }
+    }
+    
     // Read a single character from the file - always throw on EOF.
     void WriteChar( _tyChar _tc )
     {
+        _CheckPersistedChar( _tc );
         _CheckGrowMap( 1 );
-        *m_ptcMappedCur++ = _tc;
+        *m_cpxMappedCur++ = _tc;
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
@@ -1271,8 +1373,31 @@ public:
         if ( _sstLen < 0 )
             _sstLen = _tyCharTraits::StrLen( _psz );
         _CheckGrowMap( (size_t)_sstLen );
-        memcpy( m_ptcMappedCur, _psz, _sstLen * sizeof(_tyChar) );
-        m_ptcMappedCur += _sstLen;
+        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
+        {
+            const size_t kstLenConvertBuf = 4096;
+            _tyPersistAsChar rgcpxConvertBuf[ kstLenConvertBuf ];
+            _tyLPCSTR const pszEnd = _psz + _sstLen;
+            _tyLPCSTR  pszCur = _psz;
+            for( ; pszEnd != pszCur; )
+            {
+                _tyPersistAsChar * pcpxCur = rgcpxConvertBuf;
+                _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
+                for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
+                {
+                    if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                        THROWBADJSONSTREAM( "JsonOutputMemMappedStream::WriteRawChars(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
+                    *pcpxCur = (_tyPersistAsChar)*pszCur;
+                }
+                memcpy( m_cpxMappedCur, rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
+                m_cpxMappedCur += ( pcpxCur - rgcpxConvertBuf );
+            }
+        }
+        else
+        {        
+            memcpy( m_cpxMappedCur, _psz, _sstLen * sizeof(_tyChar) );
+            m_cpxMappedCur += _sstLen;
+        }
     }
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
@@ -1333,14 +1458,14 @@ public:
                 }
                 if ( sstLenWrite )
                 {
-                    _CheckGrowMap( sstLenWrite );
-                    memcpy( m_ptcMappedCur, pszWrite, sstLenWrite * sizeof(_tyChar) );
-                    m_ptcMappedCur += sstLenWrite;
+                    WriteRawChars( pszWrite, sstLenWrite );
+                    stLen -= sstLenWrite;
+                    pszWrite += sstLenWrite;
+                    if ( !stLen )
+                        return; // the overwhelming case is we return here.
                 }
-                stLen -= sstLenWrite;
-                pszWrite += sstLenWrite;
-                if ( !stLen )
-                    return; // the overwhelming case is we return here.
+                else
+                    assert( !!stLen ); // invariant.
             }
             // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
@@ -1383,7 +1508,7 @@ public:
 protected:
     void _CheckGrowMap( size_t _stByAtLeast )
     {
-        if ( ( m_ptcMappedEnd -  m_ptcMappedCur ) < _stByAtLeast )
+        if ( ( m_cpxMappedEnd -  m_cpxMappedCur ) < _stByAtLeast )
             _GrowMap( _stByAtLeast );
     }
     void _GrowMap( size_t _stByAtLeast )
@@ -1403,27 +1528,28 @@ protected:
         m_pvMapped = mmap( 0, m_stMapped, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): mmap() failed for file [%s].", m_szFilename.c_str() );
-        m_ptcMappedEnd = (_tyChar*)m_pvMapped + ( m_stMapped / sizeof( _tyChar ) );
-        m_ptcMappedCur = (_tyChar*)m_pvMapped + ( m_ptcMappedCur - (_tyChar*)pvOldMapping );
+        m_cpxMappedEnd = (_tyPersistAsChar*)m_pvMapped + ( m_stMapped / sizeof( _tyPersistAsChar ) );
+        m_cpxMappedCur = (_tyPersistAsChar*)m_pvMapped + ( m_cpxMappedCur - (_tyPersistAsChar*)pvOldMapping );
     }
 
     std::string m_szFilename;
     std::string m_szExceptionString;
     void * m_pvMapped{MAP_FAILED};
-    _tyChar * m_ptcMappedCur{};
-    _tyChar * m_ptcMappedEnd{};
+    _tyPersistAsChar * m_cpxMappedCur{};
+    _tyPersistAsChar * m_cpxMappedEnd{};
     size_t m_stMapped{};
     int m_fd{-1}; // file descriptor.
 };
 
 // This just writes to an in-memory stream which then can be done anything with.
-template < class t_tyCharTraits, size_t t_kstBlockSize = 65536 >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar, size_t t_kstBlockSize = 65536 >
 class JsonOutputMemStream : public JsonOutputStreamBase< t_tyCharTraits, size_t >
 {
     typedef JsonOutputMemStream _tyThis;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
@@ -1448,7 +1574,7 @@ public:
 
     size_t GetLengthChars() const
     {
-        return m_msMemStream.GetEndPos() / sizeof(_tyChar);
+        return m_msMemStream.GetEndPos() / sizeof(_tyPersistAsChar);
     }
     size_t GetLengthBytes() const
     {
@@ -1475,22 +1601,58 @@ public:
         _rstrExceptionString = m_szExceptionString;
     }
 
+    void _CheckPersistedChar( _tyChar _tc )
+    {
+        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
+        {
+            if ( !!( _tc & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                THROWBADJSONSTREAM( "JsonLinuxOutputStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated" );
+        }
+    }
+    
     // Read a single character from the file - always throw on EOF.
     void WriteChar( _tyChar _tc )
     {
-        ssize_t sstWrote = m_msMemStream.Write( &_tc, sizeof _tc );
+        _CheckPersistedChar( _tc );
+        _tyPersistAsChar cpx = _tc;
+        ssize_t sstWrote = m_msMemStream.Write( &cpx, sizeof cpx );
         if ( -1 == sstWrote )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
-        assert( sstWrote == sizeof _tc );
+        assert( sstWrote == sizeof cpx );
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
         if ( _sstLen < 0 )
             _sstLen = _tyCharTraits::StrLen( _psz );
-        ssize_t sstWrote = m_msMemStream.Write( _psz, _sstLen );
-        if ( -1 == sstWrote )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
-        assert( sstWrote == _sstLen );
+        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
+        {
+            const size_t kstLenConvertBuf = 4096;
+            _tyPersistAsChar rgcpxConvertBuf[ kstLenConvertBuf ];
+            _tyLPCSTR const pszEnd = _psz + _sstLen;
+            _tyLPCSTR  pszCur = _psz;
+            for( ; pszEnd != pszCur; )
+            {
+                _tyPersistAsChar * pcpxCur = rgcpxConvertBuf;
+                _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
+                for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
+                {
+                    if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                        THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
+                    *pcpxCur = (_tyPersistAsChar)*pszCur;
+                }
+                ssize_t sstWrote = m_msMemStream.Write( rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
+                assert( sstWrote == ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) ); // else we would have thrown.
+            }
+        }
+        else
+        {        
+            ssize_t sstWrote = m_msMemStream.Write( _psz, _sstLen * sizeof(_tyChar) );
+            if ( -1 == sstWrote )
+                THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
+            assert( sstWrote == _sstLen * sizeof(_tyChar) ); // else we would have thrown.
+        }
     }
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
@@ -1548,14 +1710,15 @@ public:
                 }
                 ssize_t sstWrote = 0;
                 if ( sstLenWrite )
-                    sstWrote = m_msMemStream.Write( pszWrite, sstLenWrite );
-                if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
-                assert( sstWrote == sstLenWrite );
-                stLen -= sstLenWrite;
-                pszWrite += sstLenWrite;
-                if ( !stLen )
-                    return; // the overwhelming case is we return here.
+                {
+                    WriteRawChars( pszWrite, sstLenWrite );
+                    stLen -= sstLenWrite;
+                    pszWrite += sstLenWrite;
+                    if ( !stLen )
+                        return; // the overwhelming case is we return here.
+                }
+                else
+                    assert( !!stLen ); // invariant.
             }
             // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
@@ -1615,14 +1778,15 @@ protected:
 };
 
 // This writes to a memstream during the write and then writes the OS file on close.
-template < class t_tyCharTraits, size_t t_kstBlockSize = 65536 >
-class JsonLinuxOutputMemStream : protected JsonOutputMemStream< t_tyCharTraits, t_kstBlockSize >
+template < class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar, size_t t_kstBlockSize = 65536 >
+class JsonLinuxOutputMemStream : protected JsonOutputMemStream< t_tyCharTraits, t_tyPersistAsChar, t_kstBlockSize >
 {
     typedef JsonLinuxOutputMemStream _tyThis;
-    typedef JsonOutputMemStream< t_tyCharTraits, t_kstBlockSize > _tyBase;
+    typedef JsonOutputMemStream< t_tyCharTraits, t_tyPersistAsChar, t_kstBlockSize > _tyBase;
 public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
+    typedef t_tyPersistAsChar _tyPersistAsChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
@@ -2145,6 +2309,7 @@ class JsonValueLife
 public:
     typedef t_tyJsonOutputStream _tyJsonOutputStream;
     typedef typename t_tyJsonOutputStream::_tyCharTraits _tyCharTraits;
+    typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef typename _tyCharTraits::_tyStdStr _tyStdStr;
     typedef JsonValue< _tyCharTraits > _tyJsonValue;
@@ -2367,43 +2532,43 @@ public:
     
     void WriteValue( _tyLPCSTR _pszKey, uint8_t _by )
     {
-        _WriteValue( _pszKey, "%hhu", _by );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%hhu" ), _by );
     }
     void WriteValue( _tyLPCSTR _pszKey, int8_t _sby )
     {
-        _WriteValue( _pszKey, "%hhd", _sby );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%hhd" ), _sby );
     }
     void WriteValue( _tyLPCSTR _pszKey, uint16_t _us )
     {
-        _WriteValue( _pszKey, "%hu", _us );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%hu" ), _us );
     }
     void WriteValue( _tyLPCSTR _pszKey, int16_t _ss )
     {
-        _WriteValue( _pszKey, "%hd", _ss );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%hd" ), _ss );
     }
     void WriteValue( _tyLPCSTR _pszKey, uint32_t _ui )
     {
-        _WriteValue( _pszKey, "%u", _ui );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%u" ), _ui );
     }
     void WriteValue( _tyLPCSTR _pszKey, int32_t _si )
     {
-        _WriteValue( _pszKey, "%d", _si );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%d" ), _si );
     }
     void WriteValue( _tyLPCSTR _pszKey, uint64_t _ul )
     {
-        _WriteValue( _pszKey, "%lu", _ul );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%lu" ), _ul );
     }
     void WriteValue( _tyLPCSTR _pszKey, int64_t _sl )
     {
-        _WriteValue( _pszKey, "%ld", _sl );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%ld" ), _sl );
     }
     void WriteValue( _tyLPCSTR _pszKey, double _dbl )
     {
-        _WriteValue( _pszKey, "%f", _dbl );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%f" ), _dbl );
     }
     void WriteValue( _tyLPCSTR _pszKey, long double _ldbl )
     {
-        _WriteValue( _pszKey, "%Lf", _ldbl );
+        _WriteValue( _pszKey, str_array_cast< _tyChar >( "%Lf" ), _ldbl );
     }
     void WriteTimeStringValue( _tyLPCSTR _pszKey, time_t const & _tt )
     {
@@ -2490,43 +2655,43 @@ public:
     
     void WriteValue( uint8_t _by )
     {
-        _WriteValue( "%hhu", _by );
+        _WriteValue( str_array_cast< _tyChar >( "%hhu" ), _by );
     }
     void WriteValue( int8_t _sby )
     {
-        _WriteValue( "%hhd", _sby );
+        _WriteValue( str_array_cast< _tyChar >( "%hhd" ), _sby );
     }
     void WriteValue( uint16_t _us )
     {
-        _WriteValue( "%hu", _us );
+        _WriteValue( str_array_cast< _tyChar >( "%hu" ), _us );
     }
     void WriteValue( int16_t _ss )
     {
-        _WriteValue( "%hd", _ss );
+        _WriteValue( str_array_cast< _tyChar >( "%hd" ), _ss );
     }
     void WriteValue( uint32_t _ui )
     {
-        _WriteValue( "%u", _ui );
+        _WriteValue( str_array_cast< _tyChar >( "%u" ), _ui );
     }
     void WriteValue( int32_t _si )
     {
-        _WriteValue( "%d", _si );
+        _WriteValue( str_array_cast< _tyChar >( "%d" ), _si );
     }
     void WriteValue( uint64_t _ul )
     {
-        _WriteValue( "%lu", _ul );
+        _WriteValue( str_array_cast< _tyChar >( "%lu" ), _ul );
     }
     void WriteValue( int64_t _sl )
     {
-        _WriteValue( "%ld", _sl );
+        _WriteValue( str_array_cast< _tyChar >( "%ld" ), _sl );
     }
     void WriteValue( double _dbl )
     {
-        _WriteValue( "%lf", _dbl );
+        _WriteValue( str_array_cast< _tyChar >( "%lf" ), _dbl );
     }
     void WriteValue( long double _ldbl )
     {
-        _WriteValue( "%Lf", _ldbl );
+        _WriteValue( str_array_cast< _tyChar >( "%Lf" ), _ldbl );
     }
 
 protected:
@@ -2534,8 +2699,8 @@ protected:
     void _WriteValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszFmt, t_tyNum _num )
     {
       const int knNum = 512;
-      char rgcNum[ knNum ];
-      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      _tyChar rgcNum[ knNum ];
+      int nPrinted = _tyCharTraits::Snprintf( rgcNum, knNum, _pszFmt, _num );
       assert( nPrinted < knNum );
       _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
     }
@@ -2544,7 +2709,7 @@ protected:
         assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
-        assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
+        assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
         JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
         jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
@@ -2561,8 +2726,8 @@ protected:
     void _WriteValue( _tyLPCSTR _pszFmt, t_tyNum _num )
     {
       const int knNum = 512;
-      char rgcNum[ knNum ];
-      int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
+      _tyChar rgcNum[ knNum ];
+      int nPrinted = _tyCharTraits::Snprintf( rgcNum, knNum, _pszFmt, _num );
       assert( nPrinted < knNum );
       _WriteValue( ejvtNumber, rgcNum, std::min( nPrinted, knNum-1 ) );
     }
@@ -2571,7 +2736,7 @@ protected:
         assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
-        assert( _tyCharTraits::StrLen( _pszValue ) >= _stLen );
+        assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
         jvlArrayElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
@@ -2606,7 +2771,7 @@ public:
     typedef const _tyChar * _tyLPCSTR;
 
     JsonValueLifeAbstractBase() = default;
-    virtual ~JsonValueLifeAbstractBase() = default;
+    virtual ~JsonValueLifeAbstractBase() noexcept(false) = default;
 
     virtual void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyThis > & _rNewSubValue ) = 0;
     virtual void NewSubValue( _tyLPCSTR _pszKey, EJsonValueType _jvt, std::unique_ptr< _tyThis > & _rNewSubValue ) = 0;
@@ -2669,8 +2834,10 @@ class JsonValueLifePoly :
     typedef JsonValueLife< t_tyJsonOutputStream > _tyBase;
     typedef JsonValueLifePoly _tyThis;
 public:
-    using _tyJsonValue = typename _tyBase::_tyJsonValue; // Interesting if this inits the vtable correctly... hoping it will of course.
-    using _tyLPCSTR = typename _tyBase::_tyLPCSTR;
+    using typename _tyBase::_tyJsonValue; // Interesting if this inits the vtable correctly... hoping it will of course.
+    using typename _tyBase::_tyLPCSTR;
+    
+    using JsonValueLife< t_tyJsonOutputStream >::JsonValueLife;
 
     // Construct the same type of JsonValueLife that we are... duh.
     void NewSubValue( EJsonValueType _jvt, std::unique_ptr< _tyAbstractBase > & _rNewSubValue ) override
