@@ -25,6 +25,13 @@ ifndef CC
 $(error Must define CC to be the compiler of your choice.)
 endif
 
+ifndef MOD_CPPVER
+MOD_CPPVER := -std=c++20
+endif
+ifndef MOD_CPPVER_NVCC
+MOD_CPPVER := -std=c++14
+endif
+
 # Allow using newer versions of clang-tidy.
 ifndef CLANGTIDY
 CLANGTIDY := clang-tidy
@@ -86,9 +93,8 @@ TIDYFLAGS := $(TIDYCHECKFLAGS) -header-filter=.*
 endif
 CC := $(CLANGTIDY)
 CXX := $(CLANGTIDY)
-# setup CCU to be nvcc for gcc.
 CCU := $(CLANGTIDY)
-CXXANDLINKFLAGS += -std=gnu++17 -pthread
+CXXANDLINKFLAGS += $(MOD_CPPVER) -pthread
 # Remove any existing *.tidy files from the build dir. We will always build tidy files because the user is requesting them specially.
 $(shell rm -f $(BUILD_DIR)/*.tidy >/dev/null 2>/dev/null)
 else
@@ -96,7 +102,7 @@ ifneq (,$(findstring nvcc,$(CC)))
 CXX := /usr/local/cuda/bin/nvcc
 # We allow CCU (cuda compiler) to be potentially clang since apparently it supports cuda natively (interestingly enough).
 CCU := /usr/local/cuda/bin/nvcc 
-CXXANDLINKFLAGS += -std=c++14 -Xcompiler="-pthread"
+CXXANDLINKFLAGS += $(MOD_CPPVER_NVCC) -Xcompiler="-pthread"
 ifneq (1,$(NDEBUG))
 # Addition debug flags for nvcc:
 CXXANDLINKFLAGS += -G -O0
@@ -108,12 +114,12 @@ ifeq ($(CC),gcc)
 CXX := g++
 # setup CCU to be nvcc for gcc.
 CCU := /usr/local/cuda/bin/nvcc
-CXXANDLINKFLAGS += -std=gnu++17 -pthread
+CXXANDLINKFLAGS += $(MOD_CPPVER) -pthread
 else
 ifneq (,$(findstring clang,$(CC)))
 # Allow the use of any version of clang by copying CC.
 CXX := $(CC)
-CXXANDLINKFLAGS += -std=c++20 -stdlib=libc++ -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
+CXXANDLINKFLAGS += $(MOD_CPPVER) -stdlib=libc++ -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
 MK_LIBS += -lc++abi -lm
 ifeq (1,$(MOD_DEBUG_LIBCPP))
 CXXFLAGS_BASE += -D_LIBCPP_DEBUG -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
