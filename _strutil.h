@@ -10,8 +10,8 @@
 #include <string>
 #include <compare>
 #include <utility>
-#include <_namdexc.h>
-#include <_smartp.h>
+#include "_namdexc.h"
+#include "_smartp.h"
 #if __APPLE__
 #include <libproc.h>
 #include <mach-o/dyld.h>

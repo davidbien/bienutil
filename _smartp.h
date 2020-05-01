@@ -1,5 +1,5 @@
-#ifndef __TICONT_H__
-#define __TICONT_H__
+#ifndef __SMARTP_H_
+#define __SMARTP_H_
 
 
 __BIENUTIL_BEGIN_NAMESPACE
@@ -120,7 +120,7 @@ public:
 #endif //0
 };
 
-// Implement a very simple object to call free() on a void& on destruct.
+// Implement a very simple object to call free() on a void* on destruct.
 
 class FreeVoid
 {
@@ -155,5 +155,5 @@ protected:
 
 __BIENUTIL_END_NAMESPACE
 
-#endif //__TICONT_H__
+#endif //__SMARTP_H_
 

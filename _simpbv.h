@@ -1,7 +1,11 @@
 #ifndef __SIMPBV_H
 #define __SIMPBV_H
 
-#include "bienutil/_bitutil.h"
+#include "_bitutil.h"
+
+#ifdef setbit // WTF? Why would someone make a PP macro called setbit()?
+#undef setbit
+#endif 
 
 __BIENUTIL_BEGIN_NAMESPACE
 
