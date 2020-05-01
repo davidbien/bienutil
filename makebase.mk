@@ -29,8 +29,9 @@ ifndef MOD_CPPVER
 MOD_CPPVER := -std=c++20
 endif
 ifndef MOD_CPPVER_NVCC
-MOD_CPPVER := -std=c++14
+MOD_CPPVER_NVCC := -std=c++14
 endif
+$(info MOD_CPPVER: $(MOD_CPPVER))
 
 # Allow using newer versions of clang-tidy.
 ifndef CLANGTIDY
