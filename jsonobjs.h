@@ -1360,7 +1360,7 @@ public:
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
             if ( !_rfFilter( _jrc, _rjvContainer ) )
-                return; // Skip this array element.
+                continue; // Skip this array element.
             _tyJsoValue jvValue( _jrc.JvtGetValueType() );
             jvValue.FromJSONStream( _jrc, _rfFilter );
             m_vecValues.emplace_back( std::move( jvValue ) );
