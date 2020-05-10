@@ -302,8 +302,6 @@ public:
   {
     assert( _rl.m_kstBits == m_kstBits );
     assert( _rr.m_kstBits == m_kstBits );
-
-    bool  fIntersect = false;
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     t_TyEl *  pcurLeft = _rl.m_rgEls;
     t_TyEl *  pcurRight = _rr.m_rgEls;
@@ -311,11 +309,9 @@ public:
     for ( ; pcurThis != pendThis; ++pcurLeft, ++pcurRight, ++pcurThis )
     {
       if ( *pcurThis = *pcurLeft & *pcurRight )
-      {
-        fIntersect = true;
-      }
+        return true;
     }
-    return fIntersect;
+    return false;
   }
 
   size_type FirstIntersection( _TyThis const & _r ) const _BIEN_NOTHROW
