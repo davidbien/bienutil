@@ -265,18 +265,37 @@ public:
 
   _TyThis & operator |= ( _TyThis const & _r ) _BIEN_NOTHROW
   {
+    // The invariant is that beyond the last bit is empty.
+    // Since both bit vectors should follow that invariant the result should follow it.
     assert( _r.m_kstBits == m_kstBits );
-    or_equals( _r.m_rgEls );
+    _or_equals( _r.m_rgEls );
     return *this;
   }
-
-  void  or_equals( t_TyEl * pcurThat )
+  void  _or_equals( t_TyEl * pcurThat )
   {
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     t_TyEl *  pcurThis = m_rgEls;
     for ( ; pcurThis != pendThis; ++pcurThat, ++pcurThis )
     {
       *pcurThis |= *pcurThat;
+    }
+  }
+
+  void and_not( _TyThis const & _r )
+  {
+    // The invariant is that beyond the last bit is empty.
+    // Since both bit vectors should follow that invariant the result should follow it.
+    assert( _r.m_kstBits == m_kstBits );
+    _and_not( _r.m_rgEls );
+    return *this;
+  }
+  void _and_not( t_TyEl * pcurThat )
+  {
+    t_TyEl *  pendThis = m_rgEls + m_kstSize;
+    t_TyEl *  pcurThis = m_rgEls;
+    for ( ; pcurThis != pendThis; ++pcurThat, ++pcurThis )
+    {
+      *pcurThis &= ~*pcurThat;
     }
   }
 
