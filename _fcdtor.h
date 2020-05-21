@@ -165,6 +165,11 @@ public:
     _ReleaseInt( m_pFunc );
   }
 
+  bool FIsActive() const
+  {
+    return !!m_pFunc;
+  }
+
   void  Release()
   {
     _TyFunc pFunc = m_pFunc;
