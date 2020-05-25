@@ -130,6 +130,8 @@ public:
     }
   }
 
+  using _TyAllocBase::get_allocator;
+
   size_type size() const _BIEN_NOTHROW
   {
     return m_kstBits;

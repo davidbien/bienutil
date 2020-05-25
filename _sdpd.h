@@ -21,6 +21,7 @@ class _sdpd : protected _sdp< t_TyP, t_TyAllocator >
 	using _TyBase::m_pt;
 
 public:
+	using _TyBase::get_allocator;
 	using _TyBase::allocate;
 	using _TyBase::Ptr;
 	using _TyBase::PtrRef;
