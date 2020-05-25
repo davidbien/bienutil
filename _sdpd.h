@@ -5,20 +5,29 @@
 
 // Smart deallocation pointer with auto-destruction capabilities.
 
+#include "bienutil.h"
+#include "_sdp.h"
+
 __BIENUTIL_BEGIN_NAMESPACE
 
+// Use protected inheritance to avoid leaking a destruction.
 template < class t_TyP, class t_TyAllocator >
-class _sdpd
-	: public _sdp< t_TyP, t_TyAllocator >
+class _sdpd : protected _sdp< t_TyP, t_TyAllocator >
 {
 	typedef _sdp< t_TyP, t_TyAllocator >			_TyBase;
 	typedef _sdpd< t_TyP, t_TyAllocator >			_TyThis;
 
 	bool	m_fConstructed;	// Set to true if this object has been successfully constructed.
+	using _TyBase::m_pt;
 
 public:
 	using _TyBase::allocate;
-	using _TyBase::m_pt;
+	using _TyBase::Ptr;
+	using _TyBase::PtrRef;
+	using _TyBase::operator t_TyP *;
+	using _TyBase::operator ->;
+	using _TyBase::operator *;
+	using _TyBase::operator !;
 
   _sdpd() _BIEN_NOTHROW
     : _TyBase( t_TyAllocator() ),
@@ -52,9 +61,7 @@ public:
 	~_sdpd()
 	{
 		if ( m_fConstructed )
-		{
 			_TyBase::destruct();
-		}
 	}
 
   // Indicate that the contained object is constructed.
@@ -67,9 +74,7 @@ public:
 	void	construct()
 	{
 		if ( !m_pt )
-		{
 			allocate();
-		}
 		assert( !m_fConstructed );
 		new ( m_pt ) t_TyP();
 		m_fConstructed = true;
@@ -79,9 +84,7 @@ public:
 	construct1( t_Ty1 _r1 )
 	{
 		if ( !m_pt )
-		{
 			allocate();
-		}
 		assert( !m_fConstructed );
 		new( m_pt ) t_TyP( _r1 );
 		m_fConstructed = true;
@@ -91,9 +94,7 @@ public:
 	construct2( t_Ty1 _r1, t_Ty2 _r2 )
 	{
 		if ( !m_pt )
-		{
 			allocate();
-		}
 		assert( !m_fConstructed );
 		new( m_pt ) t_TyP( _r1, _r2 );
 		m_fConstructed = true;
@@ -103,9 +104,7 @@ public:
 	construct3( t_Ty1 _r1, t_Ty2 _r2, t_Ty3 _r3 )
 	{
 		if ( !m_pt )
-		{
 			allocate();
-		}
 		assert( !m_fConstructed );
 		new( m_pt ) t_TyP( _r1, _r2, _r3 );
 		m_fConstructed = true;
@@ -115,9 +114,7 @@ public:
 	construct4( t_Ty1 _r1, t_Ty2 _r2, t_Ty3 _r3, t_Ty4 _r4 )
 	{
 		if ( !m_pt )
-		{
 			allocate();
-		}
 		assert( !m_fConstructed );
 		new( m_pt ) t_TyP( _r1, _r2, _r3, _r4 );
 		m_fConstructed = true;

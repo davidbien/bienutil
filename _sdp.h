@@ -97,30 +97,29 @@ public:
 		m_pt = 0;
 		return _pt;
 	}
-
 	t_TyP *	Ptr() const _BIEN_NOTHROW
 	{
 		return m_pt;
 	}
-
 	t_TyP *& PtrRef() _BIEN_NOTHROW
 	{
 		return m_pt;
 	}
-
 	operator t_TyP * () const _BIEN_NOTHROW
 	{
 		return m_pt;
 	}
-
 	t_TyP * operator ->() const _BIEN_NOTHROW
 	{
 		return m_pt;
 	}
-
 	t_TyP & operator *() const _BIEN_NOTHROW
 	{
 		return *m_pt;
+	}
+	bool operator !() const _BIEN_NOTHROW
+	{
+		return !m_pt;
 	}
 };
 
