@@ -268,10 +268,10 @@ public:
     // The invariant is that beyond the last bit is empty.
     // Since both bit vectors should follow that invariant the result should follow it.
     assert( _r.m_kstBits == m_kstBits );
-    _or_equals( _r.m_rgEls );
+    or_equals( _r.m_rgEls );
     return *this;
   }
-  void  _or_equals( t_TyEl * pcurThat )
+  void  or_equals( t_TyEl * pcurThat )
   {
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     t_TyEl *  pcurThis = m_rgEls;
