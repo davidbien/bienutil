@@ -121,7 +121,8 @@ ifneq (,$(findstring clang,$(CC)))
 # Allow the use of any version of clang by copying CC.
 CXX := $(CC)
 CXXANDLINKFLAGS += $(MOD_CPPVER) -stdlib=libc++ -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
-MK_LIBS += -lc++abi -lm
+CLANG_INSTALL_DIR := $(dir $(shell readlink -f $(shell which clang)))..
+MK_LIBS += -lc++abi -lm -Wl,-rpath,$(CLANG_INSTALL_DIR)/lib
 ifeq (1,$(MOD_DEBUG_LIBCPP))
 CXXFLAGS_BASE += -D_LIBCPP_DEBUG -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
 endif #(1,$(MOD_DEBUG_LIBCPP))
