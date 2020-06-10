@@ -87,7 +87,138 @@ class VebTreeFixed;
 template <>
 class VebTreeFixed< 2 >
 {
-    // TODO.
+    typedef VebTreeFixed _tyThis;
+public:
+    static const size_t s_kstUniverse = 2;
+    typedef uint8_t _tyImplType;
+    static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
+
+    bool FHasAnyElements() const
+    {
+        return m_byVebTree2 != 0b01;
+    }
+    bool FHasOneElement() const
+    {
+        return ( m_byVebTree2 == 0b00 ) || ( m_byVebTree2 == 0b11 );
+    }
+    _tyImplType NMin() const
+    {
+        if ( !FHasAnyElements() )
+            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+        return _NMin();
+    }
+    bool FHasMin( _tyImplType & _nMin ) const
+    {
+        if ( FHasAnyElements() )
+        {
+            _nMin = _NMin();
+            return true;
+        }
+        return false;
+    }
+    _tyImplType NMax() const
+    {
+        if ( !FHasAnyElements() )
+            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+        return _NMax();
+    }
+    bool FHasMax( _tyImplType & _nMax ) const
+    {
+        if ( FHasAnyElements() )
+        {
+            _nMax = _NMax();
+            return true;
+        }
+        return false;
+    }
+    void Clear()
+    {
+        _ClearHasElements();
+    }
+    // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
+    void Insert( _tyImplType _x )
+    {
+        switch( m_byVebTree2 )
+        {
+            case 0b01: // nil
+                m_byVebTree2 = _x | ( _x << 1 );
+            break;
+            case 0b00:
+                assert( 1 == _x );
+            case 0b11:
+                assert( ( 0b00 == m_byVebTree2 ) || !_x );
+                m_byVebTree2 = 0b10;
+            break;
+            case 0b10:
+                assert( false ); // we shouldn't have this element in the set.
+            break; // Don't modify it.
+        }
+    }
+    // Return true if the element was inserted, false if it already existed.
+    bool FCheckInsert( _tyImplType _x )
+    {
+        if ( FHasElement( _x ) )
+            return false;
+        Insert( _x );
+        return true;
+    }
+    // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
+    void Delete( _tyImplType _x )
+    {
+        switch( m_byVebTree2 )
+        {
+            case 0b01: // nil
+                assert( false ); // Should have this element.
+            break;
+            case 0b00:
+                assert( 0 == _x );
+            case 0b11:
+                assert( ( 0b00 == m_byVebTree2 ) || ( 1 == _x ) );
+                m_byVebTree2 = 0b01; // No elements remaining.
+            break;
+            case 0b10: // Both.
+                m_byVebTree2 = !_x | ( (!_x) << 1 );
+            break; // Don't modify it.
+        }
+    }
+    // Return true if the element was deleted, false if it already existed.
+    bool FCheckDelete( _tyImplType _x )
+    {
+        if ( !FHasElement( _x ) )
+            return false;
+        Delete( _x );
+        return true;
+    }
+    bool FHasElement( _tyImplType _x ) const
+    {
+        return !_x ? !( m_byVebTree2 & 0b01 ) : !!( m_byVebTree2 & 0b10 );
+    }
+    // Return the next bit after _x or 0 if there is no such bit.
+    _tyImplType NSuccessor( _tyImplType _x ) const
+    {
+        return !_x && ( 0b10 & m_byVebTree2 );
+    }
+    // Return the next bit after _x or 0 if there is no such bit.
+    _tyImplType NPredecessor( _tyImplType _x ) const
+    {
+        return _x && !( 0b01 & m_byVebTree2 );
+    }
+protected:
+    void _ClearHasElements()
+    {
+        m_byVebTree2 = 0b01;
+    }
+    _tyImplType _NMin() const
+    {
+        assert( FHasAnyElements() );
+        return m_byVebTree2 & 0b01;
+    }
+    _tyImplType _NMax() const
+    {
+        assert( FHasAnyElements() );
+        return m_byVebTree2 >> 1;
+    }
+    _tyImplType m_byVebTree2{1}; // Initialize to empty tree.
 };
 
 
@@ -100,20 +231,21 @@ class VebTreeFixed< 4 >
     typedef VebTreeFixed _tyThis;
 public:
     static const size_t s_kstUniverse = 4;
+    static const size_t s_kstUniverseSqrt = 2;
     typedef uint8_t _tyImplType;
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
 
     static _tyImplType NCluster( _tyImplType _x ) // high
     {
-        return _x / 2;
+        return _x / s_kstUniverseSqrt;
     }
     static _tyImplType NElInCluster( _tyImplType _x ) // low
     {
-        return _x % 2;
+        return _x % s_kstUniverseSqrt;
     }
     static _tyImplType NIndex( _tyImplType _x, _tyImplType _y )
     {
-        return ( _x * 2 ) + _y;
+        return ( _x * s_kstUniverseSqrt ) + _y;
     }
 
     bool FHasAnyElements() const
@@ -164,12 +296,12 @@ public:
                 assert( 0x15 == m_byVebTree2s ); // should already be nils.
             else
                 m_byVebTree2s = 0x15;
-            m_byVebTree4 &= ~s_kgrfHasMinMax;
+            _ClearHasElements();
         }
 #else
         // In retail lets just clear things cuz it is easy:
         m_byVebTree2s = 0x15;
-        m_byVebTree4 &= ~s_kgrfHasMinMax;
+        _ClearHasElements();
 #endif
     }
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
@@ -181,6 +313,7 @@ public:
         {
             _SetMin( _x );
             _SetMax( _x );
+            _SetHasElements();
         }
         else
         {
@@ -192,7 +325,7 @@ public:
             }
             _tyImplType nCluster = NCluster( _x );
             _tyImplType nEl = NElInCluster( _x );
-            if ( 0x01 == _GetVeb2( nCluster ) )
+            if ( 0b01 == _GetVeb2( nCluster ) )
             {
                 if ( !nCluster )
                     _SetVeb2Summary( _GetVeb2Summary() & 0x2 ); // Clear the zeroth bit.
@@ -215,6 +348,90 @@ public:
         Insert( _x );
         return true;
     }
+    // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
+    void Delete( _tyImplType _x )
+    {
+        assert( FHasElement( _x ) );
+        if ( _NMin() == _NMax() )
+        {
+            assert( _x == _NMax() );
+            _ClearHasElements(); 
+        }
+        else
+        {
+            if ( _x == _NMin() )
+            {
+                _tyImplType nFirstCluster = _GetVeb2Summary() & 0x1;
+                _x = NIndex( nFirstCluster, _GetVeb2( nFirstCluster ) & 0x1 );
+                _SetMin( _x );
+            }
+            _tyImplType nCluster = NCluster( _x );
+            _tyImplType nEl = NElInCluster( _x );
+            _tyImplType nDeleteVeb2Result;
+            { //B - delete nEl out of nCluster.
+                switch( _GetVeb2( nCluster ) )
+                {
+                    case 0b01:
+                        assert( false ); // bad - we should have something here.
+                    case 0b00:
+                        assert( ( 0b00 != _GetVeb2( nCluster ) ) || ( 0 == nEl ) );
+                    case 0b11:
+                        assert( ( 0b11 != _GetVeb2( nCluster ) ) || ( 1 == nEl ) );
+                        nDeleteVeb2Result = 0b01; // No elements remaining.
+                        break;
+                    case 0b10:
+                        nDeleteVeb2Result = ( 1 == nEl ) ? 0b00 : 0b11;
+                        break;
+                }
+                _SetVeb2( nCluster, nDeleteVeb2Result );
+            } //EB
+
+            if ( 0b01 == nDeleteVeb2Result ) // No elements left.
+            {
+                _tyImplType nDeleteSummaryResult;
+                { //B - delete nCluster out of the summary.
+                    switch( _GetVeb2Summary() )
+                    {
+                        case 0b01:
+                            assert( false ); // bad - we should have something here.
+                        case 0b00:
+                            assert( ( 0b00 != _GetVeb2Summary() ) || ( 0 == nCluster ) );
+                        case 0b11:
+                            assert( ( 0b11 != _GetVeb2Summary() ) || ( 1 == nCluster ) );
+                            nDeleteSummaryResult = 0b01; // No elements remaining.
+                            break;
+                        case 0b10:
+                            nDeleteSummaryResult = ( 1 == nCluster ) ? 0b00 : 0b11;
+                            break;
+                    }
+                    _SetVeb2Summary( nDeleteSummaryResult );
+                } //EB
+                if ( _x == _NMax() )
+                {
+                    if ( 0b01 == nDeleteSummaryResult )
+                    {
+                        _SetMax( _NMin() );
+                    }
+                    else
+                    {
+                        _tyImplType nSummaryMax = nDeleteSummaryResult >> 1;
+                        _SetMax( NIndex( nSummaryMax, ( _GetVeb2( nSummaryMax ) >> 1 ) ) );
+                    }
+                }
+            }
+            else
+            if ( _x == _NMax() )
+                _SetMax( NIndex( nCluster, ( _GetVeb2( nCluster ) >> 1 ) ) );
+        }
+    }
+    // Return true if the element was deleted, false if it already existed.
+    bool FCheckDelete( _tyImplType _x )
+    {
+        if ( !FHasElement( _x ) )
+            return false;
+        Delete( _x );
+        return true;
+    }
     bool FHasElement( _tyImplType _x ) const
     {
         assert( _x < s_kstUniverse );
@@ -228,18 +445,18 @@ public:
         _tyImplType nCluster = NCluster( _x );
         switch( _GetVeb2( nCluster ) )
         {
-            case 1:
+            case 0b01:
                 // (min > max) means both are nil:
                 return false;
             break;
-            case 2:
+            case 0b10:
                 // (min,max) is (0,1) - both elements are present:
                 return true;
             break;
-            case 3:
+            case 0b11:
                 return !!NElInCluster( _x );
             break;
-            case 0:
+            case 0b00:
                 return !NElInCluster( _x );
             break;
         }
@@ -285,6 +502,14 @@ public:
     }
 
 protected:
+    void _SetHasElements()
+    {
+        m_byVebTree4 |= s_kgrfHasMinMax;
+    }
+    void _ClearHasElements()
+    {
+        m_byVebTree4 &= ~s_kgrfHasMinMax;
+    }
     void _SetMin( _tyImplType _n )
     {
         assert( _n < s_kstUniverse );
@@ -314,8 +539,6 @@ protected:
     {
         assert( _nCluster < 2 );
         m_byVebTree2s = ( m_byVebTree2s & ~( 0x03 << ( _nCluster << 1 ) ) ) | ( _n << ( _nCluster << 1 ) );
-
-        return ( ( m_byVebTree2s >> ( _nCluster << 1 ) ) & 0x3 );
     }
     _tyImplType _GetVeb2Summary() const
     {
@@ -334,8 +557,7 @@ protected:
 };
 
 // VebTreeFixed:
-// We will choose to have LowerSqrt(t_kstUniverse) trees of VebTreeFixed< UpperSqrt(t_kstUniverse) > since that
-//  allows us to get away with not implementing VebTreeFixed<2> directly.
+// We will choose to have LowerSqrt(t_kstUniverse) trees of VebTreeFixed< UpperSqrt(t_kstUniverse) >.
 template < size_t t_kstUniverse >
 class VebTreeFixed
 {
@@ -453,6 +675,304 @@ public:
         if ( FHasElement( _x ) )
             return false;
         Insert( _x );
+        return true;
+    }
+    // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
+    void Delete( _tyImplType _x )
+    {
+        assert( FHasElement( _x ) );
+        if ( m_nMin == m_nMax )
+        {
+            assert( _x == m_nMax );
+            m_nMin = 1;            
+            m_nMax = 0;            
+        }
+        else
+        {
+            if ( _x == m_nMin )
+            {
+                _tyImplTypeSummaryTree nFirstCluster = m_stSummary.NMin();
+                _x = NIndex( FirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
+                m_nMin = _x;
+            }
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            m_rgstSubtrees[ nCluster ].Delete( nEl );
+            if ( !m_rgstSubtrees[ nCluster ].FHasAnyElements() )
+            {
+                m_stSummary.Delete( nCluster );
+                if ( _x == m_nMax )
+                {
+                    if ( !m_stSummary.FHasAnyElements() )
+                    {
+                        m_nMax = m_nMin;
+                    }
+                    else
+                    {
+                        _tyImplTypeSummaryTree nSummaryMax = m_stSummary.NMax();
+                        m_nMax = NIndex( nSummaryMax, m_rgstSubtrees[ nSummaryMax ].NMax() );
+                    }
+                }
+            }
+            else
+            if ( _x == m_nMax )
+                m_nMax = NIndex( nCluster, m_rgstSubtrees[ nCluster ].NMax() );
+        }
+    }
+    // Return true if the element was deleted, false if it already existed.
+    bool FCheckDelete( _tyImplType _x )
+    {
+        if ( !FHasElement( _x ) )
+            return false;
+        Delete( _x );
+        return true;
+    }
+    bool FHasElement( _tyImplType _x ) const
+    {
+        assert( _x < t_kstUniverse );
+        if ( !FHasAnyElements() )
+            return false;
+        if ( ( _x == m_nMin ) || ( _x == m_nMax ) )
+            return true;
+        if ( m_nMin == m_nMax )
+            return false;
+        // Now check the sub-elements.
+        return m_rgstSubtrees[ NCluster(_x) ].FHasElement( NElInCluster( _x ) );
+    }
+    // Return the next element after _x or 0 if there is no such element.
+    _tyImplType NSuccessor( _tyImplType _x ) const
+    {
+        if ( FHasAnyElements() && ( _x < m_nMin ) )
+            return m_nMin;
+        
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        _tyImplTypeSubtree nEl = NElInCluster( _x );
+        _tyImplTypeSubtree nMaxCluster;
+        bool fMaxCluster = m_rgstSubtrees[nCluster].FHasMax( nMaxCluster );
+        if ( fMaxCluster && ( nEl < nMaxCluster ) )
+        {
+            _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessor( nEl );
+            assert( !!nOffsetSubtree );
+            return NIndex( nCluster, nOffsetSubtree );
+        }
+        else
+        {
+            _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
+            if ( !!nSuccessiveCluster )
+            {
+                _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nSuccessiveCluster].NMin();
+                return NIndex( nSuccessiveCluster, nOffsetSubtree );
+            }
+        }
+        return 0; // No successor.
+    }
+    // Return the previous element before _x or t_kstUniverse-1 if there is no such element.
+    _tyImplType NPredecessor( _tyImplType _x ) const
+    {
+        if ( FHasAnyElements() && ( _x > m_nMax ) )
+            return m_nMax;
+        
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        _tyImplTypeSubtree nEl = NElInCluster( _x );
+        _tyImplTypeSubtree nMinCluster;
+        bool fMinCluster = m_rgstSubtrees[nCluster].FHasMin( nMinCluster );
+        if ( fMinCluster && ( nEl > nMinCluster ) )
+        {
+            _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessor( nEl );
+            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            return NIndex( nCluster, nOffsetSubtree );
+        }
+        else
+        {
+            _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree ==  nPredecessiveCluster )
+            {
+                if ( FHasAnyElements() && ( _x > m_nMin ) )
+                    return m_nMin;
+            }
+            else
+            {
+                _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nPredecessiveCluster].NMax();
+                return NIndex( nPredecessiveCluster, nOffsetSubtree );
+            }
+        }
+        return s_kitNoPredecessor; // No predecessor.
+    }
+protected:
+    _tyImplType m_nMin{1}; // Setting the min to be greater than the max is the indicator that there are no elements.
+    _tyImplType m_nMax{0};
+    _tySubtree m_rgstSubtrees[ s_kstUniverseSqrtLower ]; // The Subtrees.
+    _tySummaryTree m_stSummary; // The summary tree.
+};
+
+// VebTreeVariable:
+// This allows us to choose a "cluster VebTreeFixed<N>" appropriately for the approximate size of the VebTrees we are going to create.
+template < size_t t_kstUniverseCluster, class t_tyAllocator = std::allocator< char > >
+class VebTreeVariable
+{
+    typedef VebTreeVariable _tyThis;
+public:
+    // Choose impl type based on the range of values.
+    static const size_t s_kstUniverse = t_kstUniverse;
+    static const size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
+    typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
+    static const _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
+    static const size_t s_kstUniverseSqrtLower = n_VanEmdeBoasTreeImpl::LowerSqrt( t_kstUniverse );
+    static const size_t s_kstUniverseSqrtUpper = n_VanEmdeBoasTreeImpl::UpperSqrt( t_kstUniverse );
+    typedef VebTreeFixed< s_kstUniverseSqrtUpper > _tySubtree;
+    typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
+    static const _tyImplTypeSubtree s_kstitNoPredecessorSubtree = s_kstUniverseSqrtUpper-1;
+    typedef VebTreeFixed< s_kstUniverseSqrtLower > _tySummaryTree;
+    typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
+    static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
+
+    static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
+    {
+        return _tyImplTypeSubtree( _x / s_kstUniverseSqrtUpper );
+    }
+    static _tyImplTypeSubtree NElInCluster( _tyImplType _x ) // low
+    {
+        return _tyImplTypeSubtree( _x % s_kstUniverseSqrtUpper );
+    }
+    static _tyImplType NIndex( _tyImplTypeSubtree _x, _tyImplTypeSubtree _y )
+    {
+        return ( _x * s_kstUniverseSqrtUpper ) + _y;
+    }
+
+    bool FHasAnyElements() const
+    {
+        return m_nMax >= m_nMin;
+    }
+    bool FHasOneElement() const
+    {
+        return m_nMin == m_nMax;
+    }
+    _tyImplType NMin() const
+    {
+        if ( !FHasAnyElements() )
+            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+        return m_nMin;
+    }
+    bool FHasMin( _tyImplType & _nMin ) const
+    {
+        if ( FHasAnyElements() )
+        {
+            _nMin = m_nMin;
+            return true;
+        }
+        return false;
+    }
+    _tyImplType NMax() const
+    {
+        if ( !FHasAnyElements() )
+            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+        return m_nMax;
+    }
+    bool FHasMax( _tyImplType & _nMax ) const
+    {
+        if ( FHasAnyElements() )
+        {
+            _nMax = m_nMax;
+            return true;
+        }
+        return false;
+    }
+    void Clear()
+    {
+        if ( FHasAnyElements() )
+        {
+            if ( !FHasOneElement() )
+            {
+                // Use the summary endpoints to minimize the loop iterations:
+                _tySubtree * pstCur = &m_rgstSubtrees[ m_stSummary.NMin() ];
+                _tySubtree * const pstEnd = ( &m_rgstSubtrees[ m_stSummary.NMax() ] ) + 1;
+                for ( ; pstEnd != pstCur; ++pstCur )
+                {
+                    // It takes constant time to find out whether a subtree needs clearing so no need to recurse into the summary to find more details.
+                    pstCur->Clear();
+                }
+                m_stSummary.Clear();
+            }
+            m_nMax = 0;
+            m_nMin = 1;
+        }
+    }
+    // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
+    void Insert( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        assert( !FHasElement( _x ) );
+        if ( !FHasAnyElements() )
+            m_nMin = m_nMax = _x;
+        else
+        {
+            if ( _x < m_nMin )
+                std::swap( _x, m_nMin );
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            if ( !m_rgstSubtrees[nCluster].FHasAnyElements() )
+                m_stSummary.Insert( nCluster );
+            m_rgstSubtrees[nCluster].Insert( nEl );
+            if ( _x > m_nMax )
+                m_nMax = _x;
+        }
+    }
+    // Return true if the element was inserted, false if it already existed.
+    bool FCheckInsert( _tyImplType _x )
+    {
+        if ( FHasElement( _x ) )
+            return false;
+        Insert( _x );
+        return true;
+    }
+    // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
+    void Delete( _tyImplType _x )
+    {
+        assert( FHasElement( _x ) );
+        if ( m_nMin == m_nMax )
+        {
+            assert( _x == m_nMax );
+            m_nMin = 1;            
+            m_nMax = 0;            
+        }
+        else
+        {
+            if ( _x == m_nMin )
+            {
+                _tyImplTypeSummaryTree nFirstCluster = m_stSummary.NMin();
+                _x = NIndex( FirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
+                m_nMin = _x;
+            }
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            m_rgstSubtrees[ nCluster ].Delete( nEl );
+            if ( !m_rgstSubtrees[ nCluster ].FHasAnyElements() )
+            {
+                m_stSummary.Delete( nCluster );
+                if ( _x == m_nMax )
+                {
+                    if ( !m_stSummary.FHasAnyElements() )
+                    {
+                        m_nMax = m_nMin;
+                    }
+                    else
+                    {
+                        _tyImplTypeSummaryTree nSummaryMax = m_stSummary.NMax();
+                        m_nMax = NIndex( nSummaryMax, m_rgstSubtrees[ nSummaryMax ].NMax() );
+                    }
+                }
+            }
+            else
+            if ( _x == m_nMax )
+                m_nMax = NIndex( nCluster, m_rgstSubtrees[ nCluster ].NMax() );
+        }
+    }
+    // Return true if the element was deleted, false if it already existed.
+    bool FCheckDelete( _tyImplType _x )
+    {
+        if ( !FHasElement( _x ) )
+            return false;
+        Delete( _x );
         return true;
     }
     bool FHasElement( _tyImplType _x ) const
