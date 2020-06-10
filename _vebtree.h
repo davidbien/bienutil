@@ -93,6 +93,17 @@ public:
     typedef uint8_t _tyImplType;
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
 
+    VebTreeFixed() = default;
+    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
+    VebTreeFixed( size_t _stUniverse )
+    {
+        assert( _stUniverse == s_kstUniverse );
+    }
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    _tyThis & operator = ( _tyThis const & ) = default;
+    ~VebTreeFixed() = default;
+
     bool FHasAnyElements() const
     {
         return m_byVebTree2 != 0b01;
@@ -234,6 +245,17 @@ public:
     static const size_t s_kstUniverseSqrt = 2;
     typedef uint8_t _tyImplType;
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
+
+    VebTreeFixed() = default;
+    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
+    VebTreeFixed( size_t _stUniverse )
+    {
+        assert( _stUniverse == s_kstUniverse );
+    }
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    _tyThis & operator = ( _tyThis const & ) = default;
+    ~VebTreeFixed() = default;
 
     static _tyImplType NCluster( _tyImplType _x ) // high
     {
@@ -578,6 +600,17 @@ public:
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
     static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
 
+    VebTreeFixed() = default;
+    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
+    VebTreeFixed( size_t _stUniverse )
+    {
+        assert( _stUniverse == s_kstUniverse );
+    }
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    _tyThis & operator = ( _tyThis const & ) = default;
+    ~VebTreeFixed() = default;
+
     static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
     {
         return _tyImplTypeSubtree( _x / s_kstUniverseSqrtUpper );
@@ -805,21 +838,22 @@ protected:
     _tySummaryTree m_stSummary; // The summary tree.
 };
 
+
+
 // VebTreeVariable:
 // This allows us to choose a "cluster VebTreeFixed<N>" appropriately for the approximate size of the VebTrees we are going to create.
-template < size_t t_kstUniverseCluster, class t_tyAllocator = std::allocator< char > >
+// Note that the max number of elements is ( t_kstUniverseCluster * t_kstUniverseCluster ). If that number is exceeded we will throw.
+template < size_t t_kstUniverseCluster, class t_tyClusterClass = VebTreeFixed< t_kstUniverseCluster >, class t_tyAllocator = std::allocator< char > >
 class VebTreeVariable
 {
     typedef VebTreeVariable _tyThis;
 public:
     // Choose impl type based on the range of values.
-    static const size_t s_kstUniverse = t_kstUniverse;
-    static const size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
+    static const size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
+    static const size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
-    static const _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
-    static const size_t s_kstUniverseSqrtLower = n_VanEmdeBoasTreeImpl::LowerSqrt( t_kstUniverse );
-    static const size_t s_kstUniverseSqrtUpper = n_VanEmdeBoasTreeImpl::UpperSqrt( t_kstUniverse );
-    typedef VebTreeFixed< s_kstUniverseSqrtUpper > _tySubtree;
+    static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
+    typedef VebTreeFixed< t_kstUniverseCluster > _tySubtree; // We are composed of fixed size clusters.
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
     static const _tyImplTypeSubtree s_kstitNoPredecessorSubtree = s_kstUniverseSqrtUpper-1;
     typedef VebTreeFixed< s_kstUniverseSqrtLower > _tySummaryTree;
