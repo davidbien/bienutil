@@ -13,7 +13,7 @@
 __BIENUTIL_BEGIN_NAMESPACE
 
 // Lookup table for MSB of a nibble:
-static const int v_rgiBit[16] = { 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 };
+static constexpr int v_rgiBit[16] = { 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 };
 
 inline
 constexpr unsigned int _MSBitSet8( uint8_t _u8Test )

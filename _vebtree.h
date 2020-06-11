@@ -12,6 +12,9 @@
 #include <cstdint>
 #include <climits>
 #include "_namdexc.h"
+#include "_bitutil.h"
+
+__BIENUTIL_BEGIN_NAMESPACE
 
 namespace n_VanEmdeBoasTreeImpl
 {
@@ -27,22 +30,22 @@ namespace n_VanEmdeBoasTreeImpl
     }
     // MapToIntType
     template < size_t t_stMaxSize >
-    class MapToIntType
+    struct MapToIntType
     {
         typedef unsigned char _tyType;
     };
     template <>
-    class MapToIntType< USHRT_MAX >
+    struct MapToIntType< USHRT_MAX >
     {
         typedef unsigned short _tyType;
     };
     template <>
-    class MapToIntType< UINT_MAX >
+    struct MapToIntType< UINT_MAX >
     {
         typedef unsigned int _tyType;
     };
     template <>
-    class MapToIntType< ULLONG_MAX >
+    struct MapToIntType< ULLONG_MAX >
     {
         typedef unsigned long long _tyType;
     };
@@ -61,7 +64,7 @@ namespace n_VanEmdeBoasTreeImpl
 
     // The "lower square root" is just the normal square root as truncation occurs normally.
     template < class t_tyUint >
-    constexpr t_tyUint LowerSqrt( t_tyUint _ui )
+    constexpr t_tyUint LowerSqrt( const t_tyUint _ui )
     {
         if ( !FIsPow2( _ui ) )
             throw std::logic_error("LowerSqrt(): _ui is not a power of two.");
@@ -70,7 +73,7 @@ namespace n_VanEmdeBoasTreeImpl
     }
     // The "upper square root" is 2^((k+1)/2) for 2^k when k is odd.
     template < class t_tyUint >
-    constexpr t_tyUint UpperSqrt( t_tyUint _ui )
+    constexpr t_tyUint UpperSqrt( const t_tyUint _ui )
     {
         if ( !FIsPow2( _ui ) )
             throw std::logic_error("UpperSqrt(): _ui is not a power of two.");
@@ -483,6 +486,10 @@ public:
             case 0b00:
                 return !NElInCluster( _x );
             break;
+            default:
+                assert( false );
+                return false;
+            break;
         }
     }
     // Return the next element after _x or 0 if there is no such element.
@@ -561,7 +568,7 @@ protected:
         assert( _nCluster < 2 );
         return ( ( m_byVebTree2s >> ( _nCluster << 1 ) ) & 0x3 );
     }
-    _tyImplType _SetVeb2( _tyImplType _nCluster, _tyImplType _n )
+    void _SetVeb2( _tyImplType _nCluster, _tyImplType _n )
     {
         assert( _nCluster < 2 );
         m_byVebTree2s = ( m_byVebTree2s & ~( 0x03 << ( _nCluster << 1 ) ) ) | ( _n << ( _nCluster << 1 ) );
@@ -591,18 +598,18 @@ class VebTreeFixed
     static_assert( n_VanEmdeBoasTreeImpl::FIsPow2( t_kstUniverse ) ); // always power of 2.
 public:
     // Choose impl type based on the range of values.
-    static const size_t s_kstUniverse = t_kstUniverse;
-    static const size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
+    static constexpr size_t s_kstUniverse = t_kstUniverse;
+    static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
-    static const _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
-    static const size_t s_kstUniverseSqrtLower = n_VanEmdeBoasTreeImpl::LowerSqrt( t_kstUniverse );
-    static const size_t s_kstUniverseSqrtUpper = n_VanEmdeBoasTreeImpl::UpperSqrt( t_kstUniverse );
+    static constexpr _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
+    static constexpr size_t s_kstUniverseSqrtLower = n_VanEmdeBoasTreeImpl::LowerSqrt( t_kstUniverse );
+    static constexpr size_t s_kstUniverseSqrtUpper = n_VanEmdeBoasTreeImpl::UpperSqrt( t_kstUniverse );
     typedef VebTreeFixed< s_kstUniverseSqrtUpper > _tySubtree;
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
-    static const _tyImplTypeSubtree s_kstitNoPredecessorSubtree = s_kstUniverseSqrtUpper-1;
+    static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = s_kstUniverseSqrtUpper-1;
     typedef VebTreeFixed< s_kstUniverseSqrtLower > _tySummaryTree;
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
-    static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
+    static constexpr _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
 
     VebTreeFixed() = default;
     // We don't support construction with a universe, but we do support an Init() call for genericity.
@@ -1129,3 +1136,5 @@ protected:
     _tyImplType m_nMin{1};
     _tyImplType m_nMax{0};
 };
+
+__BIENUTIL_END_NAMESPACE
