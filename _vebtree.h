@@ -94,10 +94,10 @@ public:
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
 
     VebTreeFixed() = default;
-    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
-    VebTreeFixed( size_t _stUniverse )
+    // We don't support construction with a universe, but we do support an Init() call for genericity.
+    void Init( size_t _stUniverse )
     {
-        assert( _stUniverse == s_kstUniverse );
+        assert( _stUniverse <= s_kstUniverse );
     }
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
@@ -204,15 +204,17 @@ public:
     {
         return !_x ? !( m_byVebTree2 & 0b01 ) : !!( m_byVebTree2 & 0b10 );
     }
-    // Return the next bit after _x or 0 if there is no such bit.
+    // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
+        assert( _x < s_kstUniverse );
         return !_x && ( 0b10 & m_byVebTree2 );
     }
-    // Return the next bit after _x or 0 if there is no such bit.
+    // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
-        return _x && !( 0b01 & m_byVebTree2 );
+        assert( _x < s_kstUniverse );
+        return !( _x && !( 0b01 & m_byVebTree2 ) );
     }
 protected:
     void _ClearHasElements()
@@ -247,10 +249,10 @@ public:
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
 
     VebTreeFixed() = default;
-    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
-    VebTreeFixed( size_t _stUniverse )
+    // We don't support construction with a universe, but we do support an Init() call for genericity.
+    void Init( size_t _stUniverse )
     {
-        assert( _stUniverse == s_kstUniverse );
+        assert( _stUniverse <= s_kstUniverse );
     }
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
@@ -483,9 +485,10 @@ public:
             break;
         }
     }
-    // Return the next bit after _x or 0 if there is no such bit.
+    // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
+        assert( _x < s_kstUniverse );
         if ( FHasAnyElements() && ( _x < _NMin() ) )
             return _NMin();
         
@@ -501,9 +504,10 @@ public:
         }
         return 0; // No successor.
     }
-    // Return the next bit after _x or 0 if there is no such bit.
+    // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
+        assert( _x < s_kstUniverse );
         if ( FHasAnyElements() && ( _x > _NMax() ) )
             return _NMax();
         
@@ -601,10 +605,10 @@ public:
     static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
 
     VebTreeFixed() = default;
-    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
-    VebTreeFixed( size_t _stUniverse )
+    // We don't support construction with a universe, but we do support an Init() call for genericity.
+    void Init( size_t _stUniverse )
     {
-        assert( _stUniverse == s_kstUniverse );
+        assert( _stUniverse <= s_kstUniverse );
     }
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
@@ -673,7 +677,7 @@ public:
                 _tySubtree * const pstEnd = ( &m_rgstSubtrees[ m_stSummary.NMax() ] ) + 1;
                 for ( ; pstEnd != pstCur; ++pstCur )
                 {
-                    // It takes constant time to find out whether a subtree needs clearing so no need to recurse into the summary to find more details.
+                    // It takes constant time to find out whether a Subtree needs clearing so no need to recurse into the summary to find more details.
                     pstCur->Clear();
                 }
                 m_stSummary.Clear();
@@ -775,6 +779,7 @@ public:
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
+        assert( _x < t_kstUniverse );
         if ( FHasAnyElements() && ( _x < m_nMin ) )
             return m_nMin;
         
@@ -802,6 +807,7 @@ public:
     // Return the previous element before _x or t_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
+        assert( _x < t_kstUniverse );
         if ( FHasAnyElements() && ( _x > m_nMax ) )
             return m_nMax;
         
@@ -843,34 +849,64 @@ protected:
 // VebTreeVariable:
 // This allows us to choose a "cluster VebTreeFixed<N>" appropriately for the approximate size of the VebTrees we are going to create.
 // Note that the max number of elements is ( t_kstUniverseCluster * t_kstUniverseCluster ). If that number is exceeded we will throw.
-template < size_t t_kstUniverseCluster, class t_tyClusterClass = VebTreeFixed< t_kstUniverseCluster >, class t_tyAllocator = std::allocator< char > >
+// We conserve memory by only create the leftmost N clusters needed to hold the number of actual elements in the set.
+// If one cascades the SummaryTree to also be of type VebTreeVariable (and its summary to be VebTreeFixed<>) then we can efficiently hold
+//  millions of elements (relatively speaking).
+template < size_t t_kstUniverseCluster, class t_tySummaryClass = VebTreeFixed< t_kstUniverseCluster >, class t_tyAllocator = std::allocator< char > >
 class VebTreeVariable
 {
     typedef VebTreeVariable _tyThis;
+    static_assert( n_VanEmdeBoasTreeImpl::FIsPow2( t_kstUniverseCluster ) ); // always power of 2.
 public:
     // Choose impl type based on the range of values.
     static const size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
     static const size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
+    static const size_t s_kstUniverseCluster = t_kstUniverseCluster;
     typedef VebTreeFixed< t_kstUniverseCluster > _tySubtree; // We are composed of fixed size clusters.
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
-    static const _tyImplTypeSubtree s_kstitNoPredecessorSubtree = s_kstUniverseSqrtUpper-1;
-    typedef VebTreeFixed< s_kstUniverseSqrtLower > _tySummaryTree;
+    static const _tyImplTypeSubtree s_kstitNoPredecessorSubtree = t_kstUniverseCluster-1;
+    static const size_t s_kstUniverseSummary = t_tySummaryClass::t_kstUniverse;
+    typedef t_tySummaryClass _tySummaryTree;
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
-    static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
+    static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSummary-1;
+
+    VebTreeVariable() = default;
+    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
+    VebTreeVariable( size_t _stNElements )
+    {
+        Init( _stNElements );
+    }
+    void Init( size_t _stNElements )
+    {
+        if ( m_nElements )
+            _Deinit(); // We could do a lot better here but it takes a bit of work. I.e. we could keep the existing blocks and Clear() them.
+        if ( _stNElements > s_kstUniverse )
+            THROWNAMEDEXCEPTION( "VebTreeVariable::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
+        _tyImplType nClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
+        unique_ptr< _tySubtree[] > rgstSubtrees = new _tySubtree[ nClusters ];
+        // Now that we have allocated everything for this, we allow for the summary to also be dynamic:
+        m_stSummary.Init( nClusters );
+        m_rgstSubtrees = std::move( rgstSubtrees );
+        m_nElements = _tyImplType(_stNElements );
+    }
+    // No reason not to allow copy construction:
+    VebTreeVariable( VebTreeVariable const & ) = default;
+    _tyThis & operator = ( _tyThis const & ) = default;
+    ~VebTreeVariable() = default;
 
     static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
     {
-        return _tyImplTypeSubtree( _x / s_kstUniverseSqrtUpper );
+        return _tyImplTypeSubtree( _x / t_kstUniverseCluster );
     }
     static _tyImplTypeSubtree NElInCluster( _tyImplType _x ) // low
     {
-        return _tyImplTypeSubtree( _x % s_kstUniverseSqrtUpper );
+        return _tyImplTypeSubtree( _x % t_kstUniverseCluster );
     }
     static _tyImplType NIndex( _tyImplTypeSubtree _x, _tyImplTypeSubtree _y )
     {
-        return ( _x * s_kstUniverseSqrtUpper ) + _y;
+        return ( _x * t_kstUniverseCluster ) + _y;
     }
 
     bool FHasAnyElements() const
@@ -880,6 +916,10 @@ public:
     bool FHasOneElement() const
     {
         return m_nMin == m_nMax;
+    }
+    _tyImplType NClusters() const
+    {
+        return !m_nElements ? 0 : ( ( m_nElements - 1 ) / t_kstUniverseCluster ) + 1;
     }
     _tyImplType NMin() const
     {
@@ -922,7 +962,7 @@ public:
                 _tySubtree * const pstEnd = ( &m_rgstSubtrees[ m_stSummary.NMax() ] ) + 1;
                 for ( ; pstEnd != pstCur; ++pstCur )
                 {
-                    // It takes constant time to find out whether a subtree needs clearing so no need to recurse into the summary to find more details.
+                    // It takes constant time to find out whether a Subtree needs clearing so no need to recurse into the summary to find more details.
                     pstCur->Clear();
                 }
                 m_stSummary.Clear();
@@ -934,7 +974,7 @@ public:
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        assert( _x < m_nElements );
         assert( !FHasElement( _x ) );
         if ( !FHasAnyElements() )
             m_nMin = m_nMax = _x;
@@ -1011,7 +1051,7 @@ public:
     }
     bool FHasElement( _tyImplType _x ) const
     {
-        assert( _x < t_kstUniverse );
+        assert( _x < m_nElements );
         if ( !FHasAnyElements() )
             return false;
         if ( ( _x == m_nMin ) || ( _x == m_nMax ) )
@@ -1024,6 +1064,7 @@ public:
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
+        assert( _x < m_nElements );
         if ( FHasAnyElements() && ( _x < m_nMin ) )
             return m_nMin;
         
@@ -1048,9 +1089,10 @@ public:
         }
         return 0; // No successor.
     }
-    // Return the previous element before _x or t_kstUniverse-1 if there is no such element.
+    // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
+        assert( _x < m_nElements );
         if ( FHasAnyElements() && ( _x > m_nMax ) )
             return m_nMax;
         
@@ -1081,8 +1123,9 @@ public:
         return s_kitNoPredecessor; // No predecessor.
     }
 protected:
-    _tyImplType m_nMin{1}; // Setting the min to be greater than the max is the indicator that there are no elements.
+    unique_ptr< _tySubtree[] > m_rgstSubtrees;
+    _tySummaryTree m_stSummary;
+    _tyImplType m_nElements{0}; // The number of possible elements in this VebTree - must be less than s_kstUniverse.
+    _tyImplType m_nMin{1};
     _tyImplType m_nMax{0};
-    _tySubtree m_rgstSubtrees[ s_kstUniverseSqrtLower ]; // The Subtrees.
-    _tySummaryTree m_stSummary; // The summary tree.
 };

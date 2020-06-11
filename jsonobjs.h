@@ -7,7 +7,6 @@
 #include <vector>
 #include <map>
 #include <compare>
-#include <c++/v1/compare>
 #include "jsonstrm.h"
 #include "strwrsv.h"
 
