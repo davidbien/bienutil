@@ -20,6 +20,7 @@ namespace n_VanEmdeBoasTreeImpl
 {
     constexpr size_t KNextIntegerSize( size_t _st )
     {
+        --_st;
         if ( _st > UINT_MAX )
             return ULLONG_MAX; // This should work for Windows and Linux.
         if ( _st > USHRT_MAX )
@@ -32,22 +33,22 @@ namespace n_VanEmdeBoasTreeImpl
     template < size_t t_stMaxSize >
     struct MapToIntType
     {
-        typedef unsigned char _tyType;
+        typedef uint8_t _tyType;
     };
     template <>
     struct MapToIntType< USHRT_MAX >
     {
-        typedef unsigned short _tyType;
+        typedef uint16_t _tyType;
     };
     template <>
     struct MapToIntType< UINT_MAX >
     {
-        typedef unsigned int _tyType;
+        typedef uint32_t _tyType;
     };
     template <>
     struct MapToIntType< ULLONG_MAX >
     {
-        typedef unsigned long long _tyType;
+        typedef uint64_t _tyType;
     };
     template < size_t t_stMaxSize >
     using t_tyMapToIntType = typename MapToIntType< t_stMaxSize >::_tyType;
@@ -83,6 +84,207 @@ namespace n_VanEmdeBoasTreeImpl
     }
 }
 
+// _VebFixedBase:
+// This is a base class to implement various specializations of VebTreeFixed<>.
+// Using this enables us to implement a specialization VebTreeFixed<256> that is a pure bitmask.
+// This makes the VebTree almost as small as a bitvector of the same length - and hence potentially useful.
+template < class t_tyUint, size_t t_kstNUints, size_t t_kstUniverse = sizeof( t_tyUint ) * t_kstNUints >
+class _VebFixedBase
+{
+    typedef _VebFixedBase _tyThis;
+public:
+    static constexpr size_t s_kstNUints = t_kstNUints;
+    static constexpr size_t s_kstUniverse = t_kstUniverse;
+    // We still accept and return arguments based upon the size of the universe:
+    static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
+    typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
+    static constexpr _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
+    typedef t_tyUint _tyUint;
+    static const size_t s_kstNBitsUint = sizeof( _tyUint ) * CHAR_BIT;
+    
+    _VebFixedBase() = default;
+    // We don't support construction with a universe, but we do support an Init() call for genericity.
+    void Init( size_t _stUniverse )
+    {
+        assert( _stUniverse <= s_kstUniverse );
+    }
+    void _Deinit()
+    {
+    }
+    // No reason not to allow copy construction:
+    _VebFixedBase( _VebFixedBase const & ) = default;
+    _tyThis & operator = ( _tyThis const & ) = default;
+    ~_VebFixedBase() = default;
+
+    bool FHasAnyElements() const
+    {
+        const _tyUint * pnCur = m_rgUint;
+        const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
+        for ( ; pnEnd != pnCur; ++pnCur )
+            if ( !!*pnCur )
+                return true;
+        return false;
+    }
+    bool FHasOneElement() const
+    {
+        // A rarely used method but we will implement it.
+        const _tyUint * pnNonZero = 0;
+        const _tyUint * pnCur = m_rgUint;
+        const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
+        for ( ; pnEnd != pnCur; ++pnCur )
+        {
+            if ( !!*pnCur )
+            {
+                if ( pnNonZero )
+                    return false;
+                else
+                    pnNonZero = pnCur;
+            }
+        }
+        if ( fHasNonZero )
+            return !( *pnNonZero & ( *pnNonZero - 1) );
+        return false;
+    }
+    _tyImplType NMin() const
+    {
+        _tyImplType nMin;
+        if ( !FHasMin( nMin ) )
+            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+        return nMin;
+    }
+    bool FHasMin( _tyImplType & _nMin ) const
+    {
+        const _tyUint * pnCur = m_rgUint;
+        const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
+        for ( ; pnEnd != pnCur; ++pnCur )
+        {
+            if ( !!*pnCur )
+            {
+                _nMin = n_VanEmdeBoasTreeImpl::Ctz( *pnCur );
+                return true;
+            }
+        }
+        return false;
+    }
+    _tyImplType NMax() const
+    {
+        _tyImplType nMax;
+        if ( !FHasMax( nMax ) )
+            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+        return nMax;
+    }
+    bool FHasMax( _tyImplType & _nMax ) const
+    {
+        const _tyUint * pnCur = m_rgUint + s_kstNUints;
+        for ( ; m_rgUint != pnCur--; )
+        {
+            if ( !!*pnCur )
+            {
+                _nMax = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( *pnCur );
+                return true;
+            }
+        }
+        return false;
+    }
+    void Clear()
+    {
+        memset( m_rgUint, 0, sizeof( m_rgUint ) );
+    }
+    void Insert( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        assert( !( *pn & ( 1 << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
+        *pn |= ( 1 << ( _x % s_kstNBitsUint ) );
+    }
+    // Return true if the element was inserted, false if it already existed.
+    bool FCheckInsert( _tyImplType _x )
+    {
+        if ( FHasElement( _x ) )
+            return false;
+        Insert( _x );
+        return true;
+    }
+    void Delete( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        assert( !!( *pn & ( 1 << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
+        *pn &= ~( 1 << ( _x % s_kstNBitsUint ) );
+    }
+    // Return true if the element was deleted, false if it already existed.
+    bool FCheckDelete( _tyImplType _x )
+    {
+        if ( !FHasElement( _x ) )
+            return false;
+        Delete( _x );
+        return true;
+    }
+    bool FHasElement( _tyImplType _x ) const
+    {
+        assert( _x < s_kstUniverse );
+        _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        return *pn & ( 1 << ( _x % s_kstNBitsUint ) );
+    }
+    // Return the next element after _x or 0 if there is no such element.
+    _tyImplType NSuccessor( _tyImplType _x ) const
+    {
+        assert( _x < s_kstUniverse );
+        if ( _x >= s_kstUniverse-1 )
+            return 0;
+        ++_x;
+        const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        _x %= s_kstNBitsUint;
+        _tyUint nMasked = *pn & ~( ( 1 << _x ) - 1 );
+        if ( !nMasked )
+        {
+            // Must search remaining elements if any:
+            const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
+            for ( ; pnEnd != ++pn; )
+            {
+                if ( *pn )
+                    return n_VanEmdeBoasTreeImpl::Ctz( *pn ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+            }
+            return 0;
+        }
+        else
+        {
+            // The first bit in nMasked is the successor.
+            return n_VanEmdeBoasTreeImpl::Ctz( nMasked ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+        }
+    }
+    // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
+    _tyImplType NPredecessor( _tyImplType _x ) const
+    {
+        assert( _x < s_kstUniverse );
+        if ( !_x )
+            return 0;
+        --_x;
+        const _tyUint * pn = &m_rgUint[ nUint ];
+        _x %= s_kstNBitsUint;
+        _tyUint nMasked = *pn;
+        if ( ( _x + 1 ) % s_kstNBitsUint )
+            nMasked &= ( ( 1 << ( _x + 1 ) ) - 1 );
+        if ( !nMasked )
+        {
+            // Must search remaining elements if any:
+            for ( ; m_rgUint != pn--; )
+            {
+                if ( *pn )
+                    return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( *pn ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+            }
+            return s_kitNoPredecessor;
+        }
+        else
+        {
+            // The first bit in nMasked is the successor.
+            return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked ) + ( nUint * s_kstNBitsUint );
+        }
+    }
+protected:
+    t_tyUint m_rgUint[ t_kstNUints ] = { 0 };
+};
+
 template < size_t t_kstUniverse >
 class VebTreeFixed;
 
@@ -101,6 +303,9 @@ public:
     void Init( size_t _stUniverse )
     {
         assert( _stUniverse <= s_kstUniverse );
+    }
+    void _Deinit()
+    {
     }
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
@@ -152,6 +357,7 @@ public:
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
+        assert( _x < s_kstUniverse );
         switch( m_byVebTree2 )
         {
             case 0b01: // nil
@@ -179,6 +385,7 @@ public:
     // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
     void Delete( _tyImplType _x )
     {
+        assert( _x < s_kstUniverse );
         switch( m_byVebTree2 )
         {
             case 0b01: // nil
@@ -256,6 +463,9 @@ public:
     void Init( size_t _stUniverse )
     {
         assert( _stUniverse <= s_kstUniverse );
+    }
+    void _Deinit()
+    {
     }
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
@@ -617,6 +827,9 @@ public:
     {
         assert( _stUniverse <= s_kstUniverse );
     }
+    void _Deinit()
+    {
+    }
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
@@ -736,7 +949,7 @@ public:
             if ( _x == m_nMin )
             {
                 _tyImplTypeSummaryTree nFirstCluster = m_stSummary.NMin();
-                _x = NIndex( FirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
+                _x = NIndex( nFirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
                 m_nMin = _x;
             }
             _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -866,18 +1079,18 @@ class VebTreeVariable
     static_assert( n_VanEmdeBoasTreeImpl::FIsPow2( t_kstUniverseCluster ) ); // always power of 2.
 public:
     // Choose impl type based on the range of values.
-    static const size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
-    static const size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
+    static constexpr size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
+    static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
-    static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
-    static const size_t s_kstUniverseCluster = t_kstUniverseCluster;
+    static constexpr _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
+    static constexpr size_t s_kstUniverseCluster = t_kstUniverseCluster;
     typedef VebTreeFixed< t_kstUniverseCluster > _tySubtree; // We are composed of fixed size clusters.
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
-    static const _tyImplTypeSubtree s_kstitNoPredecessorSubtree = t_kstUniverseCluster-1;
-    static const size_t s_kstUniverseSummary = t_tySummaryClass::t_kstUniverse;
+    static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = t_kstUniverseCluster-1;
+    static constexpr size_t s_kstUniverseSummary = t_tySummaryClass::t_kstUniverse;
     typedef t_tySummaryClass _tySummaryTree;
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
-    static const _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSummary-1;
+    static constexpr _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSummary-1;
 
     VebTreeVariable() = default;
     // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
@@ -892,7 +1105,7 @@ public:
         if ( _stNElements > s_kstUniverse )
             THROWNAMEDEXCEPTION( "VebTreeVariable::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
         _tyImplType nClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
-        unique_ptr< _tySubtree[] > rgstSubtrees = new _tySubtree[ nClusters ];
+        unique_ptr< _tySubtree[] > rgstSubtrees( new _tySubtree[ nClusters ] );
         // Now that we have allocated everything for this, we allow for the summary to also be dynamic:
         m_stSummary.Init( nClusters );
         m_rgstSubtrees = std::move( rgstSubtrees );
@@ -902,6 +1115,12 @@ public:
     VebTreeVariable( VebTreeVariable const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
     ~VebTreeVariable() = default;
+    void _Deinit()
+    {
+        m_nElements = 0;
+        m_rgstSubtrees.release();
+        m_stSummary._Deinit();
+    }
 
     static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
     {
@@ -1021,7 +1240,7 @@ public:
             if ( _x == m_nMin )
             {
                 _tyImplTypeSummaryTree nFirstCluster = m_stSummary.NMin();
-                _x = NIndex( FirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
+                _x = NIndex( nFirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
                 m_nMin = _x;
             }
             _tyImplTypeSubtree nCluster = NCluster( _x );
