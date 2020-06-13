@@ -2,6 +2,7 @@
 #define __SIMPBV_H
 
 #include "_bitutil.h"
+#include "_allbase.h"
 
 #ifdef setbit // WTF? Why would someone make a PP macro called setbit()?
 #undef setbit

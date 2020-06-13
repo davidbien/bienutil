@@ -156,6 +156,10 @@ public:
     _tyThis & operator = ( _tyThis const & ) = default;
     ~_VebFixedBase() = default;
 
+    bool FEmpty( bool = false ) const
+    {
+        return !FHasAnyElements();
+    }
     bool FHasAnyElements() const
     {
         const _tyUint * pnCur = m_rgUint;
@@ -353,6 +357,10 @@ public:
     _tyThis & operator = ( _tyThis const & ) = default;
     ~VebTreeFixed() = default;
 
+    bool FEmpty( bool = false ) const
+    {
+        return !FHasAnyElements();
+    }
     bool FHasAnyElements() const
     {
         return m_byVebTree2 != 0b01;
@@ -530,6 +538,10 @@ public:
         return ( _x * s_kstUniverseSqrt ) + _y;
     }
 
+    bool FEmpty( bool = false ) const
+    {
+        return !FHasAnyElements() && ( m_byVebTree2s == 0x15 );
+    }
     bool FHasAnyElements() const
     {
         return !!( s_kgrfHasMinMax & m_byVebTree4 );
@@ -858,6 +870,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -888,6 +901,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -918,6 +932,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -948,6 +963,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -978,6 +994,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -1008,6 +1025,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -1038,6 +1056,7 @@ public:
     using _tyBase::operator =;
     ~VebTreeFixed() = default;
 
+    using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
     using _tyBase::NMin;
@@ -1108,6 +1127,21 @@ public:
         return ( _x * s_kstUniverseSqrtUpper ) + _y;
     }
 
+    bool FEmpty( bool _fRecurse = false ) const
+    {
+        if ( FHasAnyElements() )
+            return false;
+        if ( !_fRecurse )
+            return true;
+        const _tySubtree * pstCur = m_rgstSubtrees;
+        const _tySubtree * const pstEnd = m_rgstSubtrees + s_kstUniverseSqrtLower;
+        for ( ; pstEnd != pstCur; ++pstCur )
+        {
+            if ( !pstCur->FEmpty( true ) )
+                return false;
+        }
+        return m_stSummary.FEmpty( true );
+    }
     bool FHasAnyElements() const
     {
         return m_nMax >= m_nMin;
@@ -1393,6 +1427,21 @@ public:
         return ( _x * t_kstUniverseCluster ) + _y;
     }
 
+    bool FEmpty( bool _fRecurse = false ) const
+    {
+        if ( FHasAnyElements() )
+            return false;
+        if ( !_fRecurse )
+            return true;
+        const _tySubtree * pstCur = &m_rgstSubtrees[0];
+        const _tySubtree * const pstEnd = pstCur + NClusters();
+        for ( ; pstEnd != pstCur; ++pstCur )
+        {
+            if ( !pstCur->FEmpty( true ) )
+                return false;
+        }
+        return m_stSummary.FEmpty( true );
+    }
     bool FHasAnyElements() const
     {
         return m_nMax >= m_nMin;
