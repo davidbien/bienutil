@@ -229,7 +229,7 @@ public:
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
-      if ( !!( el = ( *pElNext & ~( ( 1 << _stLast ) - 1 ) ) ) )
+      if ( !!( el = ( *pElNext & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
       {
         _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_kiElSizeBits;
         assert( _stLast < size() );
@@ -351,7 +351,7 @@ public:
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
-      if ( !!( el = ( *pElNextThis & *pElNextThat & ~( ( 1 << _stLast ) - 1 ) ) ) )
+      if ( !!( el = ( *pElNextThis & *pElNextThat & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
       {
         _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNextThis - m_rgEls ) * ms_kiElSizeBits;
         assert( _stLast < size() );
@@ -376,7 +376,7 @@ public:
       {
         *pEl = ~*pEl;
       }
-      t_TyEl  eMask = ~(0x0) << ( ms_kiElSizeBits - ( m_kstSize * ms_kiElSizeBits - m_kstBits ) );
+      t_TyEl  eMask = ~(0x0u) << ( ms_kiElSizeBits - ( m_kstSize * ms_kiElSizeBits - m_kstBits ) );
       *pEl = ~( *pEl | eMask );
     }
   }

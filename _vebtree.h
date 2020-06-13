@@ -70,7 +70,7 @@ namespace n_VanEmdeBoasTreeImpl
         if ( !FIsPow2( _ui ) )
             throw std::logic_error("LowerSqrt(): _ui is not a power of two.");
         // Note that this will return 1 as the sqrt of 2. This is reasonably by design since 1 is the closest thing to the sqrt of 2 that is an integer.
-        return ( 1 << ( Log2( _ui ) / 2 ) );
+        return ( t_tyUint(1) << ( Log2( _ui ) / 2 ) );
     }
     // The "upper square root" is 2^((k+1)/2) for 2^k when k is odd.
     template < class t_tyUint >
@@ -80,7 +80,47 @@ namespace n_VanEmdeBoasTreeImpl
             throw std::logic_error("UpperSqrt(): _ui is not a power of two.");
         // Note that this will return 1 as the sqrt of 2. Probably we would return 2 but it doesn't matter for the Van Emde Boas tree impl because we should never call this with 2.
         t_tyUint nLg2 = Log2( _ui );
-        return ( 1 << ( ( nLg2 / 2 ) + ( nLg2 % 2 ) ) );
+        return ( t_tyUint(1) << ( ( nLg2 / 2 ) + ( nLg2 % 2 ) ) );
+    }
+
+    // Note that when converting to Windows we need to use _BitScanForward/Reverse for the intrinsics.
+    template < class t_tyInt >
+    t_tyInt Clz( t_tyInt _n )
+    {
+        static_assert( sizeof(_n) <= sizeof( uint32_t ) ); // Make sure we are only getting here for 32bit and less.
+        // In the base we just cast:
+        return __builtin_clz( uint32_t( _n ) ) - ( sizeof( uint32_t ) - sizeof( _n ) );
+    }
+    template <>
+    uint64_t Clz< uint64_t >( uint64_t _n )
+    {
+        static_assert( sizeof(_n) == sizeof( uint64_t ) );
+        return __builtin_clzl( _n );
+    }
+    template <>
+    int64_t Clz< int64_t >( int64_t _n )
+    {
+        static_assert( sizeof(_n) == sizeof( int64_t ) );
+        return __builtin_clzl( (int64_t)_n );
+    }
+    template < class t_tyInt >
+    t_tyInt Ctz( t_tyInt _n )
+    {
+        static_assert( sizeof(_n) <= sizeof( uint32_t ) ); // Make sure we are only getting here for 32bit and less.
+        // In the base we just cast:
+        return __builtin_ctz( uint32_t( _n ) );
+    }
+    template <>
+    uint64_t Ctz< uint64_t >( uint64_t _n )
+    {
+        static_assert( sizeof(_n) == sizeof( uint64_t ) );
+        return __builtin_ctzl( _n );
+    }
+    template <>
+    int64_t Ctz< int64_t >( int64_t _n )
+    {
+        static_assert( sizeof(_n) == sizeof( int64_t ) );
+        return __builtin_ctzl( (int64_t)_n );
     }
 }
 
@@ -88,7 +128,7 @@ namespace n_VanEmdeBoasTreeImpl
 // This is a base class to implement various specializations of VebTreeFixed<>.
 // Using this enables us to implement a specialization VebTreeFixed<256> that is a pure bitmask.
 // This makes the VebTree almost as small as a bitvector of the same length - and hence potentially useful.
-template < class t_tyUint, size_t t_kstNUints, size_t t_kstUniverse = sizeof( t_tyUint ) * t_kstNUints >
+template < class t_tyUint, size_t t_kstNUints, size_t t_kstUniverse = sizeof( t_tyUint ) * CHAR_BIT * t_kstNUints >
 class _VebFixedBase
 {
     typedef _VebFixedBase _tyThis;
@@ -160,7 +200,7 @@ public:
         {
             if ( !!*pnCur )
             {
-                _nMin = n_VanEmdeBoasTreeImpl::Ctz( *pnCur );
+                _nMin = n_VanEmdeBoasTreeImpl::Ctz( *pnCur ) + ( pnCur - m_rgUint ) * s_kstNBitsUint;
                 return true;
             }
         }
@@ -180,7 +220,7 @@ public:
         {
             if ( !!*pnCur )
             {
-                _nMax = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( *pnCur );
+                _nMax = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( *pnCur ) + ( pnCur - m_rgUint ) * s_kstNBitsUint;
                 return true;
             }
         }
@@ -194,8 +234,8 @@ public:
     {
         assert( _x < s_kstUniverse );
         _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
-        assert( !( *pn & ( 1 << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
-        *pn |= ( 1 << ( _x % s_kstNBitsUint ) );
+        assert( !( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
+        *pn |= ( _tyUint(1) << ( _x % s_kstNBitsUint ) );
     }
     // Return true if the element was inserted, false if it already existed.
     bool FCheckInsert( _tyImplType _x )
@@ -209,8 +249,8 @@ public:
     {
         assert( _x < s_kstUniverse );
         _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
-        assert( !!( *pn & ( 1 << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
-        *pn &= ~( 1 << ( _x % s_kstNBitsUint ) );
+        assert( !!( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
+        *pn &= ~( _tyUint(1) << ( _x % s_kstNBitsUint ) );
     }
     // Return true if the element was deleted, false if it already existed.
     bool FCheckDelete( _tyImplType _x )
@@ -223,8 +263,8 @@ public:
     bool FHasElement( _tyImplType _x ) const
     {
         assert( _x < s_kstUniverse );
-        _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
-        return *pn & ( 1 << ( _x % s_kstNBitsUint ) );
+        const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        return *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) );
     }
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
@@ -235,7 +275,7 @@ public:
         ++_x;
         const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
         _x %= s_kstNBitsUint;
-        _tyUint nMasked = *pn & ~( ( 1 << _x ) - 1 );
+        _tyUint nMasked = *pn & ~( ( _tyUint(1) << _x ) - 1 );
         if ( !nMasked )
         {
             // Must search remaining elements if any:
@@ -264,7 +304,7 @@ public:
         _x %= s_kstNBitsUint;
         _tyUint nMasked = *pn;
         if ( ( _x + 1 ) % s_kstNBitsUint )
-            nMasked &= ( ( 1 << ( _x + 1 ) ) - 1 );
+            nMasked &= ( ( _tyUint(1) << ( _x + 1 ) ) - 1 );
         if ( !nMasked )
         {
             // Must search remaining elements if any:
@@ -282,13 +322,14 @@ public:
         }
     }
 protected:
-    t_tyUint m_rgUint[ t_kstNUints ] = { 0 };
+    t_tyUint m_rgUint[ t_kstNUints ]{};
 };
 
 template < size_t t_kstUniverse >
 class VebTreeFixed;
 
 // For some scenarios we will need a specialized VebTreeFixed< 2 >.
+// This version is likely a bit more optimal than _VebFixedBase<> so we will use it.
 template <>
 class VebTreeFixed< 2 >
 {
@@ -442,9 +483,13 @@ protected:
         return m_byVebTree2 >> 1;
     }
     _tyImplType m_byVebTree2{1}; // Initialize to empty tree.
+
 };
 
+// Use the _VebFixedBase for all specializations because it should be the smallest possible impl.
+#define VEBTREE_USEFIXEDBASE 
 
+#ifndef VEBTREE_USEFIXEDBASE 
 // For VebTreeFixed<2> we only need two bits as far as I can tell (and maybe only 3 of those values in reality).
 // This means we will have VebTreeFixed<4> contain 3 VebTreeFixed<2>s in a single byte and still have 2 bits left over.
 // So we will specially implement VebTreeFixed<4> as the most-base class of the recursive class structure.
@@ -794,10 +839,225 @@ protected:
     }
 
     // Note that there are at least 6 bits wasted below and probably we could create Veb<16> as the most-class to do even better than we are doing.
-    static const uint8_t s_kgrfHasMinMax = ( 1 << ( CHAR_BIT - 1 ) ); // Use a bit for this because it is available and easiest.
+    static const uint8_t s_kgrfHasMinMax = ( _tyUint(1) << ( CHAR_BIT - 1 ) ); // Use a bit for this because it is available and easiest.
     uint8_t m_byVebTree4{0}; // The (max,min) of Veb<4>. Max mask: 0xc, Min mask: 0x3. s_kgrfHasMinMax: 0x80.
     uint8_t m_byVebTree2s{0x15}; // The three Veb<2>s associated with this Veb<4>. (summary: 0x30, most significant:0xc, least significant:0x3). 0x15 is all nil.
 };
+#else // VEBTREE_USEFIXEDBASE
+template <>
+class VebTreeFixed< 4 > : public _VebFixedBase< uint8_t, 1, 4 >
+{
+    typedef _VebFixedBase< uint8_t, 1, 4 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+template <>
+class VebTreeFixed< 8 > : public _VebFixedBase< uint8_t, 1 >
+{
+    typedef _VebFixedBase< uint8_t, 1 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+template <>
+class VebTreeFixed< 16 > : public _VebFixedBase< uint16_t, 1 >
+{
+    typedef _VebFixedBase< uint16_t, 1 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+template <>
+class VebTreeFixed< 32 > : public _VebFixedBase< uint32_t, 1 >
+{
+    typedef _VebFixedBase< uint32_t, 1 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+template <>
+class VebTreeFixed< 64 > : public _VebFixedBase< uint64_t, 1 >
+{
+    typedef _VebFixedBase< uint64_t, 1 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+template <>
+class VebTreeFixed< 128 > : public _VebFixedBase< uint64_t, 2 >
+{
+    typedef _VebFixedBase< uint64_t, 2 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+template <>
+class VebTreeFixed< 256 > : public _VebFixedBase< uint64_t, 4 >
+{
+    typedef _VebFixedBase< uint64_t, 4 > _tyBase;
+    typedef VebTreeFixed _tyThis;
+public:
+    using _tyBase::_tyBase;
+    using _tyBase::Init;
+    using _tyBase::_Deinit;
+    // No reason not to allow copy construction:
+    VebTreeFixed( VebTreeFixed const & ) = default;
+    using _tyBase::operator =;
+    ~VebTreeFixed() = default;
+
+    using _tyBase::FHasAnyElements;
+    using _tyBase::FHasOneElement;
+    using _tyBase::NMin;
+    using _tyBase::FHasMin;
+    using _tyBase::NMax;
+    using _tyBase::FHasMax;
+    using _tyBase::Clear;
+    using _tyBase::Insert;
+    using _tyBase::FCheckInsert;
+    using _tyBase::Delete;
+    using _tyBase::FCheckDelete;
+    using _tyBase::FHasElement;
+    using _tyBase::NSuccessor;
+    using _tyBase::NPredecessor;
+};
+
+// And that should be good. We can use VebTreeFixed< 256 > as the base cluster summary type and then use VebTreeFixed< 65536 > for the cluster type
+//  and we should be able to efficiently hold millions of elements.
+
+#endif // VEBTREE_USEFIXEDBASE
 
 // VebTreeFixed:
 // We will choose to have LowerSqrt(t_kstUniverse) trees of VebTreeFixed< UpperSqrt(t_kstUniverse) >.
@@ -1063,8 +1323,6 @@ protected:
     _tySubtree m_rgstSubtrees[ s_kstUniverseSqrtLower ]; // The Subtrees.
     _tySummaryTree m_stSummary; // The summary tree.
 };
-
-
 
 // VebTreeVariable:
 // This allows us to choose a "cluster VebTreeFixed<N>" appropriately for the approximate size of the VebTrees we are going to create.

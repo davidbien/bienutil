@@ -1045,7 +1045,7 @@ public:
     {
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            if ( !!( _tc & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+            if ( !!( _tc & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
                 THROWBADJSONSTREAM( "JsonLinuxOutputStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
         }
     }
@@ -1081,10 +1081,10 @@ public:
                 _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
                 for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
                 {
-                    if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                    if ( !!( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
                     {
                         unsigned int uCur = *pszCur;
-                        unsigned int uVal = ( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) );
+                        unsigned int uVal = ( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) );
                         THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): Would lose information since high data of character gets trunctated uCur[%x], uVal[%x], file [%s]", uCur, uVal, m_szFilename.c_str() );
                     }
                     *pcpxCur = (_tyPersistAsChar)*pszCur;
@@ -1354,7 +1354,7 @@ public:
     {
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            if ( !!( _tc & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+            if ( !!( _tc & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
                 THROWBADJSONSTREAM( "JsonOutputMemMappedStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
         }
     }
@@ -1385,7 +1385,7 @@ public:
                 _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
                 for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
                 {
-                    if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                    if ( !!( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
                         THROWBADJSONSTREAM( "JsonOutputMemMappedStream::WriteRawChars(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
                     *pcpxCur = (_tyPersistAsChar)*pszCur;
                 }
@@ -1605,7 +1605,7 @@ public:
     {
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            if ( !!( _tc & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+            if ( !!( _tc & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
                 THROWBADJSONSTREAM( "JsonLinuxOutputStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated" );
         }
     }
@@ -1636,7 +1636,7 @@ public:
                 _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
                 for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
                 {
-                    if ( !!( *pszCur & ~( ( 1 << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
+                    if ( !!( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
                         THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): Would lose information since high data of character gets trunctated." );
                     *pcpxCur = (_tyPersistAsChar)*pszCur;
                 }
@@ -3783,7 +3783,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                     case _tyCharTraits::s_tcu:
                     {
                         unsigned int uHex = 0; // Accumulate the hex amount.
-                        unsigned int uCurrentMultiplier = ( 1 << 12 );
+                        unsigned int uCurrentMultiplier = ( 1u << 12 );
                         // Must find 4 hex digits:
                         for ( int n=0; n < 4; ++n, ( uCurrentMultiplier >>= 4 ) )
                         {
