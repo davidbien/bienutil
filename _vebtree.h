@@ -11,6 +11,7 @@
 #include <stddef.h>
 #include <cstdint>
 #include <climits>
+#include "_aloctrt.h"
 #include "_namdexc.h"
 #include "_bitutil.h"
 
@@ -154,7 +155,28 @@ public:
     // No reason not to allow copy construction:
     _VebFixedBase( _VebFixedBase const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
+    // Need to override these to do them in the *expected* manner - i.e. leaving the data structure in at least a consistent state.
+    // As VebTreeWrap leaves its objects empty we need to leave all the VebTreeFixed objects empty after any move operation.
+    _VebFixedBase( _VebFixedBase && _rr )
+    {
+        memcpy( m_rgUint, _rr.m_rgUint, sizeof m_rgUint );
+        memset( &_rr.m_rgUint, 0, sizeof m_rgUint );
+    }
+    _tyThis operator = ( _VebFixedBase && _rr )
+    {
+        memcpy( m_rgUint, _rr.m_rgUint, sizeof m_rgUint );
+        memset( &_rr.m_rgUint, 0, sizeof m_rgUint );
+        return *this;
+    }
+    bool operator == ( _tyThis const & ) const = default;
     ~_VebFixedBase() = default;
+    void swap( _tyThis & _r )
+    {
+        t_tyUint rgUint[ t_kstNUints ];
+        memcpy( rgUint, m_rgUint, sizeof m_rgUint );
+        memcpy( m_rgUint, _r.m_rgUint, sizeof m_rgUint );
+        memcpy( _r.m_rgUint, rgUint, sizeof m_rgUint );
+    }
 
     bool FEmpty( bool = false ) const
     {
@@ -302,9 +324,9 @@ public:
     {
         assert( _x < s_kstUniverse );
         if ( !_x )
-            return 0;
+            return s_kitNoPredecessor;
         --_x;
-        const _tyUint * pn = &m_rgUint[ nUint ];
+        const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
         _x %= s_kstNBitsUint;
         _tyUint nMasked = *pn;
         if ( ( _x + 1 ) % s_kstNBitsUint )
@@ -322,7 +344,7 @@ public:
         else
         {
             // The first bit in nMasked is the successor.
-            return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked ) + ( nUint * s_kstNBitsUint );
+            return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
         }
     }
 protected:
@@ -355,7 +377,25 @@ public:
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
+    // Need to override these to do them in the *expected* manner - i.e. leaving the data structure in at least a consistent state.
+    // As VebTreeWrap leaves its objects empty we need to leave all the VebTreeFixed objects empty after any move operation.
+    VebTreeFixed( VebTreeFixed && _rr )
+        : m_byVebTree2( _rr.m_byVebTree2 )
+    {
+        _rr.m_byVebTree2 = 1;
+    }
+    _tyThis operator = ( VebTreeFixed && _rr )
+    {
+        m_byVebTree2 = _rr.m_byVebTree2;
+        _rr.m_byVebTree2 = 1;
+        return *this;
+    }
+    bool operator == ( _tyThis const & ) const = default;
     ~VebTreeFixed() = default;
+    void swap( _tyThis & _r )
+    {
+        std::swap( m_byVebTree2, _r.m_byVebTree2 );
+    }
 
     bool FEmpty( bool = false ) const
     {
@@ -523,7 +563,28 @@ public:
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
+    // Need to override these to do them in the *expected* manner - i.e. leaving the data structure in at least a consistent state.
+    // As VebTreeWrap leaves its objects empty we need to leave all the VebTreeFixed objects empty after any move operation.
+    VebTreeFixed( VebTreeFixed && _rr )
+    {
+        std::swap( m_byVebTree4, _rr.m_byVebTree4 );
+        std::swap( m_byVebTree2s, _rr.m_byVebTree2s );
+    }
+    _tyThis operator = ( _VebFixedBase && _rr )
+    {
+        m_byVebTree4 = _rr.m_byVebTree4;
+        m_byVebTree2s = _rr.m_byVebTree2s;
+        _rr.m_byVebTree4 =0;
+        _rr.m_byVebTree2s =0x15;
+        return *this;
+    }
+    bool operator == ( _tyThis const & ) const = default;
     ~VebTreeFixed() = default;
+    void swap( _tyThis & _r )
+    {
+        std::swap( m_byVebTree4, _r.m_byVebTree4 );
+        std::swap( m_byVebTree2s, _r.m_byVebTree2s );
+    }
 
     static _tyImplType NCluster( _tyImplType _x ) // high
     {
@@ -865,11 +926,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -896,11 +955,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -927,11 +984,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -958,11 +1013,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -989,11 +1042,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -1020,11 +1071,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -1051,11 +1100,9 @@ public:
     using _tyBase::_tyBase;
     using _tyBase::Init;
     using _tyBase::_Deinit;
-    // No reason not to allow copy construction:
-    VebTreeFixed( VebTreeFixed const & ) = default;
     using _tyBase::operator =;
-    ~VebTreeFixed() = default;
-
+    using _tyBase::operator ==;
+    using _tyBase::swap;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -1112,7 +1159,54 @@ public:
     // No reason not to allow copy construction:
     VebTreeFixed( VebTreeFixed const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
+    // Need to override these to do them in the *expected* manner - i.e. leaving the data structure in at least a consistent state.
+    VebTreeFixed( VebTreeFixed && _rr )
+        : m_stSummary( std::move( _rr.m_stSummary ) )
+    {
+        m_nMin = _rr.m_nMin;
+        m_nMax = _rr.m_nMax;
+        _rr.m_nMin = 1;
+        _rr.m_nMax = 0;
+        memcpy( m_rgstSubtrees, _rr.m_rgstSubtrees, sizeof m_rgstSubtrees );
+        // memset(...) - we can't just memset here because we don't know how our cluster is implemented.
+        // We could either move each cluster object or call clear on each cluster object now.
+        _tySubtree * pstCur = &_rr.m_rgstSubtrees[ m_stSummary.NMin() ];
+        _tySubtree * const pstEnd = ( &_rr.m_rgstSubtrees[ m_stSummary.NMax() ] ) + 1;
+        for ( ; pstEnd != pstCur; ++pstCur )
+            pstCur->Clear();
+    }
+    _tyThis & operator = ( _tyThis && _rr )
+    {
+        m_stSummary = std::move( _rr.m_stSummary );
+        m_nMin = _rr.m_nMin;
+        m_nMax = _rr.m_nMax;
+        _rr.m_nMin = 1;
+        _rr.m_nMax = 0;
+        memcpy( m_rgstSubtrees, _rr.m_rgstSubtrees, sizeof m_rgstSubtrees );
+        // memset(...) - we can't just memset here because we don't know how our cluster is implemented.
+        // We could either move each cluster object or call clear on each cluster object now.
+        _tySubtree * pstCur = &_rr.m_rgstSubtrees[ m_stSummary.NMin() ];
+        _tySubtree * const pstEnd = ( &_rr.m_rgstSubtrees[ m_stSummary.NMax() ] ) + 1;
+        for ( ; pstEnd != pstCur; ++pstCur )
+            pstCur->Clear();
+    }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wambiguous-reversed-operator"
+    bool operator == ( _tyThis const & ) const = default;
+#pragma GCC diagnostic pop
     ~VebTreeFixed() = default;
+    void swap( _tyThis & _r )
+    {
+        { //B
+            uint8_t rgbyBuffer( sizeof( m_rgstSubtrees ) );
+            memcpy( rgbyBuffer, m_rgstSubtrees, sizeof m_rgstSubtrees );
+            memcpy( m_rgstSubtrees, _r.m_rgstSubtrees, sizeof m_rgstSubtrees );
+            memcpy( _r.m_rgstSubtrees, rgbyBuffer, sizeof m_rgstSubtrees );
+        } //EB
+        m_stSummary.swap( _r.m_stSummary );
+        std::swap( m_nMin, _r.m_nMin );
+        std::swap( m_nMax, _r.m_nMax );
+    }
 
     static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
     {
@@ -1358,18 +1452,20 @@ protected:
     _tySummaryTree m_stSummary; // The summary tree.
 };
 
-// VebTreeVariable:
+// VebTreeWrap:
+// This wraps a variable size set of VebTreeFixed clusters. The constituent cluster sizes must be chosen to accomodate the potential universe required.
 // This allows us to choose a "cluster VebTreeFixed<N>" appropriately for the approximate size of the VebTrees we are going to create.
 // Note that the max number of elements is ( t_kstUniverseCluster * t_kstUniverseCluster ). If that number is exceeded we will throw.
 // We conserve memory by only create the leftmost N clusters needed to hold the number of actual elements in the set.
-// If one cascades the SummaryTree to also be of type VebTreeVariable (and its summary to be VebTreeFixed<>) then we can efficiently hold
-//  millions of elements (relatively speaking).
+// If one cascades the SummaryTree to also be of type VebTreeWrap (and its summary to be VebTreeFixed<>) then we can efficiently hold
+//  billions of elements.
 template < size_t t_kstUniverseCluster, class t_tySummaryClass = VebTreeFixed< t_kstUniverseCluster >, class t_tyAllocator = std::allocator< char > >
-class VebTreeVariable
+class VebTreeWrap
 {
-    typedef VebTreeVariable _tyThis;
+    typedef VebTreeWrap _tyThis;
     static_assert( n_VanEmdeBoasTreeImpl::FIsPow2( t_kstUniverseCluster ) ); // always power of 2.
 public:
+    typedef t_tyAllocator _tyAllocator;
     // Choose impl type based on the range of values.
     static constexpr size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
     static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
@@ -1379,39 +1475,80 @@ public:
     typedef VebTreeFixed< t_kstUniverseCluster > _tySubtree; // We are composed of fixed size clusters.
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
     static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = t_kstUniverseCluster-1;
-    static constexpr size_t s_kstUniverseSummary = t_tySummaryClass::t_kstUniverse;
+    static constexpr size_t s_kstUniverseSummary = t_tySummaryClass::s_kstUniverse;
     typedef t_tySummaryClass _tySummaryTree;
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
     static constexpr _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSummary-1;
 
-    VebTreeVariable() = default;
-    // Allow a contructor that passes in the size to allow for genericity with VebTreeVariable<>.
-    VebTreeVariable( size_t _stNElements )
+    VebTreeWrap() = default;
+    VebTreeWrap( t_tyAllocator const & _rAlloc )
+        : m_rgstSubtrees( _rAlloc )
+    {        
+    }
+    // Allow a contructor that passes in the size to allow for genericity with VebTreeWrap<>.
+    VebTreeWrap( size_t _stNElements, _tyAllocator const & _rAlloc = _tyAllocator() )
+        : m_rgstSubtrees( _rAlloc )
     {
         Init( _stNElements );
     }
     void Init( size_t _stNElements )
     {
-        if ( m_nElements )
+        if ( m_rgstSubtrees.size() )
             _Deinit(); // We could do a lot better here but it takes a bit of work. I.e. we could keep the existing blocks and Clear() them.
         if ( _stNElements > s_kstUniverse )
-            THROWNAMEDEXCEPTION( "VebTreeVariable::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
-        _tyImplType nClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
-        unique_ptr< _tySubtree[] > rgstSubtrees( new _tySubtree[ nClusters ] );
+            THROWNAMEDEXCEPTION( "VebTreeWrap::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
+        size_t nClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
+        _tyRgSubtrees rgstSubtrees( m_rgstSubtrees.get_allocator() ); // must pass custody of instanced allocator.
+        rgstSubtrees.resize( nClusters ); // May throw.
         // Now that we have allocated everything for this, we allow for the summary to also be dynamic:
         m_stSummary.Init( nClusters );
-        m_rgstSubtrees = std::move( rgstSubtrees );
-        m_nElements = _tyImplType(_stNElements );
+        m_rgstSubtrees.swap( rgstSubtrees );
+        m_nLastElement = _tyImplType(_stNElements-1 );
     }
     // No reason not to allow copy construction:
-    VebTreeVariable( VebTreeVariable const & ) = default;
+    VebTreeWrap( VebTreeWrap const & ) = default;
     _tyThis & operator = ( _tyThis const & ) = default;
-    ~VebTreeVariable() = default;
+    VebTreeWrap( VebTreeWrap && _rr )
+        :   m_rgstSubtrees( std::move( _rr.m_rgstSubtrees ) ),
+            m_stSummary( std::move( _rr.m_stSummary ) )
+    {
+        m_nLastElement = _rr.m_nLastElement; // No need to update _rr.m_nLastElement to anything in particular.
+        m_nMin = _rr.m_nMin;
+        m_nMax = _rr.m_nMax;
+        _rr.m_nMin = 1;
+        _rr.m_nMax = 0;
+    }
+    _tyThis & operator = ( _tyThis && _rr )
+    {
+        m_rgstSubtrees = std::move( _rr.m_rgstSubtrees );
+        m_stSummary = std::move( _rr.m_stSummary );
+        m_nLastElement = _rr.m_nLastElement; // No need to update _rr.m_nLastElement to anything in particular.
+        m_nMin = _rr.m_nMin;
+        m_nMax = _rr.m_nMax;
+        _rr.m_nMin = 1;
+        _rr.m_nMax = 0;
+        return *this;
+    }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wambiguous-reversed-operator"
+    bool operator == ( _tyThis const & ) const = default;
+#pragma GCC diagnostic pop
+    ~VebTreeWrap() = default;
     void _Deinit()
     {
-        m_nElements = 0;
-        m_rgstSubtrees.release();
+        // m_nLastElement = 0; only valid when m_rgstSubtrees has elements.
+        m_rgstSubtrees.clear();
         m_stSummary._Deinit();
+        m_nMin = 1;
+        m_nMax = 0;
+    }
+    void swap( _tyThis & _r )
+    {
+        m_stSummary.swap( _r.m_stSummary );
+        m_rgstSubtrees.swap( _r.m_rgstSubtrees );
+        std::swap( m_nMin, _r.m_nMin );
+        std::swap( m_nMax, _r.m_nMax );
+        std::swap( m_nLastElement, _rr.m_nLastElement );
     }
 
     static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
@@ -1450,9 +1587,9 @@ public:
     {
         return m_nMin == m_nMax;
     }
-    _tyImplType NClusters() const
+    size_t NClusters() const
     {
-        return !m_nElements ? 0 : ( ( m_nElements - 1 ) / t_kstUniverseCluster ) + 1;
+        return m_rgstSubtrees.size();
     }
     _tyImplType NMin() const
     {
@@ -1507,8 +1644,9 @@ public:
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
-        assert( _x < m_nElements );
-        assert( !FHasElement( _x ) );
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::Insert(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+        assert( !FHasElement( _x ) ); // We don't want to check this and throw because we want the caller to use CheckInsert() instead.
         if ( !FHasAnyElements() )
             m_nMin = m_nMax = _x;
         else
@@ -1535,6 +1673,8 @@ public:
     // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
     void Delete( _tyImplType _x )
     {
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::Delete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         assert( FHasElement( _x ) );
         if ( m_nMin == m_nMax )
         {
@@ -1584,7 +1724,8 @@ public:
     }
     bool FHasElement( _tyImplType _x ) const
     {
-        assert( _x < m_nElements );
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::FHasElement(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( !FHasAnyElements() )
             return false;
         if ( ( _x == m_nMin ) || ( _x == m_nMax ) )
@@ -1597,10 +1738,10 @@ public:
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
-        assert( _x < m_nElements );
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( FHasAnyElements() && ( _x < m_nMin ) )
             return m_nMin;
-        
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMaxCluster;
@@ -1625,10 +1766,10 @@ public:
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
-        assert( _x < m_nElements );
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( FHasAnyElements() && ( _x > m_nMax ) )
             return m_nMax;
-        
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster;
@@ -1642,7 +1783,7 @@ public:
         else
         {
             _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
-            if ( s_kstitNoPredecessorSummaryTree ==  nPredecessiveCluster )
+            if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
             {
                 if ( FHasAnyElements() && ( _x > m_nMin ) )
                     return m_nMin;
@@ -1655,11 +1796,22 @@ public:
         }
         return s_kitNoPredecessor; // No predecessor.
     }
+
+// Allow bitwise operations. We must maintain a context of minimum elements found on the way to a given final bitmask.
+// I think a simple list will suffice and could be done with locals and no allocation.
+    void operator |= ( _tyThis const & _r )
+    {
+        if ( !_r.FHasAnyElements() )
+            return; // nop
+        
+    }
 protected:
-    unique_ptr< _tySubtree[] > m_rgstSubtrees;
+    typedef typename _Alloc_traits< _tySubtree, t_tyAllocator >::allocator_type _tyAllocSubtree;
+    typedef vector< _tySubtree, _tyAllocSubtree > _tyRgSubtrees;
+    _tyRgSubtrees m_rgstSubtrees;
     _tySummaryTree m_stSummary;
-    _tyImplType m_nElements{0}; // The number of possible elements in this VebTree - must be less than s_kstUniverse.
-    _tyImplType m_nMin{1};
+    _tyImplType m_nLastElement; // Only valid when m_rgstSubtrees.size() > 0. No reason to set to any particular value.
+    _tyImplType m_nMin{1}; // The collection is empty when m_nMin > m_nMax.
     _tyImplType m_nMax{0};
 };
 
