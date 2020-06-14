@@ -347,6 +347,18 @@ public:
             return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
         }
     }
+
+// Allow bitwise operations as we can manage them.
+    _tyThis & operator |= ( _tyThis const & _r )
+    {
+        _tyUint * pnCurThis = m_rgUint;
+        _tyUint * const pnEndThis = m_rgUint + s_kstNUints;
+        _tyUint * pnCurThat = _r.m_rgUint;
+        for ( ; pnEndThis != pnCurThis; ++pnCurThis, ++pnCurThat )
+            *pnCurThis |= *pnCurThat;
+        return *this;
+    }
+
 protected:
     t_tyUint m_rgUint[ t_kstNUints ]{};
 };
@@ -514,6 +526,26 @@ public:
     {
         assert( _x < s_kstUniverse );
         return !( _x && !( 0b01 & m_byVebTree2 ) );
+    }
+
+// Allow bitwise operations as we can manage them.
+    _tyThis & operator |= ( _tyThis const & _r )
+    {
+        switch( _r.m_byVebTree2 )
+        {
+            case 0b01: // nil
+            break;
+            case 0b00:
+                m_byVebTree2 &= 0b10;
+            break;
+            case 0b11:
+                m_byVebTree2 |= 0b10;
+            break;
+            case 0b10: // Both.
+                m_byVebTree2 = 0b10;
+            break; // Don't modify it.
+        }
+        return *this;
     }
 protected:
     void _ClearHasElements()
@@ -944,6 +976,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 template <>
@@ -973,6 +1006,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 template <>
@@ -1002,6 +1036,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 template <>
@@ -1031,6 +1066,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 template <>
@@ -1060,6 +1096,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 template <>
@@ -1089,6 +1126,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 template <>
@@ -1118,6 +1156,7 @@ public:
     using _tyBase::FHasElement;
     using _tyBase::NSuccessor;
     using _tyBase::NPredecessor;
+    using _tyBase::operator |=;
 };
 
 // And that should be good. We can use VebTreeFixed< 256 > as the base cluster summary type and then use VebTreeFixed< 65536 > for the cluster type
@@ -1445,6 +1484,35 @@ public:
         }
         return s_kitNoPredecessor; // No predecessor.
     }
+
+// Allow bitwise operations as we can manage them.
+    _tyThis & operator |= ( _tyThis const & _r )
+    {
+        if ( !_r.FHasAnyElements() )
+            return *this; // nop
+        // Process the min:
+        if ( !FHasElement( _r.NMin() ) )
+            Insert( _r.NMin() ); // We know that the minimum for this cluster is correct now and we processed the minimum of the other cluster.
+        if ( _r.FHasOneElement() )
+            return *this; // all done.
+        if ( _r.NMax() > m_nMax )
+            m_nMax = _r.NMax();
+
+        // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
+        // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
+        _tyImplTypeSummaryTree nClusterCur = _r.m_stSummary.NMin();
+        do
+        {
+            const _tySubTree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
+            assert( rstThat.FHasAnyElements() );
+            _tySubTree & rstThis = m_rgstSubtrees[ nClusterCur ];
+            if ( !rstThis.FHasAnyElements() )
+                m_stSummary.Insert( nClusterCur ); // Update the summary.
+            rstThis |= rstThat; // do the deed.
+        }
+        while( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) );
+        return *this;
+    }
 protected:
     _tyImplType m_nMin{1}; // Setting the min to be greater than the max is the indicator that there are no elements.
     _tyImplType m_nMax{0};
@@ -1548,7 +1616,18 @@ public:
         m_rgstSubtrees.swap( _r.m_rgstSubtrees );
         std::swap( m_nMin, _r.m_nMin );
         std::swap( m_nMax, _r.m_nMax );
-        std::swap( m_nLastElement, _rr.m_nLastElement );
+        std::swap( m_nLastElement, _r.m_nLastElement );
+    }
+
+    // This returns the maximum number of distinct elements for this VebTree.
+    static size_t NUniverse()
+    {
+        return s_kstUniverse;
+    }
+    // Returns the size for this set of element - with which it was constucted or initialized.
+    size_t NSize() const
+    {
+        return m_nLastElement + 1;
     }
 
     static _tyImplTypeSubtree NCluster( _tyImplType _x ) // high
@@ -1797,16 +1876,37 @@ public:
         return s_kitNoPredecessor; // No predecessor.
     }
 
-#if 0 // not fleshed out yet.
-// Allow bitwise operations. We must maintain a context of minimum elements found on the way to a given final bitmask.
-// I think a simple list will suffice and could be done with locals and no allocation.
-    void operator |= ( _tyThis const & _r )
+// Allow bitwise operations as we can manage them.
+    _tyThis & operator |= ( _tyThis const & _r )
     {
+        // Currently we only allow oring between sets of the same size:
+        if ( NSize() != _r.NSize() )
+            THROWNAMEDEXCEPTION("VebTreeFixed::operator |=(): NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
         if ( !_r.FHasAnyElements() )
-            return; // nop
-        
+            return *this; // nop
+        // Process the min:
+        if ( !FHasElement( _r.NMin() ) )
+            Insert( _r.NMin() ); // We know that the minimum for this cluster is correct now and we processed the minimum of the other cluster.
+        if ( _r.FHasOneElement() )
+            return *this; // all done.
+        if ( _r.NMax() > m_nMax )
+            m_nMax = _r.NMax();
+
+        // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
+        // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
+        _tyImplTypeSummaryTree nClusterCur = _r.m_stSummary.NMin();
+        do
+        {
+            const _tySubTree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
+            assert( rstThat.FHasAnyElements() );
+            _tySubTree & rstThis = m_rgstSubtrees[ nClusterCur ];
+            if ( !rstThis.FHasAnyElements() )
+                m_stSummary.Insert( nClusterCur ); // Update the summary.
+            rstThis |= rstThat; // do the deed.
+        }
+        while( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) );
+        return *this;
     }
-#endif 
 
 protected:
     typedef typename _Alloc_traits< _tySubtree, t_tyAllocator >::allocator_type _tyAllocSubtree;
