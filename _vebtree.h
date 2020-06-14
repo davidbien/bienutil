@@ -1797,6 +1797,7 @@ public:
         return s_kitNoPredecessor; // No predecessor.
     }
 
+#if 0 // not fleshed out yet.
 // Allow bitwise operations. We must maintain a context of minimum elements found on the way to a given final bitmask.
 // I think a simple list will suffice and could be done with locals and no allocation.
     void operator |= ( _tyThis const & _r )
@@ -1805,6 +1806,8 @@ public:
             return; // nop
         
     }
+#endif 
+
 protected:
     typedef typename _Alloc_traits< _tySubtree, t_tyAllocator >::allocator_type _tyAllocSubtree;
     typedef vector< _tySubtree, _tyAllocSubtree > _tyRgSubtrees;
