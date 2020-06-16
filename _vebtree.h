@@ -194,7 +194,7 @@ public:
     bool FHasOneElement() const
     {
         // A rarely used method but we will implement it.
-        const _tyUint * pnNonZero = 0;
+        const _tyUint * pnNonZero = nullptr;
         const _tyUint * pnCur = m_rgUint;
         const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
         for ( ; pnEnd != pnCur; ++pnCur )
@@ -255,6 +255,42 @@ public:
     void Clear()
     {
         memset( m_rgUint, 0, sizeof( m_rgUint ) );
+    }
+    // In this method we must clear and set all bits appropriately according to the call parameters:
+    // 1) Must clear all bits up until _pnFirstInsert if present.
+    // 2) Must set all bits up until _pnLastElement if present but needn't touch any bits beyond that because they shouldn't have ever been modified.
+    void InsertAll( const _tyImplType _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
+    {
+        assert( !_pnFirstInsert || !!*_pnFirstInsert );
+        assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+        assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+        size_t stFirstInsert = _pnFirstInsert ? *_pnFirstInsert : 0;
+        size_t stLastElement;
+        if ( _pnLastElement )
+            stLastElement = *_pnLastElement;
+
+        _tyUint * pnCurThis = m_rgUint;
+        _tyUint * const pnEndThis = m_rgUint + ( _pnLastElement ? ( ( stLastElement / s_kstNBitsUint ) + 1 ) : s_kstNUints );
+        size_t stBitCur = 0;
+        for ( ; pnEndThis != pnCurThis; ++pnCurThis, stBitCur += s_kstNBitsUint )
+        {
+            size_t stBitEnd = stBitCur + s_kstNBitsUint;
+            if ( stFirstInsert )
+            {
+                if ( stBitEnd <= stFirstInsert )
+                    *pnCurThis = 0;
+                else
+                {
+                    *pnCurThis = ~( ( 1 << stFirstInsert ) - 1 );
+                    stFirstInsert = 0; // No longer need to potentially process.
+                }
+            }
+            else
+                *pnCurThis = numeric_limits< _tyUint >::max();
+        }
+        // Now update the last processed element by removing any bits beyond the last element:
+        if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
+            pnCurThis[-1] &= ( 1 << ( stLastElement + 1 ) ) - 1;
     }
     void Insert( _tyImplType _x )
     {
@@ -376,12 +412,17 @@ public:
             *pnCurThis ^= *pnCurThat;
         return *this;
     }
-    _tyThis & BitwiseInvert()
+    _tyThis & BitwiseInvert( _tyImplType * _pnLastElement = nullptr )
     {
+        size_t stLastElement;
+        if ( _pnLastElement )
+            stLastElement = *_pnLastElement;
         _tyUint * pnCurThis = m_rgUint;
-        _tyUint * const pnEndThis = m_rgUint + s_kstNUints;
+        _tyUint * const pnEndThis = m_rgUint + ( _pnLastElement ? ( ( stLastElement / s_kstNBitsUint ) + 1 ) : s_kstNUints );
         for ( ; pnEndThis != pnCurThis; ++pnCurThis )
             *pnCurThis = ~*pnCurThis;
+        if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
+            pnCurThis[-1] &= ( 1 << ( stLastElement + 1 ) ) - 1;        
         return *this;
     }
 
@@ -483,6 +524,10 @@ public:
     void Clear()
     {
         _ClearHasElements();
+    }
+    void InsertAll()
+    {
+        m_byVebTree2 = 0b10;
     }
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
@@ -1318,8 +1363,7 @@ public:
     {
         m_nMin = _rr.m_nMin;
         m_nMax = _rr.m_nMax;
-        _rr.m_nMin = 1;
-        _rr.m_nMax = 0;
+        _rr._SetEmptyMinMax();
         memcpy( m_rgstSubtrees, _rr.m_rgstSubtrees, sizeof m_rgstSubtrees );
         // memset(...) - we can't just memset here because we don't know how our cluster is implemented.
         // We could either move each cluster object or call clear on each cluster object now.
@@ -1333,8 +1377,7 @@ public:
         m_stSummary = std::move( _rr.m_stSummary );
         m_nMin = _rr.m_nMin;
         m_nMax = _rr.m_nMax;
-        _rr.m_nMin = 1;
-        _rr.m_nMax = 0;
+        _rr.SetEmptyMinMax();
         memcpy( m_rgstSubtrees, _rr.m_rgstSubtrees, sizeof m_rgstSubtrees );
         // memset(...) - we can't just memset here because we don't know how our cluster is implemented.
         // We could either move each cluster object or call clear on each cluster object now.
@@ -1440,8 +1483,7 @@ public:
                 while(  ( nClusterCur = m_stSummary.NSuccessor( nClusterCur ) ) );
                 m_stSummary.Clear();
             }
-            m_nMax = 0;
-            m_nMin = 1;
+            _SetEmptyMinMax();
         }
     }
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
@@ -1479,8 +1521,7 @@ public:
         if ( m_nMin == m_nMax )
         {
             assert( _x == m_nMax );
-            m_nMin = 1;            
-            m_nMax = 0;            
+            _SetEmptyMinMax();
         }
         else
         {
@@ -1680,6 +1721,7 @@ public:
                     {
                         // We know we have found the "ultimate minimum" at this point because we will only see greater elements from here on out:
                         stMinCur = nMinTest;
+                        assert( stMinCur != stMinExisting ); // stMinExisting is not in the cluster so it cannot be the min.
                         rstThis.Delete( rstThis.NMin() ); // We own this minimum now since we will store it in this object.
                         if ( !rstThis.FHasAnyElements() )
                         {
@@ -1699,19 +1741,15 @@ public:
         {
             assert( 0 == nMaxCur );
             assert( !m_stSummary.FHasAnyElements() );
-            m_nMinCur = 1;
-            m_nMaxCur = 0;
+            _SetEmptyMinMax();
         }
         else
         {
-            // Check if we need to insert stMinExisting.
-            if ( ( s_kstUniverse != stMinExisting ) && ( stMinExisting != stMinCur ) )
-            {
-                assert( stMinCur < stMinExisting );
-                Insert( (_tyImplType)stMinExisting );
-            }
+            assert( ( s_kstUniverse == stMinExisting ) || ( stMinCur > stMinExisting ) );
             m_nMin = (_tyImplType)stMinCur;
             m_nMax = nMaxCur;
+            if ( s_kstUniverse != stMinExisting )
+                Insert( (_tyImplType)stMinExisting );
             assert( ( m_nMin != m_nMax ) || !m_stSummary.FHasAnyElements() );
         }
         return *this;
@@ -1720,15 +1758,24 @@ public:
     {
         if ( !_r.FHasAnyElements() )
             return *this; // nop
-        // Process the min:
-        if ( !FHasElement( _r.NMin() ) )
-            Insert( _r.NMin() ); // We know that the minimum for this cluster is correct now and we processed the minimum of the other cluster.
-        else
-            Delete( _r.NMin() );
+        
+        bool fHasAnyElements = FHasAnyElements();
+        // We don't want to process _r's minimum now because otherwise we will have to process it again eventually anyway.
+        bool fHasMinThat = fHasAnyElements && FHasElement( _r.NMin() );
         if ( _r.FHasOneElement() )
-            return *this; // all done.
-        if ( _r.NMax() > m_nMax )
-            m_nMax = _r.NMax();
+        {
+            if ( !fHasMinThat )
+                Insert( _r.NMin() ); // We know that the minimum for this cluster is correct now and we processed the minimum of the other cluster.
+            else
+                Delete( _r.NMin() );
+            return *this;
+        }
+//#error HERE.
+        // No need to process _r's max at this time because it may change below.
+        _tyImplType nMinExisting = m_nMin; // Must hold on to this so we can remove/insert it below.
+        size_t stMinCur = s_kstUniverse;
+        m_nMax = 0;
+        m_nMin = s_kstUniverse-1; // We will at least encounter nMinExisting as an element after inversion since it cannot be in the clusters.
 
         // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
         // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
@@ -1745,35 +1792,83 @@ public:
         while( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) );
         return *this;
     }
+
+    void InsertAll( const _tyImplType _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
+    {
+        assert( !_pnFirstInsert || !!*_pnFirstInsert );
+        assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+        assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+
+        // Algorithm:
+        // Set m_nMin to 0, set m_nMax to m_nLastElement.
+        // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
+        m_nMin = !_pnFirstInsert ? 0 : *_pnFirstInsert;
+        m_nMax = !_pnLastElement ? s_kstUniverse-1 : *_pnLastElement;
+        if ( m_nMin != m_nMax )
+        {
+            _tyImplTypeSubtree nFirstInsert = m_nMin + 1; // Don't need to worry about this going over a cluster boundary due to impl.
+            size_t stClustersProcess = _pnLastElement ? ( size_t( NCluster( *_pnLastElement ) ) + 1 ) : STClusters();
+            _tyImplTypeSubtree nLastElementSubtree;
+            _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
+            if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
+            {
+                nLastElementSubtree = NElInCluster( *_pnLastElement );
+                pnLastElementSubtree = nLastElementSubtree;
+            }
+            _tySubtree * pstCur = &m_rgstSubtrees[0];
+            _tySubtree * const pstEnd = pstCur + stClustersProcess;
+            pstCur->InsertAll( &nFirstInsert, ( 1 == stClustersProcess ) ? pnLastElementSubtree : 0 );
+            for ( ++pstCur; pstEnd != pstCur; ++pstCur )
+                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : 0 );
+            // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
+            _tyImplTypeSummaryTree nLastElementSummary;
+            _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
+            if ( stClustersProcess != STClusters() )
+            {
+                nLastElementSummary = stClustersProcess - 1;
+                pnLastElementSummary = nLastElementSummary;
+            }
+            m_stSummary.InsertAll( nullptr, pnLastElementSummary );
+        }
+    }
     // Bitwise inversion.
-    _tyThis & BitwiseInvert()
+    // If _pnLastElement then we will limit application to elements below that limit.
+    _tyThis & BitwiseInvert( const _tyImplType * _pnLastElement = nullptr )
     {
         // Boundary conditions:
         if ( !FHasAnyElements() )
         {
-            InsertAllElements();
+            InsertAll( nullptr, _pnLastElement );
             return *this;
         }
         if ( FHasOneElement() )
         {
             _tyImplType nEl = NMin();
-            InsertAllElements();
+            InsertAll( nullptr, _pnLastElement );
             Delete( nEl );
             return *this;
         }
         // We know that the current min cannot be in the result and we need to make sure to delete the current min from
         // its cluster because it will be incorrectly set in that cluster.
         _tyImplType nMinExisting = m_nMin; // Must hold on to this so we can remove it below.
-        size_t stMinCur = s_kstUniverse;
+        bool fFoundMin = false;
         m_nMax = 0;
         m_nMin = s_kstUniverse-1; // We will at least encounter nMinExisting as an element after inversion since it cannot be in the clusters.
+        size_t stClustersProcess = _pnLastElement ? ( size_t( NCluster( *_pnLastElement ) ) + 1 ) : STClusters();
+        _tyImplTypeSubtree nLastElementSubtree;
+        _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
+        if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
+        {
+            nLastElementSubtree = NElInCluster( *_pnLastElement );
+            pnLastElementSubtree = nLastElementSubtree;
+        }
         // Move through all clusters of the object since all clusters will be modified.
         _tySubtree * pstCur = &m_rgstSubtrees[0];
-        _tySubtree * const pstEnd = pstCur + NClusters();
+        _tySubtree * const pstEnd = pstCur + stClustersProcess;
         for ( _tyImplTypeSummaryTree nClusterCur = 0; pstEnd != pstCur; ++pstCur, ++nClusterCur )
         {
             bool fInSummary = pstCur->FHasAnyElements();
-            pstCur->BitwiseInvert();
+            pstCur->BitwiseInvert( ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : 0 );
             if ( !fInSummary )
                 m_stSummary.Insert( nClusterCur );
             _tyImplTypeSubtree nMaxCluster;
@@ -1782,9 +1877,10 @@ public:
                 _tyImplType nMaxTest = NIndex( nClusterCur, nMaxCluster );
                 if ( nMaxTest > m_nMax )
                     m_nMax = nMaxTest;
-                if ( NSize() == stMinCur )
+                if ( !fFoundMin )
                 {
-                    stMinCur = m_nMin = NIndex( nClusterCur, pstCur->NMin() ); // This is the resultant minimum - and this container owns it now.
+                    fFoundMin = true;
+                    m_nMin = NIndex( nClusterCur, pstCur->NMin() ); // This is the resultant minimum - and this container owns it now.
                     pstCur->Delete( pstCur->NMin() )
                     if ( !pstCur->FHasAnyElements() )
                         m_stSummary.Delete( nClusterCur );
@@ -1802,7 +1898,12 @@ public:
         return *this;
     }
 protected:
-    _tyImplType m_nMin{1}; // Setting the min to be greater than the max is the indicator that there are no elements.
+    void _SetEmptyMinMax()
+    {
+        m_nMin = t_kstUniverse-1;
+        m_nMax = 0;
+    }
+    _tyImplType m_nMin{t_kstUniverse-1}; // Setting the min to be greater than the max is the indicator that there are no elements.
     _tyImplType m_nMax{0};
     _tySubtree m_rgstSubtrees[ s_kstUniverseSqrtLower ]; // The Subtrees.
     _tySummaryTree m_stSummary; // The summary tree.
@@ -1872,8 +1973,7 @@ public:
         m_nLastElement = _rr.m_nLastElement; // No need to update _rr.m_nLastElement to anything in particular.
         m_nMin = _rr.m_nMin;
         m_nMax = _rr.m_nMax;
-        _rr.m_nMin = 1;
-        _rr.m_nMax = 0;
+        _rr._SetEmptyMinMax();
     }
     _tyThis & operator = ( _tyThis && _rr )
     {
@@ -1882,8 +1982,7 @@ public:
         m_nLastElement = _rr.m_nLastElement; // No need to update _rr.m_nLastElement to anything in particular.
         m_nMin = _rr.m_nMin;
         m_nMax = _rr.m_nMax;
-        _rr.m_nMin = 1;
-        _rr.m_nMax = 0;
+        _rr._SetEmptyMinMax();
         return *this;
     }
 #pragma GCC diagnostic push
@@ -1896,8 +1995,7 @@ public:
         // m_nLastElement = 0; only valid when m_rgstSubtrees has elements.
         m_rgstSubtrees.clear();
         m_stSummary._Deinit();
-        m_nMin = 1;
-        m_nMax = 0;
+        _SetEmptyMinMax();
     }
     void swap( _tyThis & _r )
     {
@@ -1939,7 +2037,7 @@ public:
         if ( !_fRecurse )
             return true;
         const _tySubtree * pstCur = &m_rgstSubtrees[0];
-        const _tySubtree * const pstEnd = pstCur + NClusters();
+        const _tySubtree * const pstEnd = pstCur + STClusters();
         for ( ; pstEnd != pstCur; ++pstCur )
         {
             if ( !pstCur->FEmpty( true ) )
@@ -1955,7 +2053,7 @@ public:
     {
         return m_nMin == m_nMax;
     }
-    size_t NClusters() const
+    size_t STClusters() const
     {
         return m_rgstSubtrees.size();
     }
@@ -2002,8 +2100,7 @@ public:
                 while( ( nClusterCur = m_stSummary.NSuccessor( nClusterCur ) ) );
                 m_stSummary.Clear();
             }
-            m_nMax = 0;
-            m_nMin = 1;
+            _SetEmptyMinMax();
         }
     }
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
@@ -2044,8 +2141,7 @@ public:
         if ( m_nMin == m_nMax )
         {
             assert( _x == m_nMax );
-            m_nMin = 1;            
-            m_nMax = 0;            
+            _SetEmptyMinMax();
         }
         else
         {
@@ -2272,22 +2368,52 @@ public:
         {
             assert( 0 == nMaxCur );
             assert( !m_stSummary.FHasAnyElements() );
-            m_nMinCur = 1;
-            m_nMaxCur = 0;
+            _SetEmptyMinMax();
         }
         else
         {
-            // Check if we need to insert stMinExisting.
-            if ( ( s_kstUniverse != stMinExisting ) && ( stMinExisting != stMinCur ) )
-            {
-                assert( stMinCur < stMinExisting );
-                Insert( (_tyImplType)stMinExisting );
-            }
+            assert( ( s_kstUniverse == stMinExisting ) || ( stMinCur > stMinExisting ) );
             m_nMin = (_tyImplType)stMinCur;
             m_nMax = nMaxCur;
+            if ( s_kstUniverse != stMinExisting )
+                Insert( (_tyImplType)stMinExisting );
             assert( ( m_nMin != m_nMax ) || !m_stSummary.FHasAnyElements() );
         }
         return *this;
+    }
+    void InsertAll()
+    {
+        // Algorithm:
+        // Set m_nMin to 0, set m_nMax to m_nLastElement.
+        // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
+        m_nMin = 0;
+        m_nMax = m_nLastElement;
+        if ( m_nLastElement > m_nMin )   // boundary.
+        {
+            _tyImplTypeSubtree nFirstInsert = 1;
+            _tyImplTypeSubtree nLastElementSubtree;
+            _tyImplTypeSubtree * pnLastElementSubtree = 0;
+            if ( !!( NSize() % t_kstUniverseCluster ) ) // Unless we end at a cluster boundary...
+            {
+                nLastElementSubtree = NElInCluster( m_nLastElement );
+                pnLastElementSubtree = &nLastElementSubtree;
+            }
+            _tySubtree * pstCur = &m_rgstSubtrees[0];
+            _tySubtree * const pstEnd = pstCur + STClusters();
+            pstCur->InsertAll( &nFirstInsert, ( 1 == STClusters() ) ? pnLastElementSubtree : 0 );
+            for ( ++pstCur; pstEnd != pstCur; ++pstCur )
+                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : 0 );
+                
+            // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
+            _tyImplTypeSummaryTree nLastElementSummary;
+            _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
+            if ( t_kstUniverseCluster != STClusters() )
+            {
+                nLastElementSummary = STClusters() - 1;
+                pnLastElementSummary = nLastElementSummary;
+            }
+            m_stSummary.InsertAll( nullptr, pnLastElementSummary );
+        }
     }
     // Bitwise inversion.
     _tyThis & BitwiseInvert()
@@ -2295,30 +2421,36 @@ public:
         // Boundary conditions:
         if ( !FHasAnyElements() )
         {
-            InsertAllElements();
+            InsertAll();
             return *this;
         }
         if ( FHasOneElement() )
         {
             _tyImplType nEl = NMin();
-            InsertAllElements();
+            InsertAll();
             Delete( nEl );
             return *this;
         }
-
         // We know that the current min cannot be in the result and we need to make sure to delete the current min from
         // its cluster because it will be incorrectly set in that cluster.
         _tyImplType nMinExisting = m_nMin; // Must hold on to this so we can remove it below.
-        size_t stMinCur = NSize();
+        bool fFoundMin = false;
         m_nMax = 0;
         m_nMin = NSize()-1; // We will at least encounter nMinExisting as an element after inversion since it cannot be in the clusters.
+        _tyImplTypeSubtree nLastElementSubtree;
+        const _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
+        if ( NSize() % t_kstUniverseCluster )
+        {
+            nLastElementSubtree = NElInCluster( m_nLastElement );
+            pnLastElementSubtree = &nLastElementSubtree;
+        }
         // Move through all clusters of the object since all clusters will be modified.
         _tySubtree * pstCur = &m_rgstSubtrees[0];
-        _tySubtree * const pstEnd = pstCur + NClusters();
+        _tySubtree * const pstEnd = pstCur + STClusters();
         for ( _tyImplTypeSummaryTree nClusterCur = 0; pstEnd != pstCur; ++pstCur, ++nClusterCur )
         {
             bool fInSummary = pstCur->FHasAnyElements();
-            pstCur->BitwiseInvert();
+            pstCur->BitwiseInvert( ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : 0  ); // Pass in any limit on the last cluster to avoid setting bits beyond the end.
             if ( !fInSummary )
                 m_stSummary.Insert( nClusterCur );
             _tyImplTypeSubtree nMaxCluster;
@@ -2327,9 +2459,10 @@ public:
                 _tyImplType nMaxTest = NIndex( nClusterCur, nMaxCluster );
                 if ( nMaxTest > m_nMax )
                     m_nMax = nMaxTest;
-                if ( NSize() == stMinCur )
+                if ( !fFoundMin )
                 {
-                    stMinCur = m_nMin = NIndex( nClusterCur, pstCur->NMin() ); // This is the resultant minimum - and this container owns it now.
+                    fFoundMin = true;
+                    m_nMin = NIndex( nClusterCur, pstCur->NMin() ); // This is the resultant minimum - and this container owns it now.
                     pstCur->Delete( pstCur->NMin() )
                     if ( !pstCur->FHasAnyElements() )
                         m_stSummary.Delete( nClusterCur );
@@ -2343,17 +2476,22 @@ public:
         }
         // m_nMin and m_nMax are already updated, remove the old m_nMin because it will be set in the cluster.
         assert( m_nMin <= nMinExisting );
-        Delete( nMinExisting );
+        Delete( nMinExisting ); // This works even if m_nMin == nMinExisting.
         return *this;
     }
 
 protected:
+    void _SetEmptyMinMax()
+    {
+        m_nMin = s_kstUniverse-1;
+        m_nMax = 0;
+    }
     typedef typename _Alloc_traits< _tySubtree, t_tyAllocator >::allocator_type _tyAllocSubtree;
     typedef vector< _tySubtree, _tyAllocSubtree > _tyRgSubtrees;
     _tyRgSubtrees m_rgstSubtrees;
     _tySummaryTree m_stSummary;
     _tyImplType m_nLastElement; // Only valid when m_rgstSubtrees.size() > 0. No reason to set to any particular value.
-    _tyImplType m_nMin{1}; // The collection is empty when m_nMin > m_nMax.
+    _tyImplType m_nMin{s_kstUniverse-1}; // The collection is empty when m_nMin > m_nMax.
     _tyImplType m_nMax{0};
 };
 
