@@ -186,6 +186,26 @@ public:
         memcpy( _r.m_rgUint, rgUint, sizeof m_rgUint );
     }
 
+    void AssertValid( const _tyImplType * _pnLastElement = nullptr ) const
+    {
+#ifndef NDEBUG
+        if ( !_pnLastElement )
+            return; // all configurations of bits are valid for this set.
+        // If a _pnLastElement is passed then we should have no set bits after that point:
+        size_t stLastElement = *_pnLastElement;
+        assert( stLastElement < s_kstUniverse );
+        if ( !!( ( stLastElement + 1 ) % s_kstNBitsUint ) )
+        {
+            const _tyUint & rnCheck = m_rgUint[ stLastElement / s_kstNBitsUint ];
+            assert( !( rnCheck & ~( ( 1 << ( (stLastElement+1) % s_kstNBitsUint ) ) - 1 ) ) );
+        }
+        const _tyUint * pnCur = m_rgUint + ( ( stLastElement / s_kstNBitsUint ) + 1 );
+        const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
+        for ( ; pnEnd != pnCur; ++pnCur )
+            assert( !*pnCur ); // beyond the limit - bad.
+#endif //!NDEBUG
+    }
+
     bool FEmpty( bool = false ) const
     {
         return !FHasAnyElements();
@@ -298,7 +318,7 @@ public:
         }
         // Now update the last processed element by removing any bits beyond the last element:
         if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
-            pnCurThis[-1] &= ( 1 << ( stLastElement + 1 ) ) - 1;
+            pnCurThis[-1] &= ( ( 1 << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
     }
     void Insert( _tyImplType _x )
     {
@@ -430,7 +450,7 @@ public:
         for ( ; pnEndThis != pnCurThis; ++pnCurThis )
             *pnCurThis = ~*pnCurThis;
         if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
-            pnCurThis[-1] &= ( 1 << ( stLastElement + 1 ) ) - 1;        
+            pnCurThis[-1] &= ( ( 1 << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
         return *this;
     }
 
@@ -486,6 +506,21 @@ public:
     void swap( _tyThis & _r )
     {
         std::swap( m_byVebTree2, _r.m_byVebTree2 );
+    }
+
+    void AssertValid( const _tyImplType * _pnLastElement = nullptr ) const
+    {
+#ifndef NDEBUG
+        uint8_t byMask = 0b11;
+        if ( _pnLastElement )
+        {
+            size_t stLastElement = *_pnLastElement;
+            assert( stLastElement < s_kstUniverse );
+            if ( !stLastElement )
+                byMask = 0b01;
+        }
+        assert( !( m_byVebTree2 & ~byMask ) );
+#endif //!NDEBUG
     }
 
     bool FEmpty( bool = false ) const
@@ -633,6 +668,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -666,6 +702,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -699,6 +736,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -732,6 +770,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -765,6 +804,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -798,6 +838,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -831,6 +872,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -864,6 +906,7 @@ public:
     using _tyBase::operator =;
     using _tyBase::operator ==;
     using _tyBase::swap;
+    using _tyBase::AssertValid;
     using _tyBase::FEmpty;
     using _tyBase::FHasAnyElements;
     using _tyBase::FHasOneElement;
@@ -978,6 +1021,77 @@ public:
     static _tyImplType NIndex( _tyImplTypeSubtree _x, _tyImplTypeSubtree _y )
     {
         return ( _x * s_kstUniverseSqrtUpper ) + _y;
+    }
+
+    void AssertValid( const _tyImplType * _pnLastElement = nullptr ) const
+    {
+#ifndef NDEBUG
+        size_t stLastElement = !_pnLastElement ? s_kstUniverse-1 : *_pnLastElement;
+        if ( !FHasAnyElements() )
+        {
+            assert( FEmpty( true ) );
+        }
+        else
+        if ( FHasOneElement() )
+        {
+            assert( _NMin() <= stLastElement );
+            const _tySubtree * pstCur = m_rgstSubtrees;
+            const _tySubtree * const pstEnd = m_rgstSubtrees + s_kstUniverseSqrtLower;
+            for ( ; pstEnd != pstCur; ++pstCur )
+            {
+                assert( pstCur->FEmpty( true ) );
+            }
+            assert( m_stSummary.FEmpty( true ) );
+        }
+        else
+        {
+            assert( _NMin() < stLastElement );
+            assert( _NMax() <= stLastElement );
+            assert( !m_rgstSubtrees[ NCluster(_NMin()) ].FHasElement( NElInCluster(_NMin()) ) ); // the minimum is never present in the clusters.
+            // Move through each cluster - checking the consistency of the summary, etc.
+            _tyImplType nLastElement = !_pnLastElement ? _tyImplType(s_kstUniverse-1) : *_pnLastElement;
+            const _tySubtree * pstCur = m_rgstSubtrees;
+            const _tySubtree * const pstEndNonEmpty = m_rgstSubtrees + NCluster( nLastElement ) + 1;
+            _tyImplTypeSubtree nLastElementSubtree;
+            _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
+            if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
+            {
+                nLastElementSubtree = NElInCluster( *_pnLastElement );
+                pnLastElementSubtree = &nLastElementSubtree;
+            }
+            _tyImplTypeSubtree nCluster = 0;
+            _tyImplType nFoundMax = 0;
+            for ( ; pstEndNonEmpty != pstCur; ++pstCur, ++nCluster )
+            {
+                assert( m_stSummary.FHasElement( nCluster ) == pstCur->FHasAnyElements() );
+                if ( !pstCur->FHasAnyElements() )
+                    assert( pstCur->FEmpty( true ) );
+                else
+                {
+                    pstCur->AssertValid( pstEndNonEmpty-1 == pstCur ? pnLastElementSubtree : 0 );
+                    _tyImplType nMaxCluster = NIndex( nCluster, pstCur->NMax() );
+                    assert( nMaxCluster > nFoundMax );
+                    nFoundMax = nMaxCluster;
+                }
+            }
+            assert( nFoundMax == m_nMax ); // invariant.
+
+            // The rest of the data structure should be empty - also need to test the summary.
+            const _tySubtree * const pstEnd = m_rgstSubtrees + s_kstUniverseSqrtLower;
+            if ( pstEnd != pstEndNonEmpty )
+            {
+                // Then we must assure that the summary itself doesn't have any elements after it should:
+                --nCluster;
+                m_stSummary.AssertValid( &nCluster );
+                // Make sure that all remaining clusters are completely empty:
+                for ( ; pstEnd != pstCur; ++pstCur )
+                    assert( pstCur->FEmpty( true ) );
+            }
+            else
+                m_stSummary.AssertValid(); // ensure internal consistency for the summary.
+
+        }
+#endif //!NDEBUG
     }
 
     bool FEmpty( bool _fRecurse = false ) const
@@ -1380,7 +1494,7 @@ public:
             if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
             {
                 nLastElementSubtree = NElInCluster( *_pnLastElement );
-                pnLastElementSubtree = nLastElementSubtree;
+                pnLastElementSubtree = &nLastElementSubtree;
             }
             _tySubtree * pstCur = &m_rgstSubtrees[0];
             _tySubtree * const pstEnd = pstCur + stClustersProcess;
@@ -1427,7 +1541,7 @@ public:
         if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
         {
             nLastElementSubtree = NElInCluster( *_pnLastElement );
-            pnLastElementSubtree = nLastElementSubtree;
+            pnLastElementSubtree = &nLastElementSubtree;
         }
         // Move through all clusters of the object since all clusters will be modified.
         _tySubtree * pstCur = &m_rgstSubtrees[0];
@@ -1539,13 +1653,13 @@ public:
             _Deinit(); // We could do a lot better here but it takes a bit of work. I.e. we could keep the existing blocks and Clear() them.
         if ( _stNElements > s_kstUniverse )
             THROWNAMEDEXCEPTION( "VebTreeWrap::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
-        size_t nClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
+        size_t STClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
         _tyRgSubtrees rgstSubtrees( m_rgstSubtrees.get_allocator() ); // must pass custody of instanced allocator.
-        rgstSubtrees.reserve( nClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
-        rgstSubtrees.resize( nClusters ); // May throw.
-        memset( &rgstSubtrees[0], 0, nClusters * sizeof( _tySubtree ) );
+        rgstSubtrees.reserve( STClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
+        rgstSubtrees.resize( STClusters ); // May throw.
+        memset( &rgstSubtrees[0], 0, STClusters * sizeof( _tySubtree ) );
         // Now that we have allocated everything for this, we allow for the summary to also be dynamic:
-        m_stSummary.Init( nClusters );
+        m_stSummary.Init( STClusters );
         m_rgstSubtrees.swap( rgstSubtrees );
         m_nLastElement = _tyImplType(_stNElements-1 );
     }
@@ -1614,6 +1728,64 @@ public:
     static _tyImplType NIndex( _tyImplTypeSubtree _x, _tyImplTypeSubtree _y )
     {
         return ( _x * t_kstUniverseCluster ) + _y;
+    }
+
+    void AssertValid() const
+    {
+#ifndef NDEBUG
+        if ( !FHasAnyElements() )
+        {
+            assert( s_kstUniverse-1 == m_nMin ); // canonical form.
+            assert( !m_nMax );
+            assert( FEmpty( true ) );
+        }
+        else
+        if ( FHasOneElement() )
+        {
+            assert( NMin() <= m_nLastElement );
+            const _tySubtree * pstCur = &m_rgstSubtrees[0];
+            const _tySubtree * const pstEnd = pstCur + STClusters();
+            for ( ; pstEnd != pstCur; ++pstCur )
+            {
+                assert( pstCur->FEmpty( true ) );
+            }
+            assert( m_stSummary.FEmpty( true ) );
+        }
+        else
+        {
+            assert( NMin() < m_nLastElement );
+            assert( NMax() <= m_nLastElement );
+            assert( !m_rgstSubtrees[ NCluster(NMin()) ].FHasElement( NElInCluster(NMin()) ) ); // the minimum is never present in the clusters.
+            // Move through each cluster - checking the consistency of the summary, etc.
+            const _tySubtree * pstCur = &m_rgstSubtrees[0];
+            const _tySubtree * const pstEnd = pstCur + STClusters();
+            _tyImplTypeSubtree nLastElementSubtree;
+            _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
+            if ( !!( NElInCluster( m_nLastElement + 1 ) ) )
+            {
+                nLastElementSubtree = NElInCluster( m_nLastElement );
+                pnLastElementSubtree = &nLastElementSubtree;
+            }
+            _tyImplTypeSubtree nCluster = 0;
+            _tyImplType nFoundMax = 0;
+            for ( ; pstEnd != pstCur; ++pstCur, ++nCluster )
+            {
+                assert( m_stSummary.FHasElement( nCluster ) == pstCur->FHasAnyElements() );
+                if ( !pstCur->FHasAnyElements() )
+                    assert( pstCur->FEmpty( true ) );
+                else
+                {
+                    pstCur->AssertValid( pstEnd-1 == pstCur ? pnLastElementSubtree : 0 );
+                    _tyImplType nMaxCluster = NIndex( nCluster, pstCur->NMax() );
+                    assert( nMaxCluster > nFoundMax );
+                    nFoundMax = nMaxCluster;
+                }
+            }
+            assert( nFoundMax == m_nMax ); // invariant.
+
+            m_stSummary.AssertValid();
+        }
+#endif //!NDEBUG
     }
 
     bool FEmpty( bool _fRecurse = false ) const
