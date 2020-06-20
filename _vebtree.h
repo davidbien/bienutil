@@ -197,7 +197,7 @@ public:
         if ( !!( ( stLastElement + 1 ) % s_kstNBitsUint ) )
         {
             const _tyUint & rnCheck = m_rgUint[ stLastElement / s_kstNBitsUint ];
-            assert( !( rnCheck & ~( ( 1 << ( (stLastElement+1) % s_kstNBitsUint ) ) - 1 ) ) );
+            assert( !( rnCheck & ~( ( _tyUint(1) << ( (stLastElement+1) % s_kstNBitsUint ) ) - 1 ) ) );
         }
         const _tyUint * pnCur = m_rgUint + ( ( stLastElement / s_kstNBitsUint ) + 1 );
         const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
@@ -309,7 +309,7 @@ public:
                     *pnCurThis = 0;
                 else
                 {
-                    *pnCurThis = ~( ( 1 << stFirstInsert ) - 1 );
+                    *pnCurThis = ~( ( _tyUint(1) << stFirstInsert ) - 1 );
                     stFirstInsert = 0; // No longer need to potentially process.
                 }
             }
@@ -318,7 +318,7 @@ public:
         }
         // Now update the last processed element by removing any bits beyond the last element:
         if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
-            pnCurThis[-1] &= ( ( 1 << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
+            pnCurThis[-1] &= ( ( _tyUint(1) << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
     }
     void Insert( _tyImplType _x )
     {
@@ -450,7 +450,7 @@ public:
         for ( ; pnEndThis != pnCurThis; ++pnCurThis )
             *pnCurThis = ~*pnCurThis;
         if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
-            pnCurThis[-1] &= ( ( 1 << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
+            pnCurThis[-1] &= ( ( _tyUint(1) << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
         return *this;
     }
 
@@ -588,7 +588,7 @@ public:
     void Insert( _tyImplType _x )
     {
         assert( _x < s_kstUniverse );
-        m_byVebTree2 |= ( 1 << _x );
+        m_byVebTree2 |= ( _tyImplType(1) << _x );
     }
     // Return true if the element was inserted, false if it already existed.
     bool FCheckInsert( _tyImplType _x )
@@ -602,7 +602,7 @@ public:
     void Delete( _tyImplType _x )
     {
         assert( _x < s_kstUniverse );
-        m_byVebTree2 &= ~( 1 << _x );
+        m_byVebTree2 &= ~( _tyImplType(1) << _x );
     }
     // Return true if the element was deleted, false if it already existed.
     bool FCheckDelete( _tyImplType _x )
@@ -614,7 +614,7 @@ public:
     }
     bool FHasElement( _tyImplType _x ) const
     {
-        return !!( m_byVebTree2 & ( 1 << _x ) );
+        return !!( m_byVebTree2 & ( _tyImplType(1) << _x ) );
     }
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
@@ -646,7 +646,7 @@ public:
     }
     _tyThis & BitwiseInvert()
     {
-        m_byVebTree2 = ~m_byVebTree2 & ( ( 1 << s_kstUniverse ) - 1 );
+        m_byVebTree2 = ~m_byVebTree2 & ( ( _tyImplType(1) << s_kstUniverse ) - 1 );
         return *this;
     }
 protected:
