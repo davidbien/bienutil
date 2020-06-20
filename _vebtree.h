@@ -287,7 +287,7 @@ public:
     // In this method we must clear and set all bits appropriately according to the call parameters:
     // 1) Must clear all bits up until _pnFirstInsert if present.
     // 2) Must set all bits up until _pnLastElement if present but needn't touch any bits beyond that because they shouldn't have ever been modified.
-    void InsertAll( const _tyImplType _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
+    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
         assert( !_pnFirstInsert || !!*_pnFirstInsert );
         assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
@@ -569,9 +569,20 @@ public:
     {
         _ClearHasElements();
     }
-    void InsertAll()
+    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
-        m_byVebTree2 = 0b11;
+        if ( !_pnFirstInsert && !_pnLastElement )
+            m_byVebTree2 = 0b11; // the usual case.
+        else
+        {
+            assert( !_pnFirstInsert || !!*_pnFirstInsert );
+            assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+            assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+            if ( _pnFirstInsert )
+                m_byVebTree2 = 0b10;
+            else
+                m_byVebTree2 = 0b01;
+        }
     }
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
@@ -1474,7 +1485,7 @@ public:
         return *this;
     }
 
-    void InsertAll( const _tyImplType _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
+    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
         assert( !_pnFirstInsert || !!*_pnFirstInsert );
         assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
@@ -1488,7 +1499,7 @@ public:
         if ( _NMin() != _NMax() )
         {
             _tyImplTypeSubtree nFirstInsert = _NMin() + 1; // Don't need to worry about this going over a cluster boundary due to impl.
-            size_t stClustersProcess = _pnLastElement ? ( size_t( NCluster( *_pnLastElement ) ) + 1 ) : STClusters();
+            size_t stClustersProcess = _pnLastElement ? ( size_t( NCluster( *_pnLastElement ) ) + 1 ) : s_kstUniverseSqrtLower;
             _tyImplTypeSubtree nLastElementSubtree;
             _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
             if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
@@ -1498,16 +1509,16 @@ public:
             }
             _tySubtree * pstCur = &m_rgstSubtrees[0];
             _tySubtree * const pstEnd = pstCur + stClustersProcess;
-            pstCur->InsertAll( &nFirstInsert, ( 1 == stClustersProcess ) ? pnLastElementSubtree : 0 );
+            pstCur->InsertAll( &nFirstInsert, ( 1 == stClustersProcess ) ? pnLastElementSubtree : nullptr );
             for ( ++pstCur; pstEnd != pstCur; ++pstCur )
-                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : 0 );
+                pstCur->InsertAll( nullptr, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : nullptr );
             // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
             _tyImplTypeSummaryTree nLastElementSummary;
             _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
-            if ( stClustersProcess != STClusters() )
+            if ( stClustersProcess != s_kstUniverseSqrtLower )
             {
                 nLastElementSummary = stClustersProcess - 1;
-                pnLastElementSummary = nLastElementSummary;
+                pnLastElementSummary = &nLastElementSummary;
             }
             m_stSummary.InsertAll( nullptr, pnLastElementSummary );
         }
@@ -2139,8 +2150,13 @@ public:
         }
         return *this;
     }
-    void InsertAll()
+    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
+        if ( !STClusters() )
+            THROWNAMEDEXCEPTION("VebTreeWrap::InsertAll(): Tree is not initialized.");
+
+        assert( !_pnFirstInsert ); // This is only there for genericity.
+        assert( !_pnLastElement || *_pnLastElement == m_nLastElement ); // We should always be specifying everything - we don't use either of the arguments below because there is no need to support them in this method at least.
         // Algorithm:
         // Set m_nMin to 0, set m_nMax to m_nLastElement.
         // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
@@ -2158,9 +2174,9 @@ public:
             }
             _tySubtree * pstCur = &m_rgstSubtrees[0];
             _tySubtree * const pstEnd = pstCur + STClusters();
-            pstCur->InsertAll( &nFirstInsert, ( 1 == STClusters() ) ? pnLastElementSubtree : 0 );
+            pstCur->InsertAll( &nFirstInsert, ( 1 == STClusters() ) ? pnLastElementSubtree : nullptr );
             for ( ++pstCur; pstEnd != pstCur; ++pstCur )
-                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : 0 );
+                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : nullptr );
                 
             // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
             _tyImplTypeSummaryTree nLastElementSummary;
@@ -2168,7 +2184,7 @@ public:
             if ( t_kstUniverseCluster != STClusters() )
             {
                 nLastElementSummary = STClusters() - 1;
-                pnLastElementSummary = nLastElementSummary;
+                pnLastElementSummary = &nLastElementSummary;
             }
             m_stSummary.InsertAll( nullptr, pnLastElementSummary );
         }
