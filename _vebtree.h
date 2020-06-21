@@ -139,6 +139,7 @@ public:
     // We still accept and return arguments based upon the size of the universe:
     static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
+    static constexpr _tyImplType s_kitNoSuccessor = 0;
     static constexpr _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
     typedef t_tyUint _tyUint;
     static const size_t s_kstNBitsUint = sizeof( _tyUint ) * CHAR_BIT;
@@ -372,7 +373,7 @@ public:
     {
         assert( _x < s_kstUniverse );
         if ( _x >= s_kstUniverse-1 )
-            return 0;
+            return s_kitNoSuccessor;
         ++_x;
         const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
         _x %= s_kstNBitsUint;
@@ -386,7 +387,7 @@ public:
                 if ( *pn )
                     return n_VanEmdeBoasTreeImpl::Ctz( *pn ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
             }
-            return 0;
+            return s_kitNoSuccessor;
         }
         else
         {
@@ -399,7 +400,7 @@ public:
     {
         assert( _x < s_kstUniverse );
         if ( _x >= s_kstUniverse-1 )
-            return 0;
+            return s_kitNoSuccessor;
         ++_x;
         _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
         _x %= s_kstNBitsUint;
@@ -417,7 +418,7 @@ public:
                     return nCtz + ( ( pn - m_rgUint ) * s_kstNBitsUint );
                 }
             }
-            return 0;
+            return s_kitNoSuccessor;
         }
         else
         {
@@ -547,6 +548,7 @@ class VebTreeFixed< 2, t_kfContainedInVebWrap >
 public:
     static const size_t s_kstUniverse = 2;
     typedef uint8_t _tyImplType;
+    static const _tyImplType s_kitNoSuccessor = 0;
     static const _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
 
     VebTreeFixed()
@@ -1063,15 +1065,18 @@ public:
     static constexpr size_t s_kstUniverse = t_kstUniverse;
     static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( t_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
+    static constexpr _tyImplType s_kitNoSuccessor = 0;
     static constexpr _tyImplType s_kitNoPredecessor = t_kstUniverse - 1;
     static constexpr size_t s_kstUniverseSqrtLower = n_VanEmdeBoasTreeImpl::LowerSqrt( t_kstUniverse );
     static constexpr size_t s_kstUniverseSqrtUpper = n_VanEmdeBoasTreeImpl::UpperSqrt( t_kstUniverse );
     typedef VebTreeFixed< s_kstUniverseSqrtUpper, t_kfContainedInVebWrap > _tySubtree;
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
-    static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = s_kstUniverseSqrtUpper-1;
+    static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = _tySubtree::s_kitNoPredecessor;
+    static constexpr _tyImplTypeSubtree s_kstitNoSuccessorSubtree = _tySubtree::s_kitNoSuccessor;
     typedef VebTreeFixed< s_kstUniverseSqrtLower, t_kfContainedInVebWrap > _tySummaryTree;
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
-    static constexpr _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSqrtLower-1;
+    static constexpr _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = _tySummaryTree::s_kitNoPredecessor;
+    static constexpr _tyImplTypeSummaryTree s_kstitNoSuccessorSummaryTree = _tySummaryTree::s_kitNoSuccessor;
 
     VebTreeFixed()
     {
@@ -1502,7 +1507,9 @@ public:
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
         assert( _x < t_kstUniverse );
-        if ( FHasAnyElements() && ( _x < _NMin() ) )
+        if ( !FHasAnyElements() )
+            return s_kitNoSuccessor;
+        if ( _x < _NMin() )
             return _NMin();
         
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -1512,25 +1519,27 @@ public:
         if ( fMaxCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessor( nEl );
-            assert( !!nOffsetSubtree );
+            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             return NIndex( nCluster, nOffsetSubtree );
         }
         else
         {
             _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
-            if ( !!nSuccessiveCluster )
+            if ( s_kstitNoSuccessorSummaryTree != nSuccessiveCluster )
             {
                 _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nSuccessiveCluster].NMin();
                 return NIndex( nSuccessiveCluster, nOffsetSubtree );
             }
         }
-        return 0; // No successor.
+        return s_kitNoSuccessor;
     }
     // Return and remove the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessorDelete( _tyImplType _x )
     {
         assert( _x < t_kstUniverse );
-        if ( FHasAnyElements() && ( _x < _NMin() ) )
+        if ( !FHasAnyElements() )
+            return s_kitNoSuccessor;
+        if ( _x < _NMin() )
         {
             _tyImplType n = _NMin();
             Delete( n );
@@ -1543,7 +1552,7 @@ public:
         if ( fElsCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessorDelete( nEl );
-            assert( !!nOffsetSubtree );
+            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             if ( nMinCluster == nMaxCluster )
             {
                 assert( nEl == nMinCluster );
@@ -1565,7 +1574,7 @@ public:
         else
         {
             _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
-            if ( !!nSuccessiveCluster )
+            if ( s_kstitNoSuccessorSummaryTree != nSuccessiveCluster )
             {
                 _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
                 (void)m_rgstSubtrees[nSuccessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
@@ -1583,13 +1592,15 @@ public:
                 return NIndex( nSuccessiveCluster, nMinSubtree );
             }
         }
-        return 0; // No successor.
+        return s_kitNoSuccessor; // No successor.
     }
     // Return the previous element before _x or t_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
         assert( _x < t_kstUniverse );
-        if ( FHasAnyElements() && ( _x > m_nMax ) )
+        if ( !FHasAnyElements() )
+            return s_kitNoPredecessor;
+        if ( _x > m_nMax )
             return m_nMax;
         
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -1623,7 +1634,9 @@ public:
     _tyImplType NPredecessorDelete( _tyImplType _x )
     {
         assert( _x < t_kstUniverse );
-        if ( FHasAnyElements() && ( _x > m_nMax ) )
+        if ( !FHasAnyElements() )
+            return s_kitNoPredecessor;
+        if ( _x > m_nMax )
         {
             _tyImplType n = m_nMax;
             Delete( m_nMax );
@@ -1691,7 +1704,7 @@ public:
                 m_stSummary.Insert( nClusterCur ); // Update the summary.
             rstThis |= rstThat; // do the deed.
         }
-        while( ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
+        while( s_kstitNoSuccessorSummaryTree != ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
         return *this;
     }
     // This is more difficult than the |= because it may change the minumum from below.
@@ -1766,7 +1779,7 @@ public:
             }
 
         }
-        while( ( nClusterCur = m_stSummary.NSuccessor( nClusterCur ) ) );
+        while( s_kstitNoSuccessorSummaryTree != ( nClusterCur = m_stSummary.NSuccessor( nClusterCur ) ) );
         // Now deal with the found min/max:
         if ( stMinCur == s_kstUniverse )
         {
@@ -1841,7 +1854,7 @@ public:
                     m_nMax = nMaxTest;
             }
         }
-        while( ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
+        while( s_kstitNoSuccessorSummaryTree != ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
         // Now process nMinExisting and fHasMinThat, etc:
         if ( fHasAnyElements )
         {
@@ -1974,15 +1987,19 @@ public:
     static constexpr size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
     static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
-    static constexpr _tyImplType s_kitNoPredecessor = s_kstUniverse - 1;
+    // In VebTreeWrap *only* we will always return numeric_limits< size_t >::max() when there is no successor/predecessor.
+    static constexpr size_t s_kitNoSuccessor = numeric_limits< size_t >::max();
+    static constexpr size_t s_kitNoPredecessor = numeric_limits< size_t >::max();
     static constexpr size_t s_kstUniverseCluster = t_kstUniverseCluster;
     typedef VebTreeFixed< t_kstUniverseCluster, true > _tySubtree; // We are composed of fixed size clusters.
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
-    static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = t_kstUniverseCluster-1;
+    static constexpr _tyImplTypeSubtree s_kstitNoPredecessorSubtree = _tySubtree::s_kitNoPredecessor;
+    static constexpr _tyImplTypeSubtree s_kstitNoSuccessorSubtree = _tySubtree::s_kitNoSuccessor;
     static constexpr size_t s_kstUniverseSummary = t_tySummaryClass::s_kstUniverse;
     typedef t_tySummaryClass _tySummaryTree;
     typedef typename _tySummaryTree::_tyImplType _tyImplTypeSummaryTree;
-    static constexpr _tyImplTypeSummaryTree s_kstitNoPredecessorSummaryTree = s_kstUniverseSummary-1;
+    static constexpr size_t s_kstitNoPredecessorSummaryTree = _tySummaryTree::s_kitNoPredecessor;
+    static constexpr size_t s_kstitNoSuccessorSummaryTree = _tySummaryTree::s_kitNoSuccessor;
 
     VebTreeWrap() = default;
     VebTreeWrap( t_tyAllocator const & _rAlloc )
@@ -2212,10 +2229,10 @@ public:
             if ( !FHasOneElement() )
             {
                 // Use the summary elements to minimize the number of subelements that we touch:
-                _tyImplTypeSummaryTree nClusterCur = m_stSummary.NMin();
+                size_t stClusterCur = m_stSummary.NMin();
                 do
-                    m_rgstSubtrees[ nClusterCur ].Clear();
-                while( ( nClusterCur = m_stSummary.NSuccessor( nClusterCur ) ) );
+                    m_rgstSubtrees[ stClusterCur ].Clear();
+                while( s_kstitNoSuccessorSummaryTree != ( stClusterCur = m_stSummary.NSuccessor( stClusterCur ) ) );
                 m_stSummary.Clear();
             }
             _SetEmptyMinMax();
@@ -2426,13 +2443,14 @@ public:
     }
     // Return the next element after _x or 0 if there is no such element.
     // If numeric_limits< size_t >::max() is passed then the first element of the set is returned.
-    _tyImplType NSuccessor( size_t _x = numeric_limits< size_t >::max() ) const
+    size_t NSuccessor( size_t _x = numeric_limits< size_t >::max() ) const
     {
         if ( !FHasAnyElements() )
-            return 0;
+            return s_kitNoSuccessor;
         else
         if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
             return m_nMin;
+        assert( _x <= m_nLastElement );
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -2442,26 +2460,26 @@ public:
         if ( fMaxCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessor( nEl );
-            assert( !!nOffsetSubtree );
+            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             return NIndex( nCluster, nOffsetSubtree );
         }
         else
         {
-            _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
-            if ( !!nSuccessiveCluster )
+            size_t stSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
+            if ( s_kstitNoSuccessorSummaryTree != stSuccessiveCluster )
             {
-                _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nSuccessiveCluster].NMin();
-                return NIndex( nSuccessiveCluster, nOffsetSubtree );
+                _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[stSuccessiveCluster].NMin();
+                return NIndex( stSuccessiveCluster, nOffsetSubtree );
             }
         }
-        return 0; // No successor.
+        return s_kitNoSuccessor;
     }
-    // Return and remove the next element after _x or 0 if there is no such element.
+    // Return and remove the next element after _x or numeric_limits< size_t >::max() if there is no such element.
     // If numeric_limits< size_t >::max() is passed then the first element of the set is returned.
-    _tyImplType NSuccessorDelete( size_t _x = numeric_limits< size_t >::max() )
+    size_t NSuccessorDelete( size_t _x = numeric_limits< size_t >::max() )
     {
         if ( !FHasAnyElements() )
-            return 0;
+            return s_kitNoSuccessor;
         else
         if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
         {
@@ -2478,7 +2496,7 @@ public:
         if ( fElsCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessorDelete( nEl );
-            assert( !!nOffsetSubtree );
+            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             if ( nMinCluster == nMaxCluster )
             {
                 assert( nEl == nMinCluster );
@@ -2499,30 +2517,30 @@ public:
         }
         else
         {
-            _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
-            if ( !!nSuccessiveCluster )
+            size_t stSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
+            if ( s_kstitNoSuccessorSummaryTree != stSuccessiveCluster )
             {
                 _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
-                (void)m_rgstSubtrees[nSuccessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
-                m_rgstSubtrees[nSuccessiveCluster].Delete( nMinSubtree );
-                if ( nMinSubtree == nMaxSubtree ) // if we deleted the last element of nSuccessiveCluster.
+                (void)m_rgstSubtrees[stSuccessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
+                m_rgstSubtrees[stSuccessiveCluster].Delete( nMinSubtree );
+                if ( nMinSubtree == nMaxSubtree ) // if we deleted the last element of stSuccessiveCluster.
                 {
-                    m_stSummary.Delete( nSuccessiveCluster );
-                    if ( NIndex( nSuccessiveCluster, nMaxSubtree ) == m_nMax )
+                    m_stSummary.Delete( stSuccessiveCluster );
+                    if ( NIndex( stSuccessiveCluster, nMaxSubtree ) == m_nMax )
                     {
-                        _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nSuccessiveCluster );
+                        _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( stSuccessiveCluster );
                         m_nMax = ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster ) 
                             ? m_nMin : NIndex( nPredecessiveCluster, m_rgstSubtrees[ nPredecessiveCluster ].NMax() );
                     }
                 }
-                return NIndex( nSuccessiveCluster, nMinSubtree );
+                return NIndex( stSuccessiveCluster, nMinSubtree );
             }
         }
-        return 0; // No successor.
+        return s_kitNoSuccessor;
     }
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     // If numeric_limits< size_t >::max() is passed then the last element of the set is returned.
-    _tyImplType NPredecessor( size_t _x = numeric_limits< size_t >::max() ) const
+    size_t NPredecessor( size_t _x = numeric_limits< size_t >::max() ) const
     {
         if ( !FHasAnyElements() )
             return s_kitNoPredecessor;
@@ -2545,24 +2563,24 @@ public:
         }
         else
         {
-            _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
-            if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
+            size_t stPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree == stPredecessiveCluster )
             {
                 if ( _x > m_nMin )
                     return m_nMin;
             }
             else
             {
-                _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nPredecessiveCluster].NMax();
-                return NIndex( nPredecessiveCluster, nOffsetSubtree );
+                _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[stPredecessiveCluster].NMax();
+                return NIndex( stPredecessiveCluster, nOffsetSubtree );
             }
         }
-        return s_kitNoPredecessor; // No predecessor.
+        return s_kitNoPredecessor;
     }
     // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
     // If numeric_limits< size_t >::max() is passed then the last element of the set is removed and returned.
     // This is significantly easier than NSuccessorDelete because m_nMin isn't contained in the subtree elements.
-    _tyImplType NPredecessorDelete( size_t _x = numeric_limits< size_t >::max() )
+    size_t NPredecessorDelete( size_t _x = numeric_limits< size_t >::max() )
     {
         if ( !FHasAnyElements() )
             return s_kitNoPredecessor;
@@ -2589,8 +2607,8 @@ public:
         }
         else
         {
-            _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
-            if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
+            size_t stPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree == stPredecessiveCluster )
             {
                 if ( _x > m_nMin )
                 {
@@ -2602,14 +2620,14 @@ public:
             else
             {
                 _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
-                (void)m_rgstSubtrees[nPredecessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
-                m_rgstSubtrees[nPredecessiveCluster].Delete( nMaxSubtree );
+                (void)m_rgstSubtrees[stPredecessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
+                m_rgstSubtrees[stPredecessiveCluster].Delete( nMaxSubtree );
                 if ( nMinSubtree == nMaxSubtree )
-                    m_stSummary.Delete( nPredecessiveCluster );
-                return NIndex( nPredecessiveCluster, nMaxSubtree );
+                    m_stSummary.Delete( stPredecessiveCluster );
+                return NIndex( stPredecessiveCluster, nMaxSubtree );
             }
         }
-        return s_kitNoPredecessor; // No predecessor.
+        return s_kitNoPredecessor;
     }
 
 // Allow bitwise operations as we can manage them.
@@ -2630,17 +2648,17 @@ public:
 
         // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
         // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
-        _tyImplTypeSummaryTree nClusterCur = _r.m_stSummary.NMin();
+        size_t stClusterCur = _r.m_stSummary.NMin();
         do
         {
-            const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
+            const _tySubtree & rstThat = _r.m_rgstSubtrees[ stClusterCur ];
             assert( rstThat.FHasAnyElements() );
-            _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
+            _tySubtree & rstThis = m_rgstSubtrees[ stClusterCur ];
             if ( !rstThis.FHasAnyElements() )
-                m_stSummary.Insert( nClusterCur ); // Update the summary.
+                m_stSummary.Insert( stClusterCur ); // Update the summary.
             rstThis |= rstThat; // do the deed.
         }
-        while( ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
+        while( s_kstitNoSuccessorSummaryTree != ( stClusterCur = _r.m_stSummary.NSuccessor( stClusterCur ) ) );
         return *this;
     }
     // This is more difficult than the |= because it may change the minumum from below.
@@ -2685,20 +2703,20 @@ public:
 
         // Now call each sub-object of interest - which is all clusters of *this that contain any data at all.
         // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
-        _tyImplTypeSummaryTree nClusterCur = m_stSummary.NMin();
+        size_t stClusterCur = m_stSummary.NMin();
         do
         {
-            const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
-            _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
+            const _tySubtree & rstThat = _r.m_rgstSubtrees[ stClusterCur ];
+            _tySubtree & rstThis = m_rgstSubtrees[ stClusterCur ];
             rstThis &= rstThat; // do the deed.
             if ( !rstThis.FHasAnyElements() )
-                m_stSummary.Delete( nClusterCur ); // Update the summary.
+                m_stSummary.Delete( stClusterCur ); // Update the summary.
             else
             {
                 if ( !fFoundMinCur )
                 {
                     fFoundMinCur = true; // Need only test this once.
-                    _tyImplType nMinTest = NIndex( nClusterCur, rstThis.NMin() );
+                    _tyImplType nMinTest = NIndex( stClusterCur, rstThis.NMin() );
                     if ( nMinTest < stMinCur )
                     {
                         // We know we have found the "ultimate minimum" at this point because we will only see greater elements from here on out:
@@ -2706,17 +2724,17 @@ public:
                         rstThis.Delete( rstThis.NMin() ); // We own this minimum now since we will store it in this object.
                         if ( !rstThis.FHasAnyElements() )
                         {
-                            m_stSummary.Delete( nClusterCur ); // Update the summary.
+                            m_stSummary.Delete( stClusterCur ); // Update the summary.
                             continue; // No reason to test the max below.
                         }
                     }
                 }
-                _tyImplType nMaxTest = NIndex( nClusterCur, rstThis.NMax() );
+                _tyImplType nMaxTest = NIndex( stClusterCur, rstThis.NMax() );
                 if ( nMaxTest > nMaxCur )
                     nMaxCur = nMaxTest;
             }
         }
-        while( ( nClusterCur = m_stSummary.NSuccessor( nClusterCur ) ) );
+        while( s_kstitNoSuccessorSummaryTree != ( stClusterCur = m_stSummary.NSuccessor( stClusterCur ) ) );
         // Now deal with the found min/max:
         if ( stMinCur == NSize() )
         {
@@ -2764,38 +2782,38 @@ public:
 
         // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
         // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
-        _tyImplTypeSummaryTree nClusterCur = _r.m_stSummary.NMin();
+        size_t stClusterCur = _r.m_stSummary.NMin();
         do
         {
-            const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
+            const _tySubtree & rstThat = _r.m_rgstSubtrees[ stClusterCur ];
             assert( rstThat.FHasAnyElements() );
-            _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
+            _tySubtree & rstThis = m_rgstSubtrees[ stClusterCur ];
             rstThis ^= rstThat; // do it.
             _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
             bool fHasAnyElements = rstThis.FHasMinMax( fFoundMin ? 0 : &nMinSubtree, &nMaxSubtree );
             bool fIsInSummary = fHasAnyElements && ( fFoundMin || ( nMinSubtree != nMaxSubtree ) );
-            if ( fIsInSummary != m_stSummary.FHasElement( nClusterCur ) )
+            if ( fIsInSummary != m_stSummary.FHasElement( stClusterCur ) )
             {
                 if ( !fIsInSummary )
-                    m_stSummary.Delete( nClusterCur );
+                    m_stSummary.Delete( stClusterCur );
                 else
-                    m_stSummary.Insert( nClusterCur );
+                    m_stSummary.Insert( stClusterCur );
             }
             if ( fHasAnyElements )
             {
                 if ( !fFoundMin )
                 {
                     fFoundMin = true;
-                    m_nMin = NIndex( nClusterCur, nMinSubtree ); // This is the resultant minimum - and this container owns it now.
+                    m_nMin = NIndex( stClusterCur, nMinSubtree ); // This is the resultant minimum - and this container owns it now.
                     rstThis.Delete( nMinSubtree ); // Took care of any summary changes above.
                 }
-                _tyImplType nMaxTest = NIndex( nClusterCur, nMaxSubtree );
+                _tyImplType nMaxTest = NIndex( stClusterCur, nMaxSubtree );
                 assert( nMaxTest > m_nMax );
                 if ( nMaxTest > m_nMax )
                     m_nMax = nMaxTest;
             }
         }
-        while( ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
+        while( s_kstitNoSuccessorSummaryTree != ( stClusterCur = _r.m_stSummary.NSuccessor( stClusterCur ) ) );
         
         // Now process nMinExisting and fHasMinThat, etc:
         if ( fHasAnyElements )
