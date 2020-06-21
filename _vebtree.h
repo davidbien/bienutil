@@ -1355,10 +1355,52 @@ public:
     // Return true if the element was deleted, false if it already existed.
     bool FCheckDelete( _tyImplType _x )
     {
-        if ( !FHasElement( _x ) )
+        assert( _x < t_kstUniverse );
+        if ( FHasOneElement() )
+        {
+            if ( _x == m_nMax )
+            {
+                _SetEmptyMinMax();
+                return true;
+            }
             return false;
-        Delete( _x );
-        return true;
+        }
+        else
+        {
+            bool fDeleted = false;
+            if ( _x == _NMin() )
+            {
+                _tyImplTypeSummaryTree nFirstCluster = m_stSummary.NMin();
+                _x = NIndex( nFirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
+                _SetMin( _x );
+                fDeleted = true; // We have already deleted it.
+            }
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            if ( fDeleted )
+                m_rgstSubtrees[ nCluster ].Delete( nEl );
+            else
+                fDeleted = m_rgstSubtrees[ nCluster ].FCheckDelete( nEl );
+            if ( fDeleted )
+            {
+                if ( !m_rgstSubtrees[ nCluster ].FHasAnyElements() )
+                {
+                    m_stSummary.Delete( nCluster );
+                    if ( _x == m_nMax )
+                    {
+                        _tyImplTypeSummaryTree nMaxSummary;
+                        if ( !m_stSummary.FHasMinMax( 0, &nMaxSummary ) )
+                            m_nMax = _NMin();
+                        else
+                            m_nMax = NIndex( nMaxSummary, m_rgstSubtrees[ nMaxSummary ].NMax() );
+                    }
+                }
+                else
+                if ( _x == m_nMax )
+                    m_nMax = NIndex( nCluster, m_rgstSubtrees[ nCluster ].NMax() );
+            }
+            return fDeleted;
+        }
     }
     bool FHasElement( _tyImplType _x ) const
     {
@@ -2131,10 +2173,53 @@ public:
     // Return true if the element was deleted, false if it already existed.
     bool FCheckDelete( _tyImplType _x )
     {
-        if ( !FHasElement( _x ) )
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::FCheckDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+        if ( m_nMin == m_nMax )
+        {
+            if ( _x == m_nMin )
+            {
+                _SetEmptyMinMax();
+                return true;
+            }
             return false;
-        Delete( _x );
-        return true;
+        }
+        else
+        {
+            bool fDeleted = false;
+            if ( _x == m_nMin )
+            {
+                _tyImplTypeSummaryTree nFirstCluster = m_stSummary.NMin();
+                _x = NIndex( nFirstCluster, m_rgstSubtrees[ nFirstCluster ].NMin() );
+                m_nMin = _x;
+                fDeleted = true; // We have already deleted it.
+            }
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            if ( fDeleted )
+                m_rgstSubtrees[ nCluster ].Delete( nEl );
+            else
+                fDeleted = m_rgstSubtrees[ nCluster ].FCheckDelete( nEl );
+            if ( fDeleted )
+            {
+                if ( !m_rgstSubtrees[ nCluster ].FHasAnyElements() )
+                {
+                    m_stSummary.Delete( nCluster );
+                    if ( _x == m_nMax )
+                    {
+                        _tyImplTypeSummaryTree nMaxSummary;
+                        if ( !m_stSummary.FHasMinMax( 0, &nMaxSummary ) )
+                            m_nMax = m_nMin;
+                        else
+                            m_nMax = NIndex( nMaxSummary, m_rgstSubtrees[ nMaxSummary ].NMax() );
+                    }
+                }
+                else
+                if ( _x == m_nMax )
+                    m_nMax = NIndex( nCluster, m_rgstSubtrees[ nCluster ].NMax() );
+            }
+            return fDeleted;
+        }
     }
     bool FHasElement( _tyImplType _x ) const
     {
