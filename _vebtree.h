@@ -1497,17 +1497,17 @@ public:
         if ( _r.FHasOneElement() )
         {
             if ( !fHasMinThat )
-                Insert( _r._NMin() ); // We know that the minimum for this cluster is correct now and we processed the minimum of the other cluster.
+                Insert( _r._NMin() );
             else
                 Delete( _r._NMin() );
             return *this;
         }
-//#error HERE.
-        // No need to process _r's max at this time because it may change below.
-        _tyImplType nMinExisting = _NMin(); // Must hold on to this so we can remove/insert it below.
-        size_t stMinCur = s_kstUniverse;
+      
+        _tyImplType nMinExisting = _NMin(); // Must hold on to this so we can remove it below.
+        bool fFoundMin = false;
+        _SetMin( s_kstUniverse-1 );
+        _tyImplType nMaxExisting = m_nMax; // Must hold on to this so we can remove it below.
         m_nMax = 0;
-        m_nMin = s_kstUniverse-1; // We will at least encounter nMinExisting as an element after inversion since it cannot be in the clusters.
 
         // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
         // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
@@ -1517,14 +1517,50 @@ public:
             const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
             assert( rstThat.FHasAnyElements() );
             _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
-            if ( !rstThis.FHasAnyElements() )
-                m_stSummary.Insert( nClusterCur ); // Update the summary.
-            rstThis |= rstThat; // do the deed.
+            rstThis ^= rstThat; // do it.
+            _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
+            bool fHasAnyElements = rstThis.FHasMinMax( fFoundMin ? 0 : &nMinSubtree, &nMaxSubtree );
+            bool fIsInSummary = fHasAnyElements && ( fFoundMin || ( nMinSubtree != nMaxSubtree ) );
+            if ( fIsInSummary != m_stSummary.FHasElement( nClusterCur ) )
+            {
+                if ( !fIsInSummary )
+                    m_stSummary.Delete( nClusterCur );
+                else
+                    m_stSummary.Insert( nClusterCur );
+            }
+            if ( fHasAnyElements )
+            {
+                if ( !fFoundMin )
+                {
+                    fFoundMin = true;
+                    _SetMin( NIndex( nClusterCur, nMinSubtree ) ); // This is the resultant minimum - and this container owns it now.
+                    rstThis.Delete( nMinSubtree ); // Took care of any summary changes above.
+                }
+                _tyImplType nMaxTest = NIndex( nClusterCur, nMaxSubtree );
+                assert( nMaxTest > m_nMax );
+                if ( nMaxTest > m_nMax )
+                    m_nMax = nMaxTest;
+            }
         }
         while( ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
+        // Now process nMinExisting and fHasMinThat, etc:
+        if ( fHasAnyElements )
+        {
+            if ( !fHasMinThat )
+                Insert( _r._NMin() );
+            else
+                Delete( _r._NMin() );
+            if ( _r.FHasElement( nMinExisting ) )
+                Delete( nMinExisting );
+            else
+                Insert( nMinExisting );
+            if ( !_r.FHasElement( nMaxExisting ) && ( nMaxExisting > m_nMax ) )
+                m_nMax = nMaxExisting;
+        }
+        else
+            Insert( _r._NMin() );
         return *this;
     }
-
     void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
         assert( !_pnFirstInsert || !!*_pnFirstInsert );
@@ -2200,6 +2236,87 @@ public:
                 Insert( (_tyImplType)stMinExisting );
             assert( ( m_nMin != m_nMax ) || !m_stSummary.FHasAnyElements() );
         }
+        return *this;
+    }
+    _tyThis & operator ^= ( _tyThis const & _r )
+    {
+        // Currently we only allow anding between sets of the same size:
+        if ( NSize() != _r.NSize() )
+            THROWNAMEDEXCEPTION("VebTreeFixed::operator ^=(): NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+
+        if ( !_r.FHasAnyElements() )
+            return *this; // nop
+        
+        bool fHasAnyElements = FHasAnyElements();
+        // We don't want to process _r's minimum now because otherwise we will have to process it again eventually anyway.
+        bool fHasMinThat = fHasAnyElements && FHasElement( _r.m_nMin );
+        if ( _r.FHasOneElement() )
+        {
+            if ( !fHasMinThat )
+                Insert( _r.m_nMin );
+            else
+                Delete( _r.m_nMin );
+            return *this;
+        }
+      
+        _tyImplType nMinExisting = m_nMin; // Must hold on to this so we can remove it below.
+        bool fFoundMin = false;
+        m_nMin = s_kstUniverse-1;
+        _tyImplType nMaxExisting = m_nMax; // Must hold on to this so we can remove it below.
+        m_nMax = 0;
+
+        // Now call each sub-object of interest - which is all clusters of _r that contain any data at all.
+        // To do this quickly we should use the summary info of _r which will let us know populated cluster afap.
+        _tyImplTypeSummaryTree nClusterCur = _r.m_stSummary.NMin();
+        do
+        {
+            const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
+            assert( rstThat.FHasAnyElements() );
+            _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
+            rstThis ^= rstThat; // do it.
+            _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
+            bool fHasAnyElements = rstThis.FHasMinMax( fFoundMin ? 0 : &nMinSubtree, &nMaxSubtree );
+            bool fIsInSummary = fHasAnyElements && ( fFoundMin || ( nMinSubtree != nMaxSubtree ) );
+            if ( fIsInSummary != m_stSummary.FHasElement( nClusterCur ) )
+            {
+                if ( !fIsInSummary )
+                    m_stSummary.Delete( nClusterCur );
+                else
+                    m_stSummary.Insert( nClusterCur );
+            }
+            if ( fHasAnyElements )
+            {
+                if ( !fFoundMin )
+                {
+                    fFoundMin = true;
+                    m_nMin = NIndex( nClusterCur, nMinSubtree ); // This is the resultant minimum - and this container owns it now.
+                    rstThis.Delete( nMinSubtree ); // Took care of any summary changes above.
+                }
+                _tyImplType nMaxTest = NIndex( nClusterCur, nMaxSubtree );
+                assert( nMaxTest > m_nMax );
+                if ( nMaxTest > m_nMax )
+                    m_nMax = nMaxTest;
+            }
+        }
+        while( ( nClusterCur = _r.m_stSummary.NSuccessor( nClusterCur ) ) );
+        
+        // Now process nMinExisting and fHasMinThat, etc:
+        if ( fHasAnyElements )
+        {
+            if ( !fHasMinThat )
+                Insert( _r.m_nMin );
+            else
+                Delete( _r.m_nMin );
+
+            if ( _r.FHasElement( nMinExisting ) )
+                Delete( nMinExisting );
+            else
+                Insert( nMinExisting );
+            if ( !_r.FHasElement( nMaxExisting ) && ( nMaxExisting > m_nMax ) )
+                m_nMax = nMaxExisting;
+        }
+        else
+            Insert( _r.m_nMin );
         return *this;
     }
     void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
