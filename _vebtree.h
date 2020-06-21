@@ -2001,13 +2001,13 @@ public:
             _Deinit(); // We could do a lot better here but it takes a bit of work. I.e. we could keep the existing blocks and Clear() them.
         if ( _stNElements > s_kstUniverse )
             THROWNAMEDEXCEPTION( "VebTreeWrap::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
-        size_t STClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
+        size_t stClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
         _tyRgSubtrees rgstSubtrees( m_rgstSubtrees.get_allocator() ); // must pass custody of instanced allocator.
-        rgstSubtrees.reserve( STClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
-        rgstSubtrees.resize( STClusters ); // May throw.
-        memset( &rgstSubtrees[0], 0, STClusters * sizeof( _tySubtree ) );
+        rgstSubtrees.reserve( stClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
+        rgstSubtrees.resize( stClusters ); // May throw.
+        memset( &rgstSubtrees[0], 0, stClusters * sizeof( _tySubtree ) );
         // Now that we have allocated everything for this, we allow for the summary to also be dynamic:
-        m_stSummary.Init( STClusters );
+        m_stSummary.Init( stClusters );
         m_rgstSubtrees.swap( rgstSubtrees );
         m_nLastElement = _tyImplType(_stNElements-1 );
     }
@@ -2425,12 +2425,16 @@ public:
         return m_rgstSubtrees[ NCluster(_x) ].FHasElement( NElInCluster( _x ) );
     }
     // Return the next element after _x or 0 if there is no such element.
-    _tyImplType NSuccessor( _tyImplType _x ) const
+    // If numeric_limits< size_t >::max() is passed then the first element of the set is returned.
+    _tyImplType NSuccessor( size_t _x = numeric_limits< size_t >::max() ) const
     {
+        if ( !FHasAnyElements() )
+            return 0;
+        else
+        if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
+            return m_nMin;
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
-        if ( FHasAnyElements() && ( _x < m_nMin ) )
-            return m_nMin;
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMaxCluster;
@@ -2453,16 +2457,20 @@ public:
         return 0; // No successor.
     }
     // Return and remove the next element after _x or 0 if there is no such element.
-    _tyImplType NSuccessorDelete( _tyImplType _x )
+    // If numeric_limits< size_t >::max() is passed then the first element of the set is returned.
+    _tyImplType NSuccessorDelete( size_t _x = numeric_limits< size_t >::max() )
     {
-        if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
-        if ( FHasAnyElements() && ( _x < m_nMin ) )
+        if ( !FHasAnyElements() )
+            return 0;
+        else
+        if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
         {
             _tyImplType n = m_nMin;
             Delete( m_nMin );
             return n;
         }
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster, nMaxCluster;
@@ -2513,11 +2521,17 @@ public:
         return 0; // No successor.
     }
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
-    _tyImplType NPredecessor( _tyImplType _x ) const
+    // If numeric_limits< size_t >::max() is passed then the last element of the set is returned.
+    _tyImplType NPredecessor( size_t _x = numeric_limits< size_t >::max() ) const
     {
+        if ( !FHasAnyElements() )
+            return s_kitNoPredecessor;
+        else
+        if ( numeric_limits< size_t >::max() == _x )
+            return m_nMax;
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
-        if ( FHasAnyElements() && ( _x > m_nMax ) )
+        if ( _x > m_nMax )
             return m_nMax;
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
@@ -2534,7 +2548,7 @@ public:
             _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
             if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
             {
-                if ( FHasAnyElements() && ( _x > m_nMin ) )
+                if ( _x > m_nMin )
                     return m_nMin;
             }
             else
@@ -2546,17 +2560,21 @@ public:
         return s_kitNoPredecessor; // No predecessor.
     }
     // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
+    // If numeric_limits< size_t >::max() is passed then the last element of the set is removed and returned.
     // This is significantly easier than NSuccessorDelete because m_nMin isn't contained in the subtree elements.
-    _tyImplType NPredecessorDelete( _tyImplType _x )
+    _tyImplType NPredecessorDelete( size_t _x = numeric_limits< size_t >::max() )
     {
-        if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
-        if ( FHasAnyElements() && ( _x > m_nMax ) )
+        if ( !FHasAnyElements() )
+            return s_kitNoPredecessor;
+        else
+        if ( ( numeric_limits< size_t >::max() == _x ) || ( ( _x > m_nMax ) && ( _x <= m_nLastElement ) ) )
         {
             _tyImplType n = m_nMax;
             Delete( m_nMax );
             return n;
         }
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster, nMaxCluster;
@@ -2574,7 +2592,7 @@ public:
             _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
             if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
             {
-                if ( FHasAnyElements() && ( _x > m_nMin ) )
+                if ( _x > m_nMin )
                 {
                     _tyImplType n = m_nMin;
                     Delete( m_nMin );
@@ -2877,5 +2895,7 @@ protected:
     _tyImplType m_nMin{s_kstUniverse-1}; // The collection is empty when m_nMin > m_nMax.
     _tyImplType m_nMax{0};
 };
+
+
 
 __BIENUTIL_END_NAMESPACE
