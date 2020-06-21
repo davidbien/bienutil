@@ -451,7 +451,7 @@ public:
         }
         else
         {
-            // The first bit in nMasked is the successor.
+            // The first bit in nMasked is the predecessor.
             return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
         }
     }
@@ -483,7 +483,7 @@ public:
         }
         else
         {
-            // The first bit in nMasked is the successor.
+            // The first bit in nMasked is the predecessor.
             _tyImplType nClz = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked );
             *pn &= ~( _tyUint(1) << nClz );
             return nClz + ( ( pn - m_rgUint ) * s_kstNBitsUint );
@@ -533,7 +533,7 @@ public:
     }
 
 protected:
-    t_tyUint m_rgUint[ t_kstNUints ]; // We don't explicityly initialize this because the VebTreeWrap impl will memset() everything to 0 from the top.
+    t_tyUint m_rgUint[ t_kstNUints ]; // We don't explicitly initialize this because the VebTreeWrap impl will memset() everything to 0 from the top.
 };
 
 template < size_t t_kstUniverse, bool t_kfContainedInVebWrap = false >
