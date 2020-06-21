@@ -365,7 +365,7 @@ public:
     {
         assert( _x < s_kstUniverse );
         const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
-        return *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) );
+        return !!( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) );
     }
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
@@ -1209,6 +1209,44 @@ public:
             _SetEmptyMinMax();
         }
     }
+    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
+    {
+        assert( !_pnFirstInsert || !!*_pnFirstInsert );
+        assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+        assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+
+        // Algorithm:
+        // Set m_nMin to 0, set m_nMax to m_nLastElement.
+        // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
+        _SetMin( !_pnFirstInsert ? 0 : *_pnFirstInsert );
+        _SetMax( !_pnLastElement ? s_kstUniverse-1 : *_pnLastElement );
+        if ( _NMin() != _NMax() )
+        {
+            _tyImplTypeSubtree nFirstInsert = _NMin() + 1; // Don't need to worry about this going over a cluster boundary due to impl.
+            size_t stClustersProcess = _pnLastElement ? ( size_t( NCluster( *_pnLastElement ) ) + 1 ) : s_kstUniverseSqrtLower;
+            _tyImplTypeSubtree nLastElementSubtree;
+            _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
+            if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
+            {
+                nLastElementSubtree = NElInCluster( *_pnLastElement );
+                pnLastElementSubtree = &nLastElementSubtree;
+            }
+            _tySubtree * pstCur = &m_rgstSubtrees[0];
+            _tySubtree * const pstEnd = pstCur + stClustersProcess;
+            pstCur->InsertAll( &nFirstInsert, ( 1 == stClustersProcess ) ? pnLastElementSubtree : nullptr );
+            for ( ++pstCur; pstEnd != pstCur; ++pstCur )
+                pstCur->InsertAll( nullptr, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : nullptr );
+            // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
+            _tyImplTypeSummaryTree nLastElementSummary;
+            _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
+            if ( stClustersProcess != s_kstUniverseSqrtLower )
+            {
+                nLastElementSummary = stClustersProcess - 1;
+                pnLastElementSummary = &nLastElementSummary;
+            }
+            m_stSummary.InsertAll( nullptr, pnLastElementSummary );
+        }
+    }
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
@@ -1229,8 +1267,7 @@ public:
             }
             _tyImplTypeSubtree nCluster = NCluster( _x );
             _tyImplTypeSubtree nEl = NElInCluster( _x );
-            if ( !m_rgstSubtrees[nCluster].FHasAnyElements() )
-                m_stSummary.Insert( nCluster );
+            (void)m_stSummary.FCheckInsert( nCluster );
             m_rgstSubtrees[nCluster].Insert( nEl );
             if ( _x > m_nMax )
                 m_nMax = _x;
@@ -1239,10 +1276,40 @@ public:
     // Return true if the element was inserted, false if it already existed.
     bool FCheckInsert( _tyImplType _x )
     {
-        if ( FHasElement( _x ) )
+        assert( _x < s_kstUniverse );
+        if ( !FHasAnyElements() )
+        {
+            _SetMin( _x );
+            _SetMax( _x );
+            return true;
+        }
+        else
+        if ( _NMin() == _x )
             return false;
-        Insert( _x );
-        return true;
+        else
+        {
+            bool fInserted = false;
+            if ( _x < _NMin() )
+            { // Then we will definitely insert.
+                _tyImplType n = _x;
+                _x = _NMin();
+                _SetMin( n );
+                fInserted = true; // We have inserted _x - we will return true.
+            }
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            (void)m_stSummary.FCheckInsert( nCluster );
+            if ( fInserted )
+                m_rgstSubtrees[nCluster].Insert( nEl );
+            else
+                fInserted = m_rgstSubtrees[nCluster].FCheckInsert( nEl );
+            if ( _x > m_nMax )
+            {
+                assert( fInserted );
+                m_nMax = _x;
+            }
+            return fInserted;
+        }
     }
     // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
     void Delete( _tyImplType _x )
@@ -1560,44 +1627,6 @@ public:
         else
             Insert( _r._NMin() );
         return *this;
-    }
-    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
-    {
-        assert( !_pnFirstInsert || !!*_pnFirstInsert );
-        assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
-        assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
-
-        // Algorithm:
-        // Set m_nMin to 0, set m_nMax to m_nLastElement.
-        // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
-        _SetMin( !_pnFirstInsert ? 0 : *_pnFirstInsert );
-        _SetMax( !_pnLastElement ? s_kstUniverse-1 : *_pnLastElement );
-        if ( _NMin() != _NMax() )
-        {
-            _tyImplTypeSubtree nFirstInsert = _NMin() + 1; // Don't need to worry about this going over a cluster boundary due to impl.
-            size_t stClustersProcess = _pnLastElement ? ( size_t( NCluster( *_pnLastElement ) ) + 1 ) : s_kstUniverseSqrtLower;
-            _tyImplTypeSubtree nLastElementSubtree;
-            _tyImplTypeSubtree * pnLastElementSubtree = nullptr;
-            if ( _pnLastElement && !!( NElInCluster( *_pnLastElement + 1 ) ) )
-            {
-                nLastElementSubtree = NElInCluster( *_pnLastElement );
-                pnLastElementSubtree = &nLastElementSubtree;
-            }
-            _tySubtree * pstCur = &m_rgstSubtrees[0];
-            _tySubtree * const pstEnd = pstCur + stClustersProcess;
-            pstCur->InsertAll( &nFirstInsert, ( 1 == stClustersProcess ) ? pnLastElementSubtree : nullptr );
-            for ( ++pstCur; pstEnd != pstCur; ++pstCur )
-                pstCur->InsertAll( nullptr, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : nullptr );
-            // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
-            _tyImplTypeSummaryTree nLastElementSummary;
-            _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
-            if ( stClustersProcess != s_kstUniverseSqrtLower )
-            {
-                nLastElementSummary = stClustersProcess - 1;
-                pnLastElementSummary = &nLastElementSummary;
-            }
-            m_stSummary.InsertAll( nullptr, pnLastElementSummary );
-        }
     }
     // Bitwise inversion.
     // If _pnLastElement then we will limit application to elements below that limit.
@@ -1960,6 +1989,45 @@ public:
             _SetEmptyMinMax();
         }
     }
+    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
+    {
+        if ( !STClusters() )
+            THROWNAMEDEXCEPTION("VebTreeWrap::InsertAll(): Tree is not initialized.");
+
+        assert( !_pnFirstInsert ); // This is only there for genericity.
+        assert( !_pnLastElement || *_pnLastElement == m_nLastElement ); // We should always be specifying everything - we don't use either of the arguments below because there is no need to support them in this method at least.
+        // Algorithm:
+        // Set m_nMin to 0, set m_nMax to m_nLastElement.
+        // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
+        m_nMin = 0;
+        m_nMax = m_nLastElement;
+        if ( m_nLastElement > m_nMin )   // boundary.
+        {
+            _tyImplTypeSubtree nFirstInsert = 1;
+            _tyImplTypeSubtree nLastElementSubtree;
+            _tyImplTypeSubtree * pnLastElementSubtree = 0;
+            if ( !!( NSize() % t_kstUniverseCluster ) ) // Unless we end at a cluster boundary...
+            {
+                nLastElementSubtree = NElInCluster( m_nLastElement );
+                pnLastElementSubtree = &nLastElementSubtree;
+            }
+            _tySubtree * pstCur = &m_rgstSubtrees[0];
+            _tySubtree * const pstEnd = pstCur + STClusters();
+            pstCur->InsertAll( &nFirstInsert, ( 1 == STClusters() ) ? pnLastElementSubtree : nullptr );
+            for ( ++pstCur; pstEnd != pstCur; ++pstCur )
+                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : nullptr );
+                
+            // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
+            _tyImplTypeSummaryTree nLastElementSummary;
+            _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
+            if ( t_kstUniverseCluster != STClusters() )
+            {
+                nLastElementSummary = STClusters() - 1;
+                pnLastElementSummary = &nLastElementSummary;
+            }
+            m_stSummary.InsertAll( nullptr, pnLastElementSummary );
+        }
+    }   
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
@@ -1974,8 +2042,7 @@ public:
                 std::swap( _x, m_nMin );
             _tyImplTypeSubtree nCluster = NCluster( _x );
             _tyImplTypeSubtree nEl = NElInCluster( _x );
-            if ( !m_rgstSubtrees[nCluster].FHasAnyElements() )
-                m_stSummary.Insert( nCluster );
+            (void)m_stSummary.FCheckInsert( nCluster );
             m_rgstSubtrees[nCluster].Insert( nEl );
             if ( _x > m_nMax )
                 m_nMax = _x;
@@ -1984,10 +2051,39 @@ public:
     // Return true if the element was inserted, false if it already existed.
     bool FCheckInsert( _tyImplType _x )
     {
-        if ( FHasElement( _x ) )
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::FCheckInsert(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+
+        if ( !FHasAnyElements() )
+        {
+            m_nMin = m_nMax = _x;
+            return true;
+        }
+        else
+        if ( m_nMin == _x )
             return false;
-        Insert( _x );
-        return true;
+        else
+        {
+            bool fInserted = false;
+            if ( _x < m_nMin )
+            { // Then we will definitely insert.
+                std::swap( _x, m_nMin );
+                fInserted = true; // We have inserted _x - we will return true.
+            }
+            _tyImplTypeSubtree nCluster = NCluster( _x );
+            _tyImplTypeSubtree nEl = NElInCluster( _x );
+            (void)m_stSummary.FCheckInsert( nCluster );
+            if ( fInserted )
+                m_rgstSubtrees[nCluster].Insert( nEl );
+            else
+                fInserted = m_rgstSubtrees[nCluster].FCheckInsert( nEl );
+            if ( _x > m_nMax )
+            {
+                assert( fInserted );
+                m_nMax = _x;
+            }
+            return fInserted;
+        }
     }
     // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
     void Delete( _tyImplType _x )
@@ -2318,45 +2414,6 @@ public:
         else
             Insert( _r.m_nMin );
         return *this;
-    }
-    void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
-    {
-        if ( !STClusters() )
-            THROWNAMEDEXCEPTION("VebTreeWrap::InsertAll(): Tree is not initialized.");
-
-        assert( !_pnFirstInsert ); // This is only there for genericity.
-        assert( !_pnLastElement || *_pnLastElement == m_nLastElement ); // We should always be specifying everything - we don't use either of the arguments below because there is no need to support them in this method at least.
-        // Algorithm:
-        // Set m_nMin to 0, set m_nMax to m_nLastElement.
-        // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
-        m_nMin = 0;
-        m_nMax = m_nLastElement;
-        if ( m_nLastElement > m_nMin )   // boundary.
-        {
-            _tyImplTypeSubtree nFirstInsert = 1;
-            _tyImplTypeSubtree nLastElementSubtree;
-            _tyImplTypeSubtree * pnLastElementSubtree = 0;
-            if ( !!( NSize() % t_kstUniverseCluster ) ) // Unless we end at a cluster boundary...
-            {
-                nLastElementSubtree = NElInCluster( m_nLastElement );
-                pnLastElementSubtree = &nLastElementSubtree;
-            }
-            _tySubtree * pstCur = &m_rgstSubtrees[0];
-            _tySubtree * const pstEnd = pstCur + STClusters();
-            pstCur->InsertAll( &nFirstInsert, ( 1 == STClusters() ) ? pnLastElementSubtree : nullptr );
-            for ( ++pstCur; pstEnd != pstCur; ++pstCur )
-                pstCur->InsertAll( 0, ( pstEnd-1 == pstCur ) ? pnLastElementSubtree : nullptr );
-                
-            // Now we must do a batch insert into the summary because we don't know its current state - we must use InsertAll().
-            _tyImplTypeSummaryTree nLastElementSummary;
-            _tyImplTypeSummaryTree * pnLastElementSummary = nullptr;
-            if ( t_kstUniverseCluster != STClusters() )
-            {
-                nLastElementSummary = STClusters() - 1;
-                pnLastElementSummary = &nLastElementSummary;
-            }
-            m_stSummary.InsertAll( nullptr, pnLastElementSummary );
-        }
     }
     // Bitwise inversion.
     _tyThis & BitwiseInvert()
