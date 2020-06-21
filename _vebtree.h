@@ -394,6 +394,39 @@ public:
             return n_VanEmdeBoasTreeImpl::Ctz( nMasked ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
         }
     }
+    // Return and remove the next element after _x or 0 if there is no such element.
+    _tyImplType NSuccessorDelete( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        if ( _x >= s_kstUniverse-1 )
+            return 0;
+        ++_x;
+        _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        _x %= s_kstNBitsUint;
+        _tyUint nMasked = *pn & ~( ( _tyUint(1) << _x ) - 1 );
+        if ( !nMasked )
+        {
+            // Must search remaining elements if any:
+            const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
+            for ( ; pnEnd != ++pn; )
+            {
+                if ( *pn )
+                {
+                    _tyImplType nCtz = n_VanEmdeBoasTreeImpl::Ctz( *pn );
+                    *pn &= ~( _tyUint(1) << nCtz ); // clear it.
+                    return nCtz + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+                }
+            }
+            return 0;
+        }
+        else
+        {
+            // The first bit in nMasked is the successor.
+            _tyImplType nCtz = n_VanEmdeBoasTreeImpl::Ctz( nMasked );
+            *pn &= ~( _tyUint(1) << nCtz ); // clear it.
+            return nCtz + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+        }
+    }
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
@@ -420,6 +453,40 @@ public:
         {
             // The first bit in nMasked is the successor.
             return s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked ) + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+        }
+    }
+    // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
+    _tyImplType NPredecessorDelete( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        if ( !_x )
+            return s_kitNoPredecessor;
+        --_x;
+        _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
+        _x %= s_kstNBitsUint;
+        _tyUint nMasked = *pn;
+        if ( ( _x + 1 ) % s_kstNBitsUint )
+            nMasked &= ( ( _tyUint(1) << ( _x + 1 ) ) - 1 );
+        if ( !nMasked )
+        {
+            // Must search remaining elements if any:
+            for ( ; m_rgUint != pn--; )
+            {
+                if ( *pn )
+                {
+                    _tyImplType nClz = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( *pn );
+                    *pn &= ~( _tyUint(1) << nClz );
+                    return nClz + ( ( pn - m_rgUint ) * s_kstNBitsUint );
+                }
+            }
+            return s_kitNoPredecessor;
+        }
+        else
+        {
+            // The first bit in nMasked is the successor.
+            _tyImplType nClz = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( nMasked );
+            *pn &= ~( _tyUint(1) << nClz );
+            return nClz + ( ( pn - m_rgUint ) * s_kstNBitsUint );
         }
     }
 
@@ -643,12 +710,29 @@ public:
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
         assert( _x < s_kstUniverse );
-        return !_x;
+        return !_x && ( m_byVebTree2 & 0b10 );
+    }
+    _tyImplType NSuccessorDelete( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        _tyImplType nSuccessor = !_x && ( m_byVebTree2 & 0b10 );
+        if ( nSuccessor )
+            m_byVebTree2 &= 0b01;
+        return nSuccessor;
     }
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
-        return !_x;
+        assert( _x < s_kstUniverse );
+        return !_x || !( m_byVebTree2 & 0b01 );
+    }
+    _tyImplType NPredecessorDelete( _tyImplType _x )
+    {
+        assert( _x < s_kstUniverse );
+        _tyImplType nPredecessor = !_x || !( m_byVebTree2 & 0b01 );
+        if ( !nPredecessor )
+            m_byVebTree2 &= 0b10;
+        return nPredecessor;
     }
 
 // Allow bitwise operations as we can manage them.
@@ -1442,6 +1526,65 @@ public:
         }
         return 0; // No successor.
     }
+    // Return and remove the next element after _x or 0 if there is no such element.
+    _tyImplType NSuccessorDelete( _tyImplType _x )
+    {
+        assert( _x < t_kstUniverse );
+        if ( FHasAnyElements() && ( _x < _NMin() ) )
+        {
+            _tyImplType n = _NMin();
+            Delete( n );
+            return n;
+        }
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        _tyImplTypeSubtree nEl = NElInCluster( _x );
+        _tyImplTypeSubtree nMinCluster, nMaxCluster;
+        bool fElsCluster = m_rgstSubtrees[nCluster].FHasMinMax( &nMinCluster, &nMaxCluster );
+        if ( fElsCluster && ( nEl < nMaxCluster ) )
+        {
+            _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessorDelete( nEl );
+            assert( !!nOffsetSubtree );
+            if ( nMinCluster == nMaxCluster )
+            {
+                assert( nEl == nMinCluster );
+                m_stSummary.Delete( nCluster );
+                if ( NIndex( nCluster, nMaxCluster ) == m_nMax )
+                {
+                    // We must get an actual non-empty predecessive cluster - and there may not be one if we just 
+                    //  removed m_nMax and m_nMin is the only element left.
+                    _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+                    m_nMax = ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster ) 
+                        ? _NMin() : NIndex( nPredecessiveCluster, m_rgstSubtrees[ nPredecessiveCluster ].NMax() );
+                }
+            }
+            else
+            if ( NIndex( nCluster, nOffsetSubtree ) == m_nMax )
+                m_nMax = NIndex( nCluster, m_rgstSubtrees[ nCluster ].NMax() );
+            return NIndex( nCluster, nOffsetSubtree );
+        }
+        else
+        {
+            _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
+            if ( !!nSuccessiveCluster )
+            {
+                _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
+                (void)m_rgstSubtrees[nSuccessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
+                m_rgstSubtrees[nSuccessiveCluster].Delete( nMinSubtree );
+                if ( nMinSubtree == nMaxSubtree ) // if we deleted the last element of nSuccessiveCluster.
+                {
+                    m_stSummary.Delete( nSuccessiveCluster );
+                    if ( NIndex( nSuccessiveCluster, nMaxSubtree ) == m_nMax )
+                    {
+                        _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nSuccessiveCluster );
+                        m_nMax = ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster ) 
+                            ? _NMin() : NIndex( nPredecessiveCluster, m_rgstSubtrees[ nPredecessiveCluster ].NMax() );
+                    }
+                }
+                return NIndex( nSuccessiveCluster, nMinSubtree );
+            }
+        }
+        return 0; // No successor.
+    }
     // Return the previous element before _x or t_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
@@ -1471,6 +1614,53 @@ public:
             {
                 _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nPredecessiveCluster].NMax();
                 return NIndex( nPredecessiveCluster, nOffsetSubtree );
+            }
+        }
+        return s_kitNoPredecessor; // No predecessor.
+    }
+    // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
+    // This is significantly easier than NSuccessorDelete because m_nMin isn't contained in the subtree elements.
+    _tyImplType NPredecessorDelete( _tyImplType _x )
+    {
+        assert( _x < t_kstUniverse );
+        if ( FHasAnyElements() && ( _x > m_nMax ) )
+        {
+            _tyImplType n = m_nMax;
+            Delete( m_nMax );
+            return n;
+        }
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        _tyImplTypeSubtree nEl = NElInCluster( _x );
+        _tyImplTypeSubtree nMinCluster, nMaxCluster;
+        bool fElsCluster = m_rgstSubtrees[nCluster].FHasMinMax( &nMinCluster, &nMaxCluster );
+        if ( fElsCluster && ( nEl > nMinCluster ) )
+        {
+            _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessorDelete( nEl );
+            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            if ( nMinCluster == nMaxCluster )
+                m_stSummary.Delete( nCluster );
+            return NIndex( nCluster, nOffsetSubtree );
+        }
+        else
+        {
+            _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
+            {
+                if ( FHasAnyElements() && ( _x > _NMin() ) )
+                {
+                    _tyImplType n = _NMin();
+                    Delete( n );
+                    return n;
+                }
+            }
+            else
+            {
+                _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
+                (void)m_rgstSubtrees[nPredecessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
+                m_rgstSubtrees[nPredecessiveCluster].Delete( nMaxSubtree );
+                if ( nMinSubtree == nMaxSubtree )
+                    m_stSummary.Delete( nPredecessiveCluster );
+                return NIndex( nPredecessiveCluster, nMaxSubtree );
             }
         }
         return s_kitNoPredecessor; // No predecessor.
@@ -2262,11 +2452,71 @@ public:
         }
         return 0; // No successor.
     }
+    // Return and remove the next element after _x or 0 if there is no such element.
+    _tyImplType NSuccessorDelete( _tyImplType _x )
+    {
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+        if ( FHasAnyElements() && ( _x < m_nMin ) )
+        {
+            _tyImplType n = m_nMin;
+            Delete( m_nMin );
+            return n;
+        }
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        _tyImplTypeSubtree nEl = NElInCluster( _x );
+        _tyImplTypeSubtree nMinCluster, nMaxCluster;
+        bool fElsCluster = m_rgstSubtrees[nCluster].FHasMinMax( &nMinCluster, &nMaxCluster );
+        if ( fElsCluster && ( nEl < nMaxCluster ) )
+        {
+            _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessorDelete( nEl );
+            assert( !!nOffsetSubtree );
+            if ( nMinCluster == nMaxCluster )
+            {
+                assert( nEl == nMinCluster );
+                m_stSummary.Delete( nCluster );
+                if ( NIndex( nCluster, nMaxCluster ) == m_nMax )
+                {
+                    // We must get an actual non-empty predecessive cluster - and there may not be one if we just 
+                    //  removed m_nMax and m_nMin is the only element left.
+                    _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+                    m_nMax = ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster ) 
+                        ? m_nMin : NIndex( nPredecessiveCluster, m_rgstSubtrees[ nPredecessiveCluster ].NMax() );
+                }
+            }
+            else
+            if ( NIndex( nCluster, nOffsetSubtree ) == m_nMax )
+                m_nMax = NIndex( nCluster, m_rgstSubtrees[ nCluster ].NMax() );
+            return NIndex( nCluster, nOffsetSubtree );
+        }
+        else
+        {
+            _tyImplTypeSummaryTree nSuccessiveCluster = m_stSummary.NSuccessor( nCluster );
+            if ( !!nSuccessiveCluster )
+            {
+                _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
+                (void)m_rgstSubtrees[nSuccessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
+                m_rgstSubtrees[nSuccessiveCluster].Delete( nMinSubtree );
+                if ( nMinSubtree == nMaxSubtree ) // if we deleted the last element of nSuccessiveCluster.
+                {
+                    m_stSummary.Delete( nSuccessiveCluster );
+                    if ( NIndex( nSuccessiveCluster, nMaxSubtree ) == m_nMax )
+                    {
+                        _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nSuccessiveCluster );
+                        m_nMax = ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster ) 
+                            ? m_nMin : NIndex( nPredecessiveCluster, m_rgstSubtrees[ nPredecessiveCluster ].NMax() );
+                    }
+                }
+                return NIndex( nSuccessiveCluster, nMinSubtree );
+            }
+        }
+        return 0; // No successor.
+    }
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( FHasAnyElements() && ( _x > m_nMax ) )
             return m_nMax;
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -2291,6 +2541,54 @@ public:
             {
                 _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nPredecessiveCluster].NMax();
                 return NIndex( nPredecessiveCluster, nOffsetSubtree );
+            }
+        }
+        return s_kitNoPredecessor; // No predecessor.
+    }
+    // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
+    // This is significantly easier than NSuccessorDelete because m_nMin isn't contained in the subtree elements.
+    _tyImplType NPredecessorDelete( _tyImplType _x )
+    {
+        if ( _x > m_nLastElement )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+        if ( FHasAnyElements() && ( _x > m_nMax ) )
+        {
+            _tyImplType n = m_nMax;
+            Delete( m_nMax );
+            return n;
+        }
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        _tyImplTypeSubtree nEl = NElInCluster( _x );
+        _tyImplTypeSubtree nMinCluster, nMaxCluster;
+        bool fElsCluster = m_rgstSubtrees[nCluster].FHasMinMax( &nMinCluster, &nMaxCluster );
+        if ( fElsCluster && ( nEl > nMinCluster ) )
+        {
+            _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessorDelete( nEl );
+            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            if ( nMinCluster == nMaxCluster )
+                m_stSummary.Delete( nCluster );
+            return NIndex( nCluster, nOffsetSubtree );
+        }
+        else
+        {
+            _tyImplTypeSummaryTree nPredecessiveCluster = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree == nPredecessiveCluster )
+            {
+                if ( FHasAnyElements() && ( _x > m_nMin ) )
+                {
+                    _tyImplType n = m_nMin;
+                    Delete( m_nMin );
+                    return n;
+                }
+            }
+            else
+            {
+                _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
+                (void)m_rgstSubtrees[nPredecessiveCluster].FHasMinMax( &nMinSubtree, &nMaxSubtree );
+                m_rgstSubtrees[nPredecessiveCluster].Delete( nMaxSubtree );
+                if ( nMinSubtree == nMaxSubtree )
+                    m_stSummary.Delete( nPredecessiveCluster );
+                return NIndex( nPredecessiveCluster, nMaxSubtree );
             }
         }
         return s_kitNoPredecessor; // No predecessor.
