@@ -133,6 +133,8 @@ template < bool t_kfContainedInVebWrap, class t_tyUint, size_t t_kstNUints, size
 class _VebFixedBase
 {
     typedef _VebFixedBase _tyThis;
+    template < size_t , class , class  >
+    friend class VebTreeWrap;
 public:
     static constexpr size_t s_kstNUints = t_kstNUints;
     static constexpr size_t s_kstUniverse = t_kstUniverse;
@@ -292,6 +294,11 @@ public:
         }
         return false;
     }
+    void Resize( size_t _stNewUniverse, bool _fShrinkReserve )
+    {
+        assert( _stNewUniverse <= s_kstUniverse );
+        (void)FDeleteAllAfter( _stNewUniverse-1, nullptr ); // nothing to resize but we should delete any elements beyond.
+    }
     void Clear()
     {
         memset( m_rgUint, 0, sizeof( m_rgUint ) );
@@ -361,6 +368,33 @@ public:
             return false;
         Delete( _x );
         return true;
+    }
+    bool FDeleteAllAfter( _tyImplType _x, _tyImplType * _pnNewMax = 0 )
+    {
+        ++_x; // _x cannot be zero below.
+        if ( _x < s_kstUniverse )
+        {
+            _tyUint * pnFirstData;
+            _tyUint * pnClear = pnFirstData = &m_rgUint[ _x / s_kstNBitsUint ];
+            if ( _x % s_kstNBitsUint )
+                *pnClear++ &= ( ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) - 1 );
+            else
+                --pnFirstData;
+            _tyUint * const pnEnd = m_rgUint + t_kstNUints;
+            for ( ; pnEnd != pnClear; ++pnClear )
+                *pnClear = 0;
+            for ( ++pnFirstData ; m_rgUint != pnFirstData--; )
+            {
+                if ( !!*pnFirstData )
+                {
+                    if ( _pnNewMax )
+                        *_pnNewMax = s_kstNBitsUint - 1 - n_VanEmdeBoasTreeImpl::Clz( *pnFirstData ) + ( pnFirstData - m_rgUint ) * s_kstNBitsUint;
+                    return false;
+                }
+            }
+            return true; // We have emptied everything.
+        }
+        return !FHasMinMax( 0, _pnNewMax );
     }
     bool FHasElement( _tyImplType _x ) const
     {
@@ -532,8 +566,8 @@ public:
             pnCurThis[-1] &= ( ( _tyUint(1) << ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) - 1 );
         return *this;
     }
-
 protected:
+    void _ShrinkMemory() { } // dummy for genericity.
     t_tyUint m_rgUint[ t_kstNUints ]; // We don't explicitly initialize this because the VebTreeWrap impl will memset() everything to 0 from the top.
 };
 
@@ -1286,6 +1320,11 @@ public:
         }
         return false;
     }
+    void Resize( size_t _stNewUniverse, bool _fShrinkReserve )
+    {
+        assert( _stNewUniverse <= s_kstUniverse );
+        (void)FDeleteAllAfter( _stNewUniverse-1, nullptr ); // nothing to resize but we should delete any elements beyond.
+    }
     void Clear()
     {
         if ( FHasAnyElements() )
@@ -1490,6 +1529,53 @@ public:
             }
             return fDeleted;
         }
+    }
+    // Delete everything after _x and then return if these leaves the tree empty.
+    // If _pnNewMax then return the new maximum when false is returned.
+    bool FDeleteAllAfter( _tyImplType _x, _tyImplType * _pnNewMax = 0 )
+    {
+        if ( !FHasAnyElements() )
+           return true;
+        _tyImplType nNewMaxDummy;
+        if ( !_pnNewMax )
+            _pnNewMax = &nNewMaxDummy;
+        if ( _x < _NMin() )
+            return Clear(), true;
+        else
+        if ( _x > m_nMax )
+        {
+            *_pnNewMax = m_nMax;
+            return false;
+        }
+
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        bool fFoundMax;
+        if ( !!NElInCluster( _x+1 ) )
+        {
+            _tyImplTypeSubtree nNewClusterMax;
+            if ( ( fFoundMax = !m_rgstSubtrees[nCluster].FDeleteAllAfter( NElInCluster( _x ), &nNewClusterMax ) ) )
+                *_pnNewMax = m_nMax = NIndex( nCluster, nNewClusterMax );
+        }
+        else
+        {
+            _tyImplTypeSubtree nNewClusterMax;
+            if ( ( fFoundMax = m_rgstSubtrees[nCluster].FHasMax( nNewClusterMax ) ) )
+                *_pnNewMax = m_nMax = NIndex( nCluster, nNewClusterMax );
+        }
+        if ( !fFoundMax ) // Look backwards for the new max.
+        {
+            _tyImplTypeSummaryTree nPreviousPopulated = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree == nPreviousPopulated )
+                *_pnNewMax = m_nMax = _NMin();
+            else
+                *_pnNewMax = m_nMax = NIndex( nPreviousPopulated, m_rgstSubtrees[ nPreviousPopulated ].NMax() );
+        }
+        // Clear all the remaining clusters:
+        _tySubtree * pstClear = &m_rgstSubtrees[ nCluster + 1 ];
+        _tySubtree * const pstEnd = m_rgstSubtrees + STClusters();
+        for ( ; pstEnd != pstClear; ++pstClear )
+            pstClear->Clear();
+        return false;
     }
     bool FHasElement( _tyImplType _x ) const
     {
@@ -1981,6 +2067,8 @@ class VebTreeWrap
 {
     typedef VebTreeWrap _tyThis;
     static_assert( n_VanEmdeBoasTreeImpl::FIsPow2( t_kstUniverseCluster ) ); // always power of 2.
+    template < size_t , class , class  >
+    friend class VebTreeWrap;
 public:
     typedef t_tyAllocator _tyAllocator;
     // Choose impl type based on the range of values.
@@ -2222,6 +2310,82 @@ public:
         }
         return false;
     }
+    // Resize the VebTreeWrap to now accomodate _stNewUniverse elements.
+    // if _fShrinkReserve then we will reserve exactly the amount required on growth,
+    //  and we will shrink the memory on shrinkage.
+    void Resize( size_t _stNewUniverse, bool _fShrinkReserve )
+    {
+        if ( _stNewUniverse == NSize() )
+            return;
+        if ( !m_rgstSubtrees.size() )
+            return Init( _stNewUniverse );
+         
+        if ( _stNewUniverse > s_kstUniverse )
+            THROWNAMEDEXCEPTION( "VebTreeWrap::Resize(): _stNewUniverse[%lu] is greater than the allowable universe size[%lu].", _stNewUniverse, s_kstUniverse );
+         
+        size_t stClustersNew = ( (_stNewUniverse-1) / t_kstUniverseCluster ) + 1;
+        size_t stClustersOld = m_rgstSubtrees.size();
+        if ( _stNewUniverse > NSize() )
+        {
+            // The easy path:
+            if ( stClustersNew > m_rgstSubtrees.size() )
+            {
+                // Ok: method: First reserve space in m_rgstSubtrees.
+                // This could throw and then we will allow that throw to just be handled by the caller.
+                // Then call Resize on the summary. No other allocation should take place after that
+                //  so we should be relatively state-safe on throw.
+                if ( _fShrinkReserve )
+                    m_rgstSubtrees.reserve( stClustersNew );
+                m_stSummary.Resize( stClustersNew, _fShrinkReserve );
+                m_rgstSubtrees.resize( stClustersNew );
+                // Initialize the new clusters by memset()ing to zero.
+                memset( &m_rgstSubtrees[ stClustersOld ], 0, ( stClustersNew - stClustersOld ) * sizeof( _tySubtree ) );
+                assert( !_fShrinkReserve || ( m_rgstSubtrees.size() == m_rgstSubtrees.capacity() ) ); // If this assert fails that is ok, but we would prefer to have it this way.
+            }
+            m_nLastElement = _stNewUniverse - 1;
+            // And that's it for the easy pathway.
+            return;
+        }
+
+        // Now if we have elements beyond the new size then we must clear them.
+        m_nLastElement = _stNewUniverse - 1;
+        if ( stClustersNew < stClustersOld )
+            m_rgstSubtrees.resize( stClustersNew ); // shouldn't throw.
+        
+        if ( FHasAnyElements() )
+        { // Nothing in this block should throw - no allocation occurs.
+            if ( m_nMin > m_nLastElement )
+                Clear();
+            else
+            if ( m_nMax > m_nLastElement )
+            {
+                bool fHasNewMax;
+                _tyImplTypeSubtree nMaxNew;
+                if ( !!NElInCluster( m_nLastElement+1 ) ) // If we don't happen to be an even multiple of a cluster.
+                    fHasNewMax = !m_rgstSubtrees[ stClustersNew-1 ].FDeleteAllAfter( NElInCluster( m_nLastElement ), &nMaxNew );
+                else
+                    fHasNewMax = m_rgstSubtrees[ stClustersNew-1 ].FHasMax( nMaxNew );
+                if ( fHasNewMax )
+                    m_nMax = NIndex( stClustersNew-1, nMaxNew );
+                else
+                {
+                    size_t stPreviousPopulated = m_stSummary.NPredecessor( stClustersNew-1 );
+                    if ( s_kstitNoPredecessorSummaryTree == stPreviousPopulated )
+                        m_nMax = m_nMin; // must be the case.
+                    else
+                        m_nMax = NIndex( stPreviousPopulated, m_rgstSubtrees[ stPreviousPopulated ].NMax() );
+                }
+            }
+            // else no data got truncated.
+        }
+        m_stSummary.Resize( stClustersNew, false ); // This shouldn't throw since it won't shrink any VebTreeWrap summary.
+        if ( _fShrinkReserve )
+        {
+            // Now to all the shrinking - might throw as it will reallocate memory.
+            m_rgstSubtrees.shrink_to_fit();  // might throw and if so we will be correct but will have allocated too much memory and the summary will think it has more elements but they will be empty so that is ok.
+            m_stSummary._ShrinkMemory();
+        }
+    }
     void Clear()
     {
         if ( FHasAnyElements() )
@@ -2427,6 +2591,53 @@ public:
             }
             return fDeleted;
         }
+    }
+    // Delete everything after _x and then return if these leaves the tree empty.
+    // If _pnNewMax then return the new maximum when false is returned.
+    bool FDeleteAllAfter( _tyImplType _x, _tyImplType * _pnNewMax = 0 )
+    {
+        if ( !FHasAnyElements() )
+           return true;
+        _tyImplType nNewMaxDummy;
+        if ( !_pnNewMax )
+            _pnNewMax = &nNewMaxDummy;
+        if ( _x < m_nMin )
+            return Clear(), true;
+        else
+        if ( _x > m_nMax )
+        {
+            *_pnNewMax = m_nMax;
+            return false;
+        }
+
+        _tyImplTypeSubtree nCluster = NCluster( _x );
+        bool fFoundMax;
+        if ( !!NElInCluster( _x+1 ) )
+        {
+            _tyImplTypeSubtree nNewClusterMax;
+            if ( fFoundMax = !m_rgstSubtrees[nCluster].FDeleteAllAfter( NElInCluster( _x ), &nNewClusterMax ) )
+                *_pnNewMax = m_nMax = NIndex( nCluster, nNewClusterMax );
+        }
+        else
+        {
+            _tyImplTypeSubtree nNewClusterMax;
+            if ( fFoundMax = m_rgstSubtrees[nCluster].FHasMax( nNewClusterMax ) )
+                *_pnNewMax = m_nMax = NIndex( nCluster, nNewClusterMax );
+        }
+        if ( !fFoundMax ) // Look backwards for the new max.
+        {
+            size_t stPreviousPopulated = m_stSummary.NPredecessor( nCluster );
+            if ( s_kstitNoPredecessorSummaryTree == stPreviousPopulated )
+                *_pnNewMax = m_nMax = m_nMin;
+            else
+                *_pnNewMax = m_nMax = NIndex( stPreviousPopulated, m_rgstSubtrees[ stPreviousPopulated ].NMax() );
+        }
+        // Clear all the remaining clusters:
+        _tySubtree * pstClear = &m_rgstSubtrees[ nCluster + 1 ];
+        _tySubtree * const pstEnd = m_rgstSubtrees.end();
+        for ( ; pstEnd != pstClear; ++pstClear )
+            pstClear->Clear();
+        return false;
     }
     bool FHasElement( _tyImplType _x ) const
     {
@@ -2904,6 +3115,10 @@ protected:
     {
         m_nMin = s_kstUniverse-1;
         m_nMax = 0;
+    }
+    void _ShrinkMemory()
+    {
+        m_rgstSubtrees.shrink_to_fit();
     }
     typedef typename _Alloc_traits< _tySubtree, t_tyAllocator >::allocator_type _tyAllocSubtree;
     typedef vector< _tySubtree, _tyAllocSubtree > _tyRgSubtrees;
