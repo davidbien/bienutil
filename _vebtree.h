@@ -1564,6 +1564,7 @@ public:
         }
         if ( !fFoundMax ) // Look backwards for the new max.
         {
+            (void)m_stSummary.FCheckDelete( nCluster );
             _tyImplTypeSummaryTree nPreviousPopulated = m_stSummary.NPredecessor( nCluster );
             if ( s_kstitNoPredecessorSummaryTree == nPreviousPopulated )
                 *_pnNewMax = m_nMax = _NMin();
@@ -1575,6 +1576,7 @@ public:
         _tySubtree * const pstEnd = m_rgstSubtrees + STClusters();
         for ( ; pstEnd != pstClear; ++pstClear )
             pstClear->Clear();
+        (void)m_stSummary.FDeleteAllAfter( nCluster, nullptr );
         return false;
     }
     bool FHasElement( _tyImplType _x ) const
@@ -2369,6 +2371,7 @@ public:
                     m_nMax = NIndex( stClustersNew-1, nMaxNew );
                 else
                 {
+                    (void)m_stSummary.FCheckDelete( stClustersNew-1 ); // May not be in the summary.
                     size_t stPreviousPopulated = m_stSummary.NPredecessor( stClustersNew-1 );
                     if ( s_kstitNoPredecessorSummaryTree == stPreviousPopulated )
                         m_nMax = m_nMin; // must be the case.
@@ -2626,6 +2629,7 @@ public:
         }
         if ( !fFoundMax ) // Look backwards for the new max.
         {
+            (void)m_stSummary.FCheckDelete( nCluster );
             size_t stPreviousPopulated = m_stSummary.NPredecessor( nCluster );
             if ( s_kstitNoPredecessorSummaryTree == stPreviousPopulated )
                 *_pnNewMax = m_nMax = m_nMin;
@@ -2637,6 +2641,7 @@ public:
         _tySubtree * const pstEnd = m_rgstSubtrees.end();
         for ( ; pstEnd != pstClear; ++pstClear )
             pstClear->Clear();
+        (void)m_stSummary.FDeleteAllAfter( nCluster, nullptr );
         return false;
     }
     bool FHasElement( _tyImplType _x ) const
