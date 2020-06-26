@@ -29,9 +29,11 @@ public:
 
 	_TyAllocatorType m_alloc;
 
+	_alloc_base( _alloc_base const & ) = default;
+
   // Allow copy construction from any alloc base - this could fail if the allocators were incompatible.
   template < class t__TyAllocate, class t__TyAllocator >
-  explicit _alloc_base( _alloc_base< t__TyAllocate, t__TyAllocator > const & _rOther ) _BIEN_NOTHROW
+  _alloc_base( _alloc_base< t__TyAllocate, t__TyAllocator > const & _rOther ) _BIEN_NOTHROW
     : m_alloc( _rOther.get_allocator() )
   {
   }
@@ -43,9 +45,15 @@ public:
 	{ 
 	}
 	
-	template < class t__TyAllocator >
-	_alloc_base( t__TyAllocator && _rrOther ) _BIEN_NOTHROW 
+	#if 0
+  template < class t__TyAllocate, class t__TyAllocator >
+	_alloc_base( _alloc_base< t__TyAllocate, t__TyAllocator > && _rrOther ) _BIEN_NOTHROW 
 		: m_alloc( std::move( _rrOther.m_alloc ) )
+	{ 
+	}
+	template < class t__TyAllocator >
+	_alloc_base( t__TyAllocator && _rrAllocOther ) _BIEN_NOTHROW 
+		: m_alloc( std::move( _rrAllocOther ) )
 	{ 
 	}
 	_TyThis & operator = ( _TyThis && _rr )
@@ -53,6 +61,7 @@ public:
 		m_alloc = std::move( _rr.m_alloc );
 		return *this;
 	}
+#endif //0
 
 	__INLINE _TyAllocatorType & get_allocator_ref() _BIEN_NOTHROW
 	{
@@ -190,7 +199,7 @@ public:
 		return m_alloc;
 	}
 
-	__INLINE t_TyAllocator get_allocator() const _BIEN_NOTHROW
+	__INLINE t_TyAllocator const & get_allocator() const _BIEN_NOTHROW
 	{
 		return m_alloc;
 	}

@@ -80,7 +80,7 @@ public:
 			_TyBase::destruct();
 		}
 		if ( _fDeallocate )
-			_tyBase::clear();
+			_TyBase::clear();
 		
 	}
 
@@ -96,13 +96,14 @@ public:
 	}
 // Construction.
 	template < class ... t_vtyArgs >
-	_tyT & emplace( t_vtyArgs && ... _args )
+	t_TyP & emplace( t_vtyArgs && ... _args )
 	{
 		clear( false );
 		if ( !m_pt )
 			allocate();
 		new ( m_pt ) t_TyP( std::forward< t_vtyArgs >( _args )... );
 		m_fConstructed = true;
+		return *m_pt;
 	}
 	void	destruct()
 	{
