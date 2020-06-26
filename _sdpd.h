@@ -14,10 +14,10 @@ __BIENUTIL_BEGIN_NAMESPACE
 template < class t_TyP, class t_TyAllocator >
 class _sdpd : protected _sdp< t_TyP, t_TyAllocator >
 {
-	typedef _sdp< t_TyP, t_TyAllocator >			_TyBase;
-	typedef _sdpd< t_TyP, t_TyAllocator >			_TyThis;
+	typedef _sdp< t_TyP, t_TyAllocator > _TyBase;
+	typedef _sdpd _TyThis;
 
-	bool	m_fConstructed;	// Set to true if this object has been successfully constructed.
+	bool m_fConstructed{false};	// Set to true if this object has been successfully constructed.
 	using _TyBase::m_pt;
 
 public:
@@ -31,23 +31,31 @@ public:
 	using _TyBase::operator !;
 
   _sdpd() _BIEN_NOTHROW
-    : _TyBase( t_TyAllocator() ),
-			m_fConstructed( false )
+    : _TyBase( t_TyAllocator() )
   {
   }
 
 	explicit _sdpd( t_TyAllocator const & _rAlloc ) _BIEN_NOTHROW
-		: _TyBase( _rAlloc ),
-			m_fConstructed( false )
+		: _TyBase( _rAlloc )
 	{
 	}
 
-	// We transfer ownership on copy-construct:
-	explicit _sdpd( _TyThis const & _r )
-		: _TyBase( _r.get_allocator() ),
-			m_fConstructed( _r.m_fConstructed )
+	// Disallow copy construction and assignment - especially since we have been using it as an r-value-ref.
+	_sdpd( _TyThis const & _r ) = delete;
+	_sdpd & operator=( _TyThis const & _r ) = delete;
+
+	// Allow move construction and assignment.
+	_sdpd( _TyThis && _rr )
+		: _TyBase( _rr.get_allocator() ),
+			m_fConstructed( _rr.m_fConstructed )
 	{
-		m_pt = const_cast< _TyThis & >( _r ).transfer();
+		m_pt = _rr.transfer();
+	}
+	_sdpd & operator = ( _TyThis && _rr )
+	{
+		m_alloc = _rr.m_alloc; // Don't move the allocator - at least for now.
+		m_fConstructed = _rr.m_fConstructed;
+		m_pt = _rr.transfer();
 	}
 
   // Aquire a potentially constructed pointer:

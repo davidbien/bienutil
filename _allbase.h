@@ -1,14 +1,14 @@
-#ifndef __ALLBASE_H
-#define __ALLBASE_H
+#pragma once
 
 // _allbase.h
-
+// dbien: Sometime in 1999/2000 I think.
 // Generic base class for abstracting the difference between an instanced and static allocator.
+// REVIEW: We only support instanced allocators at this point (post STLport).
 
+#include <memory>
 #include "bienutil.h"
 #include "_util.h"
 #include "_dbgthrw.h"
-#include "_aloctrt.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -18,10 +18,14 @@ template <	class t_TyAllocate, class t_TyAllocator >
 class _alloc_base
 {
 	typedef _alloc_base< t_TyAllocate, t_TyAllocator >	_TyThis;
+	typedef allocator_traits< t_TyAllocator > _TyAllocTraitsAsPassed;
 public:
 
-  typedef typename _Alloc_traits< t_TyAllocate, t_TyAllocator >::allocator_type _TyAllocatorType;
-  typedef typename _Alloc_traits< t_TyAllocate, t_TyAllocator >::size_type size_type;
+	// We always rebind the allocator type, whatever it is passed in as, to t_TyAllocate.
+	using _TyAllocatorTraits = typename _TyAllocTraitsAsPassed::template rebind_traits< t_TyAllocate >;
+	typedef typename _TyAllocatorTraits::allocator_type allocator_type;
+	typedef allocator_type _TyAllocatorType;
+	typedef typename _TyAllocatorTraits::size_type size_type;
 
 	_TyAllocatorType m_alloc;
 
@@ -34,7 +38,7 @@ public:
 
 	// Allow initialization with any allocator:
 	template < class t__TyAllocator >
-	explicit _alloc_base(t__TyAllocator const & _rOther ) _BIEN_NOTHROW 
+	explicit _alloc_base( t__TyAllocator const & _rOther ) _BIEN_NOTHROW 
 		: m_alloc( _rOther )
 	{ 
 	}
@@ -56,18 +60,15 @@ public:
   {
     return m_alloc;
   }
-
   __INLINE t_TyAllocate *	allocate_type()
 	{
 		__THROWPT(e_ttMemory);
 		return m_alloc.allocate( 1 );
 	}
-
 	__INLINE void deallocate_type( t_TyAllocate * _pNode ) _BIEN_NOTHROW
 	{
 		m_alloc.deallocate( _pNode, 1 );
 	}
-
 	__INLINE void allocate_n( t_TyAllocate *& _rpNode, size_type _n )
 	{
 		__THROWPT(e_ttMemory);
@@ -282,5 +283,3 @@ _alloc_base< t_TyAllocate, t_TyAllocator, true >::ms_alloc;
 #endif //!_USE_STLPORT
 
 __BIENUTIL_END_NAMESPACE
-
-#endif //__ALLBASE_H
