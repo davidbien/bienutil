@@ -478,7 +478,7 @@ class _Rb_tree_alloc_base
 {
 public:
   typedef typename _Alloc_traits<_Tp, _Alloc>::allocator_type allocator_type;
-  allocator_type get_allocator() const { return _M_node_allocator; }
+  allocator_type const & get_allocator() const { return _M_node_allocator; }
 
   _Rb_tree_alloc_base(const allocator_type& __a)
     : _M_node_allocator(__a), _M_header(0) {}
@@ -500,7 +500,7 @@ class _Rb_tree_alloc_base<_Tp, _Alloc, _type_Rb_tree_node, true>
 {
 public:
   typedef typename _Alloc_traits<_Tp, _Alloc>::allocator_type allocator_type;
-  allocator_type get_allocator() const { return allocator_type(); }
+  allocator_type const & get_allocator() const { return allocator_type(); }
 
   _Rb_tree_alloc_base(const allocator_type&) : _M_header(0) {}
 
@@ -538,7 +538,7 @@ template <class _Tp, class _Alloc, class _type_Rb_tree_node>
 struct _Rb_tree_base
 {
   typedef _Alloc allocator_type;
-  allocator_type get_allocator() const { return allocator_type(); }
+  allocator_type const & get_allocator() const { return allocator_type(); }
 
   _Rb_tree_base(const allocator_type&) 
     : _M_header(0) { _M_header = _M_get_node(); }
@@ -585,7 +585,7 @@ public:
 	typedef _Link_type			link_type;
 
   typedef typename _Base::allocator_type allocator_type;
-  allocator_type get_allocator() const { return _Base::get_allocator(); }
+  allocator_type const & get_allocator() const { return _Base::get_allocator(); }
 
 protected:
 #ifdef _STLP_USE_NAMESPACES

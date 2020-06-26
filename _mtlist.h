@@ -166,7 +166,7 @@ public:
 	{
 	}
 
-	_TyAllocatorNode	get_allocator() const					{ return m_alloc; }
+	_TyAllocatorNode const & get_allocator() const					{ return m_alloc; }
 
 	_TyNode *	PNodeAllocate( )
 	{
@@ -193,7 +193,7 @@ public:
 	{
 	}
 
-	_TyAllocatorNode	get_allocator() const					{ return _TyAllocatorNode(); }
+	_TyAllocatorNode const & get_allocator() const					{ return _TyAllocatorNode(); }
 
 	_TyNode *	PNodeAllocate( )
 	{
@@ -241,7 +241,7 @@ public:
 	typedef _TyNode							__TyNode;
 
 	typedef typename _TyBase::_TyAllocatorNode		allocator_type;
-	allocator_type	get_allocator() const					{ return _TyBase::get_allocator(); }
+	allocator_type const &	get_allocator() const					{ return _TyBase::get_allocator(); }
 
 	mtlist( _TyCompare const & _comp = _TyCompare(),
 					_TyAllocator const & _alloc = _TyAllocator(),

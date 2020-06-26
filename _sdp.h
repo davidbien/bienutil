@@ -36,7 +36,7 @@ public:
 	}
 
 	_sdp( _TyThis const & _r ) = delete;
-	_tyThis & operator=( _TyThis const & ) = delete;
+	_TyThis & operator=( _TyThis const & ) = delete;
 
 	// Allow move construction and assignment.
 	_sdp( _TyThis && _rr )
@@ -44,7 +44,7 @@ public:
 	{
 		m_pt = _rr.transfer();	
 	}
-	_tyThis & operator = ( _tyThis && _rr )
+	_TyThis & operator = ( _TyThis && _rr )
 	{
 		clear();
 		((_tyBase&)*this) = std::move( (_tyBase&)_rr );
@@ -66,7 +66,7 @@ public:
 	{
 		if ( !!m_pt )
 		{
-			t_tyP * pt = m_pt;
+			t_TyP * pt = m_pt;
 			m_pt = 0;
 			_TyBase::deallocate_type( pt );
 		}
