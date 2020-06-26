@@ -10,7 +10,7 @@
 
 #include <memory>
 #include "bienutil.h"
-#include "_aloctrt.h"
+#include "_allbase.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -53,8 +53,30 @@ public:
 
   CircularListEl() = default;
   CircularListEl( _tyCircularListContainer & _rl
-  CircularListEl( CircularListEl const & ) = delete;
-  CircularListEl & operator = ( CircularListEl const & ) = delete;
+  CircularListEl( CircularListEl const & _r )
+   : m_el( _r.m_el )
+  {   
+  }
+  CircularListEl( _tyEl const & _rEl, _tyThis & _rInsertBefore )
+    : m_el( _rEl ),
+      m_pNext( &_rInsertBefore ),
+      m_pPrev( _rInsertBefore.m_pPrev )
+  {
+    _rInsertBefore.m_pPrev->m_pNext = this;
+    _rInsertBefore.m_pPrev = this;
+  }
+  CircularListEl( _tyThis & _rInsertAfter, _tyEl const & _rEl )
+    : m_el( _rEl )
+      m_pNext( _rInsertAfter.m_pNext ),
+      m_pPrev( &_rInsertAfter )
+  {
+    _rInsertAfter.m_pNext->m_pPrev = this;
+    _rInsertAfter.m_pNext = this;
+  }
+  CircularListEl & operator = ( CircularListEl const & _r )
+  {
+    m_el = _r.m_el;
+  }
   // The default move operators don't copy the m_pNext and m_pPrev pointers as that is rarely desireable.
   CircularListEl( CircularListEl && _rr )
     : m_el( std::move( _rr.m_el ) )
@@ -160,20 +182,44 @@ protected:
 
 // CircularList:
 template < class t_tyEl >
-class CircularList
+class CircularList : public _alloc_base<  typename CircularElTraits< t_tyEl >::_tyCircularListEl,
+                                          typename CircularElTraits< t_tyEl >::_tyAllocator >
 {
   typedef CircularList _tyThis;
+  typedef _alloc_base<  typename CircularElTraits< t_tyEl >::_tyCircularListEl,
+                        typename CircularElTraits< t_tyEl >::_tyAllocator > _tyBase;
 public:
   typedef CircularElTraits< t_tyEl >::_tyCircularListEl _tyCircularListEl;
   typedef CircularElTraits< t_tyEl >::_tyAllocator _tyAllocator;
-  typedef allocator_traits< _tyAllocator >::rebind_traits< _tyCircularListEl > _tyAllocTraitsEl;
-  typedef _tyAllocTraitsEl::allocator_type _tyAllocEl;
 
   CircularList() = default;
   CircularList( CircularList const & _r )
-    : m_allocEl( _r.m_allocEl )
+    : _tyBase( _r )
   {
     Copy( _r );
+  }
+  ~CircularList()
+  {
+    if ( m_pcleHead )
+      _Clear( m_pcleHead );
+  }
+  void Clear()
+  {
+    if ( m_pcleHead )
+    {
+      _tyCircularListEl * p = m_pcleHead;
+      m_pcleHead = 0;
+      _Clear( p );
+    }
+  }
+
+  const _tyCircularListEl * PGetHead() const
+  {
+    return m_pcleHead;
+  }
+  _tyCircularListEl * PGetHead()
+  {
+    return m_pcleHead;
   }
 
   void Copy( _tyThis const & _r )
@@ -182,13 +228,38 @@ public:
     const _tyCircularListEl * pHeadThat = _r.PHead();
     if ( !pHeadThat )
       return;
-    // We won't try to clean up the copied list on throw.
-    for ( ;  )
+    // We will clean up the copied list on throw.
+    _tyCircularListEl * pHeadCopy = _tyBase::template PCreate< _tyCircularListEl const & >( *pHeadThat );
+    _BIEN_TRY
+    {
+      _tyCircularListEl * pCurCopy = pHeadCopy;
+      for ( const _tyCircularListEl * pCurThat = pHeadThat->PNext(); pCurThat; pCurThat = pCurThat->PNext() )
+      {
+        _tyCircularListEl * pNew = _tyBase::template PCreate< _tyCircularListEl &, t_tyEl const & >( *pCurCopy, pCurThat->GetEl() );
+        pCurCopy = pNew; // yes, could have assigne above.
+      }
+    }
+    _BIEN_UNWIND( _Clear( pCopyHead ) );
+    // Now the try...catch doesn't own pHeadCopy anymore - we do:
+    m_pcleHead = pCopyHead;
   }
 
 protected:
+  void _Clear( _tyCircularListEl * _p )
+  {
+    assert( !!_p );
+    _tyCircularListEl * pCur = _p;
+    _tyCircularListEl * pNext;
+    do
+    {
+      // We don't bother unlinking the elements as we are destroying the entire list:
+      pNext = pCur->PNext();
+      _tyBase::DestroyP( pCur );
+    }
+    while( _p != ( pCur = pNext ) );
+  }
   
-  _tyCircularListEl m_pcleHead{nullptr};
+  _tyCircularListEl * m_pcleHead{nullptr};
   _tyAllocEl m_allocEl; // allocator for elements of the list.
 };
 

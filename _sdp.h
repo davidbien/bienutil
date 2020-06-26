@@ -71,32 +71,6 @@ public:
 			_TyBase::deallocate_type( pt );
 		}
 	}
-protected: // Are these accessed publicly - if not then use _sdpd
-	void
-	destruct()
-	{
-		if ( m_pt )
-		{
-			m_pt->~t_TyP();
-		}
-	}
-
-	template < class t_Ty1 >
-	void
-	construct1( t_Ty1 _r1 )
-	{
-		new( m_pt ) t_TyP( _r1 );
-	}
-
-	template < class t_Ty1, class t_Ty2 >
-	void
-	construct2( t_Ty1 _r1, t_Ty2 _r2 )
-	{
-		new( m_pt ) t_TyP( _r1, _r2 );
-	}
-	// etc.
-public:
-
 	t_TyP *	transfer() _BIEN_NOTHROW
 	{
 		t_TyP * _pt = m_pt;
@@ -126,6 +100,12 @@ public:
 	bool operator !() const _BIEN_NOTHROW
 	{
 		return !m_pt;
+	}
+protected: // Are these accessed publicly - if not then use _sdpd
+	void destruct()
+	{
+		if ( m_pt )
+			m_pt->~t_TyP();
 	}
 };
 

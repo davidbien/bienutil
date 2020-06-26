@@ -94,7 +94,7 @@ public:
 		m_fConstructed = false;
 		return _TyBase::transfer();
 	}
-// Construction.
+// Construction/destruction.
 	template < class ... t_vtyArgs >
 	_tyT & emplace( t_vtyArgs && ... _args )
 	{
@@ -104,7 +104,7 @@ public:
 		new ( m_pt ) t_TyP( std::forward< t_vtyArgs >( _args )... );
 		m_fConstructed = true;
 	}
-	void	destruct()
+	void destruct()
 	{
 		if ( m_fConstructed )
 		{
@@ -112,58 +112,6 @@ public:
 			_TyBase::destruct();
 		}
 	}
-#if 0
-	// construction templates:
-	void	construct()
-	{
-		if ( !m_pt )
-			allocate();
-		assert( !m_fConstructed );
-		new ( m_pt ) t_TyP();
-		m_fConstructed = true;
-	}
-	template < class t_Ty1 >
-	void
-	construct1( t_Ty1 _r1 )
-	{
-		if ( !m_pt )
-			allocate();
-		assert( !m_fConstructed );
-		new( m_pt ) t_TyP( _r1 );
-		m_fConstructed = true;
-	}
-	template < class t_Ty1, class t_Ty2 >
-	void
-	construct2( t_Ty1 _r1, t_Ty2 _r2 )
-	{
-		if ( !m_pt )
-			allocate();
-		assert( !m_fConstructed );
-		new( m_pt ) t_TyP( _r1, _r2 );
-		m_fConstructed = true;
-	}
-	template < class t_Ty1, class t_Ty2, class t_Ty3 >
-	void
-	construct3( t_Ty1 _r1, t_Ty2 _r2, t_Ty3 _r3 )
-	{
-		if ( !m_pt )
-			allocate();
-		assert( !m_fConstructed );
-		new( m_pt ) t_TyP( _r1, _r2, _r3 );
-		m_fConstructed = true;
-	}
-	template < class t_Ty1, class t_Ty2, class t_Ty3, class t_Ty4 >
-	void
-	construct4( t_Ty1 _r1, t_Ty2 _r2, t_Ty3 _r3, t_Ty4 _r4 )
-	{
-		if ( !m_pt )
-			allocate();
-		assert( !m_fConstructed );
-		new( m_pt ) t_TyP( _r1, _r2, _r3, _r4 );
-		m_fConstructed = true;
-	}
-	// etc...
-#endif //0
 };
 
 __BIENUTIL_END_NAMESPACE

@@ -89,6 +89,31 @@ public:
 	{
     m_alloc.deallocate( _pNode, _n );
 	}
+
+	// PCreate() and DestroyP() perform both allocation/deallocation and construction/destruction.
+	template < class ... t_vtyArgs >
+	t_TyAllocate * PCreate( t_vtyArgs && ... _args )
+	{
+		t_TyAllocate * pNode = allocate_type();
+		_BIEN_TRY
+		{
+			new ( pNode ) t_TyAllocate( std::forward< t_vtyArgs >( _args )... );
+		}
+		_BIEN_UNWIND( deallocate_type( pNode ) );
+		return pNode;
+	}
+	void DestroyP( t_TyAllocate * _pNode )
+	{
+		if ( _pNode )
+		{
+			_BIEN_TRY
+			{
+				_pNode->~t_TyAllocate();
+			}
+			_BIEN_UNWIND( deallocate_type( _pNode ) ); // Still deallocate the memory then rethrow.
+			deallocate_type( _pNode );
+		}
+	}
 };
 
 #else //!_USE_STLPORT
