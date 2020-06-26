@@ -72,13 +72,47 @@ public:
 		if ( m_fConstructed )
 			_TyBase::destruct();
 	}
+	void clear( bool _fDeallocate = true )
+	{
+		if ( m_fConstructed )
+		{
+			m_fConstructed = false;
+			_TyBase::destruct();
+		}
+		if ( _fDeallocate )
+			_tyBase::clear();
+		
+	}
 
   // Indicate that the contained object is constructed.
   void  SetConstructed() _BIEN_NOTHROW
   {
     m_fConstructed = true;
   }
-
+	t_TyP *	transfer() _BIEN_NOTHROW
+	{
+		m_fConstructed = false;
+		return _TyBase::transfer();
+	}
+// Construction.
+	template < class ... t_vtyArgs >
+	_tyT & emplace( t_vtyArgs && ... _args )
+	{
+		clear( false );
+		if ( !m_pt )
+			allocate();
+		new ( m_pt ) t_TyP( std::forward< t_vtyArgs >( _args )... );
+		m_fConstructed = true;
+	}
+	void	destruct()
+	{
+		if ( m_fConstructed )
+		{
+			m_fConstructed = false;
+			_TyBase::destruct();
+		}
+	}
+#if 0
 	// construction templates:
 	void	construct()
 	{
@@ -129,22 +163,7 @@ public:
 		m_fConstructed = true;
 	}
 	// etc...
-
-	void	destruct()
-	{
-		if ( m_fConstructed )
-		{
-			m_fConstructed = false;
-			_TyBase::destruct();
-		}
-	}
-
-	t_TyP *	transfer() _BIEN_NOTHROW
-	{
-		m_fConstructed = false;
-		return _TyBase::transfer();
-	}
-
+#endif //0
 };
 
 __BIENUTIL_END_NAMESPACE

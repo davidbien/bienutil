@@ -42,6 +42,17 @@ public:
 		: m_alloc( _rOther )
 	{ 
 	}
+	
+	template < class t__TyAllocator >
+	_alloc_base( t__TyAllocator && _rrOther ) _BIEN_NOTHROW 
+		: m_alloc( std::move( _rrOther.m_alloc ) )
+	{ 
+	}
+	_TyThis & operator = ( _TyThis && _rr )
+	{
+		m_alloc = std::move( _rr.m_alloc );
+		return *this;
+	}
 
 	__INLINE _TyAllocatorType & get_allocator_ref() _BIEN_NOTHROW
 	{
