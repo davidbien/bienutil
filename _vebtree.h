@@ -2119,8 +2119,28 @@ public:
         m_nLastElement = _tyImplType(_stNElements-1 );
     }
     // No reason not to allow copy construction:
-    VebTreeWrap( VebTreeWrap const & ) = default;
-    _tyThis & operator = ( _tyThis const & ) = default;
+    VebTreeWrap( VebTreeWrap const & _r )
+        :   m_rgstSubtrees( _r.m_rgstSubtrees.get_allocator() ),
+            m_stSummary( _r.m_stSummary ),
+            m_nMin( _r.m_nMin ),
+            m_nMax( _r.m_nMax ),
+            m_nLastElement( _r.m_nLastElement )
+    {
+        if ( !_r.m_rgstSubtrees.size() )
+            return; // nothing to do.
+        // We can just memcpy the data from the subtrees rather than cascading the construction for speed.
+        size_t stClusters = ( m_nLastElement / t_kstUniverseCluster ) + 1;
+        m_rgstSubtrees.reserve( stClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
+        m_rgstSubtrees.resize( stClusters ); // May throw.
+        memcpy( &m_rgstSubtrees[0], &_r.m_rgstSubtrees[0], stClusters * sizeof( _tySubtree ) );
+    }
+    _tyThis & operator = ( _tyThis const & _r )
+    {
+        // We don't deinit first because that will preserve state in case of a throw. The flip side is that we will have more memory allocated for a bit.
+        VebTreeWrap vebCopy( _r );
+        swap( vebCopy );
+        return *this;
+    }
     VebTreeWrap( VebTreeWrap && _rr )
         :   m_rgstSubtrees( std::move( _rr.m_rgstSubtrees ) ),
             m_stSummary( std::move( _rr.m_stSummary ) )
