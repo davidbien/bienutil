@@ -918,7 +918,7 @@ public:
             break;
         }    
     }
-
+// Reading arrays and objects:
     // Array index can be used on either array or object.
     // Will throw semanticerror due to bad index access if accessed beyond the end.
     JsoValue & operator [] ( size_t _st )
@@ -954,13 +954,30 @@ public:
     {
         return _ObjectGet().GetEl( _psz ).second;
     }
-#if 0
-    // This will either create, change or leave everything the same.
-    JsoValue & CreateEl( _tyLPCSTR _psz, EJsonValueType _jvt )
+// Writing arrays and objects:
+    // This will create a (null) value at position _st. And (null) values along the way in between the last existing value and _st.
+    JsoValue & operator () ( size_t _st )
     {
-        return _ObjectGet().GetEl( _psz );
+        return CreateOrGetEl( _st );
     }
-#endif //0
+    JsoValue & CreateOrGetEl( size_t _st )
+    {
+        return _ArrayGet().CreateOrGetEl( _st );
+    }
+    JsoValue & AppendEl()
+    {
+        return _ArrayGet().AppendEl();
+    }
+    // This is create an object element with key named _psz or return the existing element named _psz.
+    // A null value is added initially if the object key doesn't exist.
+    JsoValue & operator () ( _tyLPCSTR _psz )
+    {
+        return CreateOrGetEl( _psz );
+    }
+    JsoValue & CreateOrGetEl( _tyLPCSTR _psz )
+    {
+        return _ObjectGet().CreateOrGetEl( _psz ).second;
+    }
 
 // We either return or throw and clang can't recognize that.
 #pragma GCC diagnostic push
@@ -1159,6 +1176,11 @@ public:
     {
         return const_cast< _tyThis * >( this )->GetEl( _psz );
     }
+    _tyMapValueType & CreateOrGetEl( _tyLPCSTR _psz )
+    {
+        std::pair< _tyIterator, bool > pib = m_mapValues.try_emplace( _psz, ejvtNull );
+        return *pib.first;
+    }
 
     bool operator == ( const _tyThis & _r ) const
     {
@@ -1312,9 +1334,25 @@ public:
         if ( m_vecValues.end() == it )
             THROWJSONBADUSAGE( "_JsoArray::GetEl(): No such key [%s]", _psz );
     }
-    const _tyVectorValueType & GetEl( _tyLPCSTR _psz ) const
+    const _tyVectorValueType & GetEl( size_t _st ) const
     {
-        return const_cast< _tyThis * >( this )->GetEl( _psz );
+        return const_cast< _tyThis * >( this )->GetEl( _st );
+    }
+    _tyVectorValueType & CreateOrGetEl( size_t _st )
+    {
+        // Create null items up until item _st if necessary.
+        if ( _st >= m_vecValues.size() )
+        {
+            size_t stCreate = _st - m_vecValues.size() + 1;
+            while( stCreate-- )
+                m_vecValues.emplace_back( ejvtNull );
+        }
+        return m_vecValues[ _st ];
+    }
+    _tyVectorValueType & AppendEl()
+    {
+        m_vecValues.emplace_back( ejvtNull );
+        return m_vecValues.back();
     }
 
     bool operator == ( const _tyThis & _r ) const
