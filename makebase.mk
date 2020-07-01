@@ -123,7 +123,7 @@ CXX := $(CC)
 CXXANDLINKFLAGS += $(MOD_CPPVER) -pthread --cuda-path=/usr/local/cuda -I"/usr/local/cuda/targets/$(MOD_ARCH)-linux/include"
 CLANG_INSTALL_DIR := $(dir $(shell readlink -f $(shell which clang)))..
 MK_LIBS += -lm -Wl,-rpath,$(CLANG_INSTALL_DIR)/lib
-ifeq (1,$(FORCE_CLANG_LIBCPP))
+ifeq (1,$(MOD_FORCE_CLANG_LIBCPP))
 CXXANDLINKFLAGS += -stdlib=libc++
 MK_LIBS += -lc++abi
 endif #(1,$(FORCE_CLANG_LIBCPP))
