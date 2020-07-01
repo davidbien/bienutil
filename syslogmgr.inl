@@ -17,6 +17,7 @@ void _SysLogThreadHeader::ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & 
         _jvl.WriteStringValue( "ProgName", m_szProgramName );
         _jvl.WriteUuidStringValue( "uuid", m_uuid );
         _jvl.WriteTimeStringValue( "TimeStarted", m_timeStart );
+        _jvl.WriteValue( "msSinceProgramStart", m_nmsSinceProgramStart );
         _jvl.WriteValue( "ThreadId", m_tidThreadId );
     }
     else
@@ -56,6 +57,11 @@ void _SysLogThreadHeader::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > 
                             _jrc.GetTimeStringValue( m_timeStart );
                             continue;
                         }
+                        if ( strKey == "msSinceProgramStart" )
+                        {
+                            _jrc.GetValue( m_nmsSinceProgramStart );
+                            continue;
+                        }
                         if ( strKey == "uuid" )
                         {
                             _jrc.GetUuidStringValue( m_uuid );
@@ -88,6 +94,7 @@ void _SysLogContext::ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl 
     assert( _jvl.FAtObjectValue() );
     if ( _jvl.FAtObjectValue() )
     {
+        _jvl.WriteValue( "msec", m_nmsSinceProgramStart );
         _jvl.WriteTimeStringValue( "Time", m_time );
         _jvl.WriteValue( "Type", (uint8_t)m_eslmtType );
         _jvl.WriteStringValue( "Mesg", m_szFullMesg );
@@ -103,6 +110,11 @@ void _SysLogContext::ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl 
             GetErrnoDescStdStr( m_errno, strErrDesc );
             if ( !!strErrDesc.length() )
                 _jvl.WriteStringValue( "ErrnoDesc", strErrDesc );
+        }
+        if ( !!m_pjvLog )
+        {
+            JsonValueLife< t_tyJsonOutputStream > jvlDetail( _jvl, "Detail", m_pjvLog->JvtGetValueType() );
+            m_pjvLog->ToJSONStream( jvlDetail );
         }
     }
     else
@@ -132,6 +144,11 @@ void _SysLogContext::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jr
                 {
                     if ( ejvtString == jvtValue )
                     {
+                        if ( strKey == "msec" )
+                        {
+                            _jrc.GetValue( m_nmsSinceStart );
+                            continue;
+                        }
                         if ( strKey == "Time" )
                         {
                             _jrc.GetValue( m_time );
@@ -178,7 +195,7 @@ void _SysLogContext::FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jr
 
 template < const int t_kiInstance >
 bool 
-_SysLogMgr< t_kiInstance >::_FTryCreateUniqueJSONLogFile( const char * _pszProgramName )
+_SysLogMgr< t_kiInstance >::_FTryCreateUniqueJSONLogFile( const char * _pszProgramName, const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson )
 {
     // Move _pszProgramName past any directory:
     const char * pszProgNameNoPath = strrchr( _pszProgramName, '/' );
@@ -194,6 +211,7 @@ _SysLogMgr< t_kiInstance >::_FTryCreateUniqueJSONLogFile( const char * _pszProgr
     slth.m_szProgramName = strExePath;
     slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.
     slth.m_timeStart = time(0);
+    slth.m_nmsSinceProgramStart = _GetMsSinceProgramStart();
     uuid_generate( slth.m_uuid );
     slth.m_tidThreadId = s_tls_tidThreadId;
 
@@ -216,6 +234,11 @@ _SysLogMgr< t_kiInstance >::_FTryCreateUniqueJSONLogFile( const char * _pszProgr
         // Create the SysLogThreadHeader object as the first object within the log file.
         _tyJsonValueLife jvlSysLogThreadHeader( *pjvlRoot, "SysLogThreadHeader", ejvtObject );
         slth.ToJSONStream( jvlSysLogThreadHeader );
+        if ( _pjvThreadSpecificJson ) // write any thread-specific JSON data to the log header.
+        {
+            _tyJsonValueLife jvlThreadSpec( jvlSysLogThreadHeader, "ThreadSpecificData", _pjvThreadSpecificJson->JvtGetValueType() );
+            _pjvThreadSpecificJson->ToJSONStream( jvlThreadSpec );
+        }
     } //EB
     // Now open up an array to contain the set of log message details.
     std::unique_ptr< _tyJsonValueLife > pjvlSysLogArray = std::make_unique< _tyJsonValueLife >( *pjvlRoot, "SysLog", ejvtArray );

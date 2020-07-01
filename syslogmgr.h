@@ -37,6 +37,8 @@ template < class t_tyCharTraits >
 class JsonFormatSpec;
 template < class t_tyCharTraits, class t_tyPersistAsChar >
 class JsonLinuxOutputStream;
+template < class t_tyChar >
+class JsoValue;
 
 enum _ESysLogMessageType : uint8_t
 {
@@ -50,21 +52,33 @@ typedef _ESysLogMessageType ESysLogMessageType;
 // Predeclare:
 namespace n_SysLog
 {
-    inline void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility );
-    inline void Log( ESysLogMessageType _eslmtType, const char * _pcFmt, ... );
+    struct GetProgramStart
+    {
+        GetProgramStart()
+        {
+            (void)clock_gettime( CLOCK_MONOTONIC_COARSE, &m_tsProgramStart );
+        }
+        timespec m_tsProgramStart;
+    };
+    typedef JsoValue< char > vtyJsoValueSysLog;
+    void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog * _pjvThreadSpecificJson = 0 );
+    void Log( ESysLogMessageType _eslmtType, const char * _pcFmt, ... );
     void Log( ESysLogMessageType _eslmtType, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... );
 // Methods including errno:
-    inline void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFmt, ... );
+    void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFmt, ... );
     void Log( ESysLogMessageType _eslmtType, int _errno, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... );
 } // namespace n_SysLog
 
 #define LOGSYSLOG( TYPE, MESG... ) n_SysLog::Log( TYPE, __FILE__, __LINE__, MESG )
 #define LOGSYSLOGERRNO( TYPE, ERRNO, MESG... ) n_SysLog::Log( TYPE, ERRNO, __FILE__, __LINE__, MESG )
+#define LOGSYSLOG_JSON( TYPE, JSONVALUE, MESG... ) n_SysLog::Log( TYPE, JSONVALUE,  __FILE__, __LINE__, MESG )
+#define LOGSYSLOGERRNO_JSON( TYPE, JSONVALUE, ERRNO, MESG... ) n_SysLog::Log( TYPE, JSONVALUE, ERRNO, __FILE__, __LINE__, MESG )
 
 // _SysLogThreadHeader:
 // This contains thread level info about syslog messages that is constant for all contained messages.
 struct _SysLogThreadHeader
 {
+    size_t m_nmsSinceProgramStart{0}; // easiest way to do this.
     std::string m_szProgramName;
 #if __APPLE__
     __uint64_t m_tidThreadId{0}; // The result of the call to gettid() for this thread.
@@ -80,6 +94,7 @@ struct _SysLogThreadHeader
 
     void Clear()
     {
+        m_nmsSinceProgramStart = 0;
         memset( &m_uuid, 0, sizeof m_uuid );
         assert( 1 == uuid_is_null( m_uuid ) );
         m_szProgramName.clear();
@@ -97,6 +112,8 @@ struct _SysLogThreadHeader
 // This breaks out all info from a log message so we can put it into a JSON file where it can then be put in a DB, etc.
 struct _SysLogContext
 {
+    size_t m_nmsSinceProgramStart; // easiest way to do this.
+    JsoValue< char > * m_pjvLog{nullptr}; // additional JSON to log to the entry.
     time_t m_time{0};
     std::string m_szFullMesg; // The full annotated message.
     std::string m_szFile;
@@ -108,6 +125,8 @@ struct _SysLogContext
 
     inline void Clear()
     {
+        m_nmsSinceProgramStart = 0;
+        m_pjvLog = nullptr;
         m_time = 0;
         m_szFullMesg.clear();
         m_szFile.clear();
@@ -135,12 +154,12 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
     void Log( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc );
 
     bool FHasJSONLogFile() const;
-    bool FCreateUniqueJSONLogFile( const char * _pszProgramName )
+    bool FCreateUniqueJSONLogFile( const char * _pszProgramName, const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson )
     {
         // Don't fail running the program if we cannot create the log file.
         try
         {
-            return _FTryCreateUniqueJSONLogFile( _pszProgramName );
+            return _FTryCreateUniqueJSONLogFile( _pszProgramName, _pjvThreadSpecificJson );
         }
         catch( std::exception const & exc )
         {
@@ -148,7 +167,7 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
             return false;
         }
     }
-    bool _FTryCreateUniqueJSONLogFile( const char * _pszProgramName );
+    bool _FTryCreateUniqueJSONLogFile( const char * _pszProgramName, const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson );
 
 // Static method. Generally not to be called directly - use the n_SysLog methods.
     static _SysLogMgr & RGetThreadSysLogMgr()
@@ -174,15 +193,17 @@ protected:  // These methods aren't for general consumption. Use the s_SysLog na
         return *s_tls_pThis;
     }
 public:
-    static void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility )
+    static void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility, const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson )
     {
         openlog( _pszProgramName, _grfOption, _grfFacility );
+        assert( !_pjvThreadSpecificJson || s_fGenerateUniqueJSONLogFile );
         if ( s_fGenerateUniqueJSONLogFile )
         {
             _SysLogMgr & rslm = _SysLogMgr::RGetThreadSysLogMgr();
-            if ( !rslm.FCreateUniqueJSONLogFile( _pszProgramName ) )
+            if ( !rslm.FCreateUniqueJSONLogFile( _pszProgramName, _pjvThreadSpecificJson ) )
             {
-
+                fprintf( stderr, "InitSysLog(): FCreateUniqueJSONLogFile() failed.\n" ); 
+                // continue on bravely...
             }
         }
     }
@@ -217,6 +238,18 @@ public:
     {
     }
 
+    static size_t _GetMsSinceProgramStart()
+    {
+        timespec tsCur;
+        if ( !clock_gettime( CLOCK_MONOTONIC_COARSE, &tsCur ) )
+        {
+            size_t ms = ( tsCur.tv_sec - s_psProgramStart.m_tsProgramStart.tv_sec ) * 1000;
+            ms += ( tsCur.tv_nsec - s_psProgramStart.m_tsProgramStart.tv_nsec ) / 1000000;
+            return ms;
+        }
+        return 0;
+    }
+
 protected:
 // non-static members:
     _SysLogMgr * m_pslmOverlord; // If this is zero then we are the overlord or there is no overlord.
@@ -238,6 +271,7 @@ protected:
 #endif 
     static bool s_fCallSysLogEachThread;
     static bool s_fGenerateUniqueJSONLogFile; // Generate a unique log file in the same directory as the executable and then log that log filename to the syslog.
+    static n_SysLog::GetProgramStart s_psProgramStart;
 };
 
 template < const int t_kiInstance >
@@ -261,14 +295,16 @@ template < const int t_kiInstance >
 bool _SysLogMgr< t_kiInstance >::s_fCallSysLogEachThread = true;
 template < const int t_kiInstance >
 bool _SysLogMgr< t_kiInstance >::s_fGenerateUniqueJSONLogFile = true;
+template < const int t_kiInstance >
+n_SysLog::GetProgramStart _SysLogMgr< t_kiInstance >::s_psProgramStart;
 
 // Access all syslog functionality through this namespace.
 namespace n_SysLog
 {
     using SysLogMgr = _SysLogMgr<0>;
-    inline void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility )
+    inline void InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog * _pjvThreadSpecificJson )
     {
-        SysLogMgr::InitSysLog( _pszProgramName, _grfOption, _grfFacility );
+        SysLogMgr::InitSysLog( _pszProgramName, _grfOption, _grfFacility, _pjvThreadSpecificJson );
     }
     inline void Log( ESysLogMessageType _eslmtType, const char * _pcFmt, ... )
     {
@@ -297,6 +333,7 @@ namespace n_SysLog
             slx.m_eslmtType = _eslmtType;
             slx.m_szFullMesg = strLog;
             slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
         }
         SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
     }
@@ -326,6 +363,7 @@ namespace n_SysLog
             slx.m_eslmtType = _eslmtType;
             slx.m_szFullMesg = strLog;
             slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
             slx.m_szFile = _pcFile;
             slx.m_nLine = _nLine;
         }
@@ -363,6 +401,7 @@ namespace n_SysLog
             slx.m_eslmtType = _eslmtType;
             slx.m_szFullMesg = strLog;
             slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
             slx.m_errno = _errno;
         }
         SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
@@ -398,9 +437,153 @@ namespace n_SysLog
             slx.m_eslmtType = _eslmtType;
             slx.m_szFullMesg = strLog;
             slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
             slx.m_szFile = _pcFile;
             slx.m_nLine = _nLine;
             slx.m_errno = _errno;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
+    }
+// Same as above except adding JsoValue additional JSON logging:
+    inline void Log( ESysLogMessageType _eslmtType, vtyJsoValueSysLog & _rjvLog, const char * _pcFmt, ... )
+    {
+        // We add <type>: to the start of the format string.
+        std::string strFmtAnnotated;
+        PrintfStdStr( strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFmt );
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRequired < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
+        va_start( ap, _pcFmt );
+        std::string strLog;
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRet < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
+        
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        _SysLogContext slx;
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
+            slx.m_pjvLog = &_rjvLog;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
+    }
+    void Log( ESysLogMessageType _eslmtType, vtyJsoValueSysLog & _rjvLog, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... )
+    {
+        // We add [type]:_psFile:_nLine: to the start of the format string.
+        std::string strFmtAnnotated;
+        PrintfStdStr( strFmtAnnotated, "<%s>:%s:%d: %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFile, _nLine, _pcFmt );
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRequired < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
+        va_start( ap, _pcFmt );
+        std::string strLog;
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRet < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        _SysLogContext slx;
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
+            slx.m_szFile = _pcFile;
+            slx.m_nLine = _nLine;
+            slx.m_pjvLog = &_rjvLog;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
+    }
+// Methods including errno:
+    inline void Log( ESysLogMessageType _eslmtType, vtyJsoValueSysLog & _rjvLog, int _errno, const char * _pcFmt, ... )
+    {
+        std::string strFmtAnnotated;
+        { //B
+            // Add the errno description onto the end of the error string.
+            std::string strErrno;
+            GetErrnoStdStr( _errno, strErrno );
+            // We add <type>: to the start of the format string.
+            PrintfStdStr( strFmtAnnotated, "<%s>: %s, %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFmt, strErrno.c_str() );
+        } //EB
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRequired < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
+        va_start( ap, _pcFmt );
+        std::string strLog;
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRet < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
+        _SysLogContext slx;
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
+            slx.m_errno = _errno;
+            slx.m_pjvLog = &_rjvLog;
+        }
+        SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
+    }
+    void Log( ESysLogMessageType _eslmtType, vtyJsoValueSysLog & _rjvLog, int _errno, const char * _pcFile, unsigned int _nLine, const char * _pcFmt, ... )
+    {
+        // We add [type]:_psFile:_nLine: to the start of the format string.
+        std::string strFmtAnnotated;
+        { //B
+            // Add the errno description onto the end of the error string.
+            std::string strErrno;
+            GetErrnoStdStr( _errno, strErrno );
+            PrintfStdStr( strFmtAnnotated, "<%s>:%s:%d: %s, %s", SysLogMgr::SzMessageType( _eslmtType ), _pcFile, _nLine, _pcFmt, strErrno.c_str() );
+        }
+
+        va_list ap;
+        va_start( ap, _pcFmt );
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRequired < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired );
+        va_start( ap, _pcFmt );
+        std::string strLog;
+        int nRet = NPrintfStdStr( strLog, nRequired, strFmtAnnotated.c_str(), ap );
+        va_end( ap );
+        if ( nRet < 0 )
+            THROWNAMEDEXCEPTION( "n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired );
+        _SysLogContext slx;
+        bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+        if ( fHasLogFile )
+        {
+            slx.m_eslmtType = _eslmtType;
+            slx.m_szFullMesg = strLog;
+            slx.m_time = time(0);
+            slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
+            slx.m_szFile = _pcFile;
+            slx.m_nLine = _nLine;
+            slx.m_errno = _errno;
+            slx.m_pjvLog = &_rjvLog;
         }
         SysLogMgr::StaticLog( _eslmtType, std::move(strLog), fHasLogFile ? &slx : 0 );
     }
