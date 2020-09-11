@@ -1,6 +1,11 @@
 #ifndef ___UTIL_H__BIEN__
 #define ___UTIL_H__BIEN__
 
+//          Copyright David Lawrence Bien 1997 - 2020.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt).
+
 // _util.h
 
 #include "_booltyp.h"

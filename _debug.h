@@ -1,6 +1,11 @@
 #ifndef ______DEBUG_H_XYZPDQ
 #define ______DEBUG_H_XYZPDQ
 
+//          Copyright David Lawrence Bien 1997 - 2020.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt).
+
 // _debug.h
 
 // This file defines debugging stuff.

@@ -1,5 +1,10 @@
 #pragma once
 
+//          Copyright David Lawrence Bien 1998 - 2020.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt).
+
 // _allbase.h
 // dbien: Sometime in 1999/2000 I think.
 // Generic base class for abstracting the difference between an instanced and static allocator.

@@ -1,5 +1,10 @@
 #pragma once
 
+//          Copyright David Lawrence Bien 1997 - 2020.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt).
+
 // syslogmgr.h
 // This abstracts the idea of a syslog - while also perhaps using syslog to log.
 // dbien: 12MAR2020
