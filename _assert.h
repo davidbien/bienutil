@@ -30,7 +30,17 @@
 #endif // !NDEBUG
 #endif // !ASSERTSENABLED
 
-// This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort().
+#ifndef ABORTONASSERT
+// By default we do not abort on assert. Abort generates a core dump so if you want to examine the state of things you would want to abort.
+#define ABORTONASSERT 0
+#endif // !ABORTONASSERT
+
+#ifndef ABORTONVERIFY
+// By default we do not abort on VERIFY. Abort generates a core dump so if you want to examine the state of things you would want to abort.
+#define ABORTONVERIFY 0
+#endif // !ABORTONVERIFY
+
+// This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort() (if _fAbort).
 inline void 
 AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
                           unsigned int _nLine, const char * _szFunction, const char * _szMesg, ... )
@@ -44,20 +54,20 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
     int nRequired = vsnprintf( &tc, 1, _szMesg, ap );
     va_end(ap);
     if ( nRequired < 0 )
-      PrintfStdStr( strMesg, "AssertVerify_abort(): vsnprintf() returned nRequired[%d].", nRequired );
+      (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): vsnprintf() returned nRequired[%d].", nRequired );
     else
     {
       va_start(ap, _szMesg);
       int nRet = NPrintfStdStr( strMesg, nRequired, _szMesg, ap );
       va_end(ap);
       if (nRet < 0)
-        PrintfStdStr( strMesg, "AssertVerify_abort(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
+        (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
     }
   }
 
   // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
   std::string strFmt;
-  PrintfStdStr( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s(): %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
+  (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s(): %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
 
   n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
   jvLog("szAssertion").SetStringValue( _szAssertion );
@@ -67,11 +77,11 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
   jvLog("szFile").SetStringValue( _szFile );
   jvLog("nLine").SetValue( _nLine );
   jvLog("fAssert").SetBoolValue( _fAssert );
-  n_SysLog::Log( eslmtError, jvLog, strFmt.c_str() );
 
+  n_SysLog::Log( eslmtError, jvLog, strFmt.c_str() );
   if ( _fAbort )
   {
-    n_SysLog::CloseSysLog(); // flush and close before we abort.
+    n_SysLog::CloseThreadSysLog(); // flush and close syslog for this thread only before we abort.
     abort();
   }
 }
@@ -79,11 +89,11 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
 #define Verify(expr)							          \
      ( static_cast <bool> (expr)						\
       ? void (0)							              \
-      : AssertVerify_LogMessage( false, false, "Verify", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, 0 ) )
+      : AssertVerify_LogMessage( !!ABORTONVERIFY, false, "Verify", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, 0 ) )
 #define VerifySz(expr, sz...)							  \
      ( static_cast <bool> (expr)					  \
       ? void (0)							              \
-      : AssertVerify_LogMessage( false, false, "Verify", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, sz ) )
+      : AssertVerify_LogMessage( !!ABORTONVERIFY, false, "Verify", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, sz ) )
 
 #if !ASSERTSENABLED
 #define Assert(expr)		(static_cast<void>(0))
@@ -92,10 +102,10 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
 #define Assert(expr)							          \
      ( static_cast <bool> (expr)						\
       ? void (0)							              \
-      : AssertVerify_LogMessage( false, true, "Assert", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, 0 ) )
+      : AssertVerify_LogMessage( !!ABORTONASSERT, true, "Assert", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, 0 ) )
 #define AssertSz(expr, sz...)							  \
      ( static_cast <bool> (expr)					  \
       ? void (0)							              \
-      : AssertVerify_LogMessage( false, true, "Assert", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, sz ) )
+      : AssertVerify_LogMessage( !!ABORTONASSERT, true, "Assert", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, sz ) )
 #endif // #if !ASSERTSENABLED
 

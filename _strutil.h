@@ -67,7 +67,7 @@ std::strong_ordering ICompareStr( const t_tyChar * _pszLeft, const t_tyChar * _p
 
 // Return a string formatted like printf. Throws.
 template < class t_tyChar >
-void PrintfStdStr( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFmt, ... )
+void PrintfStdStr( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFmt, ... ) noexcept(false)
 {
     va_list ap;
     va_start( ap, _pcFmt );
@@ -83,6 +83,25 @@ void PrintfStdStr( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFm
     va_end( ap );
     if ( nRet < 0 )
         THROWNAMEDEXCEPTION( "PrintfStdStr(): vsnprintf() returned nRet[%d].", nRet );
+}
+
+// Return a string formatted like printf. Doesn't throw.
+template < class t_tyChar >
+bool FPrintfStdStrNoThrow( std::basic_string< t_tyChar > & _rstr, const t_tyChar * _pcFmt, ... ) noexcept(true)
+{
+    va_list ap;
+    va_start( ap, _pcFmt );
+    // Initially just pass a single character bufffer since we only care about the return value:
+    t_tyChar tc;
+    int nRequired = vsnprintf( &tc, 1, _pcFmt, ap );
+    va_end( ap );
+    if ( nRequired < 0 )
+        return false;
+    va_start( ap, _pcFmt );
+    _rstr.resize( nRequired ); // this will reserve nRequired+1.
+    int nRet = vsnprintf( &_rstr[0], nRequired+1, _pcFmt, ap );
+    va_end( ap );
+    return !( nRet < 0 );
 }
 
 // In this overload the caller has already made the first call to obtain the size of the buffer required.

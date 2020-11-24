@@ -1,5 +1,4 @@
-#ifndef ______DEBUG_H_XYZPDQ
-#define ______DEBUG_H_XYZPDQ
+#pragma once
 
 //          Copyright David Lawrence Bien 1997 - 2020.
 // Distributed under the Boost Software License, Version 1.0.
@@ -33,6 +32,4 @@
 #else //NDEBUG
 #define __DEBUG_COMMA_2( s1, s2 ) s1##,##s2
 #endif //NDEBUG
-
-#endif //______DEBUG_H_XYZPDQ
 
