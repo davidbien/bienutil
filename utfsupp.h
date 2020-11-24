@@ -67,8 +67,8 @@ public:
     }
     void SetNCodes( unsigned int _byNCodes )
     {
-        assert( _byNCodes > 0 );
-        assert( _byNCodes < 5 );
+        Assert( _byNCodes > 0 );
+        Assert( _byNCodes < 5 );
         m_byFlags = ( m_byFlags & ~'\x03' ) | ( (uint8_t)_byNCodes & 0x3 );
     }
 

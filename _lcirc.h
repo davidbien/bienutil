@@ -252,7 +252,7 @@ public:
 protected:
   void _Clear( _tyCircularListEl * _p )
   {
-    assert( !!_p );
+    Assert( !!_p );
     _tyCircularListEl * pCur = _p;
     _tyCircularListEl * pNext;
     do

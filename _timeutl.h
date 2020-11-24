@@ -15,7 +15,7 @@
 namespace n_TimeUtil
 {
     // Choose a simple representation for now.
-    void TimeToString( time_t const & _rtt, std::string & _rstr )
+    inline void TimeToString( time_t const & _rtt, std::string & _rstr )
     {
         struct tm tmLocal;
         struct tm * ptm = localtime_r( &_rtt, &tmLocal );
@@ -24,16 +24,16 @@ namespace n_TimeUtil
             _rstr = "error";
             return;
         }
-        assert( ptm == &tmLocal );
+        Assert( ptm == &tmLocal );
 
         const int knBuf = 128;
         char rgcBuf[ knBuf ];
         size_t stWritten = strftime( rgcBuf, knBuf-1, "%Y%m%d-%H%M%S", &tmLocal );
-        assert( !!stWritten ); // not much we can do about this if it fires.
+        Assert( !!stWritten ); // not much we can do about this if it fires.
         rgcBuf[ knBuf-1 ] = 0;
         _rstr = rgcBuf;
     }
-    int ITimeFromString( const char * _pszTimeStr, time_t & _rtt )
+    inline int ITimeFromString( const char * _pszTimeStr, time_t & _rtt )
     {
         // We are looking for YYYYMMDD-HHMMSS and this is in local time.
         struct tm tmLocal;

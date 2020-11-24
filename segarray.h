@@ -191,7 +191,7 @@ public:
                     }
                 }
                 m_ppbyCurSegment = m_ppbySegments + _nElements / NElsPerSegment();
-                assert( !( _nElements % NElsPerSegment() ) || !!*m_ppbyCurSegment );
+                Assert( !( _nElements % NElsPerSegment() ) || !!*m_ppbyCurSegment );
                 m_ppbyEndSegments = m_ppbySegments + nBlocksNeeded;
                 m_nElements = _nElements;
             }
@@ -204,7 +204,7 @@ public:
     // If the object contained within doesn't have a default constructor you can still call this method.
     void SetSizeSmaller( _tySizeType _nElements, bool _fCompact = false )
     {
-        assert( _nElements <= m_nElements );
+        Assert( _nElements <= m_nElements );
         if ( _nElements < m_nElements )
         {
             if ( s_fOwnLifetime )
@@ -263,7 +263,7 @@ public:
                 _tySizeType stBackOffDest = ((stEndDest-1) % NElsPerSegment())+1;
                 _tySizeType stBackOffOrig = ((stEndOrig-1) % NElsPerSegment())+1;
                 _tySizeType stMin = std::min( nElsLeft, std::min( stBackOffDest, stBackOffOrig ) );
-                assert( stMin ); // We should always have something here.
+                Assert( stMin ); // We should always have something here.
                 memmove( &ElGet( stEndDest - stMin ), &ElGet( stEndOrig - stMin ), stMin * sizeof( _tyT ) );
                 nElsLeft -= stMin;
                 stEndDest -= stMin;
@@ -279,7 +279,7 @@ public:
         {
             _tySizeType stBackOffDest = ((stEndDest-1) % NElsPerSegment())+1;
             _tySizeType stMin = std::min( nElsLeft, stBackOffDest );
-            assert( stMin );
+            Assert( stMin );
             memcpy( &ElGet( stEndDest - stMin ), ptEndOrig - stMin, stMin * sizeof( _tyT ) );
             nElsLeft -= stMin;
             stEndDest -= stMin;
@@ -305,7 +305,7 @@ public:
         {
             _tySizeType stBackOffDest = ((stEndDest-1) % NElsPerSegment())+1;
             _tySizeType stMin = std::min( nElsLeft, stBackOffDest );
-            assert( stMin );
+            Assert( stMin );
             memcpy( &ElGet( stEndDest - stMin, true ), ptEndOrig - stMin, stMin * sizeof( _tyT ) );
             nElsLeft -= stMin;
             stEndDest -= stMin;
@@ -335,7 +335,7 @@ public:
         {
             _tySizeType stBackOffOrig = ((stEndOrig-1) % NElsPerSegment())+1;
             _tySizeType stMin = std::min( nElsLeft, stBackOffOrig );
-            assert( stMin );
+            Assert( stMin );
             memcpy( ptEndDest - stMin, &ElGet( stEndOrig - stMin ), stMin * sizeof( _tyT ) );
             nElsLeft -= stMin;
             stEndOrig -= stMin;
@@ -363,7 +363,7 @@ public:
         {
             _tySizeType stFwdOffOrig = NElsPerSegment() - ( stCurOrig % NElsPerSegment() );
             _tySizeType stMin = std::min( nElsLeft, stFwdOffOrig );
-            assert( stMin );
+            Assert( stMin );
             ssize_t sstWrote = ::write( _fd, &ElGet( stCurOrig ), stMin * sizeof(_tyT) );
             if ( -1 == sstWrote )
                 THROWNAMEDEXCEPTIONERRNO( errno, "SegArray::WriteToFd(): error writing to fd[%d].", _fd );
@@ -423,7 +423,7 @@ protected:
         }
         if ( !*m_ppbyCurSegment )
         {
-            assert( !( m_nElements % NElsPerSegment() ) );
+            Assert( !( m_nElements % NElsPerSegment() ) );
             *m_ppbyCurSegment = (uint8_t*)malloc( m_nbySizeSegment );
             if ( !*m_ppbyCurSegment )
                 THROWNAMEDEXCEPTION( "SegArray::_PbyAllocEnd(): OOM for malloc(%lu).", m_nbySizeSegment );
@@ -446,7 +446,7 @@ protected:
         {
             if ( s_fOwnLifetime )
             {
-                assert( !!*ppbyCurThis );
+                Assert( !!*ppbyCurThis );
                 _tyT * ptCurThis = (_tyT *)*ppbyCurThis;
                 const _tyT * const ptEndThis = ptCurThis + m_nbySizeSegment/sizeof( _tyT );
                 for ( ; ptEndThis != ptCurThis; ++ptCurThis )

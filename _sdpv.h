@@ -112,7 +112,7 @@ public:
 
 	void	clone( _TyVBase ** _ppb ) const
 	{
-		assert( m_fConstructed );	// Can't clone an unconstructed object.
+		Assert( m_fConstructed );	// Can't clone an unconstructed object.
 		// We could support this by uncommenting code below:
 
 		_TySdpMD *	pSdp = PSdpCreate( get_allocator() );

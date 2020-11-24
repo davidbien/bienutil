@@ -31,28 +31,28 @@ public:
 
     StrWRsv()
     {
-        assert( !FHasStringObj() );
+        Assert( !FHasStringObj() );
     }
     StrWRsv( StrWRsv const & _r )
     {
-        assert( !FHasStringObj() );
+        Assert( !FHasStringObj() );
         assign( _r.c_str(), _r.length() );
     }
     StrWRsv( StrWRsv && _rr )
     {
-        assert( !FHasStringObj() );
+        Assert( !FHasStringObj() );
         swap( _rr );
     }
     StrWRsv( const _tyChar * _psz )
     {
-        assert( !FHasStringObj() );
+        Assert( !FHasStringObj() );
         if ( !_psz )
             return;
         assign( _psz );
     }
     StrWRsv( t_tyStrBase const & _rstr )
     {
-        assert( !FHasStringObj() );
+        Assert( !FHasStringObj() );
         assign( _rstr.c_str(), _rstr.length() );
     }
     ~StrWRsv()
@@ -217,12 +217,12 @@ public:
 
     _tyChar const & operator []( size_t _st ) const
     {
-        assert( _st <= length() );
+        Assert( _st <= length() );
         return _PGetStrBase()[_st];
     }
     _tyChar & operator []( size_t _st )
     {
-        assert( _st <= length() );
+        Assert( _st <= length() );
         return _PGetStrBase()[_st];
     }
 

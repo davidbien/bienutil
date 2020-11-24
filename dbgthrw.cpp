@@ -8,13 +8,10 @@
 
 // debug throwing stuff
 
-#if 0
-#include <stddef.h>
-#include <assert.h>
-#include <_alloc.h>
-#endif //0
 #include <stdexcept>
+#include "syslogmgr.h"
 #include "bienutil.h"
+#include "jsonobjs.h"
 #include "_util.h"
 #include "_dbgthrw.h"
 

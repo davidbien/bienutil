@@ -10,6 +10,7 @@
 
 // array deallocation object
 
+#include "_assert.h"
 #include "_allbase.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
@@ -82,26 +83,26 @@ public:
 
 	t_TyP &	operator []( size_t _st )
 	{
-		assert( _st < m_st );
+		Assert( _st < m_st );
 		return m_pt[ _st ];
 	}
 
 	t_TyP const &	operator []( size_t _st ) const
 	{
-		assert( _st < m_st );
+		Assert( _st < m_st );
 		return m_pt[ _st ];
 	}
 
 	t_TyP *	operator + ( size_t _st )
 	{
-		assert( _st < m_st );
+		Assert( _st < m_st );
 		return m_pt + _st;
 	}
 
 	void
 	allocate( size_t _st )
 	{
-		assert( !m_pt );
+		Assert( !m_pt );
 		_TyBase::allocate_n( m_pt, m_st = _st );
 	}
 

@@ -165,6 +165,10 @@ public:
 #pragma pop_macro("std")
 #endif //__NAMDDEXC_STDBASE
 
+// For string constants we use #define macros because we do compile-time translation to the character of interest which precludes them being present in the specializations of JsonCharTraits.
+#define JSONSTRM_PrintableWhitespace "\t\n\r"
+#define JSONSTRM_EscapeStringChars "\\\"\b\f\t\n\r"
+
 // JsonCharTraits< char > : Traits for 8bit char representation.
 template <>
 struct JsonCharTraits< char >
@@ -224,17 +228,11 @@ struct JsonCharTraits< char >
     static const _tyChar s_tcTab = '\t';
     static const _tyChar s_tcSpace = ' ';
     static const _tyChar s_tcDollarSign = '$';
-     static _tyLPCSTR s_szTrue; // = "true";
-    static _tyLPCSTR s_szFalse; // = "false";
-    static _tyLPCSTR s_szNull; // = "null";
-    static _tyLPCSTR s_szWhitespace; // = " \t\n\r";
-    static _tyLPCSTR s_szPrintableWhitespace;  // = "\t\n\r";
-    static _tyLPCSTR s_szCRLF; // = "\r\n";
+    static constexpr _tyLPCSTR s_szCRLF = "\r\n";
     static const _tyChar s_tcFirstUnprintableChar = '\01';
     static const _tyChar s_tcLastUnprintableChar = '\37';
-    static _tyLPCSTR s_szEscapeStringChars; // = "\\\"\b\f\t\n\r";
     // The formatting command to format a single character using printf style.
-    static const char * s_szFormatChar; // = "%c";
+    static constexpr const char * s_szFormatChar = "%c";
 
     static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
 
@@ -289,15 +287,6 @@ struct JsonCharTraits< char >
         return iRet;
     }
 };
-
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szTrue = "true";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szFalse = "false";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szNull = "null";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szWhitespace = " \t\n\r";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szPrintableWhitespace = "\t\n\r";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szCRLF = "\r\n";
-JsonCharTraits< char >::_tyLPCSTR JsonCharTraits< char >::s_szEscapeStringChars = "\\\"\b\f\t\n\r";
-const char * JsonCharTraits< char >::s_szFormatChar = "%c";
 
 // JsonCharTraits< wchar_t > : Traits for 16bit char representation.
 template <>
@@ -358,17 +347,11 @@ struct JsonCharTraits< wchar_t >
     static const _tyChar s_tcTab = L'\t';
     static const _tyChar s_tcSpace = L' ';
     static const _tyChar s_tcDollarSign = L'$';
-    static _tyLPCSTR s_szTrue; // = L"true";
-    static _tyLPCSTR s_szFalse; // = L"false";
-    static _tyLPCSTR s_szNull; // = L"null";
-    static _tyLPCSTR s_szWhitespace; // = L" \t\n\r";
-    static _tyLPCSTR s_szPrintableWhitespace;  // = L"\t\n\r";
-    static _tyLPCSTR s_szCRLF; // = L"\r\n";
+    static constexpr _tyLPCSTR s_szCRLF = L"\r\n";
     static const _tyChar s_tcFirstUnprintableChar = L'\01';
     static const _tyChar s_tcLastUnprintableChar = L'\37';
-    static _tyLPCSTR s_szEscapeStringChars; // = L"\\\"\b\f\t\n\r";
     // The formatting command to format a single character using printf style.
-    static const char * s_szFormatChar; // = "%lc";
+    static constexpr const char * s_szFormatChar = "%lc";
 
     static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
 
@@ -424,15 +407,6 @@ struct JsonCharTraits< wchar_t >
     }
 };
 
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szTrue = L"true";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szFalse = L"false";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szNull = L"null";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szWhitespace = L" \t\n\r";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szPrintableWhitespace = L"\t\n\r";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szCRLF = L"\r\n";
-JsonCharTraits< wchar_t >::_tyLPCSTR JsonCharTraits< wchar_t >::s_szEscapeStringChars = L"\\\"\b\f\t\n\r";
-const char * JsonCharTraits< wchar_t >::s_szFormatChar = "%lc";
-
 // JsonInputStream: Base class for input streams.
 template < class t_tyCharTraits, class t_tyFilePos >
 class JsonInputStreamBase
@@ -481,7 +455,7 @@ public:
     // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
     {
-        assert( !FOpened() );
+        Assert( !FOpened() );
         m_fd = open( _szFilename, O_RDONLY );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::Open(): Unable to open() file [%s]", _szFilename );
@@ -494,8 +468,8 @@ public:
     // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdin which is usually at FD 0 unless reopen()ed.
     void AttachFd( int _fd, bool _fUseSeek = false )
     {
-        assert( !FOpened() );
-        assert( _fd != -1 );
+        Assert( !FOpened() );
+        Assert( _fd != -1 );
         m_fd = _fd;
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
@@ -523,8 +497,8 @@ public:
     // Attach to this FOpened() JsonLinuxInputStream.
     void AttachReadCursor( _tyJsonReadCursor & _rjrc )
     {
-        assert( !_rjrc.FAttached() );
-        assert( FOpened() );
+        Assert( !_rjrc.FAttached() );
+        Assert( FOpened() );
         _rjrc.AttachRoot( *this );
     }
 
@@ -562,13 +536,13 @@ public:
     // Throws if lseek() fails.
     _tyFilePos PosGet() const
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         if ( m_fUseSeek )
         {
             _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
             if ( -1 == pos )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
-            assert( pos == m_pos ); // These should always match.
+            Assert( pos == m_pos ); // These should always match.
             if ( m_fHasLookahead )
                 pos -= sizeof m_tcLookahead; // Since we have a lookahead we are actually one character before.
             return pos;
@@ -579,7 +553,7 @@ public:
     // Read a single character from the file - always throw on EOF.
     _tyChar ReadChar( const char * _pcEOFMessage )
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         if ( m_fHasLookahead )
         {
             m_fHasLookahead = false;
@@ -594,7 +568,7 @@ public:
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::ReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
             else
             {
-                assert( !sstRead ); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
+                Assert( !sstRead ); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
                 m_pos += sstRead;
                 THROWBADJSONSTREAM( "[%s]: %s", m_szFilename.c_str(), _pcEOFMessage );
             }
@@ -603,13 +577,13 @@ public:
             THROWBADJSONSTREAM( "JsonLinuxInputStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
 
         m_pos += sstRead;
-        assert( !m_fHasLookahead );
+        Assert( !m_fHasLookahead );
         return m_tcLookahead;
     }
     
     bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage )
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         if ( m_fHasLookahead )
         {
             _rtch = m_tcLookahead;
@@ -645,8 +619,8 @@ public:
 
     void PushBackLastChar( bool _fMightBeWhitespace = false )
     {
-        assert( !m_fHasLookahead ); // support single character lookahead only.
-        assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
+        Assert( !m_fHasLookahead ); // support single character lookahead only.
+        Assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
         if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             m_fHasLookahead = true;
     }
@@ -688,12 +662,12 @@ public:
     }
     bool FEOF() const
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         return ( m_pcpxEnd == m_pcpxCur ) && !m_fHasLookahead;
     }
     _tyFilePos StLenBytes() const
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         return ( m_pcpxEnd - m_pcpxBegin ) * sizeof(_tyPersistAsChar);
     }
 
@@ -717,8 +691,8 @@ public:
     // Attach to this FOpened() JsonLinuxInputStream.
     void AttachReadCursor( _tyJsonReadCursor & _rjrc )
     {
-        assert( !_rjrc.FAttached() );
-        assert( FOpened() );
+        Assert( !_rjrc.FAttached() );
+        Assert( FOpened() );
         _rjrc.AttachRoot( *this );
     }
 
@@ -745,22 +719,22 @@ public:
 
     _tyFilePos PosGet() const
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         return ( ( m_pcpxCur - m_pcpxBegin ) - (size_t)m_fHasLookahead ) * sizeof(_tyPersistAsChar);
     }
     // Read a single character from the file - always throw on EOF.
     _tyChar ReadChar( const char * _pcEOFMessage, const char * _pcFilename = 0 )
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         if ( m_fHasLookahead )
         {
-            assert( !!m_tcLookahead );
+            Assert( !!m_tcLookahead );
             m_fHasLookahead = false;
             return m_tcLookahead;
         }
         if ( FEOF() )
             THROWBADJSONSTREAM( "[%s]: %s", !_pcFilename ? "(no file)" : _pcFilename, _pcEOFMessage );
-        assert( !!*m_pcpxCur );
+        Assert( !!*m_pcpxCur );
         m_tcLookahead = *m_pcpxCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
             THROWBADJSONSTREAM( "JsonInputFixedMemStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
@@ -769,7 +743,7 @@ public:
     
     bool FReadChar( _tyChar & _rtch, bool _fThrowOnEOF, const char * _pcEOFMessage, const char * _pcFilename = 0 )
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         if ( m_fHasLookahead )
         {
             _rtch = m_tcLookahead;
@@ -790,15 +764,15 @@ public:
 
     void PushBackLastChar( bool _fMightBeWhitespace = false )
     {
-        assert( !m_fHasLookahead ); // support single character lookahead only.
-        assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
+        Assert( !m_fHasLookahead ); // support single character lookahead only.
+        Assert( _fMightBeWhitespace || !_tyCharTraits::FIsWhitespace( m_tcLookahead ) );
         if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             m_fHasLookahead = true;
     }
 
     std::strong_ordering ICompare( _tyThis const & _rOther ) const
     {
-        assert( FOpened() && _rOther.FOpened() );
+        Assert( FOpened() && _rOther.FOpened() );
         if ( StLenBytes() < _rOther.StLenBytes() )
             return std::strong_ordering::less;
         else
@@ -853,7 +827,7 @@ public:
     // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
     {
-        assert( !FOpened() );
+        Assert( !FOpened() );
         Close();
         m_fd = open( _szFilename, O_RDONLY );
         if ( !FFileOpened() )
@@ -880,7 +854,7 @@ public:
     {
         if ( FFileMapped() )
         {
-            assert( FFileOpened() );
+            Assert( FFileOpened() );
             const void * pvMapped = m_pcpxBegin;
             size_t stMapped = StLenBytes();
             _tyBase::Close();
@@ -892,7 +866,7 @@ public:
             m_fd = 0;
             return _Close( fd );
         }
-        assert(!FOpened());
+        Assert(!FOpened());
         return 0;
     }
     static int _Unmap( const void * _pvMapped, size_t _stMapped )
@@ -909,8 +883,8 @@ public:
     // In this case that works fine but in the general case it might not. Anyway, it adds very little code to do it this way so no worries.
     void AttachReadCursor( _tyJsonReadCursor & _rjrc )
     {
-        assert( !_rjrc.FAttached() );
-        assert( FOpened() );
+        Assert( !_rjrc.FAttached() );
+        Assert( FOpened() );
         _rjrc.AttachRoot( *this );
     }
 
@@ -998,7 +972,7 @@ public:
     // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
     {
-        assert( !FOpened() );
+        Assert( !FOpened() );
         m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::Open(): Unable to open() file [%s]", _szFilename );
@@ -1009,8 +983,8 @@ public:
     // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdout which is usually at FD 1 (unless reopen()ed).
     void AttachFd( int _fd )
     {
-        assert( !FOpened() );
-        assert( _fd != -1 );
+        Assert( !FOpened() );
+        Assert( _fd != -1 );
         m_fd = _fd;
         m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename.clear(); // No filename indicates we are attached to "some fd".
@@ -1034,7 +1008,7 @@ public:
 
     void WriteByteOrderMark() const
     {
-        assert( 0 == ::lseek( m_fd, 0, SEEK_CUR ) );
+        Assert( 0 == ::lseek( m_fd, 0, SEEK_CUR ) );
         uint8_t rgBOM[] = { 0xFF, 0xFE };
         ssize_t sstWrote = write( m_fd, &rgBOM, sizeof rgBOM );
         if ( sstWrote != sizeof rgBOM )
@@ -1058,7 +1032,7 @@ public:
     // Read a single character from the file - always throw on EOF.
     void WriteChar( _tyChar _tc )
     {
-        assert( FOpened() );
+        Assert( FOpened() );
         _CheckPersistedChar( _tc );
         _tyPersistAsChar cpx = (_tyPersistAsChar)_tc;
         ssize_t sstWrote = write( m_fd, &cpx, sizeof cpx );
@@ -1120,17 +1094,19 @@ public:
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
-        assert( FOpened() );
-        assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
+        static _tyLPCSTR s_szPrintableWhitespace = str_array_cast< _tyChar >( JSONSTRM_PrintableWhitespace );
+        static _tyLPCSTR s_szEscapeStringChars = str_array_cast< _tyChar >( JSONSTRM_EscapeStringChars );
+        Assert( FOpened() );
+        Assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         size_t stLen = (size_t)_sstLen;
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
-            assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                        _tyCharTraits::s_szEscapeStringChars ) );
+            Assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                        s_szEscapeStringChars ) );
         _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
         if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
-            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, s_szPrintableWhitespace );
 
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
@@ -1144,14 +1120,14 @@ public:
                     if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
                         sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
                                                             _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                            _tyCharTraits::s_szEscapeStringChars );
+                                                            s_szEscapeStringChars );
                     else
                     {
                         // More complex escaping of whitespace is possible here:
                         _tyLPCSTR pszNoEscape = pszWrite;
                         for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
                         {
-                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
+                            _tyLPCSTR pszPrintableWS = s_szPrintableWhitespace;
                             for ( ; !!*pszPrintableWS; ++pszPrintableWS )
                             {
                                 if ( *pszNoEscape == *pszPrintableWS )
@@ -1162,7 +1138,7 @@ public:
                             if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
                                     ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
                             {
-                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
+                                _tyLPCSTR pszEscapeChar = s_szEscapeStringChars;
                                 for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
                                     ;
                                 if ( !!*pszEscapeChar )
@@ -1181,7 +1157,7 @@ public:
                         return; // the overwhelming case is we return here.
                 }
                 else
-                    assert( !!stLen ); // invariant.
+                    Assert( !!stLen ); // invariant.
             }
             // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
@@ -1291,7 +1267,7 @@ public:
     // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
     {
-        assert( !FAnyOpened() );
+        Assert( !FAnyOpened() );
         Close();
         m_fd = open( _szFilename, O_RDWR | O_CREAT | O_TRUNC, 0666 );
         if ( !FFileOpened() )
@@ -1318,7 +1294,7 @@ public:
         int iCloseRet = 0;
         if ( FFileMapped() )
         {
-            assert( FFileOpened() );
+            Assert( FFileOpened() );
             // We need to truncate the file to m_cpxMappedCur - m_pvMapped bytes.
             // We shouldn't throw here so we will just log an error message and set m_szExceptionString.
             iCloseRet = ftruncate( m_fd, ( m_cpxMappedCur - (_tyPersistAsChar*)m_pvMapped ) * sizeof(_tyPersistAsChar) );
@@ -1332,18 +1308,18 @@ public:
             size_t stMapped = m_stMapped;
             m_stMapped = 0;
             int iUnmap = _Unmap( pvMapped, stMapped ); // We don't care if this fails pretty much.
-            assert( !iUnmap );
+            Assert( !iUnmap );
         }
         if ( FFileOpened() )
         {
             int fd = m_fd;
             m_fd = 0;
             int iRet = _Close( fd );
-            assert( !iRet );
+            Assert( !iRet );
             if ( -1 == iRet )
                 iCloseRet = -1; // it may already be.
         }
-        assert(!FOpened());
+        Assert(!FOpened());
         return iCloseRet;
     }
     static int _Unmap( void * _pvMapped, size_t _stMapped )
@@ -1407,19 +1383,21 @@ public:
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
-        assert( FOpened() );
-        assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
+        static _tyLPCSTR s_szPrintableWhitespace = str_array_cast< _tyChar >( JSONSTRM_PrintableWhitespace );
+        static _tyLPCSTR s_szEscapeStringChars = str_array_cast< _tyChar >( JSONSTRM_EscapeStringChars );
+        Assert( FOpened() );
+        Assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         if ( !_sstLen )
             return;
         size_t stLen = (size_t)_sstLen;
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
-            assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                        _tyCharTraits::s_szEscapeStringChars ) );
+            Assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                        s_szEscapeStringChars ) );
         _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
         if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
-            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, s_szPrintableWhitespace );
 
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
@@ -1433,14 +1411,14 @@ public:
                     if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
                         sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
                                                             _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                            _tyCharTraits::s_szEscapeStringChars );
+                                                            s_szEscapeStringChars );
                     else
                     {
                         // More complex escaping of whitespace is possible here:
                         _tyLPCSTR pszNoEscape = pszWrite;
                         for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
                         {
-                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
+                            _tyLPCSTR pszPrintableWS = s_szPrintableWhitespace;
                             for ( ; !!*pszPrintableWS; ++pszPrintableWS )
                             {
                                 if ( *pszNoEscape == *pszPrintableWS )
@@ -1451,7 +1429,7 @@ public:
                             if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
                                     ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
                             {
-                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
+                                _tyLPCSTR pszEscapeChar = s_szEscapeStringChars;
                                 for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
                                     ;
                                 if ( !!*pszEscapeChar )
@@ -1470,7 +1448,7 @@ public:
                         return; // the overwhelming case is we return here.
                 }
                 else
-                    assert( !!stLen ); // invariant.
+                    Assert( !!stLen ); // invariant.
             }
             // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
@@ -1522,7 +1500,7 @@ protected:
         void * pvOldMapping = m_pvMapped;
         m_pvMapped = MAP_FAILED;
         int iRet = munmap( pvOldMapping, m_stMapped );
-        assert( !iRet );
+        Assert( !iRet );
         m_stMapped += stGrowBy;
         iRet = lseek( m_fd, m_stMapped - 1, SEEK_SET );
         if ( -1 == iRet )
@@ -1623,7 +1601,7 @@ public:
         ssize_t sstWrote = m_msMemStream.Write( &cpx, sizeof cpx );
         if ( -1 == sstWrote )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
-        assert( sstWrote == sizeof cpx );
+        Assert( sstWrote == sizeof cpx );
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
@@ -1648,7 +1626,7 @@ public:
                 ssize_t sstWrote = m_msMemStream.Write( rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
                 if ( -1 == sstWrote )
                     THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
-                assert( sstWrote == ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) ); // else we would have thrown.
+                Assert( sstWrote == ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) ); // else we would have thrown.
             }
         }
         else
@@ -1656,22 +1634,24 @@ public:
             ssize_t sstWrote = m_msMemStream.Write( _psz, _sstLen * sizeof(_tyChar) );
             if ( -1 == sstWrote )
                 THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
-            assert( sstWrote == _sstLen * sizeof(_tyChar) ); // else we would have thrown.
+            Assert( sstWrote == _sstLen * sizeof(_tyChar) ); // else we would have thrown.
         }
     }
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
-        assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
+        static _tyLPCSTR s_szPrintableWhitespace = str_array_cast< _tyChar >( JSONSTRM_PrintableWhitespace );
+        static _tyLPCSTR s_szEscapeStringChars = str_array_cast< _tyChar >( JSONSTRM_EscapeStringChars );
+        Assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         size_t stLen = (size_t)_sstLen;
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
-            assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                        _tyCharTraits::s_szEscapeStringChars ) );
+            Assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
+                                                        s_szEscapeStringChars ) );
         _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
         if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
-            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, s_szPrintableWhitespace );
 
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
@@ -1685,14 +1665,14 @@ public:
                     if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
                         sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
                                                             _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                            _tyCharTraits::s_szEscapeStringChars );
+                                                            s_szEscapeStringChars );
                     else
                     {
                         // More complex escaping of whitespace is possible here:
                         _tyLPCSTR pszNoEscape = pszWrite;
                         for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
                         {
-                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
+                            _tyLPCSTR pszPrintableWS = s_szPrintableWhitespace;
                             for ( ; !!*pszPrintableWS; ++pszPrintableWS )
                             {
                                 if ( *pszNoEscape == *pszPrintableWS )
@@ -1703,7 +1683,7 @@ public:
                             if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
                                     ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
                             {
-                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
+                                _tyLPCSTR pszEscapeChar = s_szEscapeStringChars;
                                 for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
                                     ;
                                 if ( !!*pszEscapeChar )
@@ -1723,7 +1703,7 @@ public:
                         return; // the overwhelming case is we return here.
                 }
                 else
-                    assert( !!stLen ); // invariant.
+                    Assert( !!stLen ); // invariant.
             }
             // else otherwise we will escape all remaining characters.
             WriteChar( _tyCharTraits::s_tcBackSlash ); // use for error handling.
@@ -1831,7 +1811,7 @@ public:
     // Throws on open failure. This object owns the lifetime of the file descriptor.
     void Open( const char * _szFilename )
     {
-        assert( !FOpened() );
+        Assert( !FOpened() );
         m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputMemStream::Open(): Unable to open() file [%s]", _szFilename );
@@ -1842,8 +1822,8 @@ public:
     // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdout which is usually at FD 1 (unless reopen()ed).
     void AttachFd( int _fd )
     {
-        assert( !FOpened() );
-        assert( _fd != -1 );
+        Assert( !FOpened() );
+        Assert( _fd != -1 );
         m_fd = _fd;
         m_fOwnFdLifetime = false; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename.clear(); // No filename indicates we are attached to "some fd".
@@ -1922,7 +1902,7 @@ public:
         :   m_pjvParent( _pjvParent ),
             m_jvtType( _jvtType )
     {
-        assert( !m_pvValue ); // Should have been zeroed by default member initialization on site.
+        Assert( !m_pvValue ); // Should have been zeroed by default member initialization on site.
     }
     JsonValue( JsonValue const & _r )
         :   m_pjvParent( _r.m_pjvParent ),
@@ -1968,7 +1948,7 @@ public:
             _DestroyValue();
         m_pjvParent = 0;
         m_jvtType = ejvtJsonValueTypeCount;
-        assert( FIsNull() );
+        Assert( FIsNull() );
     }
     void DestroyValue() // Just destroy and nullify any associated dynamically allocated value.
     {
@@ -2038,7 +2018,7 @@ public:
     template < class t_tyInputStream, class t_tyJsonReadCursor >
     void AttachInputStream( t_tyInputStream & _ris, t_tyJsonReadCursor & _rjrc )
     {
-        assert( FIsNull() ); // We should be null here - we should be at the root and have no parent.
+        Assert( FIsNull() ); // We should be null here - we should be at the root and have no parent.
         // Set the parent to ourselves as a sanity check.
         m_pjvParent = this;
         _rjrc.AttachInputStream( _ris, this );
@@ -2085,7 +2065,7 @@ public:
         {
         case ejvtNumber:
         case ejvtString:
-            assert( !!m_pvValue ); // We expect this to be populated but we will gracefully fail.
+            Assert( !!m_pvValue ); // We expect this to be populated but we will gracefully fail.
             if ( ejvtString == m_jvtType )
                 _rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
             _rjos.WriteString( ejvtString == m_jvtType, PGetStringValue()->c_str(), PGetStringValue()->length(), ejvtString == m_jvtType ? _pjfs : 0 );
@@ -2093,55 +2073,55 @@ public:
                 _rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
             break;
         case ejvtTrue:
-            _rjos.WriteString( false, _tyCharTraits::s_szTrue, 4 );
+            _rjos.WriteString( false, str_array_cast< _tyChar >("true"), 4 );
             break;
         case ejvtFalse:
-            _rjos.WriteString( false, _tyCharTraits::s_szFalse, 5 );
+            _rjos.WriteString( false, str_array_cast< _tyChar >("false"), 5 );
             break;
         case ejvtNull:
-            _rjos.WriteString( false, _tyCharTraits::s_szNull, 4 );
+            _rjos.WriteString( false, str_array_cast< _tyChar >("null"), 4 );
             break;
         default:
-            assert( 0 );
+            Assert( 0 );
             break;
         }
     }
 
     _tyJsonObject * PCreateJsonObject()
     {
-        assert( ejvtObject == m_jvtType );
+        Assert( ejvtObject == m_jvtType );
         _CreateValue();
         return ( ejvtObject == m_jvtType ) ? (_tyJsonObject*)m_pvValue : 0;
     }
     _tyJsonObject * PGetJsonObject() const
     {
-        assert( ejvtObject == m_jvtType );
+        Assert( ejvtObject == m_jvtType );
         if ( !m_pvValue )
             _CreateValue();
         return ( ejvtObject == m_jvtType ) ? (_tyJsonObject*)m_pvValue : 0;
     }
     _tyJsonArray * PCreateJsonArray()
     {
-        assert( ejvtArray == m_jvtType );
+        Assert( ejvtArray == m_jvtType );
         _CreateValue();
         return ( ejvtArray == m_jvtType ) ? (_tyJsonArray*)m_pvValue : 0;
     }
     _tyJsonArray * PGetJsonArray() const
     {
-        assert( ejvtArray == m_jvtType );
+        Assert( ejvtArray == m_jvtType );
         if ( !m_pvValue )
             _CreateValue();
         return ( ejvtArray == m_jvtType ) ? (_tyJsonArray*)m_pvValue : 0;
     }
     _tyStdStr * PCreateStringValue()
     {
-        assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
+        Assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
         _CreateValue();
         return ( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) ) ? (_tyStdStr*)m_pvValue : 0;
     }
     _tyStdStr * PGetStringValue() const
     {
-        assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
+        Assert( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) );
         if ( !m_pvValue )
             _CreateValue();
         return ( ( ejvtNumber == m_jvtType ) || ( ejvtString == m_jvtType ) ) ? (_tyStdStr*)m_pvValue : 0;
@@ -2173,13 +2153,13 @@ protected:
         case ejvtFalse:
         case ejvtNull:
         default:
-            assert( 0 );
+            Assert( 0 );
             break;
         }
     }
     void _CreateValue() const
     {
-        assert( !m_pvValue );
+        Assert( !m_pvValue );
         // We need to create a connected value object depending on type:
         switch( m_jvtType )
         {
@@ -2197,16 +2177,16 @@ protected:
         case ejvtFalse:
         case ejvtNull:
         default:
-            assert( 0 ); // Shouldn't be calling for cases for which there is no value.
+            Assert( 0 ); // Shouldn't be calling for cases for which there is no value.
             break;
         }
     }
     // Create a new value that is a copy of from the passed JsonValue.
     void _CreateValue( JsonValue const & _r ) const
     {
-        assert( !m_pvValue );
-        assert( m_jvtType == _r.m_jvtType ); // handled by caller.
-        assert( !!_r.m_pvValue );
+        Assert( !m_pvValue );
+        Assert( m_jvtType == _r.m_jvtType ); // handled by caller.
+        Assert( !!_r.m_pvValue );
 
         // We need to create a connected value object depending on type:
         switch( m_jvtType )
@@ -2225,7 +2205,7 @@ protected:
         case ejvtFalse:
         case ejvtNull:
         default:
-            assert( 0 ); // Shouldn't be calling for cases for which there is no value.
+            Assert( 0 ); // Shouldn't be calling for cases for which there is no value.
             break;
         }
     }
@@ -2270,7 +2250,7 @@ public:
     template < class t_tyJsonOutputStream >
     void WriteWhitespaceIndent( t_tyJsonOutputStream & _rjos, unsigned int _nLevel ) const
     {
-        assert( _nLevel );
+        Assert( _nLevel );
         if ( _nLevel )
         {
             // Prevent crashing:
@@ -2425,7 +2405,7 @@ public:
     {
         if ( !!m_nSubValuesWritten && !!m_optJsonFormatSpec )
         {
-            assert( ( ejvtObject == m_jv.JvtGetValueType() ) || ( ejvtArray == m_jv.JvtGetValueType() ) );
+            Assert( ( ejvtObject == m_jv.JvtGetValueType() ) || ( ejvtArray == m_jv.JvtGetValueType() ) );
             m_optJsonFormatSpec->WriteLinefeed( m_rjos );
             if ( NCurAggrLevel() )
                 m_optJsonFormatSpec->WriteWhitespaceIndent( m_rjos, NCurAggrLevel() );
@@ -2488,14 +2468,14 @@ public:
 // Object (key,value) operations:
     void WriteNullValue( _tyLPCSTR _pszKey )
     {
-        assert( FAtObjectValue() );
+        Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(_pszKey): Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, ejvtNull );
     }
     void WriteBoolValue(  _tyLPCSTR _pszKey, bool _f )
     {
-        assert( FAtObjectValue() );
+        Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteBoolValue(_pszKey): Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, _f ? ejvtTrue : ejvtFalse );
@@ -2508,7 +2488,7 @@ public:
             case ejvtTrue:
             case ejvtFalse:
             {
-                assert( FAtArrayValue() );
+                Assert( FAtArrayValue() );
                 if ( !FAtArrayValue() )
                     THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(_pszKey): Writing a (key,value) pair to a non-object." );
                 JsonValueLife jvlArrayElement( *this, _pszKey, _jvt );
@@ -2591,14 +2571,14 @@ public:
 // Arrray (value) operations:
     void WriteNullValue()
     {
-        assert( FAtArrayValue() );
+        Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(): Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, ejvtNull );
     }
     void WriteBoolValue( bool _f )
     {
-        assert( FAtArrayValue() );
+        Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteBoolValue(): Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, _f ? ejvtTrue : ejvtFalse );
@@ -2611,7 +2591,7 @@ public:
             case ejvtTrue:
             case ejvtFalse:
             {
-                assert( FAtArrayValue() );
+                Assert( FAtArrayValue() );
                 if ( !FAtArrayValue() )
                     THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(): Writing a value to a non-array." );
                 JsonValueLife jvlArrayElement( *this, _jvt );
@@ -2706,21 +2686,21 @@ protected:
       const int knNum = 512;
       _tyChar rgcNum[ knNum ];
       int nPrinted = _tyCharTraits::Snprintf( rgcNum, knNum, _pszFmt, _num );
-      assert( nPrinted < knNum );
+      Assert( nPrinted < knNum );
       _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, size_t _stLen )
     {
-        assert( FAtObjectValue() );
+        Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
-        assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
+        Assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
         JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
         jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
     {
-        assert( FAtObjectValue() );
+        Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
@@ -2733,21 +2713,21 @@ protected:
       const int knNum = 512;
       _tyChar rgcNum[ knNum ];
       int nPrinted = _tyCharTraits::Snprintf( rgcNum, knNum, _pszFmt, _num );
-      assert( nPrinted < knNum );
+      Assert( nPrinted < knNum );
       _WriteValue( ejvtNumber, rgcNum, std::min( nPrinted, knNum-1 ) );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszValue, size_t _stLen )
     {
-        assert( FAtArrayValue() );
+        Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
-        assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
+        Assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
         jvlArrayElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyStdStr && _rrstrVal )
     {
-        assert( FAtArrayValue() );
+        Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, _ejvt );
@@ -3168,12 +3148,12 @@ public:
     }
     _tyJsonObject * PGetJsonObject() const
     {
-        assert( !!m_pjvCur );
+        Assert( !!m_pjvCur );
         return m_pjvCur->PGetJsonObject();
     }
     _tyJsonArray * PGetJsonArray() const
     {
-        assert( !!m_pjvCur );
+        Assert( !!m_pjvCur );
         return m_pjvCur->PGetJsonArray();
     }
 
@@ -3188,21 +3168,21 @@ public:
 
     EJsonValueType JvtGetValueType() const
     {
-        assert( !!m_pjvCur );
+        Assert( !!m_pjvCur );
         if ( !m_pjvCur )
             return ejvtJsonValueTypeCount;
         return m_pjvCur->JvtGetValueType();
     }
     void SetValueType( EJsonValueType _jvt )
     {
-        assert( !!m_pjvCur );
+        Assert( !!m_pjvCur );
         if ( !!m_pjvCur )
             m_pjvCur->SetValueType( _jvt );
     }
 
     _tyStdStr * PGetStringValue() const
     {
-        assert( !!m_pjvCur );
+        Assert( !!m_pjvCur );
         return !m_pjvCur ? 0 : m_pjvCur->PGetStringValue();
     }
 
@@ -3216,7 +3196,7 @@ public:
     {
         bool fEnd = (  ( ( JvtGetValueType() == ejvtObject ) && !!m_pjvCur->PGetJsonObject() && m_pjvCur->PGetJsonObject()->FEndOfIteration() )
                     || ( ( JvtGetValueType() == ejvtArray ) && !!m_pjvCur->PGetJsonArray() && m_pjvCur->PGetJsonArray()->FEndOfIteration() ) );
-        //assert( !fEnd || !m_tcFirst ); - dbien: should figure out where I am setting end-of and also reset this to 0.
+        //Assert( !fEnd || !m_tcFirst ); - dbien: should figure out where I am setting end-of and also reset this to 0.
         return fEnd;
     }
 
@@ -3225,9 +3205,9 @@ public:
     {
         if ( !!_pjrxHead )
         {
-            assert( !_pjrxHead->m_pjrxPrev );
-            assert( !_pjrxNewHead->m_pjrxPrev );
-            assert( !_pjrxNewHead->m_pjrxNext );
+            Assert( !_pjrxHead->m_pjrxPrev );
+            Assert( !_pjrxNewHead->m_pjrxPrev );
+            Assert( !_pjrxNewHead->m_pjrxNext );
             _pjrxHead->m_pjrxPrev = &*_pjrxNewHead; // soft link.
             _pjrxNewHead->m_pjrxNext.swap( _pjrxHead );
         }
@@ -3326,16 +3306,16 @@ public:
 
      void AssertValid() const 
     {
-        assert( !m_pjrxCurrent == !m_pis );
-        assert( !m_pjrxRootVal == !m_pis );
-        assert( !m_pjrxContextStack == !m_pis );
+        Assert( !m_pjrxCurrent == !m_pis );
+        Assert( !m_pjrxRootVal == !m_pis );
+        Assert( !m_pjrxContextStack == !m_pis );
         // Make sure that the current context is in the context stack.
         if ( !!m_pjrxContextStack )
         {
             const _tyJsonReadContext * pjrxCheck = &*m_pjrxContextStack;
             for ( ; !!pjrxCheck && ( pjrxCheck != m_pjrxCurrent ); pjrxCheck = pjrxCheck->PJrcGetNext() )
                 ;
-            assert( !!pjrxCheck ); // If this fails then the current context is not in the content stack - this is bad.
+            Assert( !!pjrxCheck ); // If this fails then the current context is not in the content stack - this is bad.
         }
     }
     bool FAttached() const 
@@ -3346,7 +3326,7 @@ public:
 
     const _tyJsonReadContext & GetCurrentContext() const
     {
-        assert( !!m_pjrxCurrent );
+        Assert( !!m_pjrxCurrent );
         return *m_pjrxCurrent;
     }
 
@@ -3377,11 +3357,11 @@ public:
 
     const _tyStdStr & RStrKey( EJsonValueType * _pjvt = 0 ) const
     {
-        assert( FAttached() );
+        Assert( FAttached() );
         if ( FAtEndOfAggregate() || !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) )
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::RStrKey(): Mo key available." );
         _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();
-        assert( !pjoCur->FEndOfIteration() ); // sanity
+        Assert( !pjoCur->FEndOfIteration() ); // sanity
         if ( !!_pjvt )
             *_pjvt = m_pjrxCurrent->JvtGetValueType();
         return pjoCur->RStrKey();
@@ -3389,7 +3369,7 @@ public:
     // Get the current key if there is a current key.
     bool FGetKeyCurrent( _tyStdStr & _rstrKey, EJsonValueType & _rjvt ) const
     {
-        assert( FAttached() );
+        Assert( FAttached() );
         if ( FAtEndOfAggregate() )
             return false;
         // This should only be called when we are inside of an object's value.
@@ -3399,14 +3379,14 @@ public:
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not located at an object so no key available." );
         // If the key value in the object is the empty string then this is an empty object and we return false.
         _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();
-        assert( !pjoCur->FEndOfIteration() );
+        Assert( !pjoCur->FEndOfIteration() );
         pjoCur->GetKey( _rstrKey );
         _rjvt = m_pjrxCurrent->JvtGetValueType(); // This is the value type for this key string. We may not have read the actual value yet.
         return true;
     }
     EJsonValueType JvtGetValueType() const
     {
-        assert( FAttached() );
+        Assert( FAttached() );
         return m_pjrxCurrent->JvtGetValueType();
     }
     bool FIsValueNull() const
@@ -3417,7 +3397,7 @@ public:
     // Get a full copy of the JsonValue. We allow this to work with any type of JsonValue for completeness.
     void GetValue( _tyJsonValue & _rjvValue ) const
     {
-        assert( FAttached() );
+        Assert( FAttached() );
         EJsonValueType jvt = JvtGetValueType();
         if ( ( ejvtEndOfObject == jvt ) || ( ejvtEndOfArray == jvt ) )
         {
@@ -3437,7 +3417,7 @@ public:
     // This is a semantic error if this is an aggregate value (object or array).
     void GetValue( _tyStdStr & _strValue ) const
     {
-        assert( FAttached() );
+        Assert( FAttached() );
         if ( FAtAggregateValue() )
             THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(string): At an aggregate value - object or array." );
 
@@ -3465,7 +3445,7 @@ public:
             _strValue = "null";
             break;
         default:
-            assert(0);
+            Assert(0);
             _strValue = "***ERROR***";
         }
     }
@@ -3500,7 +3480,7 @@ public:
 
         // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
         int iRet = sscanf( m_pjrxCurrent->PGetStringValue()->c_str(), _pszFmt, &_rNumber );
-        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+        Assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
     void GetValue( uint8_t & _rby ) const { _GetValue( "%hhu", _rby ); }
     void GetValue( int8_t & _rsby ) const { _GetValue( "%hhd", _rsby ); }
@@ -3542,9 +3522,9 @@ public:
     // This will read any unread value into the value object
     void _ReadSimpleValue()
     {
-        assert( !m_pjrxCurrent->m_posEndValue );
+        Assert( !m_pjrxCurrent->m_posEndValue );
         EJsonValueType jvt = JvtGetValueType();
-        assert( ( jvt >= ejvtFirstJsonSimpleValue ) && ( jvt <= ejvtLastJsonSpecifiedValue ) ); // Should be handled by caller.
+        Assert( ( jvt >= ejvtFirstJsonSimpleValue ) && ( jvt <= ejvtLastJsonSpecifiedValue ) ); // Should be handled by caller.
         switch( jvt )
         {
         case ejvtNumber:
@@ -3559,7 +3539,7 @@ public:
             _SkipSimpleValue( jvt, m_pjrxCurrent->m_tcFirst, !m_pjrxCurrent->m_pjrxNext ); // We just skip remaining value checking that it is correct.
             break;
         default:
-            assert(0);
+            Assert(0);
             break;
         }
         m_pjrxCurrent->m_posEndValue = m_pis->PosGet();
@@ -3907,7 +3887,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             _SkipFixed( "ull" );
             break;
         default:
-            assert(false);
+            Assert(false);
             break;
         }
     }
@@ -4117,7 +4097,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     // Move the the next element of the object or array. Return false if this brings us to the end of the entity.
     bool FNextElement()
     {
-        assert( FAttached() );
+        Assert( FAttached() );
         // This should only be called when we are inside of an object or array.
         // So, we need to have a parent value and that parent value should correspond to an object or array.
         // Otherwise we throw an "invalid semantic use" exception.
@@ -4129,7 +4109,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         if (    ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) ||
                 ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfArray ) )
         {
-            assert( ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) == ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) ); // Would be weird if it didn't match.
+            Assert( ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) == ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) ); // Would be weird if it didn't match.
             return false; // We are already at the end of the iteration.
         }
         // Perform common tasks:
@@ -4152,7 +4132,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         if ( ejvtObject == m_pjrxCurrent->m_pjrxNext->JvtGetValueType() )
         {
             _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();            
-            assert( !pjoCur->FEndOfIteration() );
+            Assert( !pjoCur->FEndOfIteration() );
             if ( _tyCharTraits::s_tcRightCurlyBr == tchCur )
             {
                 m_pjrxCurrent->SetEndOfIteration( m_pis->PosGet() );
@@ -4177,7 +4157,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         else
         {
             _tyJsonArray * pjaCur = m_pjrxCurrent->m_pjrxNext->PGetJsonArray();            
-            assert( !pjaCur->FEndOfIteration() );
+            Assert( !pjaCur->FEndOfIteration() );
             if ( _tyCharTraits::s_tcRightSquareBr == tchCur )
             {
                 m_pjrxCurrent->SetEndOfIteration( m_pis->PosGet() );
@@ -4203,12 +4183,12 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     // We merely figure out the type of the value at this position.
     void AttachRoot( t_tyJsonInputStream & _ris )
     {
-        assert( !FAttached() ); // We shouldn't have attached to the stream yet.
+        Assert( !FAttached() ); // We shouldn't have attached to the stream yet.
         std::unique_ptr< _tyJsonValue > pjvRootVal = std::make_unique<_tyJsonValue>();
         std::unique_ptr< _tyJsonReadContext > pjrxRoot = std::make_unique<_tyJsonReadContext>( &*pjvRootVal, (_tyJsonReadContext*)nullptr );
         _ris.SkipWhitespace();
         pjrxRoot->m_posStartValue = _ris.PosGet();
-        assert( !pjrxRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+        Assert( !pjrxRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
     
         // The first non-whitespace character tells us what the value type is:
         pjrxRoot->m_tcFirst = _ris.ReadChar( "JsonReadCursor::AttachRoot(): Empty JSON file." );
@@ -4228,7 +4208,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     }
     bool FMoveDown()
     {
-        assert( FAttached() ); // We should have been attached to a file by now.
+        Assert( FAttached() ); // We should have been attached to a file by now.
 
         if ( !FAtAggregateValue() )
             return false; // Then we are at a leaf value.
@@ -4246,10 +4226,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         // 2) For arrays we read the first character of the first value in the array.
         //      a) For empty arrays we still create the subobject, it will just return that there are no values in the array.
         // In fact we must not have read the current value since we would have already pushed the context onto the stack and thus we wouldn't be here.
-        assert( !m_pjrxCurrent->m_posEndValue );
+        Assert( !m_pjrxCurrent->m_posEndValue );
 
         // We should be at the start of the value plus 1 character - this is important as we will be registered with the input stream throughout the streaming.
-        assert( ( m_pjrxCurrent->m_posStartValue + sizeof(_tyChar) ) == m_pis->PosGet() );
+        Assert( ( m_pjrxCurrent->m_posStartValue + sizeof(_tyChar) ) == m_pis->PosGet() );
         m_pis->SkipWhitespace();
 
         std::unique_ptr< _tyJsonReadContext > pjrxNewRoot;
@@ -4276,7 +4256,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                     THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for colon on first object pair.", tchCur );
                 m_pis->SkipWhitespace();
                 pjrxNewRoot->m_posStartValue = m_pis->PosGet();
-                assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+                Assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
                 // The first non-whitespace character tells us what the value type is:
                 pjrxNewRoot->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first object value." );
                 pjrxNewRoot->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrxNewRoot->m_tcFirst ) );
@@ -4307,7 +4287,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             if ( ejvtJsonValueTypeCount != jvtCur )
             {
                 pjrxNewRoot->m_posStartValue = posStartValue;
-                assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
+                Assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
                 // The first non-whitespace character tells us what the value type is:
                 pjrxNewRoot->m_tcFirst = tchCur;
                 pjrxNewRoot->SetValueType( jvtCur );
@@ -4335,7 +4315,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     }
     bool FMoveUp()
     {
-        assert( FAttached() ); // We should have been attached to a file by now.
+        Assert( FAttached() ); // We should have been attached to a file by now.
         if ( !!m_pjrxCurrent->m_pjrxNext )
         {
             m_pjrxCurrent = &*m_pjrxCurrent->m_pjrxNext;
@@ -4374,7 +4354,7 @@ void StreamReadJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc )
         // save state, move down, and recurse.
         typename JsonReadCursor< t_tyJsonInputStream >::_tyJsonRestoreContext jrx( _jrc ); // Restore to current context on destruct.
         bool f = _jrc.FMoveDown();
-        assert(f);
+        Assert(f);
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
             StreamReadJsonValue( _jrc );
     }
@@ -4394,7 +4374,7 @@ void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, Jso
         // save state, move down, and recurse.
         typename JsonReadCursor< t_tyJsonInputStream >::_tyJsonRestoreContext jrx( _jrc ); // Restore to current context on destruct.
         bool f = _jrc.FMoveDown();
-        assert(f);
+        Assert(f);
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
             if ( ejvtObject == _jvl.JvtGetValueType() )
@@ -4403,7 +4383,7 @@ void StreamReadWriteJsonValue( JsonReadCursor< t_tyJsonInputStream > & _jrc, Jso
                 typename JsonReadCursor< t_tyJsonInputStream >::_tyStdStr strKey;
                 EJsonValueType jvt;
                 bool fGotKey = _jrc.FGetKeyCurrent( strKey, jvt );
-                assert( fGotKey ); // We should get a key here always and really we should throw if not.
+                Assert( fGotKey ); // We should get a key here always and really we should throw if not.
                 JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, strKey.c_str(), _jrc.JvtGetValueType() );
                 StreamReadWriteJsonValue( _jrc, jvlObjectElement );
             }
@@ -4439,7 +4419,7 @@ void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _
         // save state, move down, and recurse.
         typename JsonReadCursor< t_tyJsonInputStream >::_tyJsonRestoreContext jrx( _jrc ); // Restore to current context on destruct.
         bool f = _jrc.FMoveDown();
-        assert(f);
+        Assert(f);
         for ( ; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement() )
         {
             if ( ejvtObject == _jvl.JvtGetValueType() )
@@ -4492,7 +4472,7 @@ void StreamReadWriteJsonValueUnitTest( JsonReadCursor< t_tyJsonInputStream > & _
                     continue; // Skip this potentially complex value to test skipping input.
                 }
 
-                assert( fGotKey ); // We should get a key here always and really we should throw if not.
+                Assert( fGotKey ); // We should get a key here always and really we should throw if not.
                 JsonValueLife< t_tyJsonOutputStream > jvlObjectElement( _jvl, strKey.c_str(), _jrc.JvtGetValueType() );
                 StreamReadWriteJsonValueUnitTest( _jrc, jvlObjectElement, _rjutx );
             }

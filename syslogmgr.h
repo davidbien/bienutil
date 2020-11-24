@@ -68,7 +68,8 @@ namespace n_SysLog
   typedef JsoValue<char> vtyJsoValueSysLog;
   void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog *_pjvThreadSpecificJson = 0);
   // Used for when we are about to abort(), etc. We can only quickly and easily close the current thread's syslog file if there is one.
-  void CloseThreadSysLog();
+  void CloseThreadSysLog() noexcept(true);
+  bool FSetInAssertOrVerify( bool _fInAssertOrVerify );
   void Log(ESysLogMessageType _eslmtType, const char *_pcFmt, ...);
   void Log(ESysLogMessageType _eslmtType, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...);
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, const char *_pcFmt, ...);
@@ -107,7 +108,6 @@ struct _SysLogThreadHeader
   {
     m_nmsSinceProgramStart = 0;
     memset(&m_uuid, 0, sizeof m_uuid);
-    assert(1 == uuid_is_null(m_uuid));
     m_szProgramName.clear();
     m_tidThreadId = 0;
     m_timeStart = 0;
@@ -220,7 +220,7 @@ public:
       }
     }
   }
-  static void CloseThreadSysLogFile()
+  static void CloseThreadSysLogFile() noexcept(true)
   {
     // We don't actually close the SysLogMgr for this thread because we may want to log again and then we would just recreate it.
     // Just close any JSON logfile for this thread so that it is complete as of this call.
@@ -231,7 +231,7 @@ public:
       rslm.CloseSysLogFile();
     }
   }
-  void CloseSysLogFile();
+  void CloseSysLogFile() noexcept(true);
   static void StaticLog(ESysLogMessageType _eslmt, std::string &&_rrStrLog, const _SysLogContext *_pslc)
   {
     // So the caller has given us some stuff to log and even gave us a string that we get to own.
@@ -249,13 +249,22 @@ public:
     case eslmtError:
       return "Error";
     default:
-      assert(0);
       return "UknownMesgType";
     }
   }
   static bool FStaticHasJSONLogFile()
   {
     return RGetThreadSysLogMgr().FHasJSONLogFile();
+  }
+  static bool FStaticSetInAssertOrVerify( bool _fInAssertOrVerify )
+  {
+    return RGetThreadSysLogMgr().FSetInAssertOrVerify( _fInAssertOrVerify );
+  }
+  bool FSetInAssertOrVerify( bool _fInAssertOrVerify )
+  {
+    bool fCur = m_fInAssertOrVerify;
+    m_fInAssertOrVerify = _fInAssertOrVerify;
+    return fCur;
   }
 
   _SysLogMgr(_SysLogMgr *_pslmOverlord)
@@ -281,7 +290,8 @@ protected:
   std::unique_ptr<_tyJsonOutputStream> m_pjosThreadLog;
   std::unique_ptr<_tyJsonValueLife> m_pjvlRootThreadLog;        // The root of the thread log - we may add a footer at end of execution.
   std::unique_ptr<_tyJsonValueLife> m_pjvlSysLogArray;          // The current position within the SysLog diagnostic log message array.
-                                                                // static members:
+  bool m_fInAssertOrVerify{false};                              // We don't want to re-enter Assert() code while processing an assert. As assertions are intimately tied to the SysLogMgr we implement that here.
+  // static members:
   static _SysLogMgr *s_pslmOverlord;                            // A pointer to the "overlord" _SysLogMgr that is running on its own thread. The lifetime for this is managed by s_tls_pThis for the overlord thread.
   static std::mutex s_mtxOverlord;                              // This used by overlord to guard access.
   static thread_local std::unique_ptr<_SysLogMgr> s_tls_upThis; // This object will be created in all threads the first time something logs in that thread.
@@ -331,9 +341,13 @@ namespace n_SysLog
   {
     SysLogMgr::InitSysLog(_pszProgramName, _grfOption, _grfFacility, _pjvThreadSpecificJson);
   }
-  inline void CloseThreadSysLog()
+  inline void CloseThreadSysLog() noexcept(true)
   {
-    SysLogMgr::CloseThreadSysLog();
+    SysLogMgr::CloseThreadSysLogFile();
+  }
+  inline bool FSetInAssertOrVerify( bool _fInAssertOrVerify )
+  {
+    return SysLogMgr::FStaticSetInAssertOrVerify( _fInAssertOrVerify );
   }
   inline void Log(ESysLogMessageType _eslmtType, const char *_pcFmt, ...)
   {
@@ -366,7 +380,7 @@ namespace n_SysLog
     }
     SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
   }
-  void Log(ESysLogMessageType _eslmtType, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
+  inline void Log(ESysLogMessageType _eslmtType, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
   {
     // We add [type]:_psFile:_nLine: to the start of the format string.
     std::string strFmtAnnotated;
@@ -435,7 +449,7 @@ namespace n_SysLog
     }
     SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
   }
-  void Log(ESysLogMessageType _eslmtType, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
+  inline void Log(ESysLogMessageType _eslmtType, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
   {
     // We add [type]:_psFile:_nLine: to the start of the format string.
     std::string strFmtAnnotated;
@@ -506,7 +520,7 @@ namespace n_SysLog
     }
     SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
   }
-  void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
+  inline void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
   {
     // We add [type]:_psFile:_nLine: to the start of the format string.
     std::string strFmtAnnotated;
@@ -577,7 +591,7 @@ namespace n_SysLog
     }
     SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
   }
-  void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
+  inline void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
   {
     // We add [type]:_psFile:_nLine: to the start of the format string.
     std::string strFmtAnnotated;

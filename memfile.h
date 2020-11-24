@@ -224,7 +224,7 @@ public:
         _tySignedFilePos posRet = m_spmfMemFile->Write( m_posCur, _pbyWrite, _nBytes );
         if ( -1 == posRet )
             return -1;
-        assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
+        Assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
         m_posCur += posRet;
         return posRet;
     }
@@ -251,7 +251,7 @@ public:
         _tySignedFilePos posRet = m_spmfMemFile->Insert( m_posCur, _pbyInsert, _nBytes );
         if ( -1 == posRet )
             return -1;
-        assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
+        Assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
         m_posCur += posRet;
         return posRet;
     }

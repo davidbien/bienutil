@@ -206,43 +206,43 @@ struct _ftw_impl_def : public _ftw_impl_base
 {
 	const char *	type_name()
 	{
-		assert( 0 );
+		Assert( 0 );
 		return 0;
 	}
 	size_t	size_of()
 	{
-		assert( 0 );
+		Assert( 0 );
 		return 0;
 	}
 	void	persist( char * _pc, const void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	persist( ostream & _ros, const void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	persist( IStream * _pis, const void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 
 	void	unpersist( const char * _pc, void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	unpersist( istream & _ris, void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	unpersist( IStream * _pis, void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 
 	void	dump( ostream & _ros, const void * _pv )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 };
 
@@ -349,39 +349,39 @@ struct _vtw_impl_def : public _vtw_impl_base
 {
 	const char * type_name()
 	{
-		assert( 0 );
+		Assert( 0 );
 		return 0;
 	}
 
 	void	persist( char * _pc, const void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	persist( ostream & _ros, const void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	persist( IStream * _pis, const void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 
 	void	unpersist( const char * _pc, void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	unpersist( istream & _ris, void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 	void	unpersist( IStream * _pis, void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 
 	void	dump( ostream & _ros, const void * _pv, size_t _stLength )
 	{
-		assert( 0 );
+		Assert( 0 );
 	}
 };
 
@@ -670,7 +670,7 @@ public:
 	// Remove the associated value at the same time.
 	void	remove_variable( _TyPropLookupVariable * _pplv ) __STLP_NOTHROW
 	{
-		assert( _valid_variable( _pplv ) );
+		Assert( _valid_variable( _pplv ) );
 
 		_remove_variable_value( _pplv );
 		m_stVariable -= _pplv->m_stAllocLength;
@@ -686,7 +686,7 @@ public:
 	// Remove the associated value at the same time.
 	void	remove_fixed( _TyPropLookupFixed * _pplf ) __STLP_NOTHROW
 	{
-		assert( _valid_fixed( _pplv ) );
+		Assert( _valid_fixed( _pplv ) );
 
 		_TyFixedTypeWrapper * pftw = get_fixed_type_wrapper( pplf->m_type );
 		size_t	stSize = pftw->size_of();
@@ -948,7 +948,7 @@ public:
 			break;
 			default:
 			{
-				assert( 0 );
+				Assert( 0 );
 			}
 			break;
 		}
@@ -1043,7 +1043,7 @@ public:
 			break;
 			default:
 			{
-				assert( 0 );
+				Assert( 0 );
 			}
 			break;
 		}
@@ -1138,7 +1138,7 @@ protected:
 			
 		_BIEN_TRY
 		{
-			assert( _valid_fixed( _pplf ) );
+			Assert( _valid_fixed( _pplf ) );
 			if ( m_stPropLookupFixedAllocated == m_stPropLookupFixed )
 			{
 				_pplf = _new_fixed_block( _pplf );
@@ -1160,7 +1160,7 @@ protected:
 
 		_pplf->m_stOffset = m_stFixed;
 		m_stFixed += _stSize;
-		assert( m_stFixed <= m_stFixedAllocated );
+		Assert( m_stFixed <= m_stFixedAllocated );
 
 		return _pplf;
 	}
@@ -1168,7 +1168,7 @@ protected:
 	void _remove_fixed_value( _TyPropLookupFixed * _pplf,
 														size_t _stSize )
 	{
-		assert( _valid_fixed( _pplf ) );
+		Assert( _valid_fixed( _pplf ) );
 		// Remove the value:
 		size_t	stExtent;
 		if (	( _stSize != 0 ) &&
@@ -1193,7 +1193,7 @@ protected:
 	// Make room for a new variable length index record after passed position.
 	_TyPropLookupVariable *	_vacate_variable( _TyPropLookupVariable * _pplv )
 	{
-		assert( _valid_variable( _pplv ) );
+		Assert( _valid_variable( _pplv ) );
 		if ( m_stPropLookupVariableAllocated == m_stPropLookupVariable )
 		{
 			_pplv = _new_variable_block( _pplv );
@@ -1262,7 +1262,7 @@ protected:
 
 	void _remove_variable_value( _TyPropLookupVariable * _pplv )
 	{
-		assert( _valid_variable( _pplv ) );
+		Assert( _valid_variable( _pplv ) );
 		// Remove the value:
 		size_t	stExtent;
 		if (	( _pplv->m_stAllocLength != 0 ) &&
@@ -1292,7 +1292,7 @@ protected:
 		_TyCharAllocBase::allocate_n( pplvNew, m_stPropLookupVariableAllocated + t_kiPropBlockSize );
 		if ( _pplv != end_variable() )
 		{
-			assert( _pplv < end_variable() );
+			Assert( _pplv < end_variable() );
 			size_t	stCopy = _pplv - begin_variable();
 			memcpy( pplvNew, begin_variable(), stCopy );
 			memcpy( pplvNew + stCopy + 1, _pplv, end_variable() - _pplv );
@@ -1317,7 +1317,7 @@ protected:
 			m_stPropLookupFixedAllocated + t_kiPropBlockSize );
 		if ( _pplf != end_fixed() )
 		{
-			assert( _pplf < end_fixed() );
+			Assert( _pplf < end_fixed() );
 			size_t	stCopy = _pplf - begin_fixed();
 			memcpy( pplfNew, begin_fixed(), stCopy );
 			memcpy( pplfNew + stCopy + 1, _pplf, end_fixed() - _pplf );

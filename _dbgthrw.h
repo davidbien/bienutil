@@ -15,6 +15,7 @@
 #include <map>
 #include <string>
 #include <ostream>
+#include "_assert.h"
 #include "_namdexc.h"
 
 // _dbgthrw.h
@@ -107,7 +108,7 @@ public:
     m_cpFileName( _cpFileName ),
     m_ulLineNumber( _ulLineNumber )
   {
-    assert( m_rgttType );
+    Assert( m_rgttType );
     if ( !_fInUnwind && ( _fMaybeThrow || _fAlwaysThrow ) )
     {
       _maybe_throw( _fAlwaysThrow );
@@ -226,7 +227,7 @@ struct _throw_static_base
 
   void  handle_throw()
   {
-    assert( m_rgttTypeAccum );
+    Assert( m_rgttTypeAccum );
     m_rgttTypeAccum = 0;
   }
 
@@ -296,7 +297,7 @@ struct _throw_static_base
 			}
 
 			m_rgttTypeCur &= ~( m_rgttTypeCur & m_rgttTypeCur-1 );
-			assert( 1 == _count_set_bits( m_rgttTypeCur ) );
+			Assert( 1 == _count_set_bits( m_rgttTypeCur ) );
 		}
 		m_rgttTypeAccum |= m_rgttTypeCur;
   }
@@ -314,7 +315,7 @@ struct _throw_static_base
 
       // Check to see if we have hit this throw point yet:
       _TyMapHitThrows::iterator mit = m_mapHitThrows.find( *m_rgSaved );
-      assert( mit != m_mapHitThrows.end() );
+      Assert( mit != m_mapHitThrows.end() );
       if ( !mit->second.m_uHit )
       {
         m_uHitThrows++;
@@ -346,7 +347,7 @@ struct _throw_static_base
 
         default:
         {
-          assert( 0 );
+          Assert( 0 );
         }
         break;
       }
@@ -384,7 +385,7 @@ struct _throw_static_base
           equal_range( m_ptobtrStart, m_ptobtrEnd, _throw_object_with_throw_rate( *_ptob ) );
         if ( pitEqual.first != pitEqual.second )
         {
-          assert( pitEqual.first+1 == pitEqual.second );
+          Assert( pitEqual.first+1 == pitEqual.second );
           if ( pitEqual.first->m_fHitOnce )
           {
             if ( pitEqual.first->m_iThrowRate )

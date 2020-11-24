@@ -10,6 +10,8 @@
 
 // List element, templatized by most derived class.
 
+#include "bienutil.h"
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 template < class t_TyMD >
@@ -52,7 +54,7 @@ public:
     }
     else
     {
-      assert( m_ppmdPrevNext == _rppmdTail );
+      Assert( m_ppmdPrevNext == _rppmdTail );
       _rppmdTail = &m_pmdNext;
     }
     _pmdBefore = static_cast< t_TyMD * >( this );

@@ -9,9 +9,7 @@
 
 #include <assert.h>
 #include <string>
-#include "_strutil.h"
 #include "syslogmgr.h"
-#include "jsonobjs.h"
 
 // This file defines assertion and runtime check stuff.
 // We allow assertion when ASSERTSENABLED is set non-zero. Normal in release binaries this is not set.
@@ -41,50 +39,10 @@
 #endif // !ABORTONVERIFY
 
 // This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort() (if _fAbort).
-inline void 
+// Need to define this later so we can use Assert() in various objects that we'd like to.
+void 
 AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
-                          unsigned int _nLine, const char * _szFunction, const char * _szMesg, ... )
-{
-  std::string strMesg;
-  if ( !!_szMesg && !!*_szMesg )
-  {
-    va_list ap;
-    va_start(ap, _szMesg);
-    char tc;
-    int nRequired = vsnprintf( &tc, 1, _szMesg, ap );
-    va_end(ap);
-    if ( nRequired < 0 )
-      (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): vsnprintf() returned nRequired[%d].", nRequired );
-    else
-    {
-      va_start(ap, _szMesg);
-      int nRet = NPrintfStdStr( strMesg, nRequired, _szMesg, ap );
-      va_end(ap);
-      if (nRet < 0)
-        (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
-    }
-  }
-
-  // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
-  std::string strFmt;
-  (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s(): %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
-
-  n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
-  jvLog("szAssertion").SetStringValue( _szAssertion );
-  if ( strMesg.length() )
-    jvLog("Mesg").SetStringValue( std::move( strMesg ) );
-  jvLog("szFunction").SetStringValue( _szFunction );
-  jvLog("szFile").SetStringValue( _szFile );
-  jvLog("nLine").SetValue( _nLine );
-  jvLog("fAssert").SetBoolValue( _fAssert );
-
-  n_SysLog::Log( eslmtError, jvLog, strFmt.c_str() );
-  if ( _fAbort )
-  {
-    n_SysLog::CloseThreadSysLog(); // flush and close syslog for this thread only before we abort.
-    abort();
-  }
-}
+                          unsigned int _nLine, const char * _szFunction, const char * _szMesg, ... );
 
 #define Verify(expr)							          \
      ( static_cast <bool> (expr)						\

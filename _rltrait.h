@@ -18,14 +18,14 @@ struct __relation_traits
 	typedef std::false_type			unused_maximum_value;							// If there is a maximum value, is it un-used ?
 	static void								set_maximum_value( _TyEl & _rTp )	// Method to set the maximum value.
 	{
-		assert( 0 );	// must be specialized.
+		Assert( 0 );	// must be specialized.
 	}
 
 	typedef std::false_type			has_minimum_value;								// Does this relationship have a minimum value ?
 	typedef std::false_type			unused_minimum_value;							// If there is a minimum value, is it un-used ?
 	static void								set_minimum_value( _TyEl & _rTp )	// Method to set the minimum value.
 	{
-		assert( 0 );	// must be specialized.
+		Assert( 0 );	// must be specialized.
 	}
 };
 

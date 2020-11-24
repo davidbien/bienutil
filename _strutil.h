@@ -17,11 +17,11 @@
 #include <utility>
 #include "_namdexc.h"
 #include "_smartp.h"
+#include "_assert.h"
 #if __APPLE__
 #include <libproc.h>
 #include <mach-o/dyld.h>
 #elif __linux__
-#include <assert.h>
 #include <sys/auxv.h>
 #include <sys/stat.h>
 #else
@@ -176,7 +176,7 @@ int IReadPositiveNum( const char * _psz, ssize_t _sstLen, t_tyNum & _rNum, bool 
 }
 
 // Get the full executable path - not including the executable but yes including a final '/'.
-void
+inline void
 GetCurrentExecutablePath( std::string & _rstrPath )
 {
     _rstrPath.clear();
@@ -184,7 +184,7 @@ GetCurrentExecutablePath( std::string & _rstrPath )
 	char rgBuf[PROC_PIDPATHINFO_MAXSIZE];
     pid_t pid = getpid();
     int iRet = proc_pidpath( pid, rgBuf, sizeof( rgBuf ) );
-    assert( iRet > 0 );
+    Assert( iRet > 0 );
     if ( iRet > 0 )
         _rstrPath = rgBuf;
     else
@@ -196,10 +196,10 @@ GetCurrentExecutablePath( std::string & _rstrPath )
         (void)_NSGetExecutablePath( &c, &len );
         strInitPath.resize( len-1 ); // will reserver len.
         int iRet = _NSGetExecutablePath( &strInitPath[0], &len );
-        assert( !iRet );
+        Assert( !iRet );
         char * cpMallocedPath = realpath( strInitPath.c_str(), 0 );
         FreeVoid fv( cpMallocedPath ); // Ensure we free.
-        assert( !!cpMallocedPath );
+        Assert( !!cpMallocedPath );
         if ( !cpMallocedPath )
             _rstrPath = strInitPath;
         else
@@ -226,23 +226,23 @@ GetCurrentExecutablePath( std::string & _rstrPath )
         _rstrPath.resize( stLastSlash+1 );
 }
 
-template< typename t_tyChar, std::size_t t_knLength >
-struct str_array
-{
-    constexpr t_tyChar const* c_str() const { return data_; }
-    constexpr t_tyChar const* data() const { return data_; }
-    constexpr t_tyChar operator[]( std::size_t i ) const { return data_[ i ]; }
-    constexpr t_tyChar const* begin() const { return data_; }
-    constexpr t_tyChar const* end() const { return data_ + t_knLength; }
-    constexpr std::size_t size() const { return t_knLength; }
-    constexpr operator const t_tyChar * () const { return data_; }
-    // TODO: add more members of std::basic_string
-
-    t_tyChar data_[ t_knLength + 1 ];  // +1 for null-terminator
-};
-
 namespace n_StrArrayStaticCast
 {
+    template< typename t_tyChar, std::size_t t_knLength >
+    struct str_array
+    {
+        constexpr t_tyChar const* c_str() const { return data_; }
+        constexpr t_tyChar const* data() const { return data_; }
+        constexpr t_tyChar operator[]( std::size_t i ) const { return data_[ i ]; }
+        constexpr t_tyChar const* begin() const { return data_; }
+        constexpr t_tyChar const* end() const { return data_ + t_knLength; }
+        constexpr std::size_t size() const { return t_knLength; }
+        constexpr operator const t_tyChar * () const { return data_; }
+        // TODO: add more members of std::basic_string
+
+        t_tyChar data_[ t_knLength + 1 ];  // +1 for null-terminator
+    };
+
     template< typename t_tyCharResult, typename t_tyCharSource >
     constexpr t_tyCharResult static_cast_ascii( t_tyCharSource x )
     {
@@ -259,7 +259,7 @@ namespace n_StrArrayStaticCast
 } //namespace n_StrArrayStaticCast
 
 template< typename t_tyCharResult, typename t_tyCharSource, std::size_t N, typename Indices = std::make_index_sequence< N - 1 > >
-constexpr str_array< t_tyCharResult, N - 1 > str_array_cast( const t_tyCharSource(&a)[N] )
+constexpr n_StrArrayStaticCast::str_array< t_tyCharResult, N - 1 > str_array_cast( const t_tyCharSource(&a)[N] )
 {
     return n_StrArrayStaticCast::do_str_array_cast< t_tyCharResult >( a, Indices{} );
 }

@@ -8,7 +8,7 @@
 //          https://www.boost.org/LICENSE_1_0.txt).
 
 #include <fcntl.h>
-#include <assert.h>
+#include "_assert.h"
 #include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -71,7 +71,7 @@ public:
 protected:
   static int _Close(int _fd)
   {
-    assert( -1 != _fd );
+    Assert( -1 != _fd );
     return ::close(_fd);
   }
   int m_fd{-1};

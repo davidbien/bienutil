@@ -232,31 +232,31 @@ public:
 protected:
     void _CreateIterator( _tyObjectIterator const & _rit )
     {
-        assert( !m_pvIterator );
-        assert( m_fObjectIterator );
+        Assert( !m_pvIterator );
+        Assert( m_fObjectIterator );
         m_pvIterator = new _tyObjectIterator( _rit );
     }
     void _CreateIterator( _tyObjectIterator && _rrit )
     {
-        assert( !m_pvIterator );
-        assert( m_fObjectIterator );
+        Assert( !m_pvIterator );
+        Assert( m_fObjectIterator );
         m_pvIterator = new _tyObjectIterator( std::move( _rrit ) );
     }
     void _CreateIterator( _tyArrayIterator const & _rit )
     {
-        assert( !m_pvIterator );
-        assert( !m_fObjectIterator );
+        Assert( !m_pvIterator );
+        Assert( !m_fObjectIterator );
         m_pvIterator = new _tyArrayIterator( _rit );
     }
     void _CreateIterator( _tyArrayIterator && _rrit )
     {
-        assert( !m_pvIterator );
-        assert( !m_fObjectIterator );
+        Assert( !m_pvIterator );
+        Assert( !m_fObjectIterator );
         m_pvIterator = new _tyArrayIterator( std::move( _rrit ) );
     }
     void _DestroyIterator( void * _pv )
     {
-        assert( !!_pv );
+        Assert( !!_pv );
         if ( m_fObjectIterator )
             delete (_tyObjectIterator*)_pv;
         else
@@ -322,7 +322,7 @@ public:
                 new( m_rgbyValBuf ) _tyJsoArray( std::move( _rr._ArrayGet() ) );
                 break;
             default:
-                assert( 0 ); // random value...
+                Assert( 0 ); // random value...
             case ejvtNull:
             case ejvtTrue:
             case ejvtFalse:
@@ -354,7 +354,7 @@ public:
                 _ArrayGet() = _r._ArrayGet();
                 break;
             default:
-                assert( 0 ); // random value...
+                Assert( 0 ); // random value...
             case ejvtJsonValueTypeCount:
                 break; // assigned to an empty object.
             }
@@ -381,7 +381,7 @@ public:
                     new( m_rgbyValBuf ) _tyJsoArray( std::move( _rr._ArrayGet() ) );
                     break;
                 default:
-                    assert( 0 ); // random value...
+                    Assert( 0 ); // random value...
                 case ejvtNull:
                 case ejvtTrue:
                 case ejvtFalse:
@@ -602,7 +602,7 @@ public:
 
         // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
         int iRet = sscanf( StrGet().c_str(), _pszFmt, &_rNumber );
-        assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
+        Assert( 1 == iRet ); // Due to the specification of number we expect this to always succeed.
     }
     void GetValue( uint8_t & _rby ) const { _GetValue( "%hhu", _rby ); }
     void GetValue( int8_t & _rsby ) const { _GetValue( "%hhd", _rsby ); }
@@ -857,7 +857,7 @@ public:
     template < class t_tyJsonOutputStream >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl ) const
     {
-        assert( JvtGetValueType() == _jvl.JvtGetValueType() );
+        Assert( JvtGetValueType() == _jvl.JvtGetValueType() );
         switch( JvtGetValueType() )
         {
         case ejvtNull:
@@ -900,7 +900,7 @@ public:
     template < class t_tyJsonOutputStream, class t_tyFilter >
     void ToJSONStream( JsonValueLife< t_tyJsonOutputStream > & _jvl, t_tyFilter & _rfFilter ) const
     {
-        assert( JvtGetValueType() == _jvl.JvtGetValueType() );
+        Assert( JvtGetValueType() == _jvl.JvtGetValueType() );
         switch( JvtGetValueType() )
         {
         case ejvtNull:
@@ -1036,7 +1036,7 @@ protected:
       const int knNum = 512;
       char rgcNum[ knNum ];
       int nPrinted = snprintf( rgcNum, knNum, _pszFmt, _num );
-      assert( nPrinted < knNum );
+      Assert( nPrinted < knNum );
       SetValueType( ejvtNumber );
       StrGet().assign( rgcNum, std::min( nPrinted, knNum-1 ) );
     }
@@ -1057,7 +1057,7 @@ protected:
             static_cast< _tyJsoArray * >( (void*)m_rgbyValBuf )->~_tyJsoArray();
             break;
         default:
-            assert( 0 ); // random value...
+            Assert( 0 ); // random value...
         case ejvtNull:
         case ejvtTrue:
         case ejvtFalse:
@@ -1067,7 +1067,7 @@ protected:
     }
     void _AllocateValue( const EJsonValueType _jvt )
     {
-        assert( ejvtJsonValueTypeCount == JvtGetValueType() );
+        Assert( ejvtJsonValueTypeCount == JvtGetValueType() );
         switch( _jvt )
         {
         case ejvtNumber:
@@ -1081,7 +1081,7 @@ protected:
             new( m_rgbyValBuf ) _tyJsoArray();
             break;
         default:
-            assert( 0 ); // random value...
+            Assert( 0 ); // random value...
         case ejvtNull:
         case ejvtTrue:
         case ejvtFalse:
@@ -1139,7 +1139,7 @@ public:
             if ( _fRecursive )
                 itCur->second.AssertValid( true );
             else
-                assert( ejvtJsonValueTypeCount != itCur->second.JvtGetValueType() );
+                Assert( ejvtJsonValueTypeCount != itCur->second.JvtGetValueType() );
         }
     }
 #endif
@@ -1203,7 +1203,7 @@ public:
     template < class t_tyJsonInputStream >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
-        assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        Assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
         JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
         if ( !_jrc.FMoveDown() )
             THROWJSONBADUSAGE( "_JsoObject::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
@@ -1224,7 +1224,7 @@ public:
     template < class t_tyJsonInputStream, class t_tyFilter >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, _tyJsoValue const & _rjvContainer, t_tyFilter & _rfFilter )
     {
-        assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        Assert( m_mapValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
 #if 0 // REVIEW:<dbien>: This was an idea but it would be hard for the caller to tell what was up - i.e. in which context we were - without flags or something.
       //    Also the same can be accomplished by merely refusing all elements below.
         if ( !_rfFilter( _jrc, _rjvContainer ) )
@@ -1376,7 +1376,7 @@ public:
     template < class t_tyJsonInputStream >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc )
     {
-        assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        Assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
         JsonRestoreContext< t_tyJsonInputStream > rxc( _jrc );
         if ( !_jrc.FMoveDown() )
             THROWJSONBADUSAGE( "_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly." );
@@ -1390,7 +1390,7 @@ public:
     template < class t_tyJsonInputStream, class t_tyFilter >
     void FromJSONStream( JsonReadCursor< t_tyJsonInputStream > & _jrc, _tyJsoValue const & _rjvContainer, t_tyFilter & _rfFilter )
     {
-        assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
+        Assert( m_vecValues.empty() ); // Note that this isn't required just that it is expected. Remove assertion if needed.
 #if 0 // REVIEW:<dbien>: This was an idea but it would be hard for the caller to tell what was up - i.e. in which context we were - without flags or something.
       //    Also the same can be accomplished by merely refusing all elements below.
         if ( !_rfFilter( _jrc, _rjvContainer ) )

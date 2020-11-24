@@ -262,8 +262,8 @@ public:
 		memset( m_tElHead.m_rgpn, 0, _kiTiers * sizeof( *m_tElHead.m_rgpn ) );
 
 		// Need to have a maximum value for this algorithm.
-		assert( __FTrue( typename __relation_traits<_TyEl,_TyCompare>::has_maximum_value() ) );
-		assert( __FTrue( typename __relation_traits<_TyEl,_TyCompare>::unused_maximum_value() ) );
+		static_assert( __FTrue( typename __relation_traits<_TyEl,_TyCompare>::has_maximum_value() ) );
+		static_assert( __FTrue( typename __relation_traits<_TyEl,_TyCompare>::unused_maximum_value() ) );
 		__relation_traits<_TyEl,_TyCompare>::set_maximum_value( m_tElHead.m_tEl );
 	}
 
@@ -474,7 +474,7 @@ public:
 		
 		do
 		{
-			assert( _rgppn[ iTier ] );
+			Assert( _rgppn[ iTier ] );
 			if ( ( iTier < _pnNode->m_iUsed ) )
 			{
 				// Then update needed:

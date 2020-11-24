@@ -16,7 +16,7 @@ template <class t_tyJsonOutputStream>
 void _SysLogThreadHeader::ToJSONStream(JsonValueLife<t_tyJsonOutputStream> &_jvl) const
 {
   // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-  assert(_jvl.FAtObjectValue());
+  Assert(_jvl.FAtObjectValue());
   if (_jvl.FAtObjectValue())
   {
     _jvl.WriteStringValue("ProgName", m_szProgramName);
@@ -34,7 +34,7 @@ void _SysLogThreadHeader::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_j
 {
   Clear();
   // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-  assert(_jrc.FAtObjectValue());
+  Assert(_jrc.FAtObjectValue());
   if (_jrc.FAtObjectValue())
   {
     JsonRestoreContext<t_tyJsonInputStream> jrx(_jrc);
@@ -47,7 +47,7 @@ void _SysLogThreadHeader::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_j
         typename _tyCharTraits::_tyStdStr strKey;
         EJsonValueType jvtValue;
         bool fGetKey = _jrc.FGetKeyCurrent(strKey, jvtValue);
-        assert(fGetKey);
+        Assert(fGetKey);
         if (fGetKey)
         {
           if (ejvtString == jvtValue)
@@ -96,7 +96,7 @@ template <class t_tyJsonOutputStream>
 void _SysLogContext::ToJSONStream(JsonValueLife<t_tyJsonOutputStream> &_jvl) const
 {
   // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-  assert(_jvl.FAtObjectValue());
+  Assert(_jvl.FAtObjectValue());
   if (_jvl.FAtObjectValue())
   {
     _jvl.WriteValue("msec", m_nmsSinceProgramStart);
@@ -131,7 +131,7 @@ void _SysLogContext::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_jrc)
 {
   Clear();
   // We should be in an object in the JSONStream and we will add our (key,values) to this object.
-  assert(_jrc.FAtObjectValue());
+  Assert(_jrc.FAtObjectValue());
   if (_jrc.FAtObjectValue())
   {
     JsonRestoreContext<t_tyJsonInputStream> jrx(_jrc);
@@ -144,7 +144,7 @@ void _SysLogContext::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_jrc)
         typename _tyCharTraits::_tyStdStr strKey;
         EJsonValueType jvtValue;
         bool fGetKey = _jrc.FGetKeyCurrent(strKey, jvtValue);
-        assert(fGetKey);
+        Assert(fGetKey);
         if (fGetKey)
         {
           if (ejvtString == jvtValue)
@@ -210,7 +210,7 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   GetCurrentExecutablePath(strExePath);
   if (!strExePath.length())
     strExePath = "./"; // Just use current working directory if we can't find exe directory.
-  assert('/' == strExePath[strExePath.length() - 1]);
+  Assert('/' == strExePath[strExePath.length() - 1]);
   _SysLogThreadHeader slth;
   slth.m_szProgramName = strExePath;
   slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.
@@ -272,7 +272,7 @@ void _SysLogMgr<t_kiInstance>::Log(ESysLogMessageType _eslmt, std::string &&_rrS
     iPriority = LOG_WARNING;
     break;
   default:
-    assert(0);
+    Assert(0);
   case eslmtError:
     iPriority = LOG_ERR;
     break;
@@ -295,17 +295,92 @@ void _SysLogMgr<t_kiInstance>::Log(ESysLogMessageType _eslmt, std::string &&_rrS
 template <const int t_kiInstance>
 bool _SysLogMgr<t_kiInstance>::FHasJSONLogFile() const
 {
-  assert((!!m_pjosThreadLog && m_pjosThreadLog->FOpened()) == !!m_pjvlRootThreadLog);
-  assert((!!m_pjosThreadLog && m_pjosThreadLog->FOpened()) == !!m_pjvlSysLogArray);
+  Assert((!!m_pjosThreadLog && m_pjosThreadLog->FOpened()) == !!m_pjvlRootThreadLog);
+  Assert((!!m_pjosThreadLog && m_pjosThreadLog->FOpened()) == !!m_pjvlSysLogArray);
   return !!m_pjosThreadLog && m_pjosThreadLog->FOpened();
 }
 
 template <const int t_kiInstance>
-void _SysLogMgr<t_kiInstance>::CloseSysLogFile()
+void _SysLogMgr<t_kiInstance>::CloseSysLogFile() noexcept(true)
 {
   // To close merely release each unique_ptr in the same order the object would be destructed:
-  m_pjvlSysLogArray.reset();
-  m_pjvlRootThreadLog.reset();
-  m_pjosThreadLog.reset();
+  try
+  {
+    m_pjvlSysLogArray.reset();
+  }
+  catch(...)
+  {
+  }
+  try
+  {
+    m_pjvlRootThreadLog.reset();
+  }
+  catch(...)
+  {
+  }
+  try
+  {
+    m_pjosThreadLog.reset();
+  }
+  catch (...)
+  {
+  }
 }
 
+// This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort() (if _fAbort).
+inline void 
+AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
+                          unsigned int _nLine, const char * _szFunction, const char * _szMesg, ... )
+{
+  if ( !n_SysLog::FSetInAssertOrVerify( true ) )
+  {
+    try
+    {
+      std::string strMesg;
+      if ( !!_szMesg && !!*_szMesg )
+      {
+        va_list ap;
+        va_start(ap, _szMesg);
+        char tc;
+        int nRequired = vsnprintf( &tc, 1, _szMesg, ap );
+        va_end(ap);
+        if ( nRequired < 0 )
+          (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): vsnprintf() returned nRequired[%d].", nRequired );
+        else
+        {
+          va_start(ap, _szMesg);
+          int nRet = NPrintfStdStr( strMesg, nRequired, _szMesg, ap );
+          va_end(ap);
+          if (nRet < 0)
+            (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
+        }
+      }
+
+      // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
+      std::string strFmt;
+      (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s(): %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
+
+      n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
+      jvLog("szAssertion").SetStringValue( _szAssertion );
+      if ( strMesg.length() )
+        jvLog("Mesg").SetStringValue( std::move( strMesg ) );
+      jvLog("szFunction").SetStringValue( _szFunction );
+      jvLog("szFile").SetStringValue( _szFile );
+      jvLog("nLine").SetValue( _nLine );
+      jvLog("fAssert").SetBoolValue( _fAssert );
+
+      n_SysLog::Log( eslmtError, jvLog, strFmt.c_str() );
+      if ( _fAbort )
+      {
+        n_SysLog::CloseThreadSysLog(); // flush and close syslog for this thread only before we abort.
+        abort();
+      }
+    }
+    catch( ... )
+    {
+      (void)n_SysLog::FSetInAssertOrVerify( false );
+      throw;
+    }
+  }
+
+}

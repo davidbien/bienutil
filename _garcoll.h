@@ -135,7 +135,7 @@ class _gco
 #ifndef NDEBUG
 	~_gco()
 	{
-		assert( !m_ref );	// This should be the case.
+		Assert( !m_ref );	// This should be the case.
 	}
 #endif //!NDEBUG
 
@@ -306,7 +306,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 #ifndef NDEBUG
 	~_gco()
 	{
-		assert( !m_ref );	// This should be the case.
+		Assert( !m_ref );	// This should be the case.
 	}
 #endif //!NDEBUG
 
@@ -461,7 +461,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 #ifndef NDEBUG
 	~_gco()
 	{
-		assert( !m_ref );	// This should be the case.
+		Assert( !m_ref );	// This should be the case.
 	}
 #endif //!NDEBUG
 
@@ -623,7 +623,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 #ifndef NDEBUG
 	~_gco()
 	{
-		assert( !m_ref );	// This should be the case.
+		Assert( !m_ref );	// This should be the case.
 	}
 #endif //!NDEBUG
 
@@ -1166,7 +1166,7 @@ protected:
 #ifndef NDEBUG
   ~_gcop_basev()
   {
-    assert( !m_ref ); // this should be the case.
+    Assert( !m_ref ); // this should be the case.
   }
 #endif //!NDEBUG
 
@@ -1782,19 +1782,19 @@ protected:
 	}
 	t_TyGCO &		RGCO() const _BIEN_NOTHROW
 	{
-		assert( m_pgco );
+		Assert( m_pgco );
 		return *m_pgco;
 	}
 
 	t_TyGCO ** PPGCO() _BIEN_NOTHROW
 	{
-		assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
+		Assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
 		return &m_pgco;
 	}
 
 	t_TyGCO *& PRGCO() _BIEN_NOTHROW
 	{
-		assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
+		Assert( !m_pgco );	// We may have a populated reference - giving the address of it to someone else is dangerous.
 		return m_pgco;
 	}
 
@@ -1843,7 +1843,7 @@ protected:
 		__STD_OR_GLOBAL_QUALIFIER swap( pgco, m_pgco );	// We own the copy.
 
 		pgco->Release();
-    assert( pgco->m_ref );
+    Assert( pgco->m_ref );
 	}
 };
 
@@ -1896,7 +1896,7 @@ protected:
 	explicit _gcr( t_TyGCO * _pgco )
 		: m_pgco( _pgco )
   {
-    assert( 1 == ( _pgco->AddRef(), _pgco->Release() ) );
+    Assert( 1 == ( _pgco->AddRef(), _pgco->Release() ) );
   }
 
 public:
@@ -2090,7 +2090,7 @@ public:
   void  SetObject( t_TyGc const & _r )
   {
     // REVIEW: could have if ( _r.PGCO() ) instead:
-    assert( _r.PGCO() );
+    Assert( _r.PGCO() );
     _Release();
     m_pgco = _r.PGCO();
   }
@@ -2127,7 +2127,7 @@ protected:
 		t_TyGCO *	pgco = m_pgco->copy();
 		__STD_OR_GLOBAL_QUALIFIER swap( pgco, m_pgco );	// We own the copy.
     pgco->Release();
-    assert( pgco->m_ref );
+    Assert( pgco->m_ref );
 	}
 };
 

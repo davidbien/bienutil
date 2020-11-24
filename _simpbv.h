@@ -38,7 +38,7 @@ template < class t_Ty >
 __INLINE size_t
 _bv_get_clear_first_set( t_Ty & _rt )
 {
-  assert( _rt );  // We assume that there is such a bit to get.
+  Assert( _rt );  // We assume that there is such a bit to get.
   t_Ty tBit = _bv_clear_first_set( _rt, _rt );
   return UMSBitSet( tBit );
 }
@@ -47,7 +47,7 @@ template < class t_Ty >
 __INLINE size_t
 _bv_get_first_set( t_Ty const & _rt )
 {
-  assert( _rt );  // We assume that there is such a bit to get.
+  Assert( _rt );  // We assume that there is such a bit to get.
   t_Ty tBit = _bv_first_set( _rt );
   return UMSBitSet( tBit );
 }
@@ -59,7 +59,7 @@ _STLP_TEMPLATE_NULL
 __INLINE size_t
 _bv_get_clear_first_set( Iu64vec1 & _rt )
 {
-  assert( !!_rt );  // We assume that there is such a bit to get.
+  Assert( !!_rt );  // We assume that there is such a bit to get.
 
   // We don't 64 bit subtraction in the mmx stuff - we need to simulate it
   //  using 32 bit - only need to subtract 1 from the high dword if we
@@ -158,7 +158,7 @@ public:
   {
     if ( this != &_r )
     {
-      assert( _r.m_kstBits == m_kstBits );
+      Assert( _r.m_kstBits == m_kstBits );
       memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
     }
     return *this;
@@ -167,7 +167,7 @@ public:
   bool
   operator < ( _TyThis const & _r ) const _BIEN_NOTHROW
   {
-    assert( _r.m_kstBits == m_kstBits );
+    Assert( _r.m_kstBits == m_kstBits );
     return 0 > memcmp( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
   }
 
@@ -189,21 +189,21 @@ public:
 
   void  setbit( size_type _rstBit ) _BIEN_NOTHROW
   {
-    assert( _rstBit < size() );
+    Assert( _rstBit < size() );
     m_rgEls[ _rstBit / ms_kiElSizeBits ] |= 
       ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kiElSizeBits ) );
   }
 
   void  clearbit( size_type _rstBit ) _BIEN_NOTHROW
   {
-    assert( _rstBit < size() );
+    Assert( _rstBit < size() );
     m_rgEls[ _rstBit / ms_kiElSizeBits ] &= 
       ~( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kiElSizeBits ) );
   }
 
   bool  isbitset( size_type _rstBit ) const _BIEN_NOTHROW
   {
-    assert( _rstBit < size() );
+    Assert( _rstBit < size() );
     return m_rgEls[ _rstBit / ms_kiElSizeBits ] &
       ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kiElSizeBits ) );
   }
@@ -228,7 +228,7 @@ public:
 
   size_type getnextset( size_type _stLast ) const _BIEN_NOTHROW
   {
-    assert( _stLast < size() );
+    Assert( _stLast < size() );
     // First process any partial elements:
     t_TyEl * pElNext = m_rgEls + ( ++_stLast / ms_kiElSizeBits );
     if ( _stLast %= ms_kiElSizeBits )
@@ -238,7 +238,7 @@ public:
       if ( !!( el = ( *pElNext & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
       {
         _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_kiElSizeBits;
-        assert( _stLast < size() );
+        Assert( _stLast < size() );
         return _stLast;
       }
       ++pElNext;
@@ -275,7 +275,7 @@ public:
   {
     // The invariant is that beyond the last bit is empty.
     // Since both bit vectors should follow that invariant the result should follow it.
-    assert( _r.m_kstBits == m_kstBits );
+    Assert( _r.m_kstBits == m_kstBits );
     or_equals( _r.m_rgEls );
     return *this;
   }
@@ -293,7 +293,7 @@ public:
   {
     // The invariant is that beyond the last bit is empty.
     // Since both bit vectors should follow that invariant the result should follow it.
-    assert( _r.m_kstBits == m_kstBits );
+    Assert( _r.m_kstBits == m_kstBits );
     _and_not( _r.m_rgEls );
     return *this;
   }
@@ -309,7 +309,7 @@ public:
 
   bool  FIntersects( _TyThis const & _r ) const _BIEN_NOTHROW
   {
-    assert( _r.m_kstBits == m_kstBits );
+    Assert( _r.m_kstBits == m_kstBits );
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     t_TyEl *  pcurThat = _r.m_rgEls;
     t_TyEl * pcurThis = m_rgEls;
@@ -327,8 +327,8 @@ public:
   //  return if intersection is non-NULL.
   bool  intersection( _TyThis const & _rl, _TyThis const & _rr )
   {
-    assert( _rl.m_kstBits == m_kstBits );
-    assert( _rr.m_kstBits == m_kstBits );
+    Assert( _rl.m_kstBits == m_kstBits );
+    Assert( _rr.m_kstBits == m_kstBits );
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     t_TyEl *  pcurLeft = _rl.m_rgEls;
     t_TyEl *  pcurRight = _rr.m_rgEls;
@@ -343,13 +343,13 @@ public:
 
   size_type FirstIntersection( _TyThis const & _r ) const _BIEN_NOTHROW
   {
-    assert( _r.m_kstBits == m_kstBits );
+    Assert( _r.m_kstBits == m_kstBits );
     return _NIntersection( m_rgEls, _r.m_rgEls );
   }
 
   size_type NextIntersection( _TyThis const & _r, size_type _stLast ) const _BIEN_NOTHROW
   {
-    assert( _stLast < size() );
+    Assert( _stLast < size() );
     // First process any partial elements:
     t_TyEl * pElNextThis = m_rgEls + ( ++_stLast / ms_kiElSizeBits );
     t_TyEl * pElNextThat = _r.m_rgEls + ( pElNextThis - m_rgEls );
@@ -360,7 +360,7 @@ public:
       if ( !!( el = ( *pElNextThis & *pElNextThat & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
       {
         _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNextThis - m_rgEls ) * ms_kiElSizeBits;
-        assert( _stLast < size() );
+        Assert( _stLast < size() );
         return _stLast;
       }
       ++pElNextThis;
@@ -425,7 +425,7 @@ protected:
       if ( *pEl )
       {
         size_type stFound = size_type(pEl - m_rgEls) * ms_kiElSizeBits + (size_type)_bv_get_clear_first_set( *pEl );
-        assert( stFound < m_kstBits );
+        Assert( stFound < m_kstBits );
         return stFound;
       }
     }
@@ -440,7 +440,7 @@ protected:
       if ( *pEl )
       {
         size_type stFound = size_type(pEl - m_rgEls) * ms_kiElSizeBits + size_type(_bv_get_first_set( *pEl ));
-        assert( stFound < m_kstBits );
+        Assert( stFound < m_kstBits );
         return stFound;
       }
     }

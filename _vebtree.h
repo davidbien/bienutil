@@ -12,10 +12,10 @@
 //  at some point in the tree hierarchy.
 // This also keeps memory access local.
 
-#include <assert.h>
 #include <stddef.h>
 #include <cstdint>
 #include <climits>
+#include "_assert.h"
 #include "_aloctrt.h"
 #include "_namdexc.h"
 #include "_bitutil.h"
@@ -160,9 +160,9 @@ public:
     // We don't support construction with a universe, but we do support an Init() call for genericity.
     void Init( size_t _stUniverse )
     {
-        assert( _stUniverse <= s_kstUniverse );
+        Assert( _stUniverse <= s_kstUniverse );
         // When Init() is called we should have already been cleared by out ultimate container (an instance of VebTreeWrap).
-        assert( m_rgUint + s_kstNUints == find_if( m_rgUint, m_rgUint + s_kstNUints, []( const auto & _rn ) { return !!_rn; } ) );
+        Assert( m_rgUint + s_kstNUints == find_if( m_rgUint, m_rgUint + s_kstNUints, []( const auto & _rn ) { return !!_rn; } ) );
         // nothing to do.
     }
     void _Deinit()
@@ -201,16 +201,16 @@ public:
             return; // all configurations of bits are valid for this set.
         // If a _pnLastElement is passed then we should have no set bits after that point:
         size_t stLastElement = *_pnLastElement;
-        assert( stLastElement < s_kstUniverse );
+        Assert( stLastElement < s_kstUniverse );
         if ( !!( ( stLastElement + 1 ) % s_kstNBitsUint ) )
         {
             const _tyUint & rnCheck = m_rgUint[ stLastElement / s_kstNBitsUint ];
-            assert( !( rnCheck & ~( ( _tyUint(1) << ( (stLastElement+1) % s_kstNBitsUint ) ) - 1 ) ) );
+            Assert( !( rnCheck & ~( ( _tyUint(1) << ( (stLastElement+1) % s_kstNBitsUint ) ) - 1 ) ) );
         }
         const _tyUint * pnCur = m_rgUint + ( ( stLastElement / s_kstNBitsUint ) + 1 );
         const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
         for ( ; pnEnd != pnCur; ++pnCur )
-            assert( !*pnCur ); // beyond the limit - bad.
+            Assert( !*pnCur ); // beyond the limit - bad.
 #endif //!NDEBUG
     }
 
@@ -301,7 +301,7 @@ public:
     }
     void Resize( size_t _stNewUniverse, bool _fShrinkReserve )
     {
-        assert( _stNewUniverse <= s_kstUniverse );
+        Assert( _stNewUniverse <= s_kstUniverse );
         (void)FDeleteAllAfter( _stNewUniverse-1, nullptr ); // nothing to resize but we should delete any elements beyond.
     }
     void Clear()
@@ -313,9 +313,9 @@ public:
     // 2) Must set all bits up until _pnLastElement if present but needn't touch any bits beyond that because they shouldn't have ever been modified.
     void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
-        assert( !_pnFirstInsert || !!*_pnFirstInsert );
-        assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
-        assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+        Assert( !_pnFirstInsert || !!*_pnFirstInsert );
+        Assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+        Assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
         size_t stFirstInsert = _pnFirstInsert ? *_pnFirstInsert : 0;
         size_t stLastElement;
         if ( _pnLastElement )
@@ -346,9 +346,9 @@ public:
     }
     void Insert( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
-        assert( !( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
+        Assert( !( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
         *pn |= ( _tyUint(1) << ( _x % s_kstNBitsUint ) );
     }
     // Return true if the element was inserted, false if it already existed.
@@ -361,9 +361,9 @@ public:
     }
     void Delete( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
-        assert( !!( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
+        Assert( !!( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) ) ); // We shouldn't be doing this.
         *pn &= ~( _tyUint(1) << ( _x % s_kstNBitsUint ) );
     }
     // Return true if the element was deleted, false if it already existed.
@@ -403,14 +403,14 @@ public:
     }
     bool FHasElement( _tyImplType _x ) const
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         const _tyUint * pn = &m_rgUint[ _x / s_kstNBitsUint ];
         return !!( *pn & ( _tyUint(1) << ( _x % s_kstNBitsUint ) ) );
     }
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         if ( _x >= s_kstUniverse-1 )
             return s_kitNoSuccessor;
         ++_x;
@@ -437,7 +437,7 @@ public:
     // Return and remove the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessorDelete( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         if ( _x >= s_kstUniverse-1 )
             return s_kitNoSuccessor;
         ++_x;
@@ -470,7 +470,7 @@ public:
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         if ( !_x )
             return s_kitNoPredecessor;
         --_x;
@@ -498,7 +498,7 @@ public:
     // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessorDelete( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         if ( !_x )
             return s_kitNoPredecessor;
         --_x;
@@ -598,8 +598,8 @@ public:
     // We don't support construction with a universe, but we do support an Init() call for genericity.
     void Init( size_t _stUniverse )
     {
-        assert( _stUniverse <= s_kstUniverse );
-        assert( !m_byVebTree2 );
+        Assert( _stUniverse <= s_kstUniverse );
+        Assert( !m_byVebTree2 );
     }
     void _Deinit()
     {
@@ -634,11 +634,11 @@ public:
         if ( _pnLastElement )
         {
             size_t stLastElement = *_pnLastElement;
-            assert( stLastElement < s_kstUniverse );
+            Assert( stLastElement < s_kstUniverse );
             if ( !stLastElement )
                 byMask = 0b01;
         }
-        assert( !( m_byVebTree2 & ~byMask ) );
+        Assert( !( m_byVebTree2 & ~byMask ) );
 #endif //!NDEBUG
     }
 
@@ -706,9 +706,9 @@ public:
             m_byVebTree2 = 0b11; // the usual case.
         else
         {
-            assert( !_pnFirstInsert || !!*_pnFirstInsert );
-            assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
-            assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+            Assert( !_pnFirstInsert || !!*_pnFirstInsert );
+            Assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+            Assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
             if ( _pnFirstInsert )
                 m_byVebTree2 = 0b10;
             else
@@ -718,7 +718,7 @@ public:
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         m_byVebTree2 |= ( _tyImplType(1) << _x );
     }
     // Return true if the element was inserted, false if it already existed.
@@ -732,7 +732,7 @@ public:
     // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
     void Delete( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         m_byVebTree2 &= ~( _tyImplType(1) << _x );
     }
     // Return true if the element was deleted, false if it already existed.
@@ -750,12 +750,12 @@ public:
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         return !_x && ( m_byVebTree2 & 0b10 );
     }
     _tyImplType NSuccessorDelete( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         _tyImplType nSuccessor = !_x && ( m_byVebTree2 & 0b10 );
         if ( nSuccessor )
             m_byVebTree2 &= 0b01;
@@ -764,12 +764,12 @@ public:
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         return !_x || !( m_byVebTree2 & 0b01 );
     }
     _tyImplType NPredecessorDelete( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         _tyImplType nPredecessor = !_x || !( m_byVebTree2 & 0b01 );
         if ( !nPredecessor )
             m_byVebTree2 &= 0b10;
@@ -804,12 +804,12 @@ protected:
     }
     _tyImplType _NMin() const
     {
-        assert( FHasAnyElements() );
+        Assert( FHasAnyElements() );
         return 0b01 & m_byVebTree2 ? 0 : 1;
     }
     _tyImplType _NMax() const
     {
-        assert( FHasAnyElements() );
+        Assert( FHasAnyElements() );
         return 0b10 & m_byVebTree2 ? 1 : 0;
     }
     _tyImplType m_byVebTree2; // Don't initialize here because the most derived VebTreeWrap will set everything to zero.
@@ -1125,9 +1125,9 @@ public:
     // We don't support construction with a universe, but we do support an Init() call for genericity.
     void Init( size_t _stUniverse )
     {
-        assert( _stUniverse <= s_kstUniverse );
-        assert( !m_nMinPlusOne );
-        assert( !m_nMax );
+        Assert( _stUniverse <= s_kstUniverse );
+        Assert( !m_nMinPlusOne );
+        Assert( !m_nMax );
     }
     void _Deinit()
     {
@@ -1195,25 +1195,25 @@ public:
         size_t stLastElement = !_pnLastElement ? s_kstUniverse-1 : *_pnLastElement;
         if ( !FHasAnyElements() )
         {
-            assert( FEmpty( true ) );
+            Assert( FEmpty( true ) );
         }
         else
         if ( FHasOneElement() )
         {
-            assert( _NMin() <= stLastElement );
+            Assert( _NMin() <= stLastElement );
             const _tySubtree * pstCur = m_rgstSubtrees;
             const _tySubtree * const pstEnd = m_rgstSubtrees + s_kstUniverseSqrtLower;
             for ( ; pstEnd != pstCur; ++pstCur )
             {
-                assert( pstCur->FEmpty( true ) );
+                Assert( pstCur->FEmpty( true ) );
             }
-            assert( m_stSummary.FEmpty( true ) );
+            Assert( m_stSummary.FEmpty( true ) );
         }
         else
         {
-            assert( _NMin() < stLastElement );
-            assert( _NMax() <= stLastElement );
-            assert( !m_rgstSubtrees[ NCluster(_NMin()) ].FHasElement( NElInCluster(_NMin()) ) ); // the minimum is never present in the clusters.
+            Assert( _NMin() < stLastElement );
+            Assert( _NMax() <= stLastElement );
+            Assert( !m_rgstSubtrees[ NCluster(_NMin()) ].FHasElement( NElInCluster(_NMin()) ) ); // the minimum is never present in the clusters.
             // Move through each cluster - checking the consistency of the summary, etc.
             _tyImplType nLastElement = !_pnLastElement ? _tyImplType(s_kstUniverse-1) : *_pnLastElement;
             const _tySubtree * pstCur = m_rgstSubtrees;
@@ -1229,18 +1229,18 @@ public:
             _tyImplType nFoundMax = 0;
             for ( ; pstEndNonEmpty != pstCur; ++pstCur, ++nCluster )
             {
-                assert( m_stSummary.FHasElement( nCluster ) == pstCur->FHasAnyElements() );
+                Assert( m_stSummary.FHasElement( nCluster ) == pstCur->FHasAnyElements() );
                 if ( !pstCur->FHasAnyElements() )
-                    assert( pstCur->FEmpty( true ) );
+                    Assert( pstCur->FEmpty( true ) );
                 else
                 {
                     pstCur->AssertValid( pstEndNonEmpty-1 == pstCur ? pnLastElementSubtree : 0 );
                     _tyImplType nMaxCluster = NIndex( nCluster, pstCur->NMax() );
-                    assert( nMaxCluster > nFoundMax );
+                    Assert( nMaxCluster > nFoundMax );
                     nFoundMax = nMaxCluster;
                 }
             }
-            assert( nFoundMax == m_nMax ); // invariant.
+            Assert( nFoundMax == m_nMax ); // invariant.
 
             // The rest of the data structure should be empty - also need to test the summary.
             const _tySubtree * const pstEnd = m_rgstSubtrees + s_kstUniverseSqrtLower;
@@ -1251,7 +1251,7 @@ public:
                 m_stSummary.AssertValid( &nCluster );
                 // Make sure that all remaining clusters are completely empty:
                 for ( ; pstEnd != pstCur; ++pstCur )
-                    assert( pstCur->FEmpty( true ) );
+                    Assert( pstCur->FEmpty( true ) );
             }
             else
                 m_stSummary.AssertValid(); // ensure internal consistency for the summary.
@@ -1327,7 +1327,7 @@ public:
     }
     void Resize( size_t _stNewUniverse, bool _fShrinkReserve )
     {
-        assert( _stNewUniverse <= s_kstUniverse );
+        Assert( _stNewUniverse <= s_kstUniverse );
         (void)FDeleteAllAfter( _stNewUniverse-1, nullptr ); // nothing to resize but we should delete any elements beyond.
     }
     void Clear()
@@ -1344,9 +1344,9 @@ public:
     }
     void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
-        assert( !_pnFirstInsert || !!*_pnFirstInsert );
-        assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
-        assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
+        Assert( !_pnFirstInsert || !!*_pnFirstInsert );
+        Assert( !_pnLastElement || ( *_pnLastElement != s_kstUniverse-1 ) ); // Shouldn't be passing _pnLastElement if it is meaningless.
+        Assert(  !_pnFirstInsert || !_pnLastElement || ( *_pnFirstInsert <= *_pnLastElement ) );
 
         // Algorithm:
         // Set m_nMin to 0, set m_nMax to m_nLastElement.
@@ -1383,8 +1383,8 @@ public:
     // Note: Insert() assumes that _x is not in the set. If _x may be in the set then use CheckInsert().
     void Insert( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
-        assert( !FHasElement( _x ) );
+        Assert( _x < s_kstUniverse );
+        Assert( !FHasElement( _x ) );
         if ( !FHasAnyElements() )
         {
             _SetMin( _x );
@@ -1409,7 +1409,7 @@ public:
     // Return true if the element was inserted, false if it already existed.
     bool FCheckInsert( _tyImplType _x )
     {
-        assert( _x < s_kstUniverse );
+        Assert( _x < s_kstUniverse );
         if ( !FHasAnyElements() )
         {
             _SetMin( _x );
@@ -1438,7 +1438,7 @@ public:
                 fInserted = m_rgstSubtrees[nCluster].FCheckInsert( nEl );
             if ( _x > m_nMax )
             {
-                assert( fInserted );
+                Assert( fInserted );
                 m_nMax = _x;
             }
             return fInserted;
@@ -1447,10 +1447,10 @@ public:
     // Note: Delete() assumes that _x is in the set. If _x may not be in the set then use CheckDelete().
     void Delete( _tyImplType _x )
     {
-        assert( FHasElement( _x ) );
+        Assert( FHasElement( _x ) );
         if ( _NMin() == _NMax() )
         {
-            assert( _x == m_nMax );
+            Assert( _x == m_nMax );
             _SetEmptyMinMax();
         }
         else
@@ -1488,7 +1488,7 @@ public:
     // Return true if the element was deleted, false if it already existed.
     bool FCheckDelete( _tyImplType _x )
     {
-        assert( _x < t_kstUniverse );
+        Assert( _x < t_kstUniverse );
         if ( FHasOneElement() )
         {
             if ( _x == m_nMax )
@@ -1586,7 +1586,7 @@ public:
     }
     bool FHasElement( _tyImplType _x ) const
     {
-        assert( _x < t_kstUniverse );
+        Assert( _x < t_kstUniverse );
         if ( !FHasAnyElements() )
             return false;
         if ( ( _x == _NMin() ) || ( _x == m_nMax ) )
@@ -1599,7 +1599,7 @@ public:
     // Return the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessor( _tyImplType _x ) const
     {
-        assert( _x < t_kstUniverse );
+        Assert( _x < t_kstUniverse );
         if ( !FHasAnyElements() )
             return s_kitNoSuccessor;
         if ( _x < _NMin() )
@@ -1612,7 +1612,7 @@ public:
         if ( fMaxCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessor( nEl );
-            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
+            Assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             return NIndex( nCluster, nOffsetSubtree );
         }
         else
@@ -1629,7 +1629,7 @@ public:
     // Return and remove the next element after _x or 0 if there is no such element.
     _tyImplType NSuccessorDelete( _tyImplType _x )
     {
-        assert( _x < t_kstUniverse );
+        Assert( _x < t_kstUniverse );
         if ( !FHasAnyElements() )
             return s_kitNoSuccessor;
         if ( _x < _NMin() )
@@ -1645,10 +1645,10 @@ public:
         if ( fElsCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessorDelete( nEl );
-            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
+            Assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             if ( nMinCluster == nMaxCluster )
             {
-                assert( nEl == nMinCluster );
+                Assert( nEl == nMinCluster );
                 m_stSummary.Delete( nCluster );
                 if ( NIndex( nCluster, nMaxCluster ) == m_nMax )
                 {
@@ -1690,7 +1690,7 @@ public:
     // Return the previous element before _x or t_kstUniverse-1 if there is no such element.
     _tyImplType NPredecessor( _tyImplType _x ) const
     {
-        assert( _x < t_kstUniverse );
+        Assert( _x < t_kstUniverse );
         if ( !FHasAnyElements() )
             return s_kitNoPredecessor;
         if ( _x > m_nMax )
@@ -1703,7 +1703,7 @@ public:
         if ( fMinCluster && ( nEl > nMinCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessor( nEl );
-            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            Assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
             return NIndex( nCluster, nOffsetSubtree );
         }
         else
@@ -1726,7 +1726,7 @@ public:
     // This is significantly easier than NSuccessorDelete because m_nMin isn't contained in the subtree elements.
     _tyImplType NPredecessorDelete( _tyImplType _x )
     {
-        assert( _x < t_kstUniverse );
+        Assert( _x < t_kstUniverse );
         if ( !FHasAnyElements() )
             return s_kitNoPredecessor;
         if ( _x > m_nMax )
@@ -1742,7 +1742,7 @@ public:
         if ( fElsCluster && ( nEl > nMinCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessorDelete( nEl );
-            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            Assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
             if ( nMinCluster == nMaxCluster )
                 m_stSummary.Delete( nCluster );
             return NIndex( nCluster, nOffsetSubtree );
@@ -1791,7 +1791,7 @@ public:
         do
         {
             const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
-            assert( rstThat.FHasAnyElements() );
+            Assert( rstThat.FHasAnyElements() );
             _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
             if ( !rstThis.FHasAnyElements() ) // REVIEW: Could integrate the transition from "no elements"->"has elements" into the |= call below to avoid multiple passes on rstThis.
                 m_stSummary.Insert( nClusterCur ); // Update the summary.
@@ -1857,7 +1857,7 @@ public:
                     {
                         // We know we have found the "ultimate minimum" at this point because we will only see greater elements from here on out:
                         stMinCur = nMinTest;
-                        assert( stMinCur != stMinExisting ); // stMinExisting is not in the cluster so it cannot be the min.
+                        Assert( stMinCur != stMinExisting ); // stMinExisting is not in the cluster so it cannot be the min.
                         rstThis.Delete( nMinSubtree ); // We own this minimum now since we will store it in this object.
                         if ( nMinSubtree == nMaxSubtree ) // There was only one element.
                         {
@@ -1876,18 +1876,18 @@ public:
         // Now deal with the found min/max:
         if ( stMinCur == s_kstUniverse )
         {
-            assert( 0 == nMaxCur );
-            assert( !m_stSummary.FHasAnyElements() );
+            Assert( 0 == nMaxCur );
+            Assert( !m_stSummary.FHasAnyElements() );
             _SetEmptyMinMax();
         }
         else
         {
-            assert( ( s_kstUniverse == stMinExisting ) || ( stMinCur > stMinExisting ) );
+            Assert( ( s_kstUniverse == stMinExisting ) || ( stMinCur > stMinExisting ) );
             _SetMin( (_tyImplType)stMinCur );
             m_nMax = nMaxCur;
             if ( s_kstUniverse != stMinExisting )
                 Insert( (_tyImplType)stMinExisting );
-            assert( ( _NMin() != m_nMax ) || !m_stSummary.FHasAnyElements() );
+            Assert( ( _NMin() != m_nMax ) || !m_stSummary.FHasAnyElements() );
         }
         return *this;
     }
@@ -1920,7 +1920,7 @@ public:
         do
         {
             const _tySubtree & rstThat = _r.m_rgstSubtrees[ nClusterCur ];
-            assert( rstThat.FHasAnyElements() );
+            Assert( rstThat.FHasAnyElements() );
             _tySubtree & rstThis = m_rgstSubtrees[ nClusterCur ];
             rstThis ^= rstThat; // do it.
             _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
@@ -1942,7 +1942,7 @@ public:
                     rstThis.Delete( nMinSubtree ); // Took care of any summary changes above.
                 }
                 _tyImplType nMaxTest = NIndex( nClusterCur, nMaxSubtree );
-                assert( nMaxTest > m_nMax );
+                Assert( nMaxTest > m_nMax );
                 if ( nMaxTest > m_nMax )
                     m_nMax = nMaxTest;
             }
@@ -2024,12 +2024,12 @@ public:
             }
             else
             {
-                assert( fInSummary );
+                Assert( fInSummary );
                 m_stSummary.Delete( nClusterCur );
             }
         }
         // m_nMin and m_nMax are already updated, remove the old m_nMin because it will be set in the cluster.
-        assert( _NMin() <= nMinExisting );
+        Assert( _NMin() <= nMinExisting );
         Delete( nMinExisting );
         return *this;
     }
@@ -2215,27 +2215,27 @@ public:
 #ifndef NDEBUG
         if ( !FHasAnyElements() )
         {
-            assert( s_kstUniverse-1 == m_nMin ); // canonical form.
-            assert( !m_nMax );
-            assert( FEmpty( true ) );
+            Assert( s_kstUniverse-1 == m_nMin ); // canonical form.
+            Assert( !m_nMax );
+            Assert( FEmpty( true ) );
         }
         else
         if ( FHasOneElement() )
         {
-            assert( NMin() <= m_nLastElement );
+            Assert( NMin() <= m_nLastElement );
             const _tySubtree * pstCur = &m_rgstSubtrees[0];
             const _tySubtree * const pstEnd = pstCur + STClusters();
             for ( ; pstEnd != pstCur; ++pstCur )
             {
-                assert( pstCur->FEmpty( true ) );
+                Assert( pstCur->FEmpty( true ) );
             }
-            assert( m_stSummary.FEmpty( true ) );
+            Assert( m_stSummary.FEmpty( true ) );
         }
         else
         {
-            assert( NMin() < m_nLastElement );
-            assert( NMax() <= m_nLastElement );
-            assert( !m_rgstSubtrees[ NCluster(NMin()) ].FHasElement( NElInCluster(NMin()) ) ); // the minimum is never present in the clusters.
+            Assert( NMin() < m_nLastElement );
+            Assert( NMax() <= m_nLastElement );
+            Assert( !m_rgstSubtrees[ NCluster(NMin()) ].FHasElement( NElInCluster(NMin()) ) ); // the minimum is never present in the clusters.
             // Move through each cluster - checking the consistency of the summary, etc.
             const _tySubtree * pstCur = &m_rgstSubtrees[0];
             const _tySubtree * const pstEnd = pstCur + STClusters();
@@ -2250,18 +2250,18 @@ public:
             _tyImplType nFoundMax = 0;
             for ( ; pstEnd != pstCur; ++pstCur, ++nCluster )
             {
-                assert( m_stSummary.FHasElement( nCluster ) == pstCur->FHasAnyElements() );
+                Assert( m_stSummary.FHasElement( nCluster ) == pstCur->FHasAnyElements() );
                 if ( !pstCur->FHasAnyElements() )
-                    assert( pstCur->FEmpty( true ) );
+                    Assert( pstCur->FEmpty( true ) );
                 else
                 {
                     pstCur->AssertValid( pstEnd-1 == pstCur ? pnLastElementSubtree : 0 );
                     _tyImplType nMaxCluster = NIndex( nCluster, pstCur->NMax() );
-                    assert( nMaxCluster > nFoundMax );
+                    Assert( nMaxCluster > nFoundMax );
                     nFoundMax = nMaxCluster;
                 }
             }
-            assert( nFoundMax == m_nMax ); // invariant.
+            Assert( nFoundMax == m_nMax ); // invariant.
 
             m_stSummary.AssertValid();
         }
@@ -2367,7 +2367,7 @@ public:
                 m_rgstSubtrees.resize( stClustersNew );
                 // Initialize the new clusters by memset()ing to zero.
                 memset( &m_rgstSubtrees[ stClustersOld ], 0, ( stClustersNew - stClustersOld ) * sizeof( _tySubtree ) );
-                assert( !_fShrinkReserve || ( m_rgstSubtrees.size() == m_rgstSubtrees.capacity() ) ); // If this assert fails that is ok, but we would prefer to have it this way.
+                Assert( !_fShrinkReserve || ( m_rgstSubtrees.size() == m_rgstSubtrees.capacity() ) ); // If this Assert fails that is ok, but we would prefer to have it this way.
             }
             m_nLastElement = _stNewUniverse - 1;
             // And that's it for the easy pathway.
@@ -2435,8 +2435,8 @@ public:
         if ( !STClusters() )
             THROWNAMEDEXCEPTION("VebTreeWrap::InsertAll(): Tree is not initialized.");
 
-        assert( !_pnFirstInsert ); // This is only there for genericity.
-        assert( !_pnLastElement || *_pnLastElement == m_nLastElement ); // We should always be specifying everything - we don't use either of the arguments below because there is no need to support them in this method at least.
+        Assert( !_pnFirstInsert ); // This is only there for genericity.
+        Assert( !_pnLastElement || *_pnLastElement == m_nLastElement ); // We should always be specifying everything - we don't use either of the arguments below because there is no need to support them in this method at least.
         // Algorithm:
         // Set m_nMin to 0, set m_nMax to m_nLastElement.
         // For first cluster call InsertAll with (min,min) to skip inserting the minth element.
@@ -2474,7 +2474,7 @@ public:
     {
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "VebTreeWrap::Insert(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
-        assert( !FHasElement( _x ) ); // We don't want to check this and throw because we want the caller to use CheckInsert() instead.
+        Assert( !FHasElement( _x ) ); // We don't want to check this and throw because we want the caller to use CheckInsert() instead.
         if ( !FHasAnyElements() )
             m_nMin = m_nMax = _x;
         else
@@ -2520,7 +2520,7 @@ public:
                 fInserted = m_rgstSubtrees[nCluster].FCheckInsert( nEl );
             if ( _x > m_nMax )
             {
-                assert( fInserted );
+                Assert( fInserted );
                 m_nMax = _x;
             }
             return fInserted;
@@ -2531,10 +2531,10 @@ public:
     {
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "VebTreeWrap::Delete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
-        assert( FHasElement( _x ) );
+        Assert( FHasElement( _x ) );
         if ( m_nMin == m_nMax )
         {
-            assert( _x == m_nMax );
+            Assert( _x == m_nMax );
             _SetEmptyMinMax();
         }
         else
@@ -2691,7 +2691,7 @@ public:
         else
         if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
             return m_nMin;
-        assert( _x <= m_nLastElement );
+        Assert( _x <= m_nLastElement );
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -2701,7 +2701,7 @@ public:
         if ( fMaxCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessor( nEl );
-            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
+            Assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             return NIndex( nCluster, nOffsetSubtree );
         }
         else
@@ -2737,10 +2737,10 @@ public:
         if ( fElsCluster && ( nEl < nMaxCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NSuccessorDelete( nEl );
-            assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
+            Assert( s_kstitNoSuccessorSubtree != nOffsetSubtree );
             if ( nMinCluster == nMaxCluster )
             {
-                assert( nEl == nMinCluster );
+                Assert( nEl == nMinCluster );
                 m_stSummary.Delete( nCluster );
                 if ( NIndex( nCluster, nMaxCluster ) == m_nMax )
                 {
@@ -2799,7 +2799,7 @@ public:
         if ( fMinCluster && ( nEl > nMinCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessor( nEl );
-            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            Assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
             return NIndex( nCluster, nOffsetSubtree );
         }
         else
@@ -2841,7 +2841,7 @@ public:
         if ( fElsCluster && ( nEl > nMinCluster ) )
         {
             _tyImplTypeSubtree nOffsetSubtree = m_rgstSubtrees[nCluster].NPredecessorDelete( nEl );
-            assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
+            Assert( s_kstitNoPredecessorSubtree != nOffsetSubtree ); // we should have found a predecessor.
             if ( nMinCluster == nMaxCluster )
                 m_stSummary.Delete( nCluster );
             return NIndex( nCluster, nOffsetSubtree );
@@ -2893,7 +2893,7 @@ public:
         do
         {
             const _tySubtree & rstThat = _r.m_rgstSubtrees[ stClusterCur ];
-            assert( rstThat.FHasAnyElements() );
+            Assert( rstThat.FHasAnyElements() );
             _tySubtree & rstThis = m_rgstSubtrees[ stClusterCur ];
             if ( !rstThis.FHasAnyElements() )
                 m_stSummary.Insert( stClusterCur ); // Update the summary.
@@ -2979,18 +2979,18 @@ public:
         // Now deal with the found min/max:
         if ( stMinCur == NSize() )
         {
-            assert( 0 == nMaxCur );
-            assert( !m_stSummary.FHasAnyElements() );
+            Assert( 0 == nMaxCur );
+            Assert( !m_stSummary.FHasAnyElements() );
             _SetEmptyMinMax();
         }
         else
         {
-            assert( ( s_kstUniverse == stMinExisting ) || ( stMinCur > stMinExisting ) );
+            Assert( ( s_kstUniverse == stMinExisting ) || ( stMinCur > stMinExisting ) );
             m_nMin = (_tyImplType)stMinCur;
             m_nMax = nMaxCur;
             if ( s_kstUniverse != stMinExisting )
                 Insert( (_tyImplType)stMinExisting );
-            assert( ( m_nMin != m_nMax ) || !m_stSummary.FHasAnyElements() );
+            Assert( ( m_nMin != m_nMax ) || !m_stSummary.FHasAnyElements() );
         }
         return *this;
     }
@@ -3027,7 +3027,7 @@ public:
         do
         {
             const _tySubtree & rstThat = _r.m_rgstSubtrees[ stClusterCur ];
-            assert( rstThat.FHasAnyElements() );
+            Assert( rstThat.FHasAnyElements() );
             _tySubtree & rstThis = m_rgstSubtrees[ stClusterCur ];
             rstThis ^= rstThat; // do it.
             _tyImplTypeSubtree nMinSubtree, nMaxSubtree;
@@ -3049,7 +3049,7 @@ public:
                     rstThis.Delete( nMinSubtree ); // Took care of any summary changes above.
                 }
                 _tyImplType nMaxTest = NIndex( stClusterCur, nMaxSubtree );
-                assert( nMaxTest > m_nMax );
+                Assert( nMaxTest > m_nMax );
                 if ( nMaxTest > m_nMax )
                     m_nMax = nMaxTest;
             }
@@ -3130,12 +3130,12 @@ public:
             }
             else
             {
-                assert( fInSummary );
+                Assert( fInSummary );
                 m_stSummary.Delete( nClusterCur );
             }
         }
         // m_nMin and m_nMax are already updated, remove the old m_nMin because it will be set in the cluster.
-        assert( m_nMin <= nMinExisting );
+        Assert( m_nMin <= nMinExisting );
         Delete( nMinExisting ); // This works even if m_nMin == nMinExisting.
         return *this;
     }
