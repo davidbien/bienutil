@@ -165,10 +165,6 @@ public:
 #pragma pop_macro("std")
 #endif //__NAMDDEXC_STDBASE
 
-// For string constants we use #define macros because we do compile-time translation to the character of interest which precludes them being present in the specializations of JsonCharTraits.
-#define JSONSTRM_PrintableWhitespace "\t\n\r"
-#define JSONSTRM_EscapeStringChars "\\\"\b\f\t\n\r"
-
 // JsonCharTraits< char > : Traits for 8bit char representation.
 template <>
 struct JsonCharTraits< char >
@@ -231,6 +227,9 @@ struct JsonCharTraits< char >
     static constexpr _tyLPCSTR s_szCRLF = "\r\n";
     static const _tyChar s_tcFirstUnprintableChar = '\01';
     static const _tyChar s_tcLastUnprintableChar = '\37';
+    static constexpr _tyLPCSTR s_szPrintableWhitespace = "\t\n\r";
+    static constexpr _tyLPCSTR s_szEscapeStringChars = "\\\"\b\f\t\n\r";
+
     // The formatting command to format a single character using printf style.
     static constexpr const char * s_szFormatChar = "%c";
 
@@ -350,6 +349,8 @@ struct JsonCharTraits< wchar_t >
     static constexpr _tyLPCSTR s_szCRLF = L"\r\n";
     static const _tyChar s_tcFirstUnprintableChar = L'\01';
     static const _tyChar s_tcLastUnprintableChar = L'\37';
+    static constexpr _tyLPCSTR s_szPrintableWhitespace = L"\t\n\r";
+    static constexpr _tyLPCSTR s_szEscapeStringChars = L"\\\"\b\f\t\n\r";
     // The formatting command to format a single character using printf style.
     static constexpr const char * s_szFormatChar = "%lc";
 
@@ -1094,8 +1095,6 @@ public:
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
-        static _tyLPCSTR s_szPrintableWhitespace = str_array_cast< _tyChar >( JSONSTRM_PrintableWhitespace );
-        static _tyLPCSTR s_szEscapeStringChars = str_array_cast< _tyChar >( JSONSTRM_EscapeStringChars );
         Assert( FOpened() );
         Assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         size_t stLen = (size_t)_sstLen;
@@ -1103,10 +1102,10 @@ public:
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
             Assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                        s_szEscapeStringChars ) );
+                                                        _tyCharTraits::s_szEscapeStringChars ) );
         _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
         if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
-            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, s_szPrintableWhitespace );
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
 
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
@@ -1120,14 +1119,14 @@ public:
                     if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
                         sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
                                                             _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                            s_szEscapeStringChars );
+                                                            _tyCharTraits::s_szEscapeStringChars );
                     else
                     {
                         // More complex escaping of whitespace is possible here:
                         _tyLPCSTR pszNoEscape = pszWrite;
                         for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
                         {
-                            _tyLPCSTR pszPrintableWS = s_szPrintableWhitespace;
+                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
                             for ( ; !!*pszPrintableWS; ++pszPrintableWS )
                             {
                                 if ( *pszNoEscape == *pszPrintableWS )
@@ -1138,7 +1137,7 @@ public:
                             if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
                                     ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
                             {
-                                _tyLPCSTR pszEscapeChar = s_szEscapeStringChars;
+                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
                                 for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
                                     ;
                                 if ( !!*pszEscapeChar )
@@ -1383,8 +1382,6 @@ public:
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
-        static _tyLPCSTR s_szPrintableWhitespace = str_array_cast< _tyChar >( JSONSTRM_PrintableWhitespace );
-        static _tyLPCSTR s_szEscapeStringChars = str_array_cast< _tyChar >( JSONSTRM_EscapeStringChars );
         Assert( FOpened() );
         Assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         if ( !_sstLen )
@@ -1394,10 +1391,10 @@ public:
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
             Assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                        s_szEscapeStringChars ) );
+                                                        _tyCharTraits::s_szEscapeStringChars ) );
         _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
         if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
-            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, s_szPrintableWhitespace );
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
 
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
@@ -1411,14 +1408,14 @@ public:
                     if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
                         sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
                                                             _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                            s_szEscapeStringChars );
+                                                            _tyCharTraits::s_szEscapeStringChars );
                     else
                     {
                         // More complex escaping of whitespace is possible here:
                         _tyLPCSTR pszNoEscape = pszWrite;
                         for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
                         {
-                            _tyLPCSTR pszPrintableWS = s_szPrintableWhitespace;
+                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
                             for ( ; !!*pszPrintableWS; ++pszPrintableWS )
                             {
                                 if ( *pszNoEscape == *pszPrintableWS )
@@ -1429,7 +1426,7 @@ public:
                             if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
                                     ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
                             {
-                                _tyLPCSTR pszEscapeChar = s_szEscapeStringChars;
+                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
                                 for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
                                     ;
                                 if ( !!*pszEscapeChar )
@@ -1640,18 +1637,16 @@ public:
     // If <_fEscape> then we escape all special characters when writing.
     void WriteString( bool _fEscape, _tyLPCSTR _psz, ssize_t _sstLen = -1, const _tyJsonFormatSpec * _pjfs = 0 )
     {
-        static _tyLPCSTR s_szPrintableWhitespace = str_array_cast< _tyChar >( JSONSTRM_PrintableWhitespace );
-        static _tyLPCSTR s_szEscapeStringChars = str_array_cast< _tyChar >( JSONSTRM_EscapeStringChars );
         Assert( !_pjfs || _fEscape ); // only pass formatting when we are escaping the string.
         size_t stLen = (size_t)_sstLen;
         if ( _sstLen < 0 )
             stLen = _tyCharTraits::StrLen( _psz );
         if ( !_fEscape ) // We shouldn't write such characters to strings so we had better know that we don't have any.
             Assert( stLen <= _tyCharTraits::StrCSpn(    _psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                        s_szEscapeStringChars ) );
+                                                        _tyCharTraits::s_szEscapeStringChars ) );
         _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;    
         if ( _fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine )
-            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, s_szPrintableWhitespace );
+            pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn( _psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace );
 
         // When we are escaping the string we write piecewise.
         _tyLPCSTR pszWrite = _psz;
@@ -1665,14 +1660,14 @@ public:
                     if ( !_pjfs || _pjfs->m_fEscapePrintableWhitespace ) // escape everything.
                         sstLenWrite = _tyCharTraits::StrCSpn( pszWrite,
                                                             _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar+1, 
-                                                            s_szEscapeStringChars );
+                                                            _tyCharTraits::s_szEscapeStringChars );
                     else
                     {
                         // More complex escaping of whitespace is possible here:
                         _tyLPCSTR pszNoEscape = pszWrite;
                         for ( ; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape )
                         {
-                            _tyLPCSTR pszPrintableWS = s_szPrintableWhitespace;
+                            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
                             for ( ; !!*pszPrintableWS; ++pszPrintableWS )
                             {
                                 if ( *pszNoEscape == *pszPrintableWS )
@@ -1683,7 +1678,7 @@ public:
                             if (    ( *pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar ) ||
                                     ( *pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar ) )
                             {
-                                _tyLPCSTR pszEscapeChar = s_szEscapeStringChars;
+                                _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
                                 for ( ; !!*pszEscapeChar && ( *pszNoEscape != *pszEscapeChar ); ++pszEscapeChar )
                                     ;
                                 if ( !!*pszEscapeChar )
