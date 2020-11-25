@@ -10,6 +10,7 @@
 // dbien: 12MAR2020
 
 #include "syslogmgr.h"
+#include "jsonobjs.h"
 
 // _SysLogThreadHeader:
 template <class t_tyJsonOutputStream>
@@ -196,6 +197,17 @@ void _SysLogContext::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_jrc)
   }
   else
     THROWNAMEDEXCEPTION("_SysLogContext::ToJSONStream(): Not at an object.");
+}
+
+template <const int t_kiInstance>
+_SysLogMgr<t_kiInstance>::_SysLogMgr(_SysLogMgr *_pslmOverlord)
+    : m_pslmOverlord(_pslmOverlord) // if !m_pslmOverlord then we are the overlord!!! - or there is no overlord.
+{
+}
+template <const int t_kiInstance>
+_SysLogMgr<t_kiInstance>::~_SysLogMgr()
+{
+  CloseSysLogFile();
 }
 
 template <const int t_kiInstance>

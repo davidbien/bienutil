@@ -11,7 +11,7 @@
 // Smart deallocation pointers - these deallocate memory allocated with an allocator.
 // A good way ( though reasonably espensive ) to ensure deletion in throwing situations.
 
-#include <Assert.h>
+#include <_assert.h>
 #include <_allbase.h>
 
 __BIENUTIL_BEGIN_NAMESPACE

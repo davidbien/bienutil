@@ -267,10 +267,8 @@ public:
     return fCur;
   }
 
-  _SysLogMgr(_SysLogMgr *_pslmOverlord)
-      : m_pslmOverlord(_pslmOverlord) // if !m_pslmOverlord then we are the overlord!!! - or there is no overlord.
-  {
-  }
+  _SysLogMgr(_SysLogMgr *_pslmOverlord);
+  ~_SysLogMgr();
 
   static size_t _GetMsSinceProgramStart()
   {
