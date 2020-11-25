@@ -31,6 +31,7 @@
 #include "bienutil.h"
 #include "bientypes.h"
 #include "_util.h"
+#include "_strutil.h"
 
 template <class t_tyChar>
 struct JsonCharTraits;
