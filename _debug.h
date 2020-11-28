@@ -33,3 +33,18 @@
 #define __DEBUG_COMMA_2( s1, s2 ) s1##,##s2
 #endif //NDEBUG
 
+#ifdef _MSC_VER
+#define DEBUG_BREAK __debugbreak()
+#elif defined( __clang__ )
+#if __has_builtin(__builtin_debugtrap)
+#define DEBUG_BREAK __builtin_debugtrap()
+#else
+#define DEBUG_BREAK __builtin_trap()
+#endif
+#elif defined( __GNUC__ )
+#define DEBUG_BREAK __builtin_trap()
+#else
+#error Need to know the OS/compiler for breaking into the debugger.
+#endif
+
+

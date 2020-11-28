@@ -59,8 +59,8 @@ struct __AssertSameType< t_Ty, t_Ty >
 };
 #define _pptokenpaste(x,y) x ## y
 #define pptokenpaste(x,y) _pptokenpaste(x,y)
-#define __ASSERT_SAME_TYPE3( _t1, _t2, _Ty ) typedef typename __AssertSameType< _t1, _t2 >::_TyF _Ty
-#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __AssertSameType< _t1, _t2 >::_TyF pptokenpaste(_TyFooSameType,__LINE__)
+#define __ASSERT_SAME_TYPE3( _t1, _t2, _Ty ) typedef typename __BIENUTIL_NAMESPACE __AssertSameType< _t1, _t2 >::_TyF _Ty
+#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __BIENUTIL_NAMESPACE __AssertSameType< _t1, _t2 >::_TyF pptokenpaste(_TyFooSameType,__LINE__)
 
 // Whether to allow a const/non-const object reference to be transfered to
 //  a const/non-const:

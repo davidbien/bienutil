@@ -20,6 +20,32 @@
 #error _assert.h: Assert() macro is already defined.
 #endif
 
+enum EAbortBreakIgnore
+{
+  eabiIgnore,           // Ignore entirely - log and continue.
+  eabiBreak,            // Break into the debugger but otherwise same as Ignore.
+  eabiThrowException,   // Throw an exception after logging - this is not valid for Assert() because it changes the flow of control - thought I guess it could be used for unit testing.
+  eabiAbort,            // Abort after logging.
+  eabiEAbortBreakIgnoreCount
+};
+
+// This exception will get thrown when eabiThrowException is set.
+class VerifyFailedException : public std::_t__Named_exception< >
+{
+  typedef std::_t__Named_exception<> _TyBase;
+public:
+  VerifyFailedException( const string_type & __s ) 
+      : _TyBase( __s ) 
+  {
+  }
+  VerifyFailedException( const char * _pcFmt, va_list _args )
+      : _TyBase( _pcFmt, _args )
+  {
+  }
+};
+// By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
+#define THROWVERIFYFAILEDEXCEPTION( MESG... ) ExceptionUsage<VerifyFailedException>::ThrowFileLine( __FILE__, __LINE__, MESG )
+
 #ifndef ASSERTSENABLED
 #ifdef	NDEBUG
 #define ASSERTSENABLED 0
@@ -28,30 +54,53 @@
 #endif // !NDEBUG
 #endif // !ASSERTSENABLED
 
-#ifndef ABORTONASSERT
+#ifndef ACTIONONASSERT
 // By default we do not abort on assert. Abort generates a core dump so if you want to examine the state of things you would want to abort.
-#define ABORTONASSERT 0
-#endif // !ABORTONASSERT
+#define ACTIONONASSERT eabiBreak
+#endif // !ACTIONONASSERT
 
-#ifndef ABORTONVERIFY
+#ifndef ACTIONONVERIFY
 // By default we do not abort on VERIFY. Abort generates a core dump so if you want to examine the state of things you would want to abort.
-#define ABORTONVERIFY 0
-#endif // !ABORTONVERIFY
+#define ACTIONONVERIFY eabiBreak
+#endif // !ACTIONONVERIFY
 
 // This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort() (if _fAbort).
 // Need to define this later so we can use Assert() in various objects that we'd like to.
 void 
-AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
+AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
                           unsigned int _nLine, const char * _szFunction, const char * _szMesg, ... );
 
+// Verify() macros that by default will break into the debugger.
 #define Verify(expr)							          \
      ( static_cast <bool> (expr)						\
       ? void (0)							              \
-      : AssertVerify_LogMessage( !!ABORTONVERIFY, false, "Verify", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, 0 ) )
+      : AssertVerify_LogMessage( ACTIONONVERIFY, false, "Verify", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, 0 ) )
 #define VerifySz(expr, sz...)							  \
      ( static_cast <bool> (expr)					  \
       ? void (0)							              \
-      : AssertVerify_LogMessage( !!ABORTONVERIFY, false, "Verify", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, sz ) )
+      : AssertVerify_LogMessage( ACTIONONVERIFY, false, "Verify", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, sz ) )
+// FVerifyInline(expr) expects expr to be true and will assert if not but returns the result of the operation to the caller and thus
+//  may be used inline (and indeed is intended to be used inline) in a logical statement.
+#define FVerifyInline(expr)                 \
+     ( static_cast <bool> (expr)					  \
+      ? true							                  \
+      : ( AssertVerify_LogMessage( ACTIONONVERIFY, false, "FVerifyInline", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, 0 ), false ) )
+
+// Verify() macros that will throw an exception even in retail.
+#define VerifyThrow(expr)							\
+     ( static_cast <bool> (expr)						\
+      ? void (0)							            \
+      : AssertVerify_LogMessage( eabiThrowException, false, "VerifyThrow", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, 0 ) )
+#define VerifyThrowSz(expr, sz...)							  \
+     ( static_cast <bool> (expr)					  \
+      ? void (0)							              \
+      : AssertVerify_LogMessage( eabiThrowException, false, "VerifyThrow", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, sz ) )
+// FVerifyInline(expr) expects expr to be true and will assert if not but returns the result of the operation to the caller and thus
+//  may be used inline (and indeed is intended to be used inline) in a logical statement.
+#define FVerifyThrowInline(expr)                 \
+     ( static_cast <bool> (expr)					  \
+      ? true							                  \
+      : ( AssertVerify_LogMessage( eabiThrowException, false, "FVerifyThrowInline", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, 0 ), false ) )
 
 #if !ASSERTSENABLED
 #define Assert(expr)		(static_cast<void>(0))
@@ -60,10 +109,10 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
 #define Assert(expr)							          \
      ( static_cast <bool> (expr)						\
       ? void (0)							              \
-      : AssertVerify_LogMessage( !!ABORTONASSERT, true, "Assert", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, 0 ) )
+      : AssertVerify_LogMessage( ACTIONONASSERT, true, "Assert", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, 0 ) )
 #define AssertSz(expr, sz...)							  \
      ( static_cast <bool> (expr)					  \
       ? void (0)							              \
-      : AssertVerify_LogMessage( !!ABORTONASSERT, true, "Assert", #expr, __FILE__, __LINE__, __ASSERT_FUNCTION, sz ) )
+      : AssertVerify_LogMessage( ACTIONONASSERT, true, "Assert", #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, sz ) )
 #endif // #if !ASSERTSENABLED
 

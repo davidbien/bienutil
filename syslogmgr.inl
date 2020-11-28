@@ -341,7 +341,7 @@ void _SysLogMgr<t_kiInstance>::CloseSysLogFile() noexcept(true)
 
 // This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort() (if _fAbort).
 inline void 
-AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
+AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _szAssertVerify, const char * _szAssertion, const char * _szFile, 
                           unsigned int _nLine, const char * _szFunction, const char * _szMesg, ... )
 {
   if ( !n_SysLog::FSetInAssertOrVerify( true ) )
@@ -351,18 +351,22 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
       std::string strMesg;
       if ( !!_szMesg && !!*_szMesg )
       {
-        va_list ap;
-        va_start(ap, _szMesg);
-        char tc;
-        int nRequired = vsnprintf( &tc, 1, _szMesg, ap );
-        va_end(ap);
+        va_list ap2;
+        int nRequired;
+        {//B
+          va_list ap;
+          va_start(ap, _szMesg);
+          va_copy(ap2, ap);
+          char tc;
+          nRequired = vsnprintf( &tc, 1, _szMesg, ap );
+          va_end(ap);
+        }//EB
         if ( nRequired < 0 )
           (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): vsnprintf() returned nRequired[%d].", nRequired );
         else
         {
-          va_start(ap, _szMesg);
-          int nRet = NPrintfStdStr( strMesg, nRequired, _szMesg, ap );
-          va_end(ap);
+          int nRet = NPrintfStdStr( strMesg, nRequired, _szMesg, ap2 );
+          va_end(ap2);
           if (nRet < 0)
             (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
         }
@@ -382,17 +386,104 @@ AssertVerify_LogMessage(  bool _fAbort, bool _fAssert, const char * _szAssertVer
       jvLog("fAssert").SetBoolValue( _fAssert );
 
       n_SysLog::Log( eslmtError, jvLog, strFmt.c_str() );
-      if ( _fAbort )
+      if ( eabiAbort == _eabi )
       {
         n_SysLog::CloseThreadSysLog(); // flush and close syslog for this thread only before we abort.
+        (void)n_SysLog::FSetInAssertOrVerify( false );
         abort();
+      }
+      else
+      if ( eabiThrowException == _eabi )
+      {
+        (void)n_SysLog::FSetInAssertOrVerify( false );
+        THROWVERIFYFAILEDEXCEPTION( strFmt.c_str() );
+      }
+      else
+      if ( eabiBreak == _eabi )
+      {
+        (void)n_SysLog::FSetInAssertOrVerify( false ); // Change this here since we may be able to change lines in a method above us in the debugger in VC for instance.
+        DEBUG_BREAK;
       }
     }
     catch( ... )
     {
       (void)n_SysLog::FSetInAssertOrVerify( false );
+      fprintf( stderr, "AssertVerify_LogMessage(): Caught exception - rethrowing.\n" );
       throw;
     }
+    (void)n_SysLog::FSetInAssertOrVerify( false );
   }
+}
 
+inline void 
+Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, va_list _ap ) noexcept(true)
+{
+  try
+  {
+    std::string strMesg;
+    if ( !!_szMesg && !!*_szMesg )
+    {
+      va_list ap2;
+      int nRequired;
+      {//B
+        va_copy(ap2, _ap);
+        char tc;
+        nRequired = vsnprintf( &tc, 1, _szMesg, _ap );
+        va_end(_ap);
+      }//EB
+      if ( nRequired < 0 )
+        (void)FPrintfStdStrNoThrow( strMesg, "Trace_LogMessageVArg(): vsnprintf() returned nRequired[%d].", nRequired );
+      else
+      {
+        int nRet = NPrintfStdStr( strMesg, nRequired, _szMesg, ap2 );
+        va_end(ap2);
+        if (nRet < 0)
+          (void)FPrintfStdStrNoThrow( strMesg, "Trace_LogMessageVArg(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
+      }
+    }
+
+    // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
+    std::string strFmt;
+    (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "Trace:[%s:%d],%s()" : "Trace:[%s:%d],%s(): %s", _szFile, _nLine, _szFunction, strMesg.c_str() );
+
+    n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
+    if ( strMesg.length() )
+      jvLog("Mesg").SetStringValue( std::move( strMesg ) );
+    jvLog("szFunction").SetStringValue( _szFunction );
+    jvLog("szFile").SetStringValue( _szFile );
+    jvLog("nLine").SetValue( _nLine );
+    jvLog("fTrace").SetBoolValue( true );
+    if ( !!_pjvTrace )
+      jvLog("Detail") = *_pjvTrace;
+
+    n_SysLog::Log( eslmtInfo, jvLog, strFmt.c_str() );
+    if ( eabiAbort == _eabi )
+    {
+      n_SysLog::CloseThreadSysLog(); // flush and close syslog for this thread only before we abort.
+      abort();
+    }
+    else
+    if ( eabiBreak == _eabi )
+    {
+      DEBUG_BREAK;
+    }
+  }
+  catch( std::exception const & _rexc )
+  {
+    fprintf( stderr, "Trace_LogMessageVArg(): Caught exception: [%s].\n", _rexc.what() );
+    return;
+  }
+  catch( ... )
+  {
+    fprintf( stderr, "Trace_LogMessageVArg(): Caught unknown exception.\n" );
+    throw;
+  }
+}
+inline void 
+Trace_LogMessage( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, ... ) noexcept(true)
+{
+  va_list ap;
+  if ( !!_szMesg && !!*_szMesg )
+    va_start(ap, _szMesg);
+  Trace_LogMessageVArg( _eabi, _szFile, _nLine, _szFunction, _pjvTrace, _szMesg, ap );
 }

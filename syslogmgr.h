@@ -354,19 +354,23 @@ namespace n_SysLog
     std::string strFmtAnnotated;
     PrintfStdStr(strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType(_eslmtType), _pcFmt);
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2,ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
 
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     _SysLogContext slx;
@@ -385,19 +389,23 @@ namespace n_SysLog
     std::string strFmtAnnotated;
     PrintfStdStr(strFmtAnnotated, "<%s>:%s:%d: %s", SysLogMgr::SzMessageType(_eslmtType), _pcFile, _nLine, _pcFmt);
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     _SysLogContext slx;
     if (fHasLogFile)
@@ -423,19 +431,23 @@ namespace n_SysLog
       PrintfStdStr(strFmtAnnotated, "<%s>: %s, %s", SysLogMgr::SzMessageType(_eslmtType), _pcFmt, strErrno.c_str());
     } //EB
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
     _SysLogContext slx;
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     if (fHasLogFile)
@@ -459,19 +471,23 @@ namespace n_SysLog
       PrintfStdStr(strFmtAnnotated, "<%s>:%s:%d: %s, %s", SysLogMgr::SzMessageType(_eslmtType), _pcFile, _nLine, _pcFmt, strErrno.c_str());
     }
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
     _SysLogContext slx;
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     if (fHasLogFile)
@@ -493,19 +509,23 @@ namespace n_SysLog
     std::string strFmtAnnotated;
     PrintfStdStr(strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType(_eslmtType), _pcFmt);
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
 
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     _SysLogContext slx;
@@ -525,19 +545,23 @@ namespace n_SysLog
     std::string strFmtAnnotated;
     PrintfStdStr(strFmtAnnotated, "<%s>:%s:%d: %s", SysLogMgr::SzMessageType(_eslmtType), _pcFile, _nLine, _pcFmt);
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     _SysLogContext slx;
     if (fHasLogFile)
@@ -564,19 +588,23 @@ namespace n_SysLog
       PrintfStdStr(strFmtAnnotated, "<%s>: %s, %s", SysLogMgr::SzMessageType(_eslmtType), _pcFmt, strErrno.c_str());
     } //EB
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
     _SysLogContext slx;
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     if (fHasLogFile)
@@ -601,19 +629,23 @@ namespace n_SysLog
       PrintfStdStr(strFmtAnnotated, "<%s>:%s:%d: %s, %s", SysLogMgr::SzMessageType(_eslmtType), _pcFile, _nLine, _pcFmt, strErrno.c_str());
     }
 
-    va_list ap;
-    va_start(ap, _pcFmt);
-    char tc;
-    int nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
-    if (nRequired < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
-    va_start(ap, _pcFmt);
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _pcFmt);
+      va_copy(ap2, ap);
+      char tc;
+      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("n_SysLog::Log(): vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
     std::string strLog;
-    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap);
-    va_end(ap);
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
     if (nRet < 0)
-      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRequired);
+      THROWNAMEDEXCEPTION("n_SysLog::Log(): NPrintfStdStr() returned nRet[%d].", nRet);
     _SysLogContext slx;
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     if (fHasLogFile)
