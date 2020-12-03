@@ -8,6 +8,7 @@
 // segarray.h
 // Segmented array.
 // dbien: 20MAR2020
+// Would like to templatize by allocator but I have to propagate it and it's annoying right now. Later.
 
 template < class t_tyT, class t_tyFOwnLifetime, class t_tySizeType = size_t >
 class SegArray
@@ -310,6 +311,33 @@ public:
             nElsLeft -= stMin;
             stEndDest -= stMin;
             ptEndOrig -= stMin;
+        }
+    }
+
+    // Read data from the given stream overwriting data in this segmented array.
+    // May throw due to allocation error or _rs throwing an EOF error, or perhaps some other reason.
+    template < class t_tyStream, std::enable_if_t< _tyNotFOwnLifetime::value, int > = 0 >
+    void OverwriteFromStream( _tySizeType _nPosWrite, t_tyStream const & _rs, _tySizeType _nPosRead, _tySizeType _nElsRead ) noexcept(false)
+    {
+        if ( !_nElsRead )
+            return;
+        _tySizeType nElsOld = m_nElements;
+        if ( ( _nPosWrite + _nElsRead ) > m_nElements )
+            SetSize( _nPosWrite + _nElsRead );
+
+        _tySizeType nElsLeft = _nElsRead;
+        _tySizeType stCurWrite = _nPosWrite;
+        _tySizeType nPosReadCur = _nPosRead;
+        while ( !!nElsLeft )
+        {
+            _tySizeType stFwdOffWrite = NElsPerSegment() - ( stCurWrite % NElsPerSegment() );
+            _tySizeType stMin = std::min( nElsLeft, stFwdOffOrig );
+            Assert( stMin );
+            // We read a stream in bytes.
+            _rs.ReadAtPos( &ElGet( stCurWrite ), nPosReadCur * sizeof( _tyT ), stMin * sizeof( _tyT ) ); // Throws on EOF.
+            nElsLeft -= stMin;
+            stCurWrite += stMin;
+            nPosReadCur += stMin;
         }
     }
 

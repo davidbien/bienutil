@@ -8,6 +8,7 @@
 // memfile.h
 // In-memory file and stream objects.
 // dbien: 21MAR2020
+// Would like to templatize by allocator but I have to propagate it and it's annoying right now. Later.
 
 #include <stdlib.h>
 #include <mutex>
@@ -181,10 +182,10 @@ public:
     // Reuse existing constant SEEK_SET, SEEK_CUR and SEEK_END.
     // Return the resultant position. We do allow the caller to seek beyond the end of the file.
     // We don't allow the position to be set to a negative position and we will throw when that happens.
-    _tySignedFilePos Seek( _tySignedFilePos _off, int iWhence )
+    _tySignedFilePos Seek( _tySignedFilePos _off, int _iWhence )
     {
         _tyFilePos posNew;
-        switch( iWhence )
+        switch( _iWhence )
         {
             case SEEK_SET:
                 if ( _off < 0 )
@@ -210,7 +211,7 @@ public:
                 break;
             }
             default:
-                THROWNAMEDEXCEPTION( "SegArray::Seek(): Bogus iWhence value [%d].", iWhence );
+                THROWNAMEDEXCEPTION( "SegArray::Seek(): Bogus _iWhence value [%d].", _iWhence );
         }
         return m_posCur = posNew;
     }
