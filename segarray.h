@@ -16,8 +16,8 @@ class SegArray
     typedef SegArray _tyThis;
 public:
     typedef t_tyFOwnLifetime _tyFOwnLifetime;
-    static const bool s_fOwnLifetime = _tyFOwnLifetime::value;
-    typedef typename std::integral_constant<bool, !_tyFOwnLifetime::value>::type _tyNotFOwnLifetime;
+    static constexpr bool s_kfOwnLifetime = _tyFOwnLifetime::value;
+    static constexpr bool s_kfNotOwnLifetime = !s_kfOwnLifetime;
     typedef t_tyT _tyT;
     typedef t_tySizeType _tySizeType;
     static_assert( !std::numeric_limits< _tySizeType >::is_signed );
@@ -30,6 +30,7 @@ public:
     SegArray( SegArray const & _r )
         : m_nbySizeSegment( _r.m_nbySizeSegment )
     {
+        _r.AssertValid();
         if ( !!_r.m_ppbySegments )
         {
             uint8_t ** ppbySegments = (uint8_t **)malloc( ( _r.m_ppbyEndSegments - _r.m_ppbySegments ) * sizeof(uint8_t *) );
@@ -40,11 +41,11 @@ public:
             
             uint8_t ** ppbyCurThis = ppbySegments;
             bool fAllocError;
-            _tySizeType nElementsCopied = 0; // This is only used when s_fOwnLifetime cuz otherwise we don't care.
+            _tySizeType nElementsCopied = 0; // This is only used when s_kfOwnLifetime cuz otherwise we don't care.
             {//B
                 // Copy all the full and partial segments.
-                uint8_t ** ppbyEndDataOther = _r.m_ppbyCurSegment;
-                if ( ( _r.m_ppbyCurSegment != _r.m_ppbyEndSegments ) && !!*_r.m_ppbyCurSegment )
+                uint8_t ** ppbyEndDataOther = _r._PpbyGetCurSegment();
+                if ( ( ppbyEndDataOther != _r.m_ppbyEndSegments ) && !!*ppbyEndDataOther )
                     ++ppbyEndDataOther;
                 uint8_t ** ppbyCurOther = _r.m_ppbySegments;
                 for ( ; ppbyCurOther != ppbyEndDataOther; ++ppbyCurOther, ++ppbyCurThis )
@@ -53,7 +54,7 @@ public:
                     if ( !*ppbyCurThis )
                         break; // We can't throw here because we have to clean up still.
                     // If we own the object lifetime then we have to copy construct each object:
-                    if ( s_fOwnLifetime )
+                    if ( s_kfOwnLifetime )
                     {
                         try
                         {
@@ -90,12 +91,12 @@ public:
             if ( fAllocError )
             {
                 // Then we need to free any non-null segment pointers allocated above:
-                _tySizeType nElementsDestroyed = 0; // This is only used when s_fOwnLifetime cuz otherwise we don't care.
+                _tySizeType nElementsDestroyed = 0; // This is only used when s_kfOwnLifetime cuz otherwise we don't care.
                 uint8_t ** const ppbyEndThis = ppbyCurThis;
                 ppbyCurThis = ppbySegments;
                 for ( ; ppbyEndThis != ppbyCurThis; ++ppbyCurThis )
                 {
-                    if ( s_fOwnLifetime && *ppbyCurThis )
+                    if ( s_kfOwnLifetime && *ppbyCurThis )
                     {
                         _tyT * ptCurThis = (_tyT *)*ppbyCurThis;
                         const _tyT * const ptEndThis = ptCurThis + NElsPerSegment();
@@ -108,34 +109,47 @@ public:
                     }
                     free( *ppbyCurThis ); // might be 0 but free doesn't care.
                 }
-                THROWNAMEDEXCEPTION( s_fOwnLifetime ? "SegArray::SegArray(const&): OOM or exception copy constructing an element." : "SegArray::SegArray(const&): OOM." ); // The ppbySegments block is freed upon throw.                
+                THROWNAMEDEXCEPTION( s_kfOwnLifetime ? "SegArray::SegArray(const&): OOM or exception copy constructing an element." : "SegArray::SegArray(const&): OOM." ); // The ppbySegments block is freed upon throw.                
             }
             // Success.
             m_ppbySegments = ppbySegments;
             (void)fvFreeSegments.PvTransfer();
-            m_ppbyCurSegment = m_ppbySegments + ( _r.m_ppbyCurSegment - _r.m_ppbySegments );
             m_ppbyEndSegments = m_ppbySegments + ( _r.m_ppbyEndSegments - _r.m_ppbySegments );
             m_nElements = _r.m_nElements;
         }        
     }
     SegArray( SegArray && _rr )
     {
+        _rr.AssertValid();
         swap( _rr );
     }
     ~SegArray()
     {
+        AssertValid();
          if ( !!m_ppbySegments )
             _Clear();
     }
+    void AssertValid() const
+#if ASSERTSENABLED
+    {
+        Assert( !m_nElements == !m_ppbySegments );
+        Assert( !m_nElements == !m_ppbyEndSegments );
+        Assert( !m_nElements || !( m_nElements % NElsPerSegment() ) == !*_PpbyGetCurSegment() );
+    }
+#else //!ASSERTSENABLED
+    { }
+#endif //!ASSERTSENABLED
     void Clear()
     {
+        AssertValid();
         if ( !!m_ppbySegments )
             _Clear();
     }
     void swap( SegArray & _r )
     {
+        AssertValid();
+        _r.AssertValid();
         std::swap( m_ppbySegments, _r.m_ppbySegments );
-        std::swap( m_ppbyCurSegment, _r.m_ppbyCurSegment );
         std::swap( m_ppbyEndSegments, _r.m_ppbyEndSegments );
         std::swap( m_nElements, _r.m_nElements );
         std::swap( m_nbySizeSegment, _r.m_nbySizeSegment );
@@ -162,7 +176,8 @@ public:
        else
         if ( m_nElements < _nElements )
         {
-            if ( s_fOwnLifetime )
+            AssertValid();
+            if ( s_kfOwnLifetime )
             {
                 _nElements -= m_nElements;
                 while ( _nElements-- )
@@ -181,7 +196,7 @@ public:
                     _fCompact = false; // There is no reason to compact since we are adding elements.
                 }
                 uint8_t ** ppbyInitNewEnd = m_ppbySegments + ((_nElements-1) / NElsPerSegment())+1; // one beyond what we need to init below.
-                uint8_t ** ppbyCurAlloc = m_ppbyCurSegment;
+                uint8_t ** ppbyCurAlloc = _PpbyGetCurSegment();
                 for ( ; ppbyCurAlloc != ppbyInitNewEnd; ++ppbyCurAlloc )
                 {
                     if ( !*ppbyCurAlloc )
@@ -191,24 +206,25 @@ public:
                             THROWNAMEDEXCEPTION( "SegArray::SetSize(): OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT) );
                     }
                 }
-                m_ppbyCurSegment = m_ppbySegments + _nElements / NElsPerSegment();
-                Assert( !( _nElements % NElsPerSegment() ) || !!*m_ppbyCurSegment );
+                Assert( !( _nElements % NElsPerSegment() ) == !*_PpbyGetCurSegment() );
                 m_ppbyEndSegments = m_ppbySegments + nBlocksNeeded;
                 m_nElements = _nElements;
             }
         }
         if ( _fCompact )
             Compact();
+        AssertValid();
     }
 
     // Set the number of elements in this object less than the current number.
     // If the object contained within doesn't have a default constructor you can still call this method.
     void SetSizeSmaller( _tySizeType _nElements, bool _fCompact = false )
     {
+        AssertValid();
         Assert( _nElements <= m_nElements );
         if ( _nElements < m_nElements )
         {
-            if ( s_fOwnLifetime )
+            if ( s_kfOwnLifetime )
             {
                 // Then just destruct all the elements:
                 while( m_nElements != _nElements )
@@ -216,16 +232,17 @@ public:
             }
             else
                 m_nElements = _nElements;
-            m_ppbyCurSegment = m_ppbySegments + ( m_nElements / NElsPerSegment() );
         }
         if ( _fCompact )
             Compact();
+        AssertValid();
     }
 
     // This will remove segments that aren't in use.
     // We'll just leave the block pointer array the same size - at least for now.
     void Compact()
     {
+        AssertValid();
         _tySizeType nBlocksNeeded = ( (m_nElements-1) / NElsPerSegment() ) + 1;
         if ( nBlocksNeeded < ( m_ppbyEndSegments - m_ppbySegments ) )
         {
@@ -240,12 +257,13 @@ public:
                 }
             }
         }
+        AssertValid();
     }
 
     // We enable insertion for non-contructed types only.
-    template < class = std::enable_if_t< _tyNotFOwnLifetime::value > >
-    void Insert( _tySizeType _nPos, const _tyT * _pt, _tySizeType _nEls )
+    void Insert( _tySizeType _nPos, const _tyT * _pt, _tySizeType _nEls ) requires ( s_kfNotOwnLifetime )
     {
+        AssertValid();
         if ( !_nEls )
             return;
         _tySizeType nElsOld = m_nElements;
@@ -286,12 +304,13 @@ public:
             stEndDest -= stMin;
             ptEndOrig -= stMin;
         }
+        AssertValid();
     }
 
     // We enable overwriting for non-contructed types only.
-    template < std::enable_if_t< _tyNotFOwnLifetime::value, int > = 0 >
-    void Overwrite( _tySizeType _nPos, const _tyT * _pt, _tySizeType _nEls )
+    void Overwrite( _tySizeType _nPos, const _tyT * _pt, _tySizeType _nEls ) requires ( s_kfNotOwnLifetime )
     {
+        AssertValid();
         if ( !_nEls )
             return;
         _tySizeType nElsOld = m_nElements;
@@ -312,13 +331,15 @@ public:
             stEndDest -= stMin;
             ptEndOrig -= stMin;
         }
+        AssertValid();
     }
 
     // Read data from the given stream overwriting data in this segmented array.
     // May throw due to allocation error or _rs throwing an EOF error, or perhaps some other reason.
-    template < class t_tyStream, std::enable_if_t< _tyNotFOwnLifetime::value, int > = 0 >
-    void OverwriteFromStream( _tySizeType _nPosWrite, t_tyStream const & _rs, _tySizeType _nPosRead, _tySizeType _nElsRead ) noexcept(false)
+    template < class t_tyStream >
+    void OverwriteFromStream( _tySizeType _nPosWrite, t_tyStream const & _rs, _tySizeType _nPosRead, _tySizeType _nElsRead ) noexcept(false) requires ( s_kfNotOwnLifetime )
     {
+        AssertValid();
         if ( !_nElsRead )
             return;
         _tySizeType nElsOld = m_nElements;
@@ -339,12 +360,13 @@ public:
             stCurWrite += stMin;
             nPosReadCur += stMin;
         }
+        AssertValid();
     }
 
     // We enable reading for non-contructed types only.
-    template < std::enable_if_t< _tyNotFOwnLifetime::value, int > = 0 >
-    _tySignedSize Read( _tySizeType _nPos, _tyT * _pt, _tySizeType _nEls )
+    _tySignedSize Read( _tySizeType _nPos, _tyT * _pt, _tySizeType _nEls ) const requires ( s_kfNotOwnLifetime )
     {
+        AssertValid();
         if ( !_nEls )
             return 0;
         
@@ -375,6 +397,7 @@ public:
     // We allow writing to a file for all types because why not? It might not make sense but you can do it.
     void WriteToFd( int _fd, _tySizeType _nPos = 0, _tySizeType _nElsWrite = std::numeric_limits< _tySizeType >::max() ) const
     {
+        AssertValid();
         if ( std::numeric_limits< _tySizeType >::max() == _nElsWrite )
         {
             if ( _nPos > m_nElements )
@@ -413,6 +436,7 @@ public:
 
     _tyT & ElGet( _tySizeType _nEl, bool _fMaybeEnd = false )
     {
+        AssertValid();
         if ( ( _nEl > m_nElements ) || ( !_fMaybeEnd && ( _nEl == m_nElements ) ) )
             THROWNAMEDEXCEPTION( "SegArray::ElGet(): Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements );
         return ((_tyT*)m_ppbySegments[ _nEl / NElsPerSegment() ])[ _nEl % NElsPerSegment() ];
@@ -425,38 +449,42 @@ public:
     template < class... t_vtyArgs >
     _tyT & emplaceAtEnd( t_vtyArgs&&... _args )
     {
+        AssertValid();
         new( _PbyAllocEnd() ) _tyT( std::forward< t_vtyArgs >( _args )... );
         ++m_nElements;
     }
 
 protected:
-
+    uint8_t ** _PpbyGetCurSegment() const
+    {
+        return m_ppbySegments + m_nElements / NElsPerSegment();
+    }
     void AllocNewSegmentPointerBlock( _tySizeType _nNewBlocks )
     {
         uint8_t ** ppbySegments = (uint8_t**)realloc( m_ppbySegments, ( ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks ) * sizeof(uint8_t*) );
         if ( !ppbySegments )
             THROWNAMEDEXCEPTION( "SegArray::AllocNewSegmentPointerBlock(): OOM for realloc(%lu).", ( ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks ) * sizeof(uint8_t*) );
         memset( ppbySegments + ( m_ppbyEndSegments - m_ppbySegments ), 0, _nNewBlocks * sizeof(uint8_t*) );
-        m_ppbyCurSegment = ppbySegments + ( m_ppbyCurSegment - m_ppbySegments );
         m_ppbyEndSegments = ppbySegments + ( m_ppbyEndSegments - m_ppbySegments );
         m_ppbySegments = ppbySegments;
     }
 
     uint8_t * _PbyAllocEnd()
     {
-        if ( m_ppbyCurSegment == m_ppbyEndSegments )
+        uint8_t ** ppbyCurSegment = _PpbyGetCurSegment();
+        if ( ppbyCurSegment == m_ppbyEndSegments )
         {
             static const _tySizeType s_knNumBlocksAlloc = 16;
             AllocNewSegmentPointerBlock( s_knNumBlocksAlloc );
         }
-        if ( !*m_ppbyCurSegment )
+        if ( !*ppbyCurSegment )
         {
             Assert( !( m_nElements % NElsPerSegment() ) );
-            *m_ppbyCurSegment = (uint8_t*)malloc( m_nbySizeSegment );
-            if ( !*m_ppbyCurSegment )
+            *ppbyCurSegment = (uint8_t*)malloc( m_nbySizeSegment );
+            if ( !*ppbyCurSegment )
                 THROWNAMEDEXCEPTION( "SegArray::_PbyAllocEnd(): OOM for malloc(%lu).", m_nbySizeSegment );
         }
-        return *m_ppbyCurSegment + ( ( m_nElements % NElsPerSegment() ) * sizeof( _tyT ) );
+        return *ppbyCurSegment + ( ( m_nElements % NElsPerSegment() ) * sizeof( _tyT ) );
     }
 
     void _Clear()
@@ -465,14 +493,14 @@ protected:
         m_ppbySegments = 0;
         _tySizeType nElements = m_nElements;
         m_nElements = 0;
-        uint8_t ** ppbyEndData = m_ppbyCurSegment;
-        if ( ( m_ppbyCurSegment != m_ppbyEndSegments ) && !!*m_ppbyCurSegment )
+        uint8_t ** ppbyEndData = _PpbyGetCurSegment();
+        if ( ( ppbyEndData != m_ppbyEndSegments ) && !!*ppbyEndData )
             ++ppbyEndData;
-        m_ppbyCurSegment = m_ppbyEndSegments = 0;
+        m_ppbyEndSegments = 0;
         _tySizeType nElementsDestroyed = 0;
         for ( uint8_t ** ppbyCurThis = ppbySegments; ppbyEndData != ppbyCurThis; ++ppbyCurThis )
         {
-            if ( s_fOwnLifetime )
+            if ( s_kfOwnLifetime )
             {
                 Assert( !!*ppbyCurThis );
                 _tyT * ptCurThis = (_tyT *)*ppbyCurThis;
@@ -488,7 +516,6 @@ protected:
         }
     }
     uint8_t ** m_ppbySegments{};
-    uint8_t ** m_ppbyCurSegment{}; // We could rid this member easily. Can be computed from m_nElements - should be.
     uint8_t ** m_ppbyEndSegments{};
     _tySizeType m_nElements{};
     _tySizeType m_nbySizeSegment{};

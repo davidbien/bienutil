@@ -17,6 +17,7 @@
 #include <limits.h>
 #include <sys/mman.h>
 #include <uuid/uuid.h>
+#include <unicode/ustring.h>
 
 #include "bienutil.h"
 #include "bientypes.h"
@@ -72,6 +73,41 @@ class JsonFormatSpec;
 #pragma push_macro("std")
 #undef std
 #endif //__NAMDDEXC_STDBASE
+
+// Putting these here but only for now.
+template < class t_TyAllocator >
+void ConvertString( std::basic_string< char, std::char_traits< char >, t_TyAllocator > & _rstrDest, const char * _pcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+{
+	Assert( 0 ); // We shouldn't get here.
+	if ( std::numeric_limits< size_t >::max() == _stLenSource )
+		_stLenSource = StrNLen( _pcSource );
+	_rstrDest.assign( _pcSource, _stLenSource );
+}
+
+template < class t_TyAllocator >
+void ConvertString( std::basic_string< char16_t, std::char_traits< char16_t >, t_TyAllocator > & _rstrDest, const wchar_t * _pwcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+{
+	UErrorCode ec = U_ZERO_ERROR;
+	if ( _stLenSource == std::numeric_limits< size_t >::max() )
+		_stLenSource = StrNLen( _pwcSource );
+	else
+		Assert( _stLenSource == StrNLen( _pwcSource, _stLenSource ) );
+	int32_t nLenReq = 0;
+	(void)u_strFromWCS( nullptr, 0, &nLenReq, _pwcSource, _stLenSource, &ec );
+	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
+	{
+		const char * cpErrorCode = u_errorName( ec );
+		THROWNAMEDEXCEPTION( "ConvertString(): u_strFromWCS() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+	}
+	_rstrDest.resize( nLenReq );
+    ec = U_ZERO_ERROR;
+	(void)u_strFromWCS( &_rstrDest[0], nLenReq, nullptr, _pwcSource, _stLenSource, &ec );
+	if ( U_FAILURE( ec ) )
+	{
+		const char * cpErrorCode = u_errorName( ec );
+		THROWNAMEDEXCEPTION( "2:ConvertString(): u_strFromWCS() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+	}
+}
 
 // This exception will get thrown when there is an issue with the JSON stream.
 template < class t_tyCharTraits >
@@ -931,6 +967,7 @@ public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef t_tyPersistAsChar _tyPersistAsChar;
+    typedef std::basic_string< _tyPersistAsChar, std::char_traits< _tyPersistAsChar > > _TyStdStrPersist;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
@@ -1020,29 +1057,34 @@ public:
                 THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof rgBOM, m_szFilename.c_str() );
         }
     }
-
-    void _CheckPersistedChar( _tyChar _tc )
-    {
-        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
-        {
-            if ( !!( _tc & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                THROWBADJSONSTREAM( "JsonLinuxOutputStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
-        }
-    }
-
     // Read a single character from the file - always throw on EOF.
     void WriteChar( _tyChar _tc )
     {
         Assert( FOpened() );
-        _CheckPersistedChar( _tc );
-        _tyPersistAsChar cpx = (_tyPersistAsChar)_tc;
-        ssize_t sstWrote = write( m_fd, &cpx, sizeof cpx );
-        if ( sstWrote != sizeof cpx )
+        if ( sizeof(_tyChar) == sizeof(_tyPersistAsChar) )
         {
-            if ( -1 == sstWrote )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
-            else
-                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof cpx, m_szFilename.c_str() );
+            ssize_t sstWrote = write( m_fd, &_tc, sizeof _tc );
+            if ( sstWrote != sizeof _tc )
+            {
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
+                else
+                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
+            }
+        }
+        else
+        {
+            _TyStdStrPersist strPersist;
+            ConvertString( strPersist, &_tc, 1 );
+            ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            ssize_t sstWrote = write( m_fd, &strPersist[0], sstWrite );
+            if ( sstWrote != sstWrite )
+            {
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
+                else
+                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sstWrite, m_szFilename.c_str() );
+            }
         }
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
@@ -1051,33 +1093,17 @@ public:
             _sstLen = _tyCharTraits::StrLen( _psz );
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            const size_t kstLenConvertBuf = 4096;
-            _tyPersistAsChar rgcpxConvertBuf[ kstLenConvertBuf ];
-            _tyLPCSTR const pszEnd = _psz + _sstLen;
-            _tyLPCSTR  pszCur = _psz;
-            for( ; pszEnd != pszCur; )
+            _TyStdStrPersist strPersist;
+            ConvertString( strPersist, _psz, _sstLen );
+            ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            ssize_t sstWrote = write( m_fd, &strPersist[0], sstWrite );
+            if ( sstWrote != sstWrite )
             {
-                _tyPersistAsChar * pcpxCur = rgcpxConvertBuf;
-                _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
-                for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
-                {
-                    if ( !!( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                    {
-                        unsigned int uCur = *pszCur;
-                        unsigned int uVal = ( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) );
-                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): Would lose information since high data of character gets trunctated uCur[%x], uVal[%x], file [%s]", uCur, uVal, m_szFilename.c_str() );
-                    }
-                    *pcpxCur = (_tyPersistAsChar)*pszCur;
-                }
-                ssize_t sstWrote = write( m_fd, rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
-                if ( sstWrote != ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) )
-                {
-                    if ( -1 == sstWrote )
-                        THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
-                    else
-                        THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote,
-                            ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ), m_szFilename.c_str() );
-                }
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
+                else
+                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote,
+                        sstWrite, m_szFilename.c_str() );
             }
         }
         else
@@ -1329,22 +1355,23 @@ public:
     {
         return close( _fd );
     }
-
-    void _CheckPersistedChar( _tyChar _tc )
-    {
-        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
-        {
-            if ( !!( _tc & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                THROWBADJSONSTREAM( "JsonOutputMemMappedStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
-        }
-    }
     
     // Read a single character from the file - always throw on EOF.
     void WriteChar( _tyChar _tc )
     {
-        _CheckPersistedChar( _tc );
-        _CheckGrowMap( 1 );
-        *m_cpxMappedCur++ = _tc;
+        if ( sizeof(_tyChar) == sizeof(_tyPersistAsChar) )
+        {
+            _CheckGrowMap( 1 );
+            *m_cpxMappedCur++ = _tc;
+        }
+        else
+        {
+            _TyStdStrPersist strPersist;
+            ConvertString( strPersist, &_tc, 1 );
+            _CheckGrowMap( strPersist.length() );
+            memcpy( m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof _tyPersistAsChar );
+            m_cpxMappedCur += strPersist.length();
+        }
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
@@ -1352,29 +1379,17 @@ public:
             return;
         if ( _sstLen < 0 )
             _sstLen = _tyCharTraits::StrLen( _psz );
-        _CheckGrowMap( (size_t)_sstLen );
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            const size_t kstLenConvertBuf = 4096;
-            _tyPersistAsChar rgcpxConvertBuf[ kstLenConvertBuf ];
-            _tyLPCSTR const pszEnd = _psz + _sstLen;
-            _tyLPCSTR  pszCur = _psz;
-            for( ; pszEnd != pszCur; )
-            {
-                _tyPersistAsChar * pcpxCur = rgcpxConvertBuf;
-                _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
-                for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
-                {
-                    if ( !!( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                        THROWBADJSONSTREAM( "JsonOutputMemMappedStream::WriteRawChars(): Would lose information since high data of character gets trunctated, file [%s]", m_szFilename.c_str() );
-                    *pcpxCur = (_tyPersistAsChar)*pszCur;
-                }
-                memcpy( m_cpxMappedCur, rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
-                m_cpxMappedCur += ( pcpxCur - rgcpxConvertBuf );
-            }
+            _TyStdStrPersist strPersist;
+            ConvertString( strPersist, _psz, _sstLen );
+            _CheckGrowMap( strPersist.length() );
+            memcpy( m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof _tyPersistAsChar );
+            m_cpxMappedCur += strPersist.length();
         }
         else
         {        
+            _CheckGrowMap( (size_t)_sstLen );
             memcpy( m_cpxMappedCur, _psz, _sstLen * sizeof(_tyChar) );
             m_cpxMappedCur += _sstLen;
         }
@@ -1486,14 +1501,15 @@ public:
     }
 
 protected:
-    void _CheckGrowMap( size_t _stByAtLeast )
+    void _CheckGrowMap( size_t _charsByAtLeast )
     {
-        if ( ( m_cpxMappedEnd -  m_cpxMappedCur ) < _stByAtLeast )
-            _GrowMap( _stByAtLeast );
+        if ( ( m_cpxMappedEnd -  m_cpxMappedCur ) < _charsByAtLeast )
+            _GrowMap( _charsByAtLeast );
     }
-    void _GrowMap( size_t _stByAtLeast )
+    void _GrowMap( size_t _charsByAtLeast )
     {
-        size_t stGrowBy = ( ( ( _stByAtLeast - 1 ) / s_knGrowFileByBytes ) + 1 ) * s_knGrowFileByBytes;
+        _charsByAtLeast *= sizeof( _tyPersistAsChar ); // scale from chars to bytes.
+        size_t stGrowBy = ( ( ( _charsByAtLeast - 1 ) / s_knGrowFileByBytes ) + 1 ) * s_knGrowFileByBytes;
         void * pvOldMapping = m_pvMapped;
         m_pvMapped = MAP_FAILED;
         int iRet = munmap( pvOldMapping, m_stMapped );
@@ -1581,24 +1597,30 @@ public:
         _rstrExceptionString = m_szExceptionString;
     }
 
-    void _CheckPersistedChar( _tyChar _tc )
-    {
-        if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
-        {
-            if ( !!( _tc & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                THROWBADJSONSTREAM( "JsonLinuxOutputStream::_CheckPersistedChar(): Would lose information since high data of character gets trunctated" );
-        }
-    }
-    
     // Read a single character from the file - always throw on EOF.
     void WriteChar( _tyChar _tc )
     {
-        _CheckPersistedChar( _tc );
-        _tyPersistAsChar cpx = _tc;
-        ssize_t sstWrote = m_msMemStream.Write( &cpx, sizeof cpx );
-        if ( -1 == sstWrote )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
-        Assert( sstWrote == sizeof cpx );
+        if ( sizeof(_tyChar) == sizeof(_tyPersistAsChar) )
+        {
+            ssize_t sstWrote = m_msMemStream.Write( &_tc, sizeof _tc );
+            if ( -1 == sstWrote )
+                THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
+            Assert( sstWrote == sizeof _tc );
+        }
+        else
+        {
+            _TyStdStrPersist strPersist;
+            ConvertString( strPersist, &_tc, 1 );
+            ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            ssize_t sstWrote = m_msMemStream.Write( &strPersist[0], sstWrite );
+            if ( sstWrote != sstWrite )
+            {
+                if ( -1 == sstWrote )
+                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): Write() failed for MemFile." );
+                else
+                    THROWBADJSONSTREAM( "JsonOutputMemStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite );
+            }
+        }
     }
     void WriteRawChars( _tyLPCSTR _psz, ssize_t _sstLen = -1 )
     {
@@ -1606,24 +1628,16 @@ public:
             _sstLen = _tyCharTraits::StrLen( _psz );
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            const size_t kstLenConvertBuf = 4096;
-            _tyPersistAsChar rgcpxConvertBuf[ kstLenConvertBuf ];
-            _tyLPCSTR const pszEnd = _psz + _sstLen;
-            _tyLPCSTR  pszCur = _psz;
-            for( ; pszEnd != pszCur; )
+            _TyStdStrPersist strPersist;
+            ConvertString( strPersist, _psz, _sstLen );
+            ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            ssize_t sstWrote = m_msMemStream.Write( &strPersist[0], sstWrite );
+            if ( sstWrote != sstWrite )
             {
-                _tyPersistAsChar * pcpxCur = rgcpxConvertBuf;
-                _tyPersistAsChar * const pcpxEnd = rgcpxConvertBuf + kstLenConvertBuf;
-                for ( ; ( pcpxEnd != pcpxCur ) && ( pszEnd != pszCur ); ++pcpxCur, ++pszCur )
-                {
-                    if ( !!( *pszCur & ~( ( 1u << ( sizeof(_tyPersistAsChar) * CHAR_BIT ) ) - 1 ) ) )
-                        THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): Would lose information since high data of character gets trunctated." );
-                    *pcpxCur = (_tyPersistAsChar)*pszCur;
-                }
-                ssize_t sstWrote = m_msMemStream.Write( rgcpxConvertBuf, ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) );
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
-                Assert( sstWrote == ( pcpxCur - rgcpxConvertBuf ) * sizeof( _tyPersistAsChar ) ); // else we would have thrown.
+                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): Write() failed for MemFile." );
+                else
+                    THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite );
             }
         }
         else
