@@ -450,8 +450,9 @@ public:
     _tyT & emplaceAtEnd( t_vtyArgs&&... _args )
     {
         AssertValid();
-        new( _PbyAllocEnd() ) _tyT( std::forward< t_vtyArgs >( _args )... );
+        _tyT * pt = new( _PbyAllocEnd() ) _tyT( std::forward< t_vtyArgs >( _args )... );
         ++m_nElements;
+        return *pt;
     }
 
 protected:
