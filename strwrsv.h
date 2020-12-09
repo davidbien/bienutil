@@ -15,13 +15,14 @@
 
 // StrWRsv:
 // String with reserve. We don't store a length because we assume that in the places we will use this we won't need a length often.
-template < class t_tyStrBase = std::string, size_t t_kstReserve = 48 >
+template < class t_tyStrBase = std::string, typename t_tyStrBase::size_type t_kstReserve = 48 >
 class StrWRsv
 {
     typedef StrWRsv _tyThis;
     static_assert( t_kstReserve-1 >= sizeof( t_tyStrBase ) ); // We reserve a single byte for flags.
 public:
     typedef typename t_tyStrBase::value_type value_type;
+    typedef typename t_tyStrBase::size_type size_type;
     typedef value_type _tyChar;
     typedef typename std::make_unsigned<_tyChar>::type _tyUnsignedChar;
 
@@ -108,7 +109,7 @@ public:
     {
         return FHasStringObj() ? _PGetStrBase()->c_str() : m_rgtcBuffer;
     }
-    size_t length() const
+    size_type length() const
     {
         return FHasStringObj() ? _PGetStrBase()->length() : StrNLen( m_rgtcBuffer );
     }
@@ -147,12 +148,34 @@ public:
         _ClearStrObj();
         m_rgtcBuffer[ 0 ] = 0; // length = 0.
     }
+    void resize( size_type _stLen, _tyChar _ch = 0 )
+    {
+        if ( _stLen < t_kstReserve )
+        {
+            _ClearStrObj();
+            _tyChar * const pcEnd = m_rgtcBuffer + _stLen;
+            _tyChar * pc;
+            for ( pc = m_rgtcBuffer; pc != pcEnd; ++pc )
+                *pc = _ch;
+            *pc = 0;
+        }
+        else
+        if ( FHasStringObj() )
+        {
+            _PGetStrBase()->resize( _stLen, _ch );
+        }
+        else
+        {
+            new( (void*)m_rgtcBuffer ) t_tyStrBase( _stLen, _ch ); // may throw.
+            SetHasStringObj(); // throw-safe.
+        }
+    }
 
-    _tyThis & assign( const _tyChar * _psz, size_t _stLen = std::numeric_limits<size_t>::max() )
+    _tyThis & assign( const _tyChar * _psz, size_type _stLen = std::numeric_limits<size_type>::max() )
     {
         if ( !_psz )
             THROWNAMEDEXCEPTION( "StrWRsv::assign(): null _psz." );
-        if ( std::numeric_limits<size_t>::max() == _stLen )
+        if ( std::numeric_limits<size_type>::max() == _stLen )
             _stLen = StrNLen( _psz );
         if ( _stLen < t_kstReserve )
         {
@@ -190,10 +213,10 @@ public:
 
     _tyThis & operator += ( const _tyChar * _psz )
     {
-        size_t stLenAdd = StrNLen( _psz );
+        size_type stLenAdd = StrNLen( _psz );
         if ( !FHasStringObj() )
         {
-            size_t stLenCur = length();
+            size_type stLenCur = length();
             if ( stLenCur + stLenAdd < t_kstReserve )
             {
                 memcpy( m_rgtcBuffer + stLenCur, _psz, stLenAdd );
@@ -215,15 +238,15 @@ public:
         return *this;
     }
 
-    _tyChar const & operator []( size_t _st ) const
+    _tyChar const & operator []( size_type _st ) const
     {
         Assert( _st <= length() );
-        return _PGetStrBase()[_st];
+        return FHasStringObj() ? (*_PGetStrBase())[_st] : m_rgtcBuffer[_st];
     }
-    _tyChar & operator []( size_t _st )
+    _tyChar & operator []( size_type _st )
     {
         Assert( _st <= length() );
-        return _PGetStrBase()[_st];
+        return FHasStringObj() ? (*_PGetStrBase())[_st] : m_rgtcBuffer[_st];
     }
 
     std::strong_ordering operator <=> ( _tyThis const & _r ) const

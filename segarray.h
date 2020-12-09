@@ -23,6 +23,7 @@ public:
     static_assert( !std::numeric_limits< _tySizeType >::is_signed );
     typedef typename std::make_signed<_tySizeType>::type _tySignedSize;
 
+    SegArray() = delete;
     SegArray( _tySizeType _nbySizeSegment = 65536/sizeof( _tyT ) )
         : m_nbySizeSegment( _nbySizeSegment - ( _nbySizeSegment % sizeof( _tyT ) ) ) // even number of t_tyT's.
     {
@@ -119,6 +120,7 @@ public:
         }        
     }
     SegArray( SegArray && _rr )
+        : m_nbySizeSegment( _rr.m_nbySizeSegment ) // Hopefully get a non-zero value from this object.
     {
         _rr.AssertValid();
         swap( _rr );
@@ -132,6 +134,7 @@ public:
     void AssertValid() const
 #if ASSERTSENABLED
     {
+        Assert( !!m_nbySizeSegment && !( m_nbySizeSegment % sizeof( _tyT ) ) );
         Assert( !m_nElements == !m_ppbySegments );
         Assert( !m_nElements == !m_ppbyEndSegments );
         Assert( !m_nElements || !( m_nElements % NElsPerSegment() ) == !*_PpbyGetCurSegment() );
@@ -466,7 +469,7 @@ protected:
         if ( !ppbySegments )
             THROWNAMEDEXCEPTION( "SegArray::AllocNewSegmentPointerBlock(): OOM for realloc(%lu).", ( ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks ) * sizeof(uint8_t*) );
         memset( ppbySegments + ( m_ppbyEndSegments - m_ppbySegments ), 0, _nNewBlocks * sizeof(uint8_t*) );
-        m_ppbyEndSegments = ppbySegments + ( m_ppbyEndSegments - m_ppbySegments );
+        m_ppbyEndSegments = ppbySegments + ( m_ppbyEndSegments - m_ppbySegments ) + _nNewBlocks;
         m_ppbySegments = ppbySegments;
     }
 
@@ -477,6 +480,7 @@ protected:
         {
             static const _tySizeType s_knNumBlocksAlloc = 16;
             AllocNewSegmentPointerBlock( s_knNumBlocksAlloc );
+            ppbyCurSegment = _PpbyGetCurSegment();
         }
         if ( !*ppbyCurSegment )
         {
@@ -516,6 +520,7 @@ protected:
             free( *ppbyCurThis );
         }
     }
+protected:
     uint8_t ** m_ppbySegments{};
     uint8_t ** m_ppbyEndSegments{};
     _tySizeType m_nElements{};

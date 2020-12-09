@@ -2523,6 +2523,27 @@ public:
             _stLen = _tyCharTraits::StrLen( _pszValue );
         _WriteValue( ejvtString, _pszKey, _pszValue, (size_t)_stLen );
     }
+    void PrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ... )
+    {
+        va_list ap;
+        va_start(ap, _pszValue);
+        try
+        {
+            VPrintfStringKeyValue( _pszKey, _pszValue, ap );
+        }
+        catch( ... )
+        {
+            va_end(ap);
+            throw;
+        }
+        va_end(ap);
+    }
+    void VPrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, va_list _ap )
+    {
+        _tyStdStr str;
+        VPrintfStdStr(str, _pszValue, _ap);
+        _WriteValue( ejvtString, _pszKey, str.c_str(), str.length() );
+    }
     
     void WriteValue( _tyLPCSTR _pszKey, uint8_t _by )
     {
@@ -2633,6 +2654,27 @@ public:
     void WriteStringValue( _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
         _WriteValue( ejvtString, std::move( _rrstrVal ) );
+    }
+    void PrintfStringValue( _tyLPCSTR _pszValue, ... )
+    {
+        va_list ap;
+        va_start(ap, _pszValue);
+        try
+        {
+            VPrintfStringValue( _pszValue, ap );
+        }
+        catch( ... )
+        {
+            va_end(ap);
+            throw;
+        }
+        va_end(ap);
+    }
+    void VPrintfStringValue( _tyLPCSTR _pszValue, va_list _ap )
+    {
+        _tyStdStr str;
+        VPrintfStdStr(str, _pszValue, _ap);
+        _WriteValue( ejvtString, str.c_str(), str.length() );
     }
     void WriteTimeStringValue( time_t const & _tt )
     {
@@ -2783,6 +2825,7 @@ public:
     virtual void WriteNullValue( _tyLPCSTR _pszKey ) = 0;
     virtual void WriteBoolValue(  _tyLPCSTR _pszKey, bool _f ) = 0;
     virtual void WriteValueType( _tyLPCSTR _pszKey, EJsonValueType _jvt ) = 0;
+    virtual void PrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ... ) = 0;
     virtual void WriteValue( _tyLPCSTR _pszKey, uint8_t _by ) = 0;
     virtual void WriteValue( _tyLPCSTR _pszKey, int8_t _sby ) = 0;
     virtual void WriteValue( _tyLPCSTR _pszKey, uint16_t _us ) = 0;
@@ -2803,6 +2846,7 @@ public:
     {
         WriteStringValue( _rstrVal.c_str(), _rstrVal.length() );
     }
+    virtual void PrintfStringValue( _tyLPCSTR _pszValue, ... ) = 0;
     virtual void WriteValue( uint8_t _by ) = 0;
     virtual void WriteValue( int8_t _sby ) = 0;
     virtual void WriteValue( uint16_t _us ) = 0;
@@ -2892,6 +2936,13 @@ public:
     {
         _tyBase::WriteValueType( _pszKey, _jvt );
     }
+    void PrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ... ) override
+    {
+        va_list ap;
+        va_start( ap, _pszValue );
+        _tyBase::VPrintfStringKeyValue( _pszKey, _pszValue, ap );
+        va_end( ap );
+    }
     void WriteValue( _tyLPCSTR _pszKey, uint8_t _v ) override
     {
         _tyBase::WriteValue( _pszKey, _v );
@@ -2948,6 +2999,13 @@ public:
     void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 ) override
     {
         _tyBase::WriteStringValue( _pszValue, _stLen );
+    }
+    void PrintfStringValue( _tyLPCSTR _pszValue, ... ) override
+    {
+        va_list ap;
+        va_start( ap, _pszValue );
+        _tyBase::VPrintfStringValue( _pszValue, ap );
+        va_end( ap );
     }
     void WriteValue( uint8_t _v ) override
     {

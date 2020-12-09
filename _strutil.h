@@ -10,6 +10,7 @@
 // dbien: 12MAR2020
 
 #include <stdlib.h>
+#include <wchar.h>
 #include <limits.h>
 #include <unistd.h>
 #include <string>
@@ -65,71 +66,138 @@ std::strong_ordering ICompareStr(const t_tyChar *_pszLeft, const t_tyChar *_pszR
 	return (*_pszLeft < *_pszRight) ? std::strong_ordering::less : ((*_pszLeft > *_pszRight) ? std::strong_ordering::greater : std::strong_ordering::equal);
 }
 
-// Return a string formatted like printf. Throws.
-template <class t_tyChar>
-void PrintfStdStr(std::basic_string<t_tyChar> &_rstr, const t_tyChar *_pcFmt, ...) noexcept(false)
+template < class t_tyChar >
+int VNSPrintf( t_tyChar * _rgcOut, size_t _n, const t_tyChar * _szFormat, va_list _ap );
+template < > inline
+int VNSPrintf( char * _rgcOut, size_t _n, const char * _szFormat, va_list _ap )
 {
-	va_list ap2;
+	return vsnprintf( _rgcOut, _n, _szFormat, _ap );
+}
+template < > inline
+int VNSPrintf( wchar_t * _rgcOut, size_t _n, const wchar_t * _szFormat, va_list _ap )
+{
+	return vswprintf( _rgcOut, _n, _szFormat, _ap );
+}
+
+// Return a string formatted like printf. Throws.
+template < class t_tyString >
+void PrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, ...) noexcept(false) 
+{
+	va_list ap;
+	va_start(ap, _pcFmt);
+	try
+	{
+		VPrintfStdStr(_rstr, _pcFmt, ap);
+	}
+	catch( ... )
+	{
+		va_end(ap);
+		throw;
+	}
+	va_end(ap);
+}
+
+template < class t_tyString >
+void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, va_list _ap ) noexcept(false) 
+			requires ( std::is_same_v<typename t_tyString::value_type, char> )
+{
+	typedef typename t_tyString::value_type _tyChar;
   int nRequired;
 	{ //B
-		va_list ap;
-		va_start(ap, _pcFmt);
-		va_copy(ap2, ap); // Do this correctly
+		va_list ap2;
+		va_copy(ap2, _ap); // Do this correctly
 		// Initially just pass a single character bufffer since we only care about the return value:
-		t_tyChar tc;
-		nRequired = vsnprintf(&tc, 1, _pcFmt, ap);
-		va_end(ap);
+		_tyChar tc;
+		nRequired = VNSPrintf( &tc, 1, _pcFmt, ap2 );
+		va_end(ap2);
 		if (nRequired < 0)
-			THROWNAMEDEXCEPTION("PrintfStdStr(): vsnprintf() returned nRequired[%d].", nRequired);
+			THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRequired[%d].", nRequired);
 		_rstr.resize(nRequired); // this will reserve nRequired+1.
 	}//EB
-	int nRet = vsnprintf(&_rstr[0], nRequired + 1, _pcFmt, ap2);
-	va_end(ap2);
+	int nRet = VNSPrintf(&_rstr[0], nRequired + 1, _pcFmt, _ap);
 	if (nRet < 0)
-		THROWNAMEDEXCEPTION("PrintfStdStr(): vsnprintf() returned nRet[%d].", nRet);
+		THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRet[%d].", nRet);
+}
+
+template < class t_tyString >
+void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, va_list _ap ) noexcept(false) 
+			requires ( std::is_same_v<typename t_tyString::value_type, wchar_t> )
+{
+	// Due to C99 people sucking butt we have to do this in an awkward way...
+	typedef typename t_tyString::value_type _tyChar;
+	_tyChar rgcFirstTry[ 256 ];
+	size_t stBufSize = 256;
+	static constexpr size_t kst2ndTryBufSize = 8192;
+	static constexpr size_t kstMaxBufSize = ( 1 << 28 ); // arbitrary but large.
+	_tyChar * pcBuf = rgcFirstTry;
+	
+	for (;;)
+	{
+		va_list ap2;
+		va_copy(ap2, _ap);
+		errno = 0;
+		int nWritten = VNSPrintf( pcBuf, stBufSize, _pcFmt, ap2 );
+		va_end(ap2);
+		if ( -1 == nWritten )
+		{
+			if ( 0 != errno )
+			{
+				// Then some error besides not having a big enough buffer.
+				THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRequired[%d].", nWritten);
+			}
+			if ( pcBuf == rgcFirstTry )
+				pcBuf = (_tyChar*)alloca( stBufSize = kst2ndTryBufSize );
+			else
+			{
+				stBufSize *= 2;
+				if ( stBufSize > kstMaxBufSize )
+					THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
+				_rstr.resize( stBufSize-1 );
+			}
+		}
+		else
+		{
+			// Success!!!
+			if ( stBufSize <= kst2ndTryBufSize )
+				_rstr.assign( pcBuf, nWritten );
+			else
+				_rstr.resize(nWritten); // truncate appropriately.
+			return;
+		}
+	}
 }
 
 // Return a string formatted like printf. Doesn't throw.
-template <class t_tyChar>
-bool FPrintfStdStrNoThrow(std::basic_string<t_tyChar> &_rstr, const t_tyChar *_pcFmt, ...) noexcept(true)
+template < class t_tyString >
+bool FPrintfStdStrNoThrow( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, ...)  
 {
-	va_list ap2;
-  int nRequired;
-	{ //B
-		va_list ap;
-		va_start(ap, _pcFmt);
-    va_copy(ap2,ap);
-		// Initially just pass a single character bufffer since we only care about the return value:
-		t_tyChar tc;
-		nRequired = vsnprintf(&tc, 1, _pcFmt, ap);
+	va_list ap;
+	va_start(ap, _pcFmt);
+	try
+	{
+		VPrintfStdStr(_rstr, _pcFmt, ap);
+	}
+	catch( ... )
+	{
 		va_end(ap);
-		if (nRequired < 0)
-			return false;
-    try
-    {
-      _rstr.resize(nRequired); // this will reserve nRequired+1.
-    }
-    catch( ... )
-    {
-      return false;
-    }
-	}//EB
-	int nRet = vsnprintf(&_rstr[0], nRequired + 1, _pcFmt, ap2);
-	va_end(ap2);
-	return !(nRet < 0);
+		return false;
+	}
+	va_end(ap);
+	return true;
 }
 
 // In this overload the caller has already made the first call to obtain the size of the buffer required.
-template <class t_tyChar>
-int NPrintfStdStr(std::basic_string<t_tyChar> &_rstr, int _nRequired, const t_tyChar *_pcFmt, va_list _ap)
+template < class t_tyString >
+int NPrintfStdStr( t_tyString &_rstr, int _nRequired, const typename t_tyString::value_type *_pcFmt, va_list _ap)
 {
 	_rstr.resize(_nRequired); // this will reserver nRequired+1.
-	int nRet = vsnprintf(&_rstr[0], _nRequired + 1, _pcFmt, _ap);
+	int nRet = VNSPrintf(&_rstr[0], _nRequired + 1, _pcFmt, _ap);
 	return nRet;
 }
 
 // Return an error message string to the caller in a standard manner.
-inline void GetErrnoStdStr(int _errno, std::string &_rstr)
+template < class t_tyAllocator >
+inline void GetErrnoStdStr(int _errno, std::basic_string<char, std::char_traits<char>, t_tyAllocator> &_rstr)
 {
 	const int knErrorMesg = 256;
 	char rgcErrorMesg[knErrorMesg];
@@ -143,7 +211,8 @@ inline void GetErrnoStdStr(int _errno, std::string &_rstr)
 }
 
 // Just return the error description if found.
-inline void GetErrnoDescStdStr(int _errno, std::string &_rstr)
+template <class t_tyAllocator >
+inline void GetErrnoDescStdStr(int _errno, std::basic_string<char, std::char_traits<char>, t_tyAllocator> &_rstr)
 {
 	const int knErrorMesg = 256;
 	char rgcErrorMesg[knErrorMesg];
