@@ -418,6 +418,7 @@ public:
             _tySizeType stFwdOffOrig = NElsPerSegment() - ( stCurOrig % NElsPerSegment() );
             _tySizeType stMin = std::min( nElsLeft, stFwdOffOrig );
             Assert( stMin );
+            errno = 0;
             ssize_t sstWrote = ::write( _fd, &ElGet( stCurOrig ), stMin * sizeof(_tyT) );
             if ( -1 == sstWrote )
                 THROWNAMEDEXCEPTIONERRNO( errno, "SegArray::WriteToFd(): error writing to fd[%d].", _fd );
@@ -494,11 +495,11 @@ protected:
 
     void _Clear()
     {
-        auto ppbySegments = m_ppbySegments;
+        uint8_t ** ppbyEndData = _PpbyGetCurSegment();
+        uint8_t ** ppbySegments = m_ppbySegments;
         m_ppbySegments = 0;
         _tySizeType nElements = m_nElements;
         m_nElements = 0;
-        uint8_t ** ppbyEndData = _PpbyGetCurSegment();
         if ( ( ppbyEndData != m_ppbyEndSegments ) && !!*ppbyEndData )
             ++ppbyEndData;
         m_ppbyEndSegments = 0;

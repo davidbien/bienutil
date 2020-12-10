@@ -493,6 +493,7 @@ public:
     void Open( const char * _szFilename )
     {
         Assert( !FOpened() );
+        errno = 0;
         m_fd = open( _szFilename, O_RDONLY );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::Open(): Unable to open() file [%s]", _szFilename );
@@ -548,6 +549,7 @@ public:
         for ( ; ; )
         {
             _tyPersistAsChar cpxRead;
+            errno = 0;
             sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
             m_tcLookahead = cpxRead;
             if ( -1 == sstRead )
@@ -576,6 +578,7 @@ public:
         Assert( FOpened() );
         if ( m_fUseSeek )
         {
+            errno = 0;
             _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
             if ( -1 == pos )
                 THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
@@ -597,6 +600,7 @@ public:
             return m_tcLookahead;
         }
         _tyPersistAsChar cpxRead;
+        errno = 0;
         ssize_t sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
         m_tcLookahead = cpxRead;
         if ( sstRead != sizeof cpxRead )
@@ -628,6 +632,7 @@ public:
             return true;
         }
         _tyPersistAsChar cpxRead;
+        errno = 0;
         ssize_t sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
         m_tcLookahead = cpxRead;
         if ( sstRead != sizeof cpxRead )
@@ -866,10 +871,12 @@ public:
     {
         Assert( !FOpened() );
         Close();
+        errno = 0;
         m_fd = open( _szFilename, O_RDONLY );
         if ( !FFileOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
         // Now get the size of the file and then map it.
+        errno = 0;
         _tyFilePos posEnd = lseek( m_fd, 0, SEEK_END );
         if ( -1 == posEnd )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Attempting to seek to EOF failed for [%s]", _szFilename );
@@ -878,6 +885,7 @@ public:
         if ( !!( posEnd % sizeof(t_tyPersistAsChar) ) )
             THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
         // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
+        errno = 0;
         m_pcpxBegin = (t_tyPersistAsChar*)mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
         if ( m_pcpxBegin == (t_tyPersistAsChar*)MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
@@ -1011,6 +1019,7 @@ public:
     void Open( const char * _szFilename )
     {
         Assert( !FOpened() );
+        errno = 0;
         m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::Open(): Unable to open() file [%s]", _szFilename );
@@ -1048,6 +1057,7 @@ public:
     {
         Assert( 0 == ::lseek( m_fd, 0, SEEK_CUR ) );
         uint8_t rgBOM[] = { 0xFF, 0xFE };
+        errno = 0;
         ssize_t sstWrote = write( m_fd, &rgBOM, sizeof rgBOM );
         if ( sstWrote != sizeof rgBOM )
         {
@@ -1063,6 +1073,7 @@ public:
         Assert( FOpened() );
         if ( sizeof(_tyChar) == sizeof(_tyPersistAsChar) )
         {
+            errno = 0;
             ssize_t sstWrote = write( m_fd, &_tc, sizeof _tc );
             if ( sstWrote != sizeof _tc )
             {
@@ -1077,6 +1088,7 @@ public:
             _TyStdStrPersist strPersist;
             ConvertString( strPersist, &_tc, 1 );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            errno = 0;
             ssize_t sstWrote = write( m_fd, &strPersist[0], sstWrite );
             if ( sstWrote != sstWrite )
             {
@@ -1096,6 +1108,7 @@ public:
             _TyStdStrPersist strPersist;
             ConvertString( strPersist, _psz, _sstLen );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            errno = 0;
             ssize_t sstWrote = write( m_fd, &strPersist[0], sstWrite );
             if ( sstWrote != sstWrite )
             {
@@ -1294,17 +1307,21 @@ public:
     {
         Assert( !FAnyOpened() );
         Close();
+        errno = 0;
         m_fd = open( _szFilename, O_RDWR | O_CREAT | O_TRUNC, 0666 );
         if ( !FFileOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
         // Set the initial size of the mapping to s_knGrowFileByBytes. Don't want to use ftruncate because that could be slow as it zeros all memory.
+        errno = 0;
         _tyFilePos posEnd = lseek( m_fd, s_knGrowFileByBytes-1, SEEK_SET );
         if ( -1 == posEnd )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to lseek() failed for [%s]", _szFilename );
+        errno = 0;
         ssize_t stRet = write( m_fd, "Z", 1 ); // write a single byte to grow the file to s_knGrowFileByBytes.
         if ( -1 == stRet )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to write() failed for [%s]", _szFilename );
         // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to write to it.
+        errno = 0;
         m_pvMapped = mmap( 0, s_knGrowFileByBytes, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
@@ -1322,6 +1339,7 @@ public:
             Assert( FFileOpened() );
             // We need to truncate the file to m_cpxMappedCur - m_pvMapped bytes.
             // We shouldn't throw here so we will just log an error message and set m_szExceptionString.
+            errno = 0;
             iCloseRet = ftruncate( m_fd, ( m_cpxMappedCur - (_tyPersistAsChar*)m_pvMapped ) * sizeof(_tyPersistAsChar) );
             if ( -1 == iCloseRet )
             {
@@ -1515,12 +1533,15 @@ protected:
         int iRet = munmap( pvOldMapping, m_stMapped );
         Assert( !iRet );
         m_stMapped += stGrowBy;
+        errno = 0;
         iRet = lseek( m_fd, m_stMapped - 1, SEEK_SET );
         if ( -1 == iRet )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): lseek() failed for file [%s].", m_szFilename.c_str() );
+        errno = 0;
         iRet = write( m_fd, "Z", 1 ); // just write a single byte to grow the file.
         if ( -1 == iRet )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): write() failed for file [%s].", m_szFilename.c_str() );
+        errno = 0;
         m_pvMapped = mmap( 0, m_stMapped, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): mmap() failed for file [%s].", m_szFilename.c_str() );
@@ -1602,6 +1623,7 @@ public:
     {
         if ( sizeof(_tyChar) == sizeof(_tyPersistAsChar) )
         {
+            errno = 0;
             ssize_t sstWrote = m_msMemStream.Write( &_tc, sizeof _tc );
             if ( -1 == sstWrote )
                 THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
@@ -1612,6 +1634,7 @@ public:
             _TyStdStrPersist strPersist;
             ConvertString( strPersist, &_tc, 1 );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            errno = 0;
             ssize_t sstWrote = m_msMemStream.Write( &strPersist[0], sstWrite );
             if ( sstWrote != sstWrite )
             {
@@ -1631,6 +1654,7 @@ public:
             _TyStdStrPersist strPersist;
             ConvertString( strPersist, _psz, _sstLen );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
+            errno = 0;
             ssize_t sstWrote = m_msMemStream.Write( &strPersist[0], sstWrite );
             if ( sstWrote != sstWrite )
             {
@@ -1642,6 +1666,7 @@ public:
         }
         else
         {        
+            errno = 0;
             ssize_t sstWrote = m_msMemStream.Write( _psz, _sstLen * sizeof(_tyChar) );
             if ( -1 == sstWrote )
                 THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
@@ -1821,6 +1846,7 @@ public:
     void Open( const char * _szFilename )
     {
         Assert( !FOpened() );
+        errno = 0;
         m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputMemStream::Open(): Unable to open() file [%s]", _szFilename );

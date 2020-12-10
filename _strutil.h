@@ -108,12 +108,14 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 		va_copy(ap2, _ap); // Do this correctly
 		// Initially just pass a single character bufffer since we only care about the return value:
 		_tyChar tc;
+		errno = 0;
 		nRequired = VNSPrintf( &tc, 1, _pcFmt, ap2 );
 		va_end(ap2);
 		if (nRequired < 0)
 			THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRequired[%d].", nRequired);
 		_rstr.resize(nRequired); // this will reserve nRequired+1.
 	}//EB
+	errno = 0;
 	int nRet = VNSPrintf(&_rstr[0], nRequired + 1, _pcFmt, _ap);
 	if (nRet < 0)
 		THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRet[%d].", nRet);
@@ -128,7 +130,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 	_tyChar rgcFirstTry[ 256 ];
 	size_t stBufSize = 256;
 	static constexpr size_t kst2ndTryBufSize = 8192;
-	static constexpr size_t kstMaxBufSize = ( 1 << 28 ); // arbitrary but large.
+	static constexpr size_t kstMaxBufSize = ( 1 << 24 ); // arbitrary but large.
 	_tyChar * pcBuf = rgcFirstTry;
 	
 	for (;;)
@@ -151,7 +153,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 			{
 				stBufSize *= 2;
 				if ( stBufSize > kstMaxBufSize )
-					THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
+					THROWNAMEDEXCEPTION("VPrintfStdStr(): overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
 				_rstr.resize( stBufSize-1 );
 			}
 		}

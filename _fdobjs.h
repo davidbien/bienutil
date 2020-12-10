@@ -63,6 +63,7 @@ public:
 
   void Seek( off_t off )
   {
+    errno = 0;
     off_t offRes = ::lseek( m_fd, off, SEEK_SET );
     if ( -1 == offRes )
       THROWNAMEDEXCEPTIONERRNO( errno, "FdObj::Seek(): ::lseek() failed." );

@@ -156,7 +156,7 @@ public:
         ss.ss_sp = &p[0];
         ss.ss_size = SIGSTKSZ;
         ss.ss_flags = 0;
-
+        errno = 0;
         if ( sigaltstack( &ss, &s_ssOldSigAltStack ) != 0 )
             n_SysLog::Log( eslmtError, errno, "DefaultSignalHandler::SetupAlternateSignalStack(): sigaltstack() failed." );
     }
