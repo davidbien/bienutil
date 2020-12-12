@@ -170,6 +170,44 @@ public:
         swap( _rr );
     }
 
+    _tySizeType NElements() const
+    {
+        return m_nElements;
+    }
+    _tySizeType NElsPerSegment() const
+    {
+        return m_nbySizeSegment / sizeof( _tyT );
+    }
+
+    _tyT & ElGet( _tySizeType _nEl, bool _fMaybeEnd = false )
+    {
+        AssertValid();
+        if ( ( _nEl > m_nElements ) || ( !_fMaybeEnd && ( _nEl == m_nElements ) ) )
+            THROWNAMEDEXCEPTION( "SegArray::ElGet(): Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements );
+        return ((_tyT*)m_ppbySegments[ _nEl / NElsPerSegment() ])[ _nEl % NElsPerSegment() ];
+    }
+    _tyT const & ElGet( _tySizeType _nEl ) const
+    {
+        return const_cast< SegArray* >( this )->ElGet( _nEl );
+    }
+    _tyT & operator []( _tySizeType _n )
+    {
+        return ElGet( _n );
+    }
+    const _tyT & operator []( _tySizeType _n ) const
+    {
+        return ElGet( _n );
+    }
+
+    template < class... t_vtyArgs >
+    _tyT & emplaceAtEnd( t_vtyArgs&&... _args )
+    {
+        AssertValid();
+        _tyT * pt = new( _PbyAllocEnd() ) _tyT( std::forward< t_vtyArgs >( _args )... );
+        ++m_nElements;
+        return *pt;
+    }
+
     // Set the number of elements in this object.
     // If we manage the lifetime of these object then they must have a default constructor.
     void SetSize( _tySizeType _nElements, bool _fCompact = false, _tySizeType _nNewBlockMin = 16 )
@@ -427,36 +465,6 @@ public:
             nElsLeft -= stMin;
             stCurOrig += stMin;
         }
-    }
-
-    _tySizeType NElements() const
-    {
-        return m_nElements;
-    }
-    _tySizeType NElsPerSegment() const
-    {
-        return m_nbySizeSegment / sizeof( _tyT );
-    }
-
-    _tyT & ElGet( _tySizeType _nEl, bool _fMaybeEnd = false )
-    {
-        AssertValid();
-        if ( ( _nEl > m_nElements ) || ( !_fMaybeEnd && ( _nEl == m_nElements ) ) )
-            THROWNAMEDEXCEPTION( "SegArray::ElGet(): Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements );
-        return ((_tyT*)m_ppbySegments[ _nEl / NElsPerSegment() ])[ _nEl % NElsPerSegment() ];
-    }
-    _tyT const & ElGet( _tySizeType _nEl ) const
-    {
-        return const_cast< SegArray* >( this )->ElGet( _nEl );
-    }
-
-    template < class... t_vtyArgs >
-    _tyT & emplaceAtEnd( t_vtyArgs&&... _args )
-    {
-        AssertValid();
-        _tyT * pt = new( _PbyAllocEnd() ) _tyT( std::forward< t_vtyArgs >( _args )... );
-        ++m_nElements;
-        return *pt;
     }
 
 protected:
