@@ -626,9 +626,13 @@ public:
   void GetValue(long double &_rldbl) const { _GetValue("%Le", _rldbl); }
 
   // Setting methods: These overwrite the existing element at this location.
-  void SetNull()
+  void SetNull() // Note that this is not the same as the NullValue - see below.
   {
     SetValueType(ejvtJsonValueTypeCount);
+  }
+  void SetNullValue()
+  {
+    SetValueType(ejvtNull);
   }
   void SetBoolValue(bool _f)
   {
@@ -645,16 +649,25 @@ public:
     SetValueType(ejvtString);
     StrGet().assign(_psz, _stLen);
   }
+  // String methods for the current character type.
   template <class t_tyStr>
-  void SetStringValue(t_tyStr const &_rstr)
+  void SetStringValue(t_tyStr const &_rstr) requires ( is_same_v< typename t_tyStr::value_type, t_tyChar > )
   {
     SetStringValue(_rstr.c_str(), _rstr.length());
   }
   template <class t_tyStr>
-  void SetStringValue(t_tyStr &&_rrstr)
+  void SetStringValue(t_tyStr &&_rrstr) requires ( is_same_v< typename t_tyStr::value_type, t_tyChar > )
   {
     SetValueType(ejvtString);
     StrGet() = std::move(_rrstr);
+  }
+  // String methods requiring conversion. No reason for the move method since we must convert anyway.
+  template <class t_tyStr>
+  void SetStringValue(t_tyStr const &_rstr) requires ( !is_same_v< typename t_tyStr::value_type, t_tyChar > )
+  {
+    _tyStdStr strConverted;
+    ConvertString( strConverted, _rstr );
+    SetStringValue( std::move( strConverted ) );
   }
   _tyThis &operator=(const _tyStdStr &_rstr)
   {
@@ -931,6 +944,13 @@ public:
       THROWJSONBADUSAGE("JsoValue::ToJSONStream(): invalid value type [%hhu].", JvtGetValueType());
       break;
     }
+  }
+  // This will change the type of this object to an array (if necessary)
+  //  and then set the capacity.
+  void SetArrayCapacity( size_t _n )
+  {
+    SetValueType( ejvtArray );
+    _ArrayGet().SetCapacity( _n );
   }
   // Reading arrays and objects:
   // Array index can be used on either array or object.
@@ -1330,6 +1350,10 @@ public:
   size_t GetSize() const
   {
     return m_vecValues.size();
+  }
+  void SetCapacity( size_t _nCap )
+  {
+    m_vecValue.reserve( _nCap );
   }
   _tyIterator begin()
   {

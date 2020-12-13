@@ -74,41 +74,6 @@ class JsonFormatSpec;
 #undef std
 #endif //__NAMDDEXC_STDBASE
 
-// Putting these here but only for now.
-template < class t_TyAllocator >
-void ConvertString( std::basic_string< char, std::char_traits< char >, t_TyAllocator > & _rstrDest, const char * _pcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-{
-	Assert( 0 ); // We shouldn't get here.
-	if ( std::numeric_limits< size_t >::max() == _stLenSource )
-		_stLenSource = StrNLen( _pcSource );
-	_rstrDest.assign( _pcSource, _stLenSource );
-}
-
-template < class t_TyAllocator >
-void ConvertString( std::basic_string< char16_t, std::char_traits< char16_t >, t_TyAllocator > & _rstrDest, const wchar_t * _pwcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-{
-	UErrorCode ec = U_ZERO_ERROR;
-	if ( _stLenSource == std::numeric_limits< size_t >::max() )
-		_stLenSource = StrNLen( _pwcSource );
-	else
-		Assert( _stLenSource == StrNLen( _pwcSource, _stLenSource ) );
-	int32_t nLenReq = 0;
-	(void)u_strFromWCS( nullptr, 0, &nLenReq, _pwcSource, _stLenSource, &ec );
-	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
-	{
-		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "ConvertString(): u_strFromWCS() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
-	}
-	_rstrDest.resize( nLenReq );
-    ec = U_ZERO_ERROR;
-	(void)u_strFromWCS( &_rstrDest[0], nLenReq, nullptr, _pwcSource, _stLenSource, &ec );
-	if ( U_FAILURE( ec ) )
-	{
-		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "2:ConvertString(): u_strFromWCS() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
-	}
-}
-
 // This exception will get thrown when there is an issue with the JSON stream.
 template < class t_tyCharTraits >
 class bad_json_stream_exception : public std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR >
