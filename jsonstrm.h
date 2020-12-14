@@ -837,23 +837,25 @@ public:
         Assert( !FOpened() );
         Close();
         errno = 0;
-        m_fd = open( _szFilename, O_RDONLY );
+        m_fd = ::open( _szFilename, O_RDONLY );
         if ( !FFileOpened() )
             THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
         // Now get the size of the file and then map it.
         errno = 0;
-        _tyFilePos posEnd = lseek( m_fd, 0, SEEK_END );
-        if ( -1 == posEnd )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Attempting to seek to EOF failed for [%s]", _szFilename );
-        if ( 0 == posEnd )
+        struct stat statBuf;
+        int iStatResult = ::stat( m_fd, &statBuf );
+        if ( -1 == iStatResult )
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): stat() failed for [%s]", _szFilename );
+        if ( 0 == statBuf.st_size )
             THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s] is empty - it contains no JSON value.", _szFilename );
-        if ( !!( posEnd % sizeof(t_tyPersistAsChar) ) )
-            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%d].", _szFilename, posEnd );
-        // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to read from it.
+        if ( !!( statBuf.st_size % sizeof(t_tyPersistAsChar) ) )
+            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%ld].", _szFilename, statBuf.st_size );
+        if ( !S_ISREG(statBuf.st_mode) )
+            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s] is not a regular file, st_mode is [0x%x].", _szFilename, statBuf.st_mode );
         errno = 0;
-        m_pcpxBegin = (t_tyPersistAsChar*)mmap( 0, posEnd, PROT_READ, MAP_SHARED, m_fd, 0 );
+        m_pcpxBegin = (t_tyPersistAsChar*)mmap( 0, statBuf.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, m_fd, 0 );
         if ( m_pcpxBegin == (t_tyPersistAsChar*)MAP_FAILED )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s], size [%ld].", _szFilename, statBuf.st_size );
         m_pcpxCur = m_pcpxBegin;
         m_pcpxEnd = m_pcpxCur + ( posEnd / sizeof(t_tyPersistAsChar) );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
@@ -1287,6 +1289,7 @@ public:
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to write() failed for [%s]", _szFilename );
         // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to write to it.
         errno = 0;
+        // REVIEW:<dbien>: Unclear whether it is a good idea here to use MAP_NORESERVE since we are writing.
         m_pvMapped = mmap( 0, s_knGrowFileByBytes, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
             THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
@@ -2219,7 +2222,7 @@ protected:
         mutable _tyJsonArray * m_pjaValue;
     };
     
-    //mutable void * m_pvValue{}; // Just use void* since all our values are pointers to objects.
+    //mutable void * m_pvValue{}; // Just use void* since all our values are pointers to objects - the above works better in the debugger...
     // m_pvValue is one of:
     // for ejvtTrue, ejvtFalse, ejvtNull: nullptr
     // for ejvtObject: JsonObject *
@@ -2363,9 +2366,18 @@ public:
             m_jv( &_jvl.RJvGet(), _jvt ), // Link to parent JsonValue.
             m_optJsonFormatSpec( _jvl.m_optJsonFormatSpec )
     {
-        _WritePreamble( _pszKey, _jvt );
+        _WritePreamble( _pszKey, -1, _jvt );
     }
-    void _WritePreamble( _tyLPCSTR _pszKey, EJsonValueType _jvt )
+    JsonValueLife( JsonValueLife & _jvl, _tyLPCSTR _pszKey, ssize_t _stLenKey, EJsonValueType _jvt )
+        :   m_rjos( _jvl.m_rjos ),
+            m_pjvlParent( &_jvl ),
+            m_nCurAggrLevel( _jvl.m_nCurAggrLevel+1 ),
+            m_jv( &_jvl.RJvGet(), _jvt ), // Link to parent JsonValue.
+            m_optJsonFormatSpec( _jvl.m_optJsonFormatSpec )
+    {
+        _WritePreamble( _pszKey, _stLenKey, _jvt );
+    }
+    void _WritePreamble( _tyLPCSTR _pszKey, ssize_t _stLenKey, EJsonValueType _jvt )
     {
         if ( m_pjvlParent && !!m_pjvlParent->NSubValuesWritten() ) // Write a comma if we aren't the first sub value.
             m_rjos.WriteChar( _tyCharTraits::s_tcComma );
@@ -2378,7 +2390,7 @@ public:
             }
         }
         m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
-        m_rjos.WriteString( true, _pszKey );
+        m_rjos.WriteString( true, _pszKey, _stLenKey );
         m_rjos.WriteChar( _tyCharTraits::s_tcDoubleQuote );
         m_rjos.WriteChar( _tyCharTraits::s_tcColon );
         
@@ -2500,20 +2512,94 @@ public:
         }
     }
 
-    void WriteStringValue( _tyLPCSTR _pszKey, _tyStdStr const & _rstrVal )
-    {
-        WriteStringValue( _pszKey, _rstrVal.c_str(), _rstrVal.length() );
-    }
+    // Only support one overload of the method that moves the string value in.
     void WriteStringValue( _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
-        _WriteValue( ejvtString, _pszKey, std::move( _rrstrVal ) );
+        _WriteValue( ejvtString, _pszKey, StrNLen( _pszKey ), std::move( _rrstrVal ) );
     }
-    void WriteStringValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    void WriteStringValue( _tyLPCSTR _pszKey, ssize_t _stLenKey, _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
-        if ( _stLen < 0 )
-            _stLen = _tyCharTraits::StrLen( _pszValue );
-        _WriteValue( ejvtString, _pszKey, _pszValue, (size_t)_stLen );
+        if ( _stLenKey < 0 )
+            _stLenKey = StrNLen( _pszKey );
+        _WriteValue( ejvtString, _pszKey, _stLenKey, std::move( _rrstrVal ) );
     }
+    // Allow conversion of the key and movement of the value.
+    template < class t_TyKeyChar >
+    void WriteStringValue( const t_TyKeyChar * _pszKey, ssize_t _stLenKey, _tyStdStr && _rrstrVal )
+        requires ( !is_same_v< t_tyKeyChar, t_tyChar > )
+    {
+        std::basic_string< t_tyKeyChar > strConvertKey;
+        ConvertString( strConvertKey, _pszKey, _stLenKey );
+        _WriteValue( ejvtString, &strConvertKey[0], strConvertKey.length(), std::move( _rrstrVal ) );
+    }
+
+    template < class t_tyKeyStr, class t_tyValueStr >
+    void WriteStringValue( t_tyKeyStr const & _rstrKey, t_tyValueStr const & _rstrVal ) 
+        requires ( TIsCharType_v< typename t_tyKeyStr::value_type > && TIsCharType_v< typename t_tyValueStr::value_type > )
+    {
+        WriteStringValue( &_rstrKey[0], _rstrKey.length(), &_rstrVal[0], _rstrVal.length() );
+    }
+    template < class t_tyKeyChar, class t_tyValueStr >
+    void WriteStringValue( const t_tyKeyChar * _pszKey, t_tyValueStr const & _rstrVal ) 
+        requires ( TIsCharType_v< typename t_tyValueStr::value_type > )
+    {
+        WriteStringValue( _pszKey, -1, &_rstrVal[0], _rstrVal.length() );
+    }
+    template < class t_tyKeyChar, class t_tyValueStr >
+    void WriteStringValue( const t_tyKeyChar * _pszKey, ssize_t _stLenKey, t_tyValueStr const & _rstrVal ) 
+        requires ( TIsCharType_v< typename t_tyValueStr::value_type > )
+    {
+        WriteStringValue( _pszKey, _stLenKey, &_rstrVal[0], _rstrVal.length() );
+    }
+    template < class t_tyKeyStr, class t_tyValueChar >
+    void WriteStringValue( t_tyKeyStr const & _rstrKey, const t_tyValueChar * _pszVal, ssize_t _stLenValue = -1 ) 
+        requires ( TIsCharType_v< typename t_tyKeyStr::value_type > )
+    {
+        WriteStringValue( &_rstrKey[0], _rstrKey.length(), _pszVal, _stLenValue );
+    }
+    // Base level: No conversion.
+    void WriteStringValue( _tyLPCSTR _pszKey, ssize_t _stLenKey, _tyLPCSTR _pszValue, ssize_t _stLenValue = -1 )
+    {
+        if ( _stLenKey < 0 )
+            _stLenKey = StrNLen( _pszKey );
+        if ( _stLenValue < 0 )
+            _stLenValue = StrNLen( _pszValue );
+        _WriteValue( ejvtString, _pszKey, (size_t)_stLenKey, _pszValue, (size_t)_stLenValue );
+    }
+    // Key conversion only:
+    template < class t_tyKeyChar >
+    void WriteStringValue( const t_tyKeyChar * _pszKey, ssize_t _stLenKey, _tyLPCSTR _pszValue, ssize_t _stLenValue = -1 )
+        requires ( !is_same_v< t_tyKeyChar, t_tyChar > )
+    {
+        std::basic_string< t_tyKeyChar > strConvertKey;
+        ConvertString( strConvertKey, _pszKey, _stLenKey );
+        if ( _stLenValue < 0 )
+            _stLenValue = StrNLen( _pszValue );
+        _WriteValue( ejvtString, &strConvertKey[0], strConvertKey.length(), _pszValue, (size_t)_stLenValue );
+    }
+    // Value conversion only:
+    template < class t_tyValueChar >
+    void WriteStringValue( _tyLPCSTR _pszKey, ssize_t _stLenKey, const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1 )
+        requires ( !is_same_v< t_tyValueChar, t_tyChar > )
+    {
+        if ( _stLenKey < 0 )
+            _stLenKey = StrNLen( _pszKey );
+        std::basic_string< t_tyValueChar > strConvertValue;
+        ConvertString( strConvertValue, _pszValue, _stLenValue );
+        _WriteValue( ejvtString, _pszKey, (size_t)_stLenKey, &strConvertValue[0], strConvertValue.length() );
+    }
+    // Key and value conversion:
+    template < class t_tyKeyChar, class t_tyValueChar >
+    void WriteStringValue( const t_tyKeyChar * _pszKey, ssize_t _stLenKey, const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1 )
+        requires ( !is_same_v< t_tyKeyChar, t_tyChar > && !is_same_v< t_tyValueChar, t_tyChar > )
+    {
+        std::basic_string< t_tyKeyChar > strConvertKey;
+        ConvertString( strConvertKey, _pszKey, _stLenKey );
+        std::basic_string< t_tyValueChar > strConvertValue;
+        ConvertString( strConvertValue, _pszValue, _stLenValue );
+        _WriteValue( ejvtString, &strConvertKey[0], strConvertKey.length(), &strConvertValue[0], strConvertValue.length() );
+    }
+    // We don't offer any string conversion with the printf stuff currently.
     void PrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ... )
     {
         va_list ap;
@@ -2533,7 +2619,7 @@ public:
     {
         _tyStdStr str;
         VPrintfStdStr(str, _pszValue, _ap);
-        _WriteValue( ejvtString, _pszKey, str.c_str(), str.length() );
+        _WriteValue( ejvtString, _pszKey, &str[0], str.length() );
     }
     
     void WriteValue( _tyLPCSTR _pszKey, uint8_t _by )
@@ -2624,28 +2710,46 @@ public:
         }
     }
 
-    void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLen = -1 )
+    void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLenValue = -1 )
     {
         if ( _stLen < 0 )
             _stLen = _tyCharTraits::StrLen( _pszValue );
-        _WriteValue( ejvtString, _pszValue, (size_t)_stLen );
+        _WriteValue( ejvtString, _pszValue, (size_t)_stLenValue );
+    }
+    template < class t_tyValueChar >
+    void WriteStringValue( const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1 )
+        requires( !is_same_v< t_tyValueChar, t_tyChar > )
+    {
+        std::basic_string< t_tyValueChar > strConvertValue;
+        ConvertString( strConvertValue, _pszValue, _stLenValue );
+        _WriteValue( ejvtString, &strConvertValue[0], strConvertValue.length() );
     }
     template < class t_tyStr >
     void WriteStringValue( t_tyStr const & _rstrVal )
     {
-        WriteStringValue( _rstrVal.c_str(), _rstrVal.length() );
+        WriteStringValue( &_rstrVal[0], _rstrVal.length() );
     }
-    template < class t_tyStr >
-    void WriteStrOrNumValue( EJsonValueType _jvt, t_tyStr const & _rstrVal )
+    void WriteStrOrNumValue( EJsonValueType _jvt, _tyStdStr const & _rstrVal )
     {
         if ( ( ejvtString != _jvt ) && ( ejvtNumber != _jvt ) )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteStrOrNumValue(): This method only for numbers and strings." );
-        _WriteValue( _jvt, _rstrVal.c_str(), _rstrVal.length() );
+        _WriteValue( _jvt, &_rstrVal[0], _rstrVal.length() );
+    }
+    template < class t_tyStr >
+    void WriteStrOrNumValue( EJsonValueType _jvt, t_tyStr const & _rstrVal )
+        requires( !is_same_v< typename t_tyStr::value_type, t_tyChar > )
+    {
+        if ( ( ejvtString != _jvt ) && ( ejvtNumber != _jvt ) )
+            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteStrOrNumValue(): This method only for numbers and strings." );
+        std::basic_string< t_tyValueChar > strConvertValue;
+        ConvertString( strConvertValue, _rstrVal );
+        _WriteValue( _jvt, &strConvertValue[0], strConvertValue.length() );
     }
     void WriteStringValue( _tyStdStr && _rrstrVal ) // take ownership of passed string.
     {
         _WriteValue( ejvtString, std::move( _rrstrVal ) );
     }
+    // We aren't allowing string conversion with the printf stuff currently.
     void PrintfStringValue( _tyLPCSTR _pszValue, ... )
     {
         va_list ap;
@@ -2665,7 +2769,7 @@ public:
     {
         _tyStdStr str;
         VPrintfStdStr(str, _pszValue, _ap);
-        _WriteValue( ejvtString, str.c_str(), str.length() );
+        _WriteValue( ejvtString, &str[0], str.length() );
     }
     void WriteTimeStringValue( time_t const & _tt )
     {
@@ -2731,21 +2835,23 @@ protected:
       Assert( nPrinted < knNum );
       _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
     }
-    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, size_t _stLen )
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, size_t _stLenKey, _tyLPCSTR _pszValue, size_t _stLenValue )
     {
         Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
-        Assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
-        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
+        Assert( _tyCharTraits::StrNLen( _pszValue, _stLenValue ) == _stLenValue );
+        Assert( _tyCharTraits::StrNLen( _pszKey, _stLenKey ) == _stLenKey );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _stLenKey, _ejvt );
         jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }
-    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, _tyStdStr && _rrstrVal )
+    void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, size_t _stLenKey, _tyStdStr && _rrstrVal )
     {
         Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
             THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
-        JsonValueLife jvlObjectElement( *this, _pszKey, _ejvt );
+        Assert( _tyCharTraits::StrNLen( _pszKey, _stLenKey ) == _stLenKey );
+        JsonValueLife jvlObjectElement( *this, _pszKey, _stLenKey, _ejvt );
         *jvlObjectElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
     }
 
@@ -2835,7 +2941,7 @@ public:
     template < class t_tyStr >
     void WriteStringValue( t_tyStr const & _rstrVal )
     {
-        WriteStringValue( _rstrVal.c_str(), _rstrVal.length() );
+        WriteStringValue( &_rstrVal[0], _rstrVal.length() );
     }
     virtual void PrintfStringValue( _tyLPCSTR _pszValue, ... ) = 0;
     virtual void WriteValue( uint8_t _by ) = 0;

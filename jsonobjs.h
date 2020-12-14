@@ -653,7 +653,7 @@ public:
   template <class t_tyStr>
   void SetStringValue(t_tyStr const &_rstr) requires ( is_same_v< typename t_tyStr::value_type, t_tyChar > )
   {
-    SetStringValue(_rstr.c_str(), _rstr.length());
+    SetStringValue( &_rstr[0], _rstr.length()) ;
   }
   template <class t_tyStr>
   void SetStringValue(t_tyStr &&_rrstr) requires ( is_same_v< typename t_tyStr::value_type, t_tyChar > )
@@ -669,26 +669,18 @@ public:
     ConvertString( strConverted, _rstr );
     SetStringValue( std::move( strConverted ) );
   }
-  _tyThis &operator=(const _tyStdStr &_rstr)
+  template < class t_tyStr >
+  _tyThis &operator=( const t_tyStr &_rstr ) 
+    requires( TIsCharType_v< typename t_tyStr::value_type > )
   {
-    SetStringValue(_rstr.c_str(), _rstr.length());
+    SetStringValue( _rstr );
     return *this;
   }
-  _tyThis &operator=(const _tyStrWRsv &_rstr)
-  {
-    SetStringValue(_rstr.c_str(), _rstr.length());
-    return *this;
-  }
+  template < class t_tyStr >
   _tyThis &operator=(_tyStdStr &&_rrstr)
+    requires( TIsCharType_v< typename t_tyStr::value_type > )
   {
-    SetValueType(ejvtString);
-    StrGet() = std::move(_rrstr);
-    return *this;
-  }
-  _tyThis &operator=(_tyStrWRsv &&_rrstr)
-  {
-    SetValueType(ejvtString);
-    StrGet() = std::move(_rrstr);
+    SetStringValue( std::move( _rrstr ) );
     return *this;
   }
 
@@ -777,7 +769,7 @@ public:
   template <class t_tyStr>
   void FromString(t_tyStr const &_rstr)
   {
-    FromString(_rstr.c_str(), _rstr.length());
+    FromString(&_rstr[0], _rstr.length()); // works for string views.
   }
   void FromString(const _tyChar *_psz, size_t _stLen)
   {
@@ -815,12 +807,12 @@ public:
     }
   }
   template <class t_tyStr, class t_tyFilter>
-  void FromString(t_tyStr const &_rstr, t_tyFilter &_rfFilter)
+  void FromString( t_tyStr const &_rstr, t_tyFilter &_rfFilter )
   {
-    FromString(_rstr.c_str(), _rstr.length(), _rfFilter);
+    FromString( &_rstr[0], _rstr.length(), _rfFilter );
   }
   template <class t_tyFilter>
-  void FromString(const _tyChar *_psz, size_t _stLen, t_tyFilter &_rfFilter)
+  void FromString( const _tyChar *_psz, size_t _stLen, t_tyFilter &_rfFilter )
   {
     typedef JsonInputFixedMemStream<_tyCharTraits> _tyJsonInputStream;
     typedef JsonReadCursor<_tyCharTraits> _tyJsonReadCursor;

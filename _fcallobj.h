@@ -82,10 +82,10 @@ public:
   }
 
   template < typename t__TyF = t_TyF >
-  void emplace(t__TyF const & _rf)
+  void emplace(t__TyF && _rrf)
   {
     reset(); // don't apply the function, just rid it.
-    m_optF.emplace(_rf);
+    m_optF.emplace( std::forward< t__TyF >( _rrf ) );
   }
 
   // release the object before destruction. We ensure that even upon throw we call optional<>::reset().

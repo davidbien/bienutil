@@ -14,8 +14,10 @@
 #include <limits.h>
 #include <unistd.h>
 #include <string>
+#include <string_view>
 #include <compare>
 #include <utility>
+#include <cstddef>
 #include "_namdexc.h"
 #include "_smartp.h"
 #include "_assert.h"
@@ -27,6 +29,49 @@
 #include <sys/stat.h>
 #else
 #endif
+
+// TIsCharType. TIsCharType_v: Is this a character type?
+template < class t_ty >
+struct TIsCharType
+{
+	static constexpr bool value = false;
+};
+struct TIsCharType< char >
+{
+	static constexpr bool value = true;
+};
+struct TIsCharType< wchar_t >
+{
+	static constexpr bool value = true;
+};
+struct TIsCharType< char8_t >
+{
+	static constexpr bool value = true;
+};
+struct TIsCharType< char16_t >
+{
+	static constexpr bool value = true;
+};
+struct TIsCharType< char32_t >
+{
+	static constexpr bool value = true;
+};
+template < class t_ty >
+using TIsCharType_v = TIsCharType::value;
+
+// TIsStringView, TIsStringView_v: Is this a basic_string_view type?
+template < class t_ty >
+struct TIsStringView
+{
+	static constexpr bool value = false;
+};
+template < class t_tyChar, class t_tyCharTraits >
+struct TIsStringView< std::basic_string_view< t_tyChar, t_tyCharTraits > >
+{
+	static constexpr bool value = true;
+};
+template < class t_ty >
+using TIsStringView_v = TIsStringView::value;
 
 // StrRSpn:
 // Find the count of _pszSet chars that occur at the end of [_pszBegin,_pszEnd).
@@ -484,20 +529,26 @@ void ConvertString( t_tyString8 & _rstrDest, const char32_t * _pc32Source, size_
 }
 
 // wrappers for the above methods.
+// This one should work for both strings and string_views.
 template < class t_tyStringDest, class t_tyStringSrc >
-void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) requires( is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
+void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
+	requires(	is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
 {
 	_rstrDest = _rstrSrc;
 }
+// The below should work for all kinds of strings and also when the source is a string view.
 template < class t_tyStringDest, class t_tyStringSrc >
-void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc && _rrstrSrc ) requires( is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
+void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc && _rrstrSrc ) 
+	requires( is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
 {
 	_rstrDest = std::move( _rrstrSrc );
 }
+// The below will work when the source is a string view as well.
 template < class t_tyStringDest, class t_tyStringSrc >
-void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) requires( !is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
+void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
+	requires( !is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type >  && !TIsStringView_v< t_tyStringDest > )
 {
-	ConvertString( _rstrDest, _rstrSrc.c_str(), _rstrSrc.length() );
+	ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
 }
 
 namespace n_StrArrayStaticCast

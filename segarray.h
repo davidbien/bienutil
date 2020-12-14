@@ -199,11 +199,11 @@ public:
         return ElGet( _n );
     }
 
-    template < class... t_vtyArgs >
-    _tyT & emplaceAtEnd( t_vtyArgs&&... _args )
+    template < class... t_tysArgs >
+    _tyT & emplaceAtEnd( t_tysArgs&&... _args )
     {
         AssertValid();
-        _tyT * pt = new( _PbyAllocEnd() ) _tyT( std::forward< t_vtyArgs >( _args )... );
+        _tyT * pt = new( _PbyAllocEnd() ) _tyT( std::forward< t_tysArgs >( _args )... );
         ++m_nElements;
         return *pt;
     }
