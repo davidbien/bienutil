@@ -183,6 +183,10 @@ public:
   {
     return m_nElements;
   }
+  _tySizeType GetSize() const
+  {
+    return NElements();
+  }
   _tySizeType NElsPerSegment() const
   {
     return m_nbySizeSegment / sizeof(_tyT);
