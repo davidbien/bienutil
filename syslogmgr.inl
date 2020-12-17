@@ -27,7 +27,7 @@ void _SysLogThreadHeader::ToJSONStream(JsonValueLife<t_tyJsonOutputStream> &_jvl
     _jvl.WriteValue("ThreadId", m_tidThreadId);
   }
   else
-    THROWNAMEDEXCEPTION("_SysLogThreadHeader::ToJSONStream(): Not at an object.");
+    THROWNAMEDEXCEPTION("Not at an object.");
 }
 
 template <class t_tyJsonInputStream>
@@ -89,7 +89,7 @@ void _SysLogThreadHeader::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_j
     }
   }
   else
-    THROWNAMEDEXCEPTION("_SysLogThreadHeader::ToJSONStream(): Not at an object.");
+    THROWNAMEDEXCEPTION("Not at an object.");
 }
 
 // _SysLogContext:
@@ -124,7 +124,7 @@ void _SysLogContext::ToJSONStream(JsonValueLife<t_tyJsonOutputStream> &_jvl) con
     }
   }
   else
-    THROWNAMEDEXCEPTION("_SysLogContext::ToJSONStream(): Not at an object.");
+    THROWNAMEDEXCEPTION("Not at an object.");
 }
 
 template <class t_tyJsonInputStream>
@@ -196,7 +196,7 @@ void _SysLogContext::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_jrc)
     }
   }
   else
-    THROWNAMEDEXCEPTION("_SysLogContext::ToJSONStream(): Not at an object.");
+    THROWNAMEDEXCEPTION("Not at an object.");
 }
 
 template <const int t_kiInstance>
@@ -374,7 +374,7 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
 
       // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
       std::string strFmt;
-      (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s(): %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
+      (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s: %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
 
       n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
       jvLog("szAssertion").SetStringValue( _szAssertion );
@@ -444,7 +444,7 @@ Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned in
 
     // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
     std::string strFmt;
-    (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "Trace:[%s:%d],%s()" : "Trace:[%s:%d],%s(): %s", _szFile, _nLine, _szFunction, strMesg.c_str() );
+    (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "Trace:[%s:%d],%s()" : "Trace:[%s:%d],%s: %s", _szFile, _nLine, _szFunction, strMesg.c_str() );
 
     n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
     if ( strMesg.length() )

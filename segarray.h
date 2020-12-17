@@ -44,7 +44,7 @@ public:
     {
       uint8_t **ppbySegments = (uint8_t **)malloc((_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *));
       if (!ppbySegments)
-        THROWNAMEDEXCEPTION("SegArray::SegArray(const&): OOM for malloc(%lu).", (_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *));
+        THROWNAMEDEXCEPTION("OOM for malloc(%lu).", (_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *));
       ns_bienutil::FreeVoid fvFreeSegments(ppbySegments);                                      // In case we throw below.
       memset(ppbySegments, 0, (_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *)); // not strictly necessary but nice and cheap.
 
@@ -118,7 +118,7 @@ public:
           }
           free(*ppbyCurThis); // might be 0 but free doesn't care.
         }
-        THROWNAMEDEXCEPTION(s_kfOwnLifetime ? "SegArray::SegArray(const&): OOM or exception copy constructing an element." : "SegArray::SegArray(const&): OOM."); // The ppbySegments block is freed upon throw.
+        THROWNAMEDEXCEPTION(s_kfOwnLifetime ? "OOM or exception copy constructing an element." : "SegArray::SegArray(const&): OOM."); // The ppbySegments block is freed upon throw.
       }
       // Success.
       m_ppbySegments = ppbySegments;
@@ -200,7 +200,7 @@ public:
   {
     AssertValid();
     if ((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements)))
-      THROWNAMEDEXCEPTION("SegArray::ElGet(): Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements);
+      THROWNAMEDEXCEPTION("Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements);
     return ((_tyT *)m_ppbySegments[_nEl / NElsPerSegment()])[_nEl % NElsPerSegment()];
   }
   _tyT const &ElGet(_tySizeType _nEl) const
@@ -260,7 +260,7 @@ public:
           {
             *ppbyCurAlloc = (uint8_t *)malloc(NElsPerSegment() * sizeof(_tyT));
             if (!*ppbyCurAlloc)
-              THROWNAMEDEXCEPTION("SegArray::SetSize(): OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT));
+              THROWNAMEDEXCEPTION("OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT));
           }
         }
         Assert(!(_nElements % NElsPerSegment()) == !*_PpbyGetCurSegment());
@@ -458,11 +458,11 @@ public:
     if (std::numeric_limits<_tySizeType>::max() == _nElsWrite)
     {
       if (_nPos > m_nElements)
-        THROWNAMEDEXCEPTION("SegArray::WriteToFd(): Attempt to write data beyond end of segmented array.");
+        THROWNAMEDEXCEPTION("Attempt to write data beyond end of segmented array.");
       _nElsWrite = m_nElements - _nPos;
     }
     else if (_nPos + _nElsWrite > m_nElements)
-      THROWNAMEDEXCEPTION("SegArray::WriteToFd(): Attempt to write data beyond end of segmented array.");
+      THROWNAMEDEXCEPTION("Attempt to write data beyond end of segmented array.");
 
     _tySizeType nElsLeft = _nElsWrite;
     _tySizeType stCurOrig = _nPos;
@@ -474,9 +474,9 @@ public:
       errno = 0;
       ssize_t sstWrote = ::write(_fd, &ElGet(stCurOrig), stMin * sizeof(_tyT));
       if (-1 == sstWrote)
-        THROWNAMEDEXCEPTIONERRNO(errno, "SegArray::WriteToFd(): error writing to fd[%d].", _fd);
+        THROWNAMEDEXCEPTIONERRNO(errno, "Error writing to fd[%d].", _fd);
       if (stMin * sizeof(_tyT) != sstWrote)
-        THROWNAMEDEXCEPTIONERRNO(errno, "SegArray::WriteToFd(): didn't write all data to fd[%d].", _fd);
+        THROWNAMEDEXCEPTIONERRNO(errno, "Didn't write all data to fd[%d].", _fd);
       nElsLeft -= stMin;
       stCurOrig += stMin;
     }
@@ -491,7 +491,7 @@ protected:
   {
     uint8_t **ppbySegments = (uint8_t **)realloc(m_ppbySegments, ((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *));
     if (!ppbySegments)
-      THROWNAMEDEXCEPTION("SegArray::AllocNewSegmentPointerBlock(): OOM for realloc(%lu).", ((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *));
+      THROWNAMEDEXCEPTION("OOM for realloc(%lu).", ((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *));
     memset(ppbySegments + (m_ppbyEndSegments - m_ppbySegments), 0, _nNewBlocks * sizeof(uint8_t *));
     m_ppbyEndSegments = ppbySegments + (m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks;
     m_ppbySegments = ppbySegments;
@@ -511,7 +511,7 @@ protected:
       Assert(!(m_nElements % NElsPerSegment()));
       *ppbyCurSegment = (uint8_t *)malloc(m_nbySizeSegment);
       if (!*ppbyCurSegment)
-        THROWNAMEDEXCEPTION("SegArray::_PbyAllocEnd(): OOM for malloc(%lu).", m_nbySizeSegment);
+        THROWNAMEDEXCEPTION("OOM for malloc(%lu).", m_nbySizeSegment);
     }
     return *ppbyCurSegment + ((m_nElements % NElsPerSegment()) * sizeof(_tyT));
   }
@@ -612,9 +612,9 @@ public:
   // Return contiguous memory - either a string_view if possible, or a string if not.
   // This is only relevant for t_tyT's which are character types.
   // Return true if we were able to populate the string_view, false for string.
-  template < class t_tyStrView, class t_tyStr > bool
-  GetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && is_same_v< typename t_tyStrView::value_type, _tyTRemoveCV > && is_same_v< typename t_tyStr::value_type, _tyTRemoveCV > )
+  template < class t_tyStrView, class t_tyString > bool
+  FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
+    requires( TIsCharType_v< _tyTRemoveCV > && is_same_v< typename t_tyStrView::value_type, _tyTRemoveCV > && is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
   {
     AssertValid();
     Assert( _rStrView.empty() ); // we expect empties.
@@ -635,10 +635,10 @@ public:
   }
   // This is the converting method. When there is any data it always returns true and returns a string since it converted the character type.
   // If there is no data then it returns false and a null string_view.
-  template < class t_tyStrView, class t_tyStr > bool
-  GetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && TIsCharType_v< typename t_tyStrView::value_type >
-              !is_same_v< _tyTRemoveCV, typename t_tyStrView::value_type > && is_same_v< typename t_tyStr::value_type, t_tyStrView::value_type > )
+  template < class t_tyStrView, class t_tyString > bool
+  FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
+    requires( TIsCharType_v< _tyTRemoveCV > && TIsCharType_v< typename t_tyStrView::value_type > &&
+              !is_same_v< _tyTRemoveCV, typename t_tyStrView::value_type > && is_same_v< typename t_tyString::value_type, t_tyStrView::value_type > )
   {
     AssertValid();
     Assert( _rStrView.empty() ); // we expect empties.
@@ -669,6 +669,60 @@ public:
     // Do the conversion:
     ConvertString( _rStr, ptContigBuf, kstLen );
     return false;
+  }
+
+  // Return contiguous memory - either a string_view if possible, or a string if not.
+  // This is only relevant for t_tyT's which are character types.
+  // Return true if we were able to populate the string_view, false for string.
+  template < class t_tyString > void
+  GetString( t_tyString & _rStr  )
+    requires( TIsCharType_v< _tyTRemoveCV > && is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+  {
+    AssertValid();
+    Assert( _rStr.empty() );
+    if ( !m_psaContainer || !m_sstLen )
+      return; // The empty string is perfect.
+    if ( m_sstLen < 0 )
+      _rStr.assign( m_ptBegin, (_tySizeType)-m_sstLen );
+    else
+    {
+      _rStr.reserve( (_tySizeType)m_sstLen );
+      m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+    }
+  }
+  // This is the converting method. When there is any data it always returns true and returns a string since it converted the character type.
+  // If there is no data then it returns false and a null string_view.
+  template < class t_tyString > void
+  GetString( t_tyString & _rStr  )
+    requires( TIsCharType_v< _tyTRemoveCV > && !is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+  {
+    AssertValid();
+    Assert( _rStr.empty() );
+    if ( !m_psaContainer || !m_sstLen )
+      return; // The empty string is perfect.
+    const _tySizeType kstLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
+    static const _tySizeType kstMaxAllocaSize = ( 1 << 19 ); // Allow 512KB on the stack. After that we go to a string.
+    basic_string< _tyTRemoveCV > strTempBuf;
+    _tyTRemoveCV * ptContigBuf;
+    if ( m_sstLen < 0 )
+    {
+      ptContigBuf = m_ptBegin;
+    }
+    else
+    {
+      if ( kstLen > kstMaxAllocaSize )
+      {
+        strTempBuf.reserve( kstLen );
+        ptContigBuf = &strTempBuf[0];
+      }
+      else
+        ptContigBuf = (_tyTRemoveCV*)alloca( kstLen * sizeof( _tyTRemoveCV ) );
+      
+      _rStr.reserve( kstLen );
+      m_psaContainer->Read( m_stBegin, ptContigBuf, kstLen );
+    }
+    // Do the conversion:
+    ConvertString( _rStr, ptContigBuf, kstLen );
   }
 
 protected:

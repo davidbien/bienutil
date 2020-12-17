@@ -262,7 +262,7 @@ public:
     {
         _tyImplType nMin;
         if ( !FHasMin( nMin ) )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return nMin;
     }
     bool FHasMin( _tyImplType & _nMin ) const
@@ -283,7 +283,7 @@ public:
     {
         _tyImplType nMax;
         if ( !FHasMax( nMax ) )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return nMax;
     }
     bool FHasMax( _tyImplType & _nMax ) const
@@ -669,7 +669,7 @@ public:
     _tyImplType NMin() const
     {
         if ( !FHasAnyElements() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return _NMin();
     }
     bool FHasMin( _tyImplType & _nMin ) const
@@ -684,7 +684,7 @@ public:
     _tyImplType NMax() const
     {
         if ( !FHasAnyElements() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return _NMax();
     }
     bool FHasMax( _tyImplType & _nMax ) const
@@ -1298,7 +1298,7 @@ public:
     _tyImplType NMin() const
     {
         if ( !FHasAnyElements() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return _NMin();
     }
     bool FHasMin( _tyImplType & _nMin ) const
@@ -1313,7 +1313,7 @@ public:
     _tyImplType NMax() const
     {
         if ( !FHasAnyElements() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return m_nMax;
     }
     bool FHasMax( _tyImplType & _nMax ) const
@@ -2112,7 +2112,7 @@ public:
         if ( m_rgstSubtrees.size() )
             _Deinit(); // We could do a lot better here but it takes a bit of work. I.e. we could keep the existing blocks and Clear() them.
         if ( _stNElements > s_kstUniverse )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::Init(): _stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
+            THROWNAMEDEXCEPTION( "_stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
         size_t stClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
         _tyRgSubtrees rgstSubtrees( m_rgstSubtrees.get_allocator() ); // must pass custody of instanced allocator.
         rgstSubtrees.reserve( stClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
@@ -2310,7 +2310,7 @@ public:
     _tyImplType NMin() const
     {
         if ( !FHasAnyElements() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMin(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return m_nMin;
     }
     bool FHasMin( _tyImplType & _nMin ) const
@@ -2325,7 +2325,7 @@ public:
     _tyImplType NMax() const
     {
         if ( !FHasAnyElements() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::NMax(): No elements in tree.");
+            THROWNAMEDEXCEPTION("No elements in tree.");
         return m_nMax;
     }
     bool FHasMax( _tyImplType & _nMax ) const
@@ -2348,7 +2348,7 @@ public:
             return Init( _stNewUniverse );
          
         if ( _stNewUniverse > s_kstUniverse )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::Resize(): _stNewUniverse[%lu] is greater than the allowable universe size[%lu].", _stNewUniverse, s_kstUniverse );
+            THROWNAMEDEXCEPTION( "_stNewUniverse[%lu] is greater than the allowable universe size[%lu].", _stNewUniverse, s_kstUniverse );
          
         size_t stClustersNew = ( (_stNewUniverse-1) / t_kstUniverseCluster ) + 1;
         size_t stClustersOld = m_rgstSubtrees.size();
@@ -2433,7 +2433,7 @@ public:
     void InsertAll( const _tyImplType * _pnFirstInsert = nullptr, const _tyImplType * _pnLastElement = nullptr )
     {
         if ( !STClusters() )
-            THROWNAMEDEXCEPTION("VebTreeWrap::InsertAll(): Tree is not initialized.");
+            THROWNAMEDEXCEPTION("Tree is not initialized.");
 
         Assert( !_pnFirstInsert ); // This is only there for genericity.
         Assert( !_pnLastElement || *_pnLastElement == m_nLastElement ); // We should always be specifying everything - we don't use either of the arguments below because there is no need to support them in this method at least.
@@ -2473,7 +2473,7 @@ public:
     void Insert( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::Insert(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         Assert( !FHasElement( _x ) ); // We don't want to check this and throw because we want the caller to use CheckInsert() instead.
         if ( !FHasAnyElements() )
             m_nMin = m_nMax = _x;
@@ -2493,7 +2493,7 @@ public:
     bool FCheckInsert( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::FCheckInsert(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
 
         if ( !FHasAnyElements() )
         {
@@ -2530,7 +2530,7 @@ public:
     void Delete( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::Delete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         Assert( FHasElement( _x ) );
         if ( m_nMin == m_nMax )
         {
@@ -2573,7 +2573,7 @@ public:
     bool FCheckDelete( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::FCheckDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( m_nMin == m_nMax )
         {
             if ( _x == m_nMin )
@@ -2672,7 +2672,7 @@ public:
     bool FHasElement( _tyImplType _x ) const
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::FHasElement(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( !FHasAnyElements() )
             return false;
         if ( ( _x == m_nMin ) || ( _x == m_nMax ) )
@@ -2693,7 +2693,7 @@ public:
             return m_nMin;
         Assert( _x <= m_nLastElement );
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMaxCluster;
@@ -2729,7 +2729,7 @@ public:
             return n;
         }
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NSuccessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster, nMaxCluster;
@@ -2789,7 +2789,7 @@ public:
         if ( numeric_limits< size_t >::max() == _x )
             return m_nMax;
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessor(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         if ( _x > m_nMax )
             return m_nMax;
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -2833,7 +2833,7 @@ public:
             return n;
         }
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "VebTreeWrap::NPredecessorDelete(): _x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster, nMaxCluster;
@@ -2876,7 +2876,7 @@ public:
     {
         // Currently we only allow oring between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::operator |=(): NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
         if ( !_r.FHasAnyElements() )
             return *this; // nop
         // Process the min:
@@ -2907,7 +2907,7 @@ public:
     {
         // Currently we only allow anding between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::operator &=(): NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
         
         // Boundary conditions:
         if ( !_r.FHasAnyElements() )
@@ -2998,7 +2998,7 @@ public:
     {
         // Currently we only allow anding between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("VebTreeFixed::operator ^=(): NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
 
         if ( !_r.FHasAnyElements() )
             return *this; // nop

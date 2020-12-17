@@ -16,10 +16,6 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-#ifdef __NAMDDEXC_STDBASE
-#pragma push_macro("std")
-#undef std
-#endif //__NAMDDEXC_STDBASE
 class ole_exception : public std::_t__Named_exception<>
 {
 	typedef std::_t__Named_exception<> _tyBase;
@@ -33,9 +29,6 @@ public:
     __DEBUG_STMT( int i = 0; ++i )
   }
 };
-#ifdef __NAMDDEXC_STDBASE
-#pragma pop_macro("std")
-#endif //__NAMDDEXC_STDBASE
 
 #define __MTOKS( x, y )  x##y
 #define __ADDLINE( x ) __MTOKS( x, __LINE__ )

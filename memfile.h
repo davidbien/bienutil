@@ -189,7 +189,7 @@ public:
         {
             case SEEK_SET:
                 if ( _off < 0 )
-                    THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_SET to a negative position." );
+                    THROWNAMEDEXCEPTION( "Attempt to SEEK_SET to a negative position." );
                 posNew = _off;
                 break;
             case SEEK_CUR:
@@ -197,7 +197,7 @@ public:
                 _tySignedFilePos sPos = m_posCur;
                 sPos += _off;
                 if ( sPos < 0 )
-                    THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_CUR to a negative position." );
+                    THROWNAMEDEXCEPTION( "Attempt to SEEK_CUR to a negative position." );
                 posNew = sPos;
                 break;
             }
@@ -206,12 +206,12 @@ public:
                 _tySignedFilePos sPos = m_spmfMemFile->GetEndPos();
                 sPos += _off;
                 if ( sPos < 0 )
-                    THROWNAMEDEXCEPTION( "SegArray::Seek(): Attempt to SEEK_END to a negative position." );
+                    THROWNAMEDEXCEPTION( "Attempt to SEEK_END to a negative position." );
                 posNew = sPos;
                 break;
             }
             default:
-                THROWNAMEDEXCEPTION( "SegArray::Seek(): Bogus _iWhence value [%d].", _iWhence );
+                THROWNAMEDEXCEPTION( "Bogus _iWhence value [%d].", _iWhence );
         }
         return m_posCur = posNew;
     }
@@ -261,7 +261,7 @@ public:
     void WriteToFd( int _fd, _tyFilePos _nPos = std::numeric_limits< _tyFilePos >::max(), _tyFilePos _nElsWrite = std::numeric_limits< _tyFilePos >::max() ) const
     {
         if ( !m_spmfMemFile )
-            THROWNAMEDEXCEPTIONERRNO( EBADF, "SegArray::WriteToFd(): Not connected to a file." );
+            THROWNAMEDEXCEPTIONERRNO( EBADF, "Not connected to a file." );
         if ( std::numeric_limits< _tyFilePos >::max() == _nPos )
             _nPos = m_posCur;
         m_spmfMemFile->WriteToFd( _fd, _nPos, _nElsWrite );

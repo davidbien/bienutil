@@ -32,8 +32,13 @@ enum EAbortBreakIgnore
 // This exception will get thrown when eabiThrowException is set.
 class VerifyFailedException : public std::_t__Named_exception< >
 {
+  typedef VerifyFailedException _TyThis;
   typedef std::_t__Named_exception<> _TyBase;
 public:
+  VerifyFailedException( const char * _pc ) 
+      : _TyBase( _pc ) 
+  {
+  }
   VerifyFailedException( const string_type & __s ) 
       : _TyBase( __s ) 
   {

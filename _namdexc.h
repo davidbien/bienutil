@@ -20,33 +20,34 @@
 #include <string>
 #include "bienutil.h"
 
-//#define __NAMDDEXC_STDBASE
-// If this is defined then we will base the named exception on std::exception, otherwise it may be based on STLPORT's stlp_std::exception.
-
-#ifdef __NAMDDEXC_STDBASE
-#pragma push_macro("std")
-#undef std
-#endif //__NAMDDEXC_STDBASE
-
-namespace std // This may be STLport as well, depending on how we are compiled.
+namespace std // REVIEW:<dbien>: Not sure why I extended std here - should rid that.
 {
 
 #define NAMEDEXC_BUFSIZE 4096
 
 // My version of SGI STL's named exception that accepts an allocator
 //  ( I just like to see a no leaks after the debug run :-)
-template < class t_TyAllocator = allocator< char > >
-class _t__Named_exception : public exception 
+// Templatize by base to reuse the code and to allow expected throw types to be returned.
+template < class t_TyAllocator = allocator< char >, class t_TyBaseClass = exception >
+class _t__Named_exception : public t_TyBaseClass 
 {
-  typedef exception _TyBase;
+  typedef t_TyBaseClass _TyBase;
 public:
   typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
-  typedef exception _tyExceptionBase;
+  typedef t_TyBaseClass _tyExceptionBase;
 
   _t__Named_exception()
   {
     strncpy( m_rgcExceptionName, "_t__Named_exception", s_stBufSize );
     m_rgcExceptionName[s_stBufSize - 1] = '\0';
+  }
+  _t__Named_exception(const char * _pc);
+  {
+    if ( _pc )
+    {
+      strncpy(m_rgcExceptionName, _pc, s_stBufSize);
+      m_rgcExceptionName[s_stBufSize - 1] = '\0';
+    }
   }
   _t__Named_exception(const string_type& __str) 
   {
@@ -86,15 +87,16 @@ protected:
   char m_rgcExceptionName[s_stBufSize];
 };
 
-#define THROWNAMEDEXCEPTION( MESG... ) ExceptionUsage< std::_t__Named_exception<> >::ThrowFileLine( __FILE__, __LINE__, MESG )
+#define THROWNAMEDEXCEPTION( MESG... ) ExceptionUsage< std::_t__Named_exception<> >::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG )
 
-template < class t_TyAllocator = allocator< char > >
-class _t__Named_exception_errno : public _t__Named_exception< t_TyAllocator >
+template < class t_TyAllocator = allocator< char >, class t_TyBaseClass = exception >
+class _t__Named_exception_errno : public _t__Named_exception< t_TyAllocator, t_TyBaseClass >
 {
-  typedef _t__Named_exception< t_TyAllocator > _TyBase;
+  typedef _t__Named_exception_errno _TyThis;
+  typedef _t__Named_exception< t_TyAllocator, t_TyBaseClass > _TyBase;
 public:
   typedef basic_string< char, char_traits<char>, t_TyAllocator > string_type;
-  typedef _t__Named_exception< t_TyAllocator > _tyExceptionBase;
+  typedef _t__Named_exception< t_TyAllocator, t_TyBaseClass > _tyExceptionBase;
 
   _t__Named_exception_errno( int _errno = 0 )
     : _TyBase(),
@@ -168,13 +170,33 @@ protected:
   int m_errno{0};
 };
 
-#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG... ) ExceptionUsage< std::_t__Named_exception_errno<> >::ThrowFileLineErrno( __FILE__, __LINE__, _errno, MESG )
+#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG... ) ExceptionUsage< std::_t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, __PRETTY_FUNCTION__, _errno, MESG )
+
+// Override the bad_variant_access exception to return a bit more info about what went wrong. Put it here for general usage.
+template < class t_TyAllocator = allocator< char > >
+class named_bad_variant_access : public std::_t__Named_exception< t_TyAllocator, bad_variant_access >
+{
+  typedef VerifyFailedException _TyThis;
+  typedef std::_t__Named_exception<> _TyBase;
+public:
+  using _TyBase::string_type;
+  VerifyFailedException( const char * _pc ) 
+      : _TyBase( _pc ) 
+  {
+  }
+  VerifyFailedException( const string_type & __s ) 
+      : _TyBase( __s ) 
+  {
+  }
+  VerifyFailedException( const char * _pcFmt, va_list _args )
+      : _TyBase( _pcFmt, _args )
+  {
+  }
+};
+// By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
+#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG... ) ExceptionUsage<named_bad_variant_access>::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG )
 
 } // namespace std
-
-#ifdef __NAMDDEXC_STDBASE
-#pragma pop_macro("std")
-#endif //__NAMDDEXC_STDBASE
 
 // ExceptionUsage: Provide some useful template methods for throw exception with variable number of arguments.
 template < class t_tyException >
@@ -187,7 +209,21 @@ struct ExceptionUsage
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
     char rgcBuf[knBuf+1];
-    (void)snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
+    (void)snprintf( rgcBuf, knBuf, "[%s:%d]: %s", _pcFile, _nLine, _pcFmt );
+    rgcBuf[knBuf] = 0;
+
+    va_list ap;
+    va_start( ap, _pcFmt );
+    _TyException exc( rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    va_end( ap );
+    throw std::move( exc );
+  }
+  static void ThrowFileLineFunc( const char * _pcFile, int _nLine, const char * _pcFunc, const char * _pcFmt, ... )
+  {
+    // We add _psFile:[_nLine]: to the start of the format string.
+    const int knBuf = NAMEDEXC_BUFSIZE;
+    char rgcBuf[knBuf+1];
+    (void)snprintf( rgcBuf, knBuf, "[%s:%d],%s: %s", _pcFile, _nLine, _pcFunc, _pcFmt );
     rgcBuf[knBuf] = 0;
 
     va_list ap;
@@ -201,7 +237,21 @@ struct ExceptionUsage
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
     char rgcBuf[knBuf+1];
-    (void)snprintf( rgcBuf, knBuf, "%s:%d: %s", _pcFile, _nLine, _pcFmt );
+    (void)snprintf( rgcBuf, knBuf, "[%s:%d]: %s", _pcFile, _nLine, _pcFmt );
+    rgcBuf[knBuf] = 0;
+
+    va_list ap;
+    va_start( ap, _pcFmt );
+    _TyException exc( _errno, rgcBuf, ap ); // Don't throw in between va_start and va_end.
+    va_end( ap );
+    throw std::move( exc );
+  }
+  static void ThrowFileLineFuncErrno( const char * _pcFile, int _nLine, const char * _pcFunc, int _errno, const char * _pcFmt, ... )
+  {
+    // We add _psFile:[_nLine]: to the start of the format string.
+    const int knBuf = NAMEDEXC_BUFSIZE;
+    char rgcBuf[knBuf+1];
+    (void)snprintf( rgcBuf, knBuf, "[%s:%d],%s: %s", _pcFile, _nLine,  _pcFunc, _pcFmt );
     rgcBuf[knBuf] = 0;
 
     va_list ap;

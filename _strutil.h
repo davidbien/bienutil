@@ -157,13 +157,13 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 		nRequired = VNSPrintf( &tc, 1, _pcFmt, ap2 );
 		va_end(ap2);
 		if (nRequired < 0)
-			THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRequired[%d].", nRequired);
+			THROWNAMEDEXCEPTIONERRNO(errno, "vsnprintf() returned nRequired[%d].", nRequired);
 		_rstr.resize(nRequired); // this will reserve nRequired+1.
 	}//EB
 	errno = 0;
 	int nRet = VNSPrintf(&_rstr[0], nRequired + 1, _pcFmt, _ap);
 	if (nRet < 0)
-		THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRet[%d].", nRet);
+		THROWNAMEDEXCEPTIONERRNO(errno, "vsnprintf() returned nRet[%d].", nRet);
 }
 
 template < class t_tyString >
@@ -190,7 +190,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 			if ( 0 != errno )
 			{
 				// Then some error besides not having a big enough buffer.
-				THROWNAMEDEXCEPTIONERRNO(errno, "VPrintfStdStr(): vsnprintf() returned nRequired[%d].", nWritten);
+				THROWNAMEDEXCEPTIONERRNO(errno, "vsnprintf() returned nRequired[%d].", nWritten);
 			}
 			if ( pcBuf == rgcFirstTry )
 				pcBuf = (_tyChar*)alloca( stBufSize = kst2ndTryBufSize );
@@ -198,7 +198,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 			{
 				stBufSize *= 2;
 				if ( stBufSize > kstMaxBufSize )
-					THROWNAMEDEXCEPTION("VPrintfStdStr(): overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
+					THROWNAMEDEXCEPTION("Overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
 				_rstr.resize( stBufSize-1 );
 			}
 		}
@@ -277,7 +277,7 @@ int IReadPositiveNum(const char *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool _fT
 	if (!_psz || !*_psz)
 	{
 		if (_fThrowOnError)
-			THROWNAMEDEXCEPTION("ReadPositiveNum(): Null or empty string passed.");
+			THROWNAMEDEXCEPTION("Null or empty string passed.");
 		return -1;
 	}
 	if (_sstLen <= 0)
@@ -290,7 +290,7 @@ int IReadPositiveNum(const char *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool _fT
 		if ((iCur < 0) || (iCur > 9))
 		{
 			if (_fThrowOnError)
-				THROWNAMEDEXCEPTION("ReadPositiveNum(): Non-digit passed.");
+				THROWNAMEDEXCEPTION("Non-digit passed.");
 			return -2;
 		}
 		t_tyNum numBefore = _rNum;
@@ -299,7 +299,7 @@ int IReadPositiveNum(const char *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool _fT
 		if (_rNum < numBefore) // overflow.
 		{
 			if (_fThrowOnError)
-				THROWNAMEDEXCEPTION("ReadPositiveNum(): Overflow.");
+				THROWNAMEDEXCEPTION("Overflow.");
 			return -3;
 		}
 	}
@@ -388,7 +388,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "ConvertString(): u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -396,7 +396,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "2:ConvertString(): u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
@@ -422,7 +422,7 @@ void ConvertString( t_tyString32 & _rstrDest, const char16_t * _pc16Source, size
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "ConvertString(): u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -430,7 +430,7 @@ void ConvertString( t_tyString32 & _rstrDest, const char16_t * _pc16Source, size
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "2:ConvertString(): u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );
 }
@@ -450,7 +450,7 @@ void ConvertString( t_tyString8 & _rstrDest, const char16_t * _pc16Source, size_
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "ConvertString(): u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -458,7 +458,7 @@ void ConvertString( t_tyString8 & _rstrDest, const char16_t * _pc16Source, size_
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "2:ConvertString(): u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );
 }
@@ -486,7 +486,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char8_t * _pc8Source, size_t
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "ConvertString(): u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -494,7 +494,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char8_t * _pc8Source, size_t
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "2:ConvertString(): u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
@@ -572,7 +572,7 @@ namespace n_StrArrayStaticCast
 	constexpr t_tyCharResult static_cast_ascii(t_tyCharSource x)
 	{
 		if (!(x >= 0 && x <= 127))
-			THROWNAMEDEXCEPTION("n_StrArrayStaticCast::static_cast_ascii(): Character value must be in basic ASCII range (0..127)");
+			THROWNAMEDEXCEPTION("Character value must be in basic ASCII range (0..127)");
 		return static_cast<t_tyCharResult>(x);
 	}
 

@@ -48,7 +48,7 @@ public:
     {
         unsigned int len = GetLengthFromC( _cFirst );
         if ( !len )
-            THROWNAMEDEXCEPTION( "Utf8Char::NSetFirstChar(): Invalid lead byte for UTF8 [%hhx].", _cFirst );
+            THROWNAMEDEXCEPTION( "Invalid lead byte for UTF8 [%hhx].", _cFirst );
         SetNCodes( len );
         m_rgc[0] = _cFirst;
         m_rgc[1] = 0xff;
@@ -93,7 +93,7 @@ public:
     {
         // Return the single character that much be here.
         if ( NCodes() != 1 )
-            THROWNAMEDEXCEPTION( "Utf8Char::GetChar(): Got called for a multibyte UTF8." );
+            THROWNAMEDEXCEPTION( "Got called for a multibyte UTF8." );
         return m_rgc[1];
     }
     bool operator == ( char _c ) const

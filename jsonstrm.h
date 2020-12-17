@@ -69,11 +69,6 @@ class JsonFormatSpec;
 #endif // defined(_USE_STLPORT) && !defined(NDEBUG)
 #endif //__JSONSTRM_DEFAULT_ALLOCATOR
 
-#ifdef __NAMDDEXC_STDBASE
-#pragma push_macro("std")
-#undef std
-#endif //__NAMDDEXC_STDBASE
-
 // This exception will get thrown when there is an issue with the JSON stream.
 template < class t_tyCharTraits >
 class bad_json_stream_exception : public std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR >
@@ -120,17 +115,22 @@ public:
     }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSTREAM( MESG... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLine( __FILE__, __LINE__, MESG )
-#define THROWBADJSONSTREAMERRNO( ERRNO, MESG... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineErrno( __FILE__, __LINE__, ERRNO, MESG )
+#define THROWBADJSONSTREAM( MESG... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG )
+#define THROWBADJSONSTREAMERRNO( ERRNO, MESG... ) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineFuncErrno( __FILE__, __LINE__, __PRETTY_FUNCTION__, ERRNO, MESG )
 
 // This exception will get thrown if the user of the read cursor does something inappropriate given the current context.
 template < class t_tyCharTraits >
 class json_stream_bad_semantic_usage_exception : public std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR >
 {
+    typedef json_stream_bad_semantic_usage_exception _TyThis;
     typedef std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
 public:
     typedef t_tyCharTraits _tyCharTraits;
 
+    json_stream_bad_semantic_usage_exception( const char * _pc ) 
+        : _TyBase( _pc ) 
+    {
+    }
     json_stream_bad_semantic_usage_exception( const string_type & __s ) 
         : _TyBase( __s ) 
     {
@@ -160,11 +160,7 @@ public:
     }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSEMANTICUSE( MESG... ) ExceptionUsage<json_stream_bad_semantic_usage_exception<_tyCharTraits>>::ThrowFileLine( __FILE__, __LINE__, MESG )
-
-#ifdef __NAMDDEXC_STDBASE
-#pragma pop_macro("std")
-#endif //__NAMDDEXC_STDBASE
+#define THROWBADJSONSEMANTICUSE( MESG... ) ExceptionUsage<json_stream_bad_semantic_usage_exception<_tyCharTraits>>::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG )
 
 // JsonCharTraits< char > : Traits for 8bit char representation.
 template <>
@@ -461,7 +457,7 @@ public:
         errno = 0;
         m_fd = open( _szFilename, O_RDONLY );
         if ( !FOpened() )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::Open(): Unable to open() file [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Unable to open() file [%s]", _szFilename );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
         m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
@@ -518,17 +514,17 @@ public:
             sstRead = read( m_fd, &cpxRead, sizeof cpxRead );
             m_tcLookahead = cpxRead;
             if ( -1 == sstRead )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() failed for file [%s]", m_szFilename.c_str() );
+                THROWBADJSONSTREAMERRNO( errno, "read() failed for file [%s]", m_szFilename.c_str() );
             m_pos += sstRead;
             if ( sstRead != sizeof cpxRead )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::SkipWhitespace(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
+                THROWBADJSONSTREAMERRNO( errno, "read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
             if ( !sstRead )
             {
                 m_fHasLookahead = false;
                 return; // We have skipped the whitespace until we hit EOF.
             }
             if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-                THROWBADJSONSTREAM( "JsonLinuxInputStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
+                THROWBADJSONSTREAM( "Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
             if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             {
                 m_fHasLookahead = true;
@@ -546,7 +542,7 @@ public:
             errno = 0;
             _tyFilePos pos = lseek( m_fd, 0, SEEK_CUR );
             if ( -1 == pos )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::PosGet(): lseek() failed for file [%s]", m_szFilename.c_str() );
+                THROWBADJSONSTREAMERRNO( errno, "lseek() failed for file [%s]", m_szFilename.c_str() );
             Assert( pos == m_pos ); // These should always match.
             if ( m_fHasLookahead )
                 pos -= sizeof m_tcLookahead; // Since we have a lookahead we are actually one character before.
@@ -571,7 +567,7 @@ public:
         if ( sstRead != sizeof cpxRead )
         {
             if ( -1 == sstRead )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::ReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
+                THROWBADJSONSTREAMERRNO( errno, "read() failed for file [%s]", m_szFilename.c_str() );
             else
             {
                 Assert( !sstRead ); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
@@ -580,7 +576,7 @@ public:
             }
         }
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-            THROWBADJSONSTREAM( "JsonLinuxInputStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
+            THROWBADJSONSTREAM( "Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
 
         m_pos += sstRead;
         Assert( !m_fHasLookahead );
@@ -603,12 +599,12 @@ public:
         if ( sstRead != sizeof cpxRead )
         {
             if ( -1 == sstRead )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() failed for file [%s]", m_szFilename.c_str() );
+                THROWBADJSONSTREAMERRNO( errno, "read() failed for file [%s]", m_szFilename.c_str() );
             else
             if ( !!sstRead )
             {
                 m_pos += sstRead;
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputStream::FReadChar(): read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
+                THROWBADJSONSTREAMERRNO( errno, "read() for file [%s] had [%d] leftover bytes.", m_szFilename.c_str(), sstRead );
             }
             else
             {
@@ -618,7 +614,7 @@ public:
             }
         }
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-            THROWBADJSONSTREAM( "JsonLinuxInputStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
+            THROWBADJSONSTREAM( "Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str() );
         m_pos += sstRead;
         _rtch = m_tcLookahead;
         return true;
@@ -715,7 +711,7 @@ public:
                 return; // We have skipped the whitespace until we hit EOF.
             m_tcLookahead = *m_pcpxCur++;
             if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-                THROWBADJSONSTREAM( "JsonInputFixedMemStream::SkipWhitespace(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+                THROWBADJSONSTREAM( "Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
             if ( !_tyCharTraits::FIsWhitespace( m_tcLookahead ) )
             {
                 m_fHasLookahead = true;
@@ -744,7 +740,7 @@ public:
         Assert( !!*m_pcpxCur );
         m_tcLookahead = *m_pcpxCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-            THROWBADJSONSTREAM( "JsonInputFixedMemStream::ReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+            THROWBADJSONSTREAM( "Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return m_tcLookahead;
     }
     
@@ -765,7 +761,7 @@ public:
         }
         _rtch = m_tcLookahead = *m_pcpxCur++;
         if ( _tyCharTraits::FIsIllegalChar( m_tcLookahead ) )
-            THROWBADJSONSTREAM( "JsonInputFixedMemStream::FReadChar(): Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
+            THROWBADJSONSTREAM( "Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', !_pcFilename ? "(no file)" : _pcFilename );
         return true;
     }
 
@@ -839,23 +835,23 @@ public:
         errno = 0;
         m_fd = ::open( _szFilename, O_RDONLY );
         if ( !FFileOpened() )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Unable to open() file [%s]", _szFilename );
         // Now get the size of the file and then map it.
         errno = 0;
         struct stat statBuf;
         int iStatResult = ::stat( m_fd, &statBuf );
         if ( -1 == iStatResult )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): stat() failed for [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "stat() failed for [%s]", _szFilename );
         if ( 0 == statBuf.st_size )
-            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s] is empty - it contains no JSON value.", _szFilename );
+            THROWBADJSONSTREAM( "File [%s] is empty - it contains no JSON value.", _szFilename );
         if ( !!( statBuf.st_size % sizeof(t_tyPersistAsChar) ) )
-            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s]'s size not multiple of char size [%ld].", _szFilename, statBuf.st_size );
+            THROWBADJSONSTREAM( "File [%s]'s size not multiple of char size [%ld].", _szFilename, statBuf.st_size );
         if ( !S_ISREG(statBuf.st_mode) )
-            THROWBADJSONSTREAM( "JsonLinuxInputMemMappedStream::Open(): File [%s] is not a regular file, st_mode is [0x%x].", _szFilename, statBuf.st_mode );
+            THROWBADJSONSTREAM( "File [%s] is not a regular file, st_mode is [0x%x].", _szFilename, statBuf.st_mode );
         errno = 0;
         m_pcpxBegin = (t_tyPersistAsChar*)mmap( 0, statBuf.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, m_fd, 0 );
         if ( m_pcpxBegin == (t_tyPersistAsChar*)MAP_FAILED )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxInputMemMappedStream::Open(): mmap() failed for [%s], size [%ld].", _szFilename, statBuf.st_size );
+            THROWBADJSONSTREAMERRNO( errno, "mmap() failed for [%s], size [%ld].", _szFilename, statBuf.st_size );
         m_pcpxCur = m_pcpxBegin;
         m_pcpxEnd = m_pcpxCur + ( posEnd / sizeof(t_tyPersistAsChar) );
         m_fHasLookahead = false; // ensure that if we had previously been opened that we don't think we still have a lookahead.
@@ -989,7 +985,7 @@ public:
         errno = 0;
         m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::Open(): Unable to open() file [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Unable to open() file [%s]", _szFilename );
         m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
     }
@@ -1029,9 +1025,9 @@ public:
         if ( sstWrote != sizeof rgBOM )
         {
             if ( -1 == sstWrote )
-                THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
+                THROWBADJSONSTREAMERRNO( errno, "write() failed for file [%s]", m_szFilename.c_str() );
             else
-                THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof rgBOM, m_szFilename.c_str() );
+                THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof rgBOM, m_szFilename.c_str() );
         }
     }
     // Read a single character from the file - always throw on EOF.
@@ -1045,9 +1041,9 @@ public:
             if ( sstWrote != sizeof _tc )
             {
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
+                    THROWBADJSONSTREAMERRNO( errno, "write() failed for file [%s]", m_szFilename.c_str() );
                 else
-                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
+                    THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str() );
             }
         }
         else
@@ -1060,9 +1056,9 @@ public:
             if ( sstWrote != sstWrite )
             {
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteChar(): write() failed for file [%s]", m_szFilename.c_str() );
+                    THROWBADJSONSTREAMERRNO( errno, "write() failed for file [%s]", m_szFilename.c_str() );
                 else
-                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sstWrite, m_szFilename.c_str() );
+                    THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sstWrite, m_szFilename.c_str() );
             }
         }
     }
@@ -1080,9 +1076,9 @@ public:
             if ( sstWrote != sstWrite )
             {
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
+                    THROWBADJSONSTREAMERRNO( errno, "write() failed for file [%s]", m_szFilename.c_str() );
                 else
-                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote,
+                    THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote,
                         sstWrite, m_szFilename.c_str() );
             }
         }
@@ -1092,9 +1088,9 @@ public:
             if ( sstWrote != _sstLen )
             {
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputStream::WriteRawChars(): write() failed for file [%s]", m_szFilename.c_str() );
+                    THROWBADJSONSTREAMERRNO( errno, "write() failed for file [%s]", m_szFilename.c_str() );
                 else
-                    THROWBADJSONSTREAM( "JsonLinuxOutputStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, _sstLen, m_szFilename.c_str() );
+                    THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, _sstLen, m_szFilename.c_str() );
             }
         }
     }
@@ -1277,22 +1273,22 @@ public:
         errno = 0;
         m_fd = open( _szFilename, O_RDWR | O_CREAT | O_TRUNC, 0666 );
         if ( !FFileOpened() )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Unable to open() file [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Unable to open() file [%s]", _szFilename );
         // Set the initial size of the mapping to s_knGrowFileByBytes. Don't want to use ftruncate because that could be slow as it zeros all memory.
         errno = 0;
         _tyFilePos posEnd = lseek( m_fd, s_knGrowFileByBytes-1, SEEK_SET );
         if ( -1 == posEnd )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to lseek() failed for [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Attempting to lseek() failed for [%s]", _szFilename );
         errno = 0;
         ssize_t stRet = write( m_fd, "Z", 1 ); // write a single byte to grow the file to s_knGrowFileByBytes.
         if ( -1 == stRet )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): Attempting to write() failed for [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Attempting to write() failed for [%s]", _szFilename );
         // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to write to it.
         errno = 0;
         // REVIEW:<dbien>: Unclear whether it is a good idea here to use MAP_NORESERVE since we are writing.
         m_pvMapped = mmap( 0, s_knGrowFileByBytes, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::Open(): mmap() failed for [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "mmap() failed for [%s]", _szFilename );
         m_stMapped = s_knGrowFileByBytes;
         m_cpxMappedCur = (_tyPersistAsChar*)m_pvMapped;
         m_cpxMappedEnd = m_cpxMappedCur + ( m_stMapped / sizeof(_tyPersistAsChar) );
@@ -1504,15 +1500,15 @@ protected:
         errno = 0;
         iRet = lseek( m_fd, m_stMapped - 1, SEEK_SET );
         if ( -1 == iRet )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): lseek() failed for file [%s].", m_szFilename.c_str() );
+            THROWBADJSONSTREAMERRNO( errno, "lseek() failed for file [%s].", m_szFilename.c_str() );
         errno = 0;
         iRet = write( m_fd, "Z", 1 ); // just write a single byte to grow the file.
         if ( -1 == iRet )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): write() failed for file [%s].", m_szFilename.c_str() );
+            THROWBADJSONSTREAMERRNO( errno, "write() failed for file [%s].", m_szFilename.c_str() );
         errno = 0;
         m_pvMapped = mmap( 0, m_stMapped, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0 );
         if ( m_pvMapped == MAP_FAILED )
-            THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemMappedStream::_GrowMap(): mmap() failed for file [%s].", m_szFilename.c_str() );
+            THROWBADJSONSTREAMERRNO( errno, "mmap() failed for file [%s].", m_szFilename.c_str() );
         m_cpxMappedEnd = (_tyPersistAsChar*)m_pvMapped + ( m_stMapped / sizeof( _tyPersistAsChar ) );
         m_cpxMappedCur = (_tyPersistAsChar*)m_pvMapped + ( m_cpxMappedCur - (_tyPersistAsChar*)pvOldMapping );
     }
@@ -1594,7 +1590,7 @@ public:
             errno = 0;
             ssize_t sstWrote = m_msMemStream.Write( &_tc, sizeof _tc );
             if ( -1 == sstWrote )
-                THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): write() failed for MemFile." );
+                THROWBADJSONSTREAMERRNO( errno, "write() failed for MemFile." );
             Assert( sstWrote == sizeof _tc );
         }
         else
@@ -1607,9 +1603,9 @@ public:
             if ( sstWrote != sstWrite )
             {
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteChar(): Write() failed for MemFile." );
+                    THROWBADJSONSTREAMERRNO( errno, "Write() failed for MemFile." );
                 else
-                    THROWBADJSONSTREAM( "JsonOutputMemStream::WriteChar(): write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite );
+                    THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite );
             }
         }
     }
@@ -1627,9 +1623,9 @@ public:
             if ( sstWrote != sstWrite )
             {
                 if ( -1 == sstWrote )
-                    THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): Write() failed for MemFile." );
+                    THROWBADJSONSTREAMERRNO( errno, "Write() failed for MemFile." );
                 else
-                    THROWBADJSONSTREAM( "JsonOutputMemStream::WriteRawChars(): write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite );
+                    THROWBADJSONSTREAM( "write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite );
             }
         }
         else
@@ -1637,7 +1633,7 @@ public:
             errno = 0;
             ssize_t sstWrote = m_msMemStream.Write( _psz, _sstLen * sizeof(_tyChar) );
             if ( -1 == sstWrote )
-                THROWBADJSONSTREAMERRNO( errno, "JsonOutputMemStream::WriteRawChars(): write() failed for MemFile." );
+                THROWBADJSONSTREAMERRNO( errno, "write() failed for MemFile." );
             Assert( sstWrote == _sstLen * sizeof(_tyChar) ); // else we would have thrown.
         }
     }
@@ -1817,7 +1813,7 @@ public:
         errno = 0;
         m_fd = open( _szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
         if ( !FOpened() )
-            THROWBADJSONSTREAMERRNO( errno, "JsonLinuxOutputMemStream::Open(): Unable to open() file [%s]", _szFilename );
+            THROWBADJSONSTREAMERRNO( errno, "Unable to open() file [%s]", _szFilename );
         m_fOwnFdLifetime = true; // This object owns the lifetime of m_fd - ie. we need to close upon destruction.
         m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
     }
@@ -2482,14 +2478,14 @@ public:
     {
         Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(_pszKey): Writing a (key,value) pair to a non-object." );
+            THROWBADJSONSEMANTICUSE( "Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, ejvtNull );
     }
     void WriteBoolValue(  _tyLPCSTR _pszKey, bool _f )
     {
         Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteBoolValue(_pszKey): Writing a (key,value) pair to a non-object." );
+            THROWBADJSONSEMANTICUSE( "Writing a (key,value) pair to a non-object." );
         JsonValueLife jvlObjectElement( *this, _pszKey, _f ? ejvtTrue : ejvtFalse );
     }
     void WriteValueType( _tyLPCSTR _pszKey, EJsonValueType _jvt )
@@ -2502,12 +2498,12 @@ public:
             {
                 Assert( FAtArrayValue() );
                 if ( !FAtArrayValue() )
-                    THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(_pszKey): Writing a (key,value) pair to a non-object." );
+                    THROWBADJSONSEMANTICUSE( "Writing a (key,value) pair to a non-object." );
                 JsonValueLife jvlArrayElement( *this, _pszKey, _jvt );
             }
             break;
             default:
-                THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(_pszKey): This method only for null, true, or false." );
+                THROWBADJSONSEMANTICUSE( "This method only for null, true, or false." );
             break;
         }
     }
@@ -2680,14 +2676,14 @@ public:
     {
         Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteNullValue(): Writing a value to a non-array." );
+            THROWBADJSONSEMANTICUSE( "Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, ejvtNull );
     }
     void WriteBoolValue( bool _f )
     {
         Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteBoolValue(): Writing a value to a non-array." );
+            THROWBADJSONSEMANTICUSE( "Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, _f ? ejvtTrue : ejvtFalse );
     }
     void WriteValueType( EJsonValueType _jvt )
@@ -2700,12 +2696,12 @@ public:
             {
                 Assert( FAtArrayValue() );
                 if ( !FAtArrayValue() )
-                    THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(): Writing a value to a non-array." );
+                    THROWBADJSONSEMANTICUSE( "Writing a value to a non-array." );
                 JsonValueLife jvlArrayElement( *this, _jvt );
             }
             break;
             default:
-                THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteValueType(): This method only for null, true, or false." );
+                THROWBADJSONSEMANTICUSE( "This method only for null, true, or false." );
             break;
         }
     }
@@ -2732,7 +2728,7 @@ public:
     void WriteStrOrNumValue( EJsonValueType _jvt, _tyStdStr const & _rstrVal )
     {
         if ( ( ejvtString != _jvt ) && ( ejvtNumber != _jvt ) )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteStrOrNumValue(): This method only for numbers and strings." );
+            THROWBADJSONSEMANTICUSE( "This method only for numbers and strings." );
         _WriteValue( _jvt, &_rstrVal[0], _rstrVal.length() );
     }
     template < class t_tyStr >
@@ -2740,7 +2736,7 @@ public:
         requires( !is_same_v< typename t_tyStr::value_type, t_tyChar > )
     {
         if ( ( ejvtString != _jvt ) && ( ejvtNumber != _jvt ) )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::WriteStrOrNumValue(): This method only for numbers and strings." );
+            THROWBADJSONSEMANTICUSE( "This method only for numbers and strings." );
         std::basic_string< t_tyValueChar > strConvertValue;
         ConvertString( strConvertValue, _rstrVal );
         _WriteValue( _jvt, &strConvertValue[0], strConvertValue.length() );
@@ -2839,7 +2835,7 @@ protected:
     {
         Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
+            THROWBADJSONSEMANTICUSE( "Writing a (key,value) pair to a non-object." );
         Assert( _tyCharTraits::StrNLen( _pszValue, _stLenValue ) == _stLenValue );
         Assert( _tyCharTraits::StrNLen( _pszKey, _stLenKey ) == _stLenKey );
         JsonValueLife jvlObjectElement( *this, _pszKey, _stLenKey, _ejvt );
@@ -2849,7 +2845,7 @@ protected:
     {
         Assert( FAtObjectValue() );
         if ( !FAtObjectValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a (key,value) pair to a non-object." );
+            THROWBADJSONSEMANTICUSE( "Writing a (key,value) pair to a non-object." );
         Assert( _tyCharTraits::StrNLen( _pszKey, _stLenKey ) == _stLenKey );
         JsonValueLife jvlObjectElement( *this, _pszKey, _stLenKey, _ejvt );
         *jvlObjectElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
@@ -2868,7 +2864,7 @@ protected:
     {
         Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
+            THROWBADJSONSEMANTICUSE( "Writing a value to a non-array." );
         Assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
         jvlArrayElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
@@ -2877,7 +2873,7 @@ protected:
     {
         Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
-            THROWBADJSONSEMANTICUSE( "JsonValueLife::_WriteValue(): Writing a value to a non-array." );
+            THROWBADJSONSEMANTICUSE( "Writing a value to a non-array." );
         JsonValueLife jvlArrayElement( *this, _ejvt );
         *jvlArrayElement.RJvGet().PCreateStringValue() = std::move( _rrstrVal );
     }
@@ -3523,7 +3519,7 @@ public:
     {
         Assert( FAttached() );
         if ( FAtEndOfAggregate() || !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::RStrKey(): Mo key available." );
+            THROWBADJSONSEMANTICUSE( "No key available." );
         _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();
         Assert( !pjoCur->FEndOfIteration() ); // sanity
         if ( !!_pjvt )
@@ -3540,7 +3536,7 @@ public:
         // So, we need to have a parent value and that parent value should correspond to an object.
         // Otherwise we throw an "invalid semantic use" exception.
         if ( !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::FGetKeyCurrent(): Not located at an object so no key available." );
+            THROWBADJSONSEMANTICUSE( "Not located at an object so no key available." );
         // If the key value in the object is the empty string then this is an empty object and we return false.
         _tyJsonObject * pjoCur = m_pjrxCurrent->m_pjrxNext->PGetJsonObject();
         Assert( !pjoCur->FEndOfIteration() );
@@ -3583,11 +3579,11 @@ public:
     {
         Assert( FAttached() );
         if ( FAtAggregateValue() )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(string): At an aggregate value - object or array." );
+            THROWBADJSONSEMANTICUSE( "At an aggregate value - object or array." );
 
         EJsonValueType jvt = JvtGetValueType();
         if ( ( ejvtEndOfObject == jvt ) || ( ejvtEndOfArray == jvt ) )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(string): No value located at end of object or array." );
+            THROWBADJSONSEMANTICUSE( "No value located at end of object or array." );
         
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
@@ -3622,7 +3618,7 @@ public:
         switch( JvtGetValueType() )
         {
         default:
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(bool): Not at a boolean value type." );
+            THROWBADJSONSEMANTICUSE( "Not at a boolean value type." );
             break;
         case ejvtTrue:
             _rf = true;
@@ -3636,7 +3632,7 @@ public:
     void _GetValue( _tyLPCSTR _pszFmt, t_tyNum & _rNumber ) const
     {
         if ( ejvtNumber != JvtGetValueType() ) 
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetValue(int): Not at a numeric value type." );
+            THROWBADJSONSEMANTICUSE( "Not at a numeric value type." );
 
         // Now check if we haven't read the value yet because then we gotta read it.
         if ( !m_pjrxCurrent->m_posEndValue )
@@ -3663,24 +3659,24 @@ public:
     void GetTimeStringValue( time_t & _tt ) const
     {
         if ( ejvtString != JvtGetValueType() )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not at a string value type." );
+            THROWBADJSONSEMANTICUSE( "Not at a string value type." );
         int iRet = n_TimeUtil::ITimeFromString( m_pjrxCurrent->PGetStringValue()->c_str(), _tt );
         if ( !!iRet )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue()): Failed to parse a date/time, iRet[%d].", iRet );
+            THROWBADJSONSEMANTICUSE( "Failed to parse a date/time, iRet[%d].", iRet );
     }
     // Human readable date/time - implemented on ejvtString.
     void GetUuidStringValue( uuid_t & _uuidt ) const
     {
         if ( ejvtString != JvtGetValueType() )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not at a string value type." );
+            THROWBADJSONSEMANTICUSE( "Not at a string value type." );
         if ( m_pjrxCurrent->PGetStringValue()->length() < std::size( std::declval<uuid_string_t>() ) - 1 )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue(): Not enough characters in the string for uuid_string_t." );
+            THROWBADJSONSEMANTICUSE( "Not enough characters in the string for uuid_string_t." );
         uuid_string_t ustUuid;
         memcpy( &ustUuid, m_pjrxCurrent->PGetStringValue()->c_str(), sizeof ustUuid );
         ustUuid[ std::size( ustUuid )-1 ] = 0;
         int iRet = uuid_parse( ustUuid, _uuidt );
         if ( !!iRet )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::GetTimeStringValue()): Failed to parse a uuid from string [%s].", m_pjrxCurrent->PGetStringValue()->c_str() );
+            THROWBADJSONSEMANTICUSE( "Failed to parse a uuid from string [%s].", m_pjrxCurrent->PGetStringValue()->c_str() );
     }
 
     // This will read any unread value into the value object
@@ -3725,7 +3721,7 @@ public:
         auto lambdaAddCharNum = [&]( _tyChar _tch )
         { 
             if ( ptcCur == rgtcBuffer + knMaxLength )
-                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Overflow of max JSON number length of [%u].", knMaxLength );
+                THROWBADJSONSTREAM( "Overflow of max JSON number length of [%u].", knMaxLength );
             *ptcCur++ = _tch;
         };
 
@@ -3734,16 +3730,16 @@ public:
         _tyChar tchCurrentChar; // maintained as the current character.
         if ( _tyCharTraits::s_tcMinus == _tcFirst )
         {
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
+            tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after a minus." ); // This may not be EOF.
             *ptcCur++ = tchCurrentChar;
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for digit after a minus.", tchCurrentChar );
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
         if ( fZeroFirst )
         {
-            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
+            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.
         }
@@ -3753,7 +3749,7 @@ public:
             bool fFoundChar;
             for(;;)
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.
                 if ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) )
@@ -3767,14 +3763,14 @@ public:
         {
             lambdaAddCharNum( tchCurrentChar ); // Don't miss your period.
             // Then according to the JSON spec we must have at least one digit here.
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
+            tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             lambdaAddCharNum( tchCurrentChar );
             for(;;)
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 if ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) )
@@ -3788,21 +3784,21 @@ public:
         {
             lambdaAddCharNum( tchCurrentChar );
             // Then we might see a plus or a minus or a number - but we cannot see EOF here correctly:
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
+            tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
             lambdaAddCharNum( tchCurrentChar );
             if (    ( tchCurrentChar == _tyCharTraits::s_tcMinus ) ||
                    ( tchCurrentChar == _tyCharTraits::s_tcPlus ) )
             {
-                tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_ReadNumber(): Hit EOF looking for a digit after an exponent indicator with plus/minus." ); // Then we must still find a number after - throws on EOF.
+                tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after an exponent indicator with plus/minus." ); // Then we must still find a number after - throws on EOF.
                 lambdaAddCharNum( tchCurrentChar );
             }
             // Now we must see at least one digit so for the first read we throw.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::_ReadNumber(): Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for digit after a exponent indicator (e/E).", tchCurrentChar );
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             for(;;)
             {
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_ReadNumber(): Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     goto Label_DreadedLabel; // Then we read until the end of file for a JSON file containing a single number as its only element.            
                 if ( ( tchCurrentChar >= _tyCharTraits::s_tc0 ) && ( tchCurrentChar <= _tyCharTraits::s_tc9 ) )
@@ -3825,15 +3821,15 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         _tyChar tchCurrentChar; // maintained as the current character.
         if ( _tyCharTraits::s_tcMinus == _tcFirst )
         {
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after a minus." ); // This may not be EOF.
+            tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after a minus." ); // This may not be EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a minus.", tchCurrentChar );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for digit after a minus.", tchCurrentChar );
             fZeroFirst = ( _tyCharTraits::s_tc0 == tchCurrentChar );
         }
         // If we are the root element then we may encounter EOF and have that not be an error when reading some of the values.
         if ( fZeroFirst )
         {
-            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
+            bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for something after a leading zero." ); // Throw on EOF if we aren't at the root element.
             if ( !fFoundChar )
                 return; // Then we read until the end of file for a JSON file containing a single number as its only element.
         }
@@ -3843,7 +3839,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             bool fFoundChar;
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.
             } 
@@ -3853,13 +3849,13 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         if ( tchCurrentChar == _tyCharTraits::s_tcPeriod )
         {
             // Then according to the JSON spec we must have at least one digit here.
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
+            tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after a decimal point." ); // throw on EOF.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for digit after a decimal point.", tchCurrentChar );
             // Now we expect a digit, 'e', 'E', EOF or something else that our parent can check out.
             do
             {            
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number after the period." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
             }
@@ -3869,17 +3865,17 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                 ( tchCurrentChar == _tyCharTraits::s_tce ) )
         {
             // Then we might see a plus or a minus or a number - but we cannot see EOF here correctly:
-            tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
+            tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after an exponent indicator." ); // Throws on EOF.
             if (    ( tchCurrentChar == _tyCharTraits::s_tcMinus ) ||
                     ( tchCurrentChar == _tyCharTraits::s_tcPlus ) )
-                tchCurrentChar = m_pis->ReadChar( "JsonReadCursor::_SkipNumber(): Hit EOF looking for a digit after an exponent indicator with plus/minus." ); // Then we must still find a number after - throws on EOF.
+                tchCurrentChar = m_pis->ReadChar( "Hit EOF looking for a digit after an exponent indicator with plus/minus." ); // Then we must still find a number after - throws on EOF.
             // Now we must see at least one digit so for the first read we throw.
             if ( ( tchCurrentChar < _tyCharTraits::s_tc0 ) || ( tchCurrentChar > _tyCharTraits::s_tc9 ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipNumber(): Found [%TC] when looking for digit after an exponent indicator (e/E).", tchCurrentChar );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for digit after an exponent indicator (e/E).", tchCurrentChar );
             // We have satisfied "at least a digit after an exponent indicator" - now we might just hit EOF or anything else after this...
             do
             {
-                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "JsonReadCursor::_SkipNumber(): Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
+                bool fFoundChar = m_pis->FReadChar( tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number after the exponent indicator." ); // Throw on EOF if we aren't at the root element.
                 if ( !fFoundChar )
                     return; // Then we read until the end of file for a JSON file containing a single number as its only element.            
             } 
@@ -3902,12 +3898,12 @@ Label_DreadedLabel: // Just way too easy to do it this way.
 
         for( ; ; )
         {
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_ReadString(): EOF found looking for end of string." ); // throws on EOF.
+            _tyChar tchCur = m_pis->ReadChar( "EOF found looking for end of string." ); // throws on EOF.
             if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
                 break; // We have reached EOS.
             if ( _tyCharTraits::s_tcBackSlash == tchCur )
             {
-                tchCur = m_pis->ReadChar( "JsonReadCursor::_ReadString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
+                tchCur = m_pis->ReadChar( "EOF finding completion of backslash escape for string." ); // throws on EOF.
                 switch( tchCur )
                 {
                     case _tyCharTraits::s_tcDoubleQuote:
@@ -3936,7 +3932,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                         // Must find 4 hex digits:
                         for ( int n=0; n < 4; ++n, ( uCurrentMultiplier >>= 4 ) )
                         {
-                            tchCur = m_pis->ReadChar( "JsonReadCursor::_ReadString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
+                            tchCur = m_pis->ReadChar( "EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
                             if ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) )
                                 uHex += uCurrentMultiplier * ( tchCur - _tyCharTraits::s_tc0 );
                             else
@@ -3946,19 +3942,19 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                             if ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) )
                                 uHex += uCurrentMultiplier * ( 10 + ( tchCur - _tyCharTraits::s_tcA ) );
                             else
-                                THROWBADJSONSTREAM( "JsonReadCursor::_ReadString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                                THROWBADJSONSTREAM( "Found [%TC] when looking for digit following \\u.", tchCur );
                         }
                         // If we are supposed to throw on overflow then check for it, otherwise just truncate to the character type silently.
                         if ( _tyCharTraits::s_fThrowOnUnicodeOverflow && ( sizeof(_tyChar) < sizeof(uHex) ) )
                         {
                             if ( uHex >= ( 1u << ( CHAR_BIT * sizeof(_tyChar) ) ) )
-                                THROWBADJSONSTREAM( "JsonReadCursor::_ReadString(): Unicode hex overflow [%u].", uHex );
+                                THROWBADJSONSTREAM( "Unicode hex overflow [%u].", uHex );
                         }
                         tchCur = (_tyChar)uHex;
                         break;
                     }
                     default:
-                        THROWBADJSONSTREAM( "JsonReadCursor::_ReadString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        THROWBADJSONSTREAM( "Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
                         break;
                 }
             }
@@ -3981,12 +3977,12 @@ Label_DreadedLabel: // Just way too easy to do it this way.
 
         for( ; ; )
         {
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for end of string." ); // throws on EOF.
+            _tyChar tchCur = m_pis->ReadChar( "EOF found looking for end of string." ); // throws on EOF.
             if ( _tyCharTraits::s_tcDoubleQuote == tchCur )
                 break; // We have reached EOS.
             if ( _tyCharTraits::s_tcBackSlash == tchCur )
             {
-                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF finding completion of backslash escape for string." ); // throws on EOF.
+                tchCur = m_pis->ReadChar( "EOF finding completion of backslash escape for string." ); // throws on EOF.
                 switch( tchCur )
                 {
                     case _tyCharTraits::s_tcDoubleQuote:
@@ -4003,15 +3999,15 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                         // Must find 4 hex digits:
                         for ( int n=0; n < 4; ++n )
                         {
-                            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipRemainingString(): EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
+                            tchCur = m_pis->ReadChar( "EOF found looking for 4 hex digits following \\u." ); // throws on EOF.
                             if ( !( ( ( tchCur >= _tyCharTraits::s_tc0 ) && ( tchCur <= _tyCharTraits::s_tc9 ) ) ||
                                     ( ( tchCur >= _tyCharTraits::s_tca ) && ( tchCur <= _tyCharTraits::s_tcf ) ) ||
                                     ( ( tchCur >= _tyCharTraits::s_tcA ) && ( tchCur <= _tyCharTraits::s_tcF ) ) ) ) 
-                                THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for digit following \\u.", tchCur );
+                                THROWBADJSONSTREAM( "Found [%TC] when looking for digit following \\u.", tchCur );
                         }
                     }
                     default:
-                        THROWBADJSONSTREAM( "JsonReadCursor::_SkipRemainingString(): Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
+                        THROWBADJSONSTREAM( "Found [%TC] when looking for competetion of backslash when reading string.", tchCur );
                         break;
                 }
             }
@@ -4025,10 +4021,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         // We just cast the chars to _tyChar since that is valid for JSON files.
         const char * pcCur = _pcSkip;
         _tyChar tchCur;
-        for ( ; !!*pcCur && ( _tyChar( *pcCur ) == ( tchCur = m_pis->ReadChar("JsonReadCursor::_SkipFixed(): Hit EOF trying to skip fixed string.") ) ); ++pcCur )
+        for ( ; !!*pcCur && ( _tyChar( *pcCur ) == ( tchCur = m_pis->ReadChar("Hit EOF trying to skip fixed string.") ) ); ++pcCur )
             ;
         if ( *pcCur )
-            THROWBADJSONSTREAM( "JsonReadCursor::_SkipFixed(): Trying to skip[%s], instead of [%c] found [%TC].", _pcSkip, *pcCur, tchCur );
+            THROWBADJSONSTREAM( "Trying to skip[%s], instead of [%c] found [%TC].", _pcSkip, *pcCur, tchCur );
     }
 
     void _SkipSimpleValue( EJsonValueType _jvtCur, _tyChar _tcFirst, bool _fAtRootElement ) const
@@ -4062,10 +4058,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     {
         m_pis->SkipWhitespace();
         // We don't expect EOF here.
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipValue(): EOF on first value char." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "EOF on first value char." ); // throws on EOF.
         EJsonValueType jvtCur = _tyJsonValue::GetJvtTypeFromChar( tchCur );
         if ( ejvtJsonValueTypeCount == jvtCur )
-            THROWBADJSONSTREAM( "JsonReadCursor::_SkipValue(): Found [%TC] when looking for value starting character.", tchCur );
+            THROWBADJSONSTREAM( "Found [%TC] when looking for value starting character.", tchCur );
         if ( ejvtObject ==  jvtCur )
             _SkipWholeObject();
         else
@@ -4079,46 +4075,46 @@ Label_DreadedLabel: // Just way too easy to do it this way.
     void _SkipWholeObject()
     {
         m_pis->SkipWhitespace();
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF after begin bracket." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "EOF after begin bracket." ); // throws on EOF.
         while ( _tyCharTraits::s_tcDoubleQuote == tchCur )
         {
             _SkipRemainingString(); // Skip the key.
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking for colon." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for colon." ); // throws on EOF.
             if ( _tyCharTraits::s_tcColon != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for colon.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for colon.", tchCur );
             _SkipValue(); // Skip the value.
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking comma or end of object." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking comma or end of object." ); // throws on EOF.
             if ( _tyCharTraits::s_tcComma == tchCur )
             {
                 m_pis->SkipWhitespace();
-                tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeObject(): EOF looking double quote." ); // throws on EOF.
+                tchCur = m_pis->ReadChar( "EOF looking double quote." ); // throws on EOF.
                 if ( _tyCharTraits::s_tcDoubleQuote != tchCur )
-                    THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote.", tchCur );
+                    THROWBADJSONSTREAM( "Found [%TC] when looking for double quote.", tchCur );
             }
             else
                 break;
         }
         if ( _tyCharTraits::s_tcRightCurlyBr != tchCur )
-            THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeObject(): Found [%TC] when looking for double quote or comma or right bracket.", tchCur );
+            THROWBADJSONSTREAM( "Found [%TC] when looking for double quote or comma or right bracket.", tchCur );
     }
     // We will have read the first '[' of the array.
     void _SkipWholeArray()
     {
         m_pis->SkipWhitespace();
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF after begin bracket." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "EOF after begin bracket." ); // throws on EOF.
         if ( _tyCharTraits::s_tcRightSquareBr != tchCur )
             m_pis->PushBackLastChar(); // Don't send an expected character as it is from the set of value-starting characters.
         while ( _tyCharTraits::s_tcRightSquareBr != tchCur )
         {
             _SkipValue();
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipWholeArray(): EOF looking for comma." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for comma." ); // throws on EOF.
             if ( _tyCharTraits::s_tcComma == tchCur )
                 continue;
             if ( _tyCharTraits::s_tcRightSquareBr != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipWholeArray(): Found [%TC] when looking for comma or array end.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for comma or array end.", tchCur );
         }
     }
 
@@ -4146,23 +4142,23 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         // Then we have partially iterated the object. All contexts above us are closed which means we should find
         //  either a comma or end curly bracket.
         m_pis->SkipWhitespace();
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "EOF looking for end object } or comma." ); // throws on EOF.
         while ( _tyCharTraits::s_tcRightCurlyBr !=tchCur )
         {
             if ( _tyCharTraits::s_tcComma != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for comma or object end.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for comma or object end.", tchCur );
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for double quote." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for double quote." ); // throws on EOF.
             if ( _tyCharTraits::s_tcDoubleQuote != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking key start double quote.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking key start double quote.", tchCur );
             _SkipRemainingString();
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for colon." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for colon." ); // throws on EOF.
             if ( _tyCharTraits::s_tcColon != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipObject(): Found [%TC] when looking for colon.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for colon.", tchCur );
             _SkipValue();
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipObject(): EOF looking for end object } or comma." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for end object } or comma." ); // throws on EOF.
         }
         _tyJsonObject * pjoCur = _rjrx.PGetJsonObject();            
         _rjrx.SetEndOfIteration( m_pis->PosGet() ); // Indicate that we have iterated to the end of this object.
@@ -4193,15 +4189,15 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         // Then we have partially iterated the object. All contexts above us are closed which means we should find
         //  either a comma or end square bracket.
         m_pis->SkipWhitespace();
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipArray(): EOF looking for end array ] or comma." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "EOF looking for end array ] or comma." ); // throws on EOF.
         while ( _tyCharTraits::s_tcRightSquareBr !=tchCur )
         {
             if ( _tyCharTraits::s_tcComma != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::_SkipArray(): Found [%TC] when looking for comma or array end.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for comma or array end.", tchCur );
             m_pis->SkipWhitespace();
             _SkipValue();
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::_SkipArray(): EOF looking for end array ] or comma." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for end array ] or comma." ); // throws on EOF.
         }
         _tyJsonArray * pjaCur = _rjrx.PGetJsonArray();            
         _rjrx.SetEndOfIteration( m_pis->PosGet() ); // Indicate that we have iterated to the end of this object.
@@ -4254,7 +4250,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         for ( ; !!pjrxFound && ( pjrxFound != &_rjrx ); pjrxFound = pjrxFound->PJrcGetNext() )
             ;
         if ( !pjrxFound )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::MoveToContext(): Context not found in context stack." );
+            THROWBADJSONSEMANTICUSE( "Context not found in context stack." );
         m_pjrxCurrent = pjrxFound;
     }
 
@@ -4268,7 +4264,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         if (    !m_pjrxCurrent || !m_pjrxCurrent->m_pjrxNext || 
                 (   ( ejvtObject != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) &&
                     ( ejvtArray != m_pjrxCurrent->m_pjrxNext->JvtGetValueType() ) ) )
-            THROWBADJSONSEMANTICUSE( "JsonReadCursor::FNextElement(): Not located at an object or array." );
+            THROWBADJSONSEMANTICUSE( "Not located at an object or array." );
         
         if (    ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfObject ) ||
                 ( m_pjrxCurrent->JvtGetValueType() == ejvtEndOfArray ) )
@@ -4291,7 +4287,7 @@ Label_DreadedLabel: // Just way too easy to do it this way.
 
         // Now we are going to look for a comma or an right curly/square bracket:
         m_pis->SkipWhitespace();
-        _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for end object/array }/] or comma." ); // throws on EOF.
+        _tyChar tchCur = m_pis->ReadChar( "EOF looking for end object/array }/] or comma." ); // throws on EOF.
 
         if ( ejvtObject == m_pjrxCurrent->m_pjrxNext->JvtGetValueType() )
         {
@@ -4304,19 +4300,19 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                 return false; // We reached the end of the iteration.
             }
             if ( _tyCharTraits::s_tcComma != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or object end.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for comma or object end.", tchCur );
             // Now we will read the key string of the next element into <pjoCur>.
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for double quote." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for double quote." ); // throws on EOF.
             if ( _tyCharTraits::s_tcDoubleQuote != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking key start double quote.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking key start double quote.", tchCur );
             _tyStdStr strNextKey;
             _ReadString( strNextKey ); // Might throw for any number of reasons. This may be the empty string.
             pjoCur->SwapKey( strNextKey );
             m_pis->SkipWhitespace();
-            tchCur = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for colon." ); // throws on EOF.
+            tchCur = m_pis->ReadChar( "EOF looking for colon." ); // throws on EOF.
             if ( _tyCharTraits::s_tcColon != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for colon.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for colon.", tchCur );
         }
         else
         {
@@ -4329,16 +4325,16 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                 return false; // We reached the end of the iteration.
             }
             if ( _tyCharTraits::s_tcComma != tchCur )
-                THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for comma or array end.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for comma or array end.", tchCur );
         }
         m_pis->SkipWhitespace();
         m_pjrxCurrent->m_posStartValue = m_pis->PosGet();
         m_pjrxCurrent->m_posEndValue = 0; // Reset this to zero because we haven't yet read the value for this next element yet.
         // The first non-whitespace character tells us what the value type is:
-        m_pjrxCurrent->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FNextElement(): EOF looking for next object/array value." );
+        m_pjrxCurrent->m_tcFirst = m_pis->ReadChar( "EOF looking for next object/array value." );
         m_pjrxCurrent->SetValueType( _tyJsonValue::GetJvtTypeFromChar( m_pjrxCurrent->m_tcFirst ) );
         if ( ejvtJsonValueTypeCount == m_pjrxCurrent->JvtGetValueType() )
-            THROWBADJSONSTREAM( "JsonReadCursor::FNextElement(): Found [%TC] when looking for value starting character.", m_pjrxCurrent->m_tcFirst );
+            THROWBADJSONSTREAM( "Found [%TC] when looking for value starting character.", m_pjrxCurrent->m_tcFirst );
         m_pjrxCurrent->m_pjrxNext->m_posEndValue = m_pis->PosGet(); // Update this as we iterate though there is no real reason to - might help with debugging.
         return true;
     }
@@ -4355,10 +4351,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
         Assert( !pjrxRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
     
         // The first non-whitespace character tells us what the value type is:
-        pjrxRoot->m_tcFirst = _ris.ReadChar( "JsonReadCursor::AttachRoot(): Empty JSON file." );
+        pjrxRoot->m_tcFirst = _ris.ReadChar( "Empty JSON file." );
         pjvRootVal->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrxRoot->m_tcFirst ) );
         if ( ejvtJsonValueTypeCount == pjvRootVal->JvtGetValueType() )
-            THROWBADJSONSTREAM( "JsonReadCursor::AttachRoot(): Found [%TC] when looking for value starting character.", pjrxRoot->m_tcFirst );
+            THROWBADJSONSTREAM( "Found [%TC] when looking for value starting character.", pjrxRoot->m_tcFirst );
         // Set up current state:
         m_pjrxContextStack.swap( pjrxRoot ); // swap with any existing stack.
         m_pjrxCurrent = &*m_pjrxContextStack; // current position is soft reference.
@@ -4402,9 +4398,9 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             // For valid JSON we may see 2 different things here:
             // 1) '"': Indicates we have a label for the first (key,value) pair of the object.
             // 2) '}': Indicates that we have an empty object.
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first character of an object." ); // throws on eof.
+            _tyChar tchCur = m_pis->ReadChar( "EOF looking for first character of an object." ); // throws on eof.
             if ( ( _tyCharTraits::s_tcRightCurlyBr != tchCur ) && ( _tyCharTraits::s_tcDoubleQuote != tchCur ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first character of object.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for first character of object.", tchCur );
             
             // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
             _tyJsonObject * pjoNew = m_pjrxCurrent->PJvGet()->PCreateJsonObject();
@@ -4415,17 +4411,17 @@ Label_DreadedLabel: // Just way too easy to do it this way.
                 _ReadString( strFirstKey ); // Might throw for any number of reasons. This may be the empty string.
                 pjoNew->SwapKey( strFirstKey );
                 m_pis->SkipWhitespace();
-                tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for colon on first object pair." ); // throws on eof.
+                tchCur = m_pis->ReadChar( "EOF looking for colon on first object pair." ); // throws on eof.
                 if ( _tyCharTraits::s_tcColon != tchCur )
-                    THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for colon on first object pair.", tchCur );
+                    THROWBADJSONSTREAM( "Found [%TC] when looking for colon on first object pair.", tchCur );
                 m_pis->SkipWhitespace();
                 pjrxNewRoot->m_posStartValue = m_pis->PosGet();
                 Assert( !pjrxNewRoot->m_posEndValue ); // We should have a 0 now - unset - must be >0 when set (invariant).
                 // The first non-whitespace character tells us what the value type is:
-                pjrxNewRoot->m_tcFirst = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first object value." );
+                pjrxNewRoot->m_tcFirst = m_pis->ReadChar( "EOF looking for first object value." );
                 pjrxNewRoot->SetValueType( _tyJsonValue::GetJvtTypeFromChar( pjrxNewRoot->m_tcFirst ) );
                 if ( ejvtJsonValueTypeCount == pjrxNewRoot->JvtGetValueType() )
-                    THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for value starting character.", pjrxNewRoot->m_tcFirst );
+                    THROWBADJSONSTREAM( "Found [%TC] when looking for value starting character.", pjrxNewRoot->m_tcFirst );
             }
             else
             {
@@ -4440,10 +4436,10 @@ Label_DreadedLabel: // Just way too easy to do it this way.
             // 1) ']': Indicates that we have an empty object.
             // 2) A valid "value starting" character indicates the start of the first value of the array.
             _tyFilePos posStartValue = m_pis->PosGet();
-            _tyChar tchCur = m_pis->ReadChar( "JsonReadCursor::FMoveDown(): EOF looking for first character of an array." ); // throws on eof.
+            _tyChar tchCur = m_pis->ReadChar( "EOF looking for first character of an array." ); // throws on eof.
             EJsonValueType jvtCur = _tyJsonValue::GetJvtTypeFromChar( tchCur );
             if ( ( _tyCharTraits::s_tcRightSquareBr != tchCur ) && ( ejvtJsonValueTypeCount == jvtCur ) )
-                THROWBADJSONSTREAM( "JsonReadCursor::FMoveDown(): Found [%TC] when looking for first char of array value.", tchCur );
+                THROWBADJSONSTREAM( "Found [%TC] when looking for first char of array value.", tchCur );
             
             // Then first value inside of the object. We must create a JsonObject that will be used to manage the iteration of the set of values within it.
             _tyJsonArray * pjaNew = m_pjrxCurrent->PJvGet()->PCreateJsonArray();

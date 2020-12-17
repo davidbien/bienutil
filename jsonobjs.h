@@ -28,9 +28,13 @@ class JsoIterator;
 // This exception will get thrown if the user of the read cursor does something inappropriate given the current context.
 class json_objects_bad_usage_exception : public std::_t__Named_exception<__JSONSTRM_DEFAULT_ALLOCATOR>
 {
+  typedef json_objects_bad_usage_exception _TyThis;
   typedef std::_t__Named_exception<__JSONSTRM_DEFAULT_ALLOCATOR> _TyBase;
-
 public:
+  json_objects_bad_usage_exception( const char * _pc ) 
+      : _TyBase( _pc ) 
+  {
+  }
   json_objects_bad_usage_exception(const string_type &__s)
       : _TyBase(__s)
   {
@@ -41,7 +45,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWJSONBADUSAGE(MESG...) ExceptionUsage<json_objects_bad_usage_exception>::ThrowFileLine(__FILE__, __LINE__, MESG)
+#define THROWJSONBADUSAGE(MESG...) ExceptionUsage<json_objects_bad_usage_exception>::ThrowFileLineFunc(__FILE__, __LINE__, __PRETTY_FUNCTION__, MESG)
 
 // JsoIterator:
 // This iterator may be iterating an object or an array.
@@ -178,7 +182,7 @@ public:
   typename _JsoArray<t_tyChar>::difference_type operator-(const JsoIterator &_r) const
   {
     if (m_fObjectIterator)
-      THROWJSONBADUSAGE("JsoIterator::operator -(): Not valid for object iterator.");
+      THROWJSONBADUSAGE("Not valid for object iterator.");
     return GetArrayIterator() - _r.GetArrayIterator();
   }
 
@@ -189,9 +193,9 @@ public:
   _tyObjectIterator &GetObjectIterator()
   {
     if (!m_pvIterator)
-      THROWJSONBADUSAGE("JsoIterator::GetObjectIterator(): Not connected to iterator.");
+      THROWJSONBADUSAGE("Not connected to iterator.");
     if (!m_fObjectIterator)
-      THROWJSONBADUSAGE("JsoIterator::GetObjectIterator(): Called on array.");
+      THROWJSONBADUSAGE("Called on array.");
     return *(_tyObjectIterator *)m_pvIterator;
   }
   const _tyArrayIterator &GetArrayIterator() const
@@ -201,9 +205,9 @@ public:
   _tyArrayIterator &GetArrayIterator()
   {
     if (!m_pvIterator)
-      THROWJSONBADUSAGE("JsoIterator::GetArrayIterator(): Not connected to iterator.");
+      THROWJSONBADUSAGE("Not connected to iterator.");
     if (m_fObjectIterator)
-      THROWJSONBADUSAGE("JsoIterator::GetArrayIterator(): Called on object.");
+      THROWJSONBADUSAGE("Called on object.");
     return *(_tyArrayIterator *)m_pvIterator;
   }
 
@@ -459,7 +463,7 @@ public:
         break;
       default:
       case ejvtJsonValueTypeCount:
-        THROWJSONBADUSAGE("JsoValue::ICompare(): invalid value type [%hhu].", JvtGetValueType());
+        THROWJSONBADUSAGE("Invalid value type [%hhu].", JvtGetValueType());
         break;
       }
     }
@@ -494,7 +498,7 @@ public:
         break;
       default:
       case ejvtJsonValueTypeCount:
-        THROWJSONBADUSAGE("JsoValue::ICompare(): invalid value type [%hhu].", JvtGetValueType());
+        THROWJSONBADUSAGE("Invalid value type [%hhu].", JvtGetValueType());
         break;
       }
     }
@@ -544,7 +548,7 @@ public:
   size_t GetSize() const
   {
     if (!FIsAggregate())
-      THROWJSONBADUSAGE("JsoValue::GetSize(): Called on non-aggregate.");
+      THROWJSONBADUSAGE("Called on non-aggregate.");
     if (FIsObject())
       return _ObjectGet().GetSize();
     else
@@ -557,48 +561,48 @@ public:
     else if (ejvtFalse == m_jvtType)
       _rf = false;
     else
-      THROWJSONBADUSAGE("JsoValue::GetBoolValue(bool): Called on non-boolean.");
+      THROWJSONBADUSAGE("Called on non-boolean.");
   }
   const _tyStrWRsv &StrGet() const
   {
     Assert( FIsString() || FIsNumber() );
     if (!FIsString() && !FIsNumber())
-      THROWJSONBADUSAGE("JsoValue::StrGet(): Called on non-string/num.");
+      THROWJSONBADUSAGE("Called on non-string/num.");
     return *static_cast<const _tyStrWRsv *>((const void *)m_rgbyValBuf);
   }
   _tyStrWRsv &StrGet()
   {
     Assert( FIsString() || FIsNumber() );
     if (!FIsString() && !FIsNumber())
-      THROWJSONBADUSAGE("JsoValue::StrGet(): Called on non-string/num.");
+      THROWJSONBADUSAGE("Called on non-string/num.");
     return *static_cast<_tyStrWRsv *>((void *)m_rgbyValBuf);
   }
   const _tyJsoObject &_ObjectGet() const
   {
     Assert( FIsObject() );
     if (!FIsObject())
-      THROWJSONBADUSAGE("JsoValue::_ObjectGet(): Called on non-Object.");
+      THROWJSONBADUSAGE("Called on non-Object.");
     return *static_cast<const _tyJsoObject *>((const void *)m_rgbyValBuf);
   }
   _tyJsoObject &_ObjectGet()
   {
     Assert( FIsObject() );
     if (!FIsObject())
-      THROWJSONBADUSAGE("JsoValue::_ObjectGet(): Called on non-Object.");
+      THROWJSONBADUSAGE("Called on non-Object.");
     return *static_cast<_tyJsoObject *>((void *)m_rgbyValBuf);
   }
   const _tyJsoArray &_ArrayGet() const
   {
     Assert( FIsArray() );
     if (!FIsArray())
-      THROWJSONBADUSAGE("JsoValue::_ArrayGet(): Called on non-Array.");
+      THROWJSONBADUSAGE("Called on non-Array.");
     return *static_cast<const _tyJsoArray *>((const void *)m_rgbyValBuf);
   }
   _tyJsoArray &_ArrayGet()
   {
     Assert( FIsArray() );
     if (!FIsArray())
-      THROWJSONBADUSAGE("JsoValue::_ArrayGet(): Called on non-Array.");
+      THROWJSONBADUSAGE("Called on non-Array.");
     return *static_cast<_tyJsoArray *>((void *)m_rgbyValBuf);
   }
   // Various number conversion methods.
@@ -607,7 +611,7 @@ public:
   {
     Assert( FIsNumber() );
     if (ejvtNumber != JvtGetValueType())
-      THROWJSONBADUSAGE("JsoValue::_GetValue(various int): Not at a numeric value type.");
+      THROWJSONBADUSAGE("Not at a numeric value type.");
 
     // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
     int iRet = sscanf(StrGet().c_str(), _pszFmt, &_rNumber);
@@ -802,7 +806,7 @@ public:
       break;
     default:
     case ejvtJsonValueTypeCount:
-      THROWJSONBADUSAGE("JsoValue::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType());
+      THROWJSONBADUSAGE("Invalid value type [%hhu].", JvtGetValueType());
       break;
     }
   }
@@ -846,7 +850,7 @@ public:
       break;
     default:
     case ejvtJsonValueTypeCount:
-      THROWJSONBADUSAGE("JsoValue::FromJSONStream(): invalid value type [%hhu].", JvtGetValueType());
+      THROWJSONBADUSAGE("Invalid value type [%hhu].", JvtGetValueType());
       break;
     }
   }
@@ -890,7 +894,7 @@ public:
       break;
     default:
     case ejvtJsonValueTypeCount:
-      THROWJSONBADUSAGE("JsoValue::ToJSONStream(): invalid value type [%hhu].", JvtGetValueType());
+      THROWJSONBADUSAGE("Invalid value type [%hhu].", JvtGetValueType());
       break;
     }
   }
@@ -933,7 +937,7 @@ public:
       break;
     default:
     case ejvtJsonValueTypeCount:
-      THROWJSONBADUSAGE("JsoValue::ToJSONStream(): invalid value type [%hhu].", JvtGetValueType());
+      THROWJSONBADUSAGE("Invalid value type [%hhu].", JvtGetValueType());
       break;
     }
   }
@@ -1019,7 +1023,7 @@ public:
     else if (ejvtArray == JvtGetValueType())
       return iterator(_ArrayGet().begin());
     else
-      THROWJSONBADUSAGE("JsoValue::begin(): Called on non-aggregate.");
+      THROWJSONBADUSAGE("Called on non-aggregate.");
   }
   const_iterator begin() const
   {
@@ -1029,7 +1033,7 @@ public:
     else if (ejvtArray == JvtGetValueType())
       return const_iterator(_ArrayGet().begin());
     else
-      THROWJSONBADUSAGE("JsoValue::begin(): Called on non-aggregate.");
+      THROWJSONBADUSAGE("Called on non-aggregate.");
   }
   iterator end()
   {
@@ -1039,7 +1043,7 @@ public:
     else if (ejvtArray == JvtGetValueType())
       return iterator(_ArrayGet().end());
     else
-      THROWJSONBADUSAGE("JsoValue::end(): Called on non-aggregate.");
+      THROWJSONBADUSAGE("Called on non-aggregate.");
   }
   const_iterator end() const
   {
@@ -1049,7 +1053,7 @@ public:
     else if (ejvtArray == JvtGetValueType())
       return const_iterator(_ArrayGet().end());
     else
-      THROWJSONBADUSAGE("JsoValue::end(): Called on non-aggregate.");
+      THROWJSONBADUSAGE("Called on non-aggregate.");
   }
 #pragma GCC diagnostic pop
 
@@ -1201,7 +1205,7 @@ public:
   {
     _tyIterator it = m_mapValues.find(_psz);
     if (m_mapValues.end() == it)
-      THROWJSONBADUSAGE("_JsoObject::GetEl(): No such key [%s]", _psz);
+      THROWJSONBADUSAGE("No such key [%s]", _psz);
     return *it;
   }
   const _tyMapValueType &GetEl(_tyLPCSTR _psz) const
@@ -1233,19 +1237,19 @@ public:
     Assert(m_mapValues.empty()); // Note that this isn't required just that it is expected. Remove assertion if needed.
     JsonRestoreContext<t_tyJsonInputStream> rxc(_jrc);
     if (!_jrc.FMoveDown())
-      THROWJSONBADUSAGE("_JsoObject::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly.");
+      THROWJSONBADUSAGE("FMoveDown() returned false unexpectedly.");
     for (; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement())
     {
       _tyStrWRsv strKey;
       EJsonValueType jvt;
       bool f = _jrc.FGetKeyCurrent(strKey, jvt);
       if (!f)
-        THROWJSONBADUSAGE("_JsoObject::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly.");
+        THROWJSONBADUSAGE("FGetKeyCurrent() returned false unexpectedly.");
       _tyJsoValue jvValue(jvt);
       jvValue.FromJSONStream(_jrc);
       std::pair<_tyIterator, bool> pib = m_mapValues.try_emplace(std::move(strKey), std::move(jvValue));
       if (!pib.second) // key already exists.
-        THROWBADJSONSTREAM("_JsoObject::FromJSONStream(EJsonValueType): Duplicate key found[%s].", strKey.c_str());
+        THROWBADJSONSTREAM("Duplicate key found[%s].", strKey.c_str());
     }
   }
   template <class t_tyJsonInputStream, class t_tyFilter>
@@ -1259,7 +1263,7 @@ public:
 #endif                           //0
     JsonRestoreContext<t_tyJsonInputStream> rxc(_jrc);
     if (!_jrc.FMoveDown())
-      THROWJSONBADUSAGE("_JsoObject::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly.");
+      THROWJSONBADUSAGE("FMoveDown() returned false unexpectedly.");
     for (; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement())
     {
       if (!_rfFilter(_jrc, _rjvContainer))
@@ -1268,12 +1272,12 @@ public:
       EJsonValueType jvt;
       bool f = _jrc.FGetKeyCurrent(strKey, jvt);
       if (!f)
-        THROWJSONBADUSAGE("_JsoObject::FromJSONStream(EJsonValueType): FGetKeyCurrent() returned false unexpectedly.");
+        THROWJSONBADUSAGE("FGetKeyCurrent() returned false unexpectedly.");
       _tyJsoValue jvValue(jvt);
       jvValue.FromJSONStream(_jrc, _rfFilter);
       std::pair<_tyIterator, bool> pib = m_mapValues.try_emplace(std::move(strKey), std::move(jvValue));
       if (!pib.second) // key already exists.
-        THROWBADJSONSTREAM("_JsoObject::FromJSONStream(EJsonValueType): Duplicate key found[%s].", strKey.c_str());
+        THROWBADJSONSTREAM("Duplicate key found[%s].", strKey.c_str());
     }
   }
 
@@ -1368,7 +1372,7 @@ public:
   _tyVectorValueType &GetEl(size_t _st)
   {
     if (_st > m_vecValues.size())
-      THROWJSONBADUSAGE("_JsoArray::GetEl(): _st[%zu] exceeds array size[%zu].", _st, m_vecValues.size());
+      THROWJSONBADUSAGE("_st[%zu] exceeds array size[%zu].", _st, m_vecValues.size());
     return m_vecValues[_st];
   }
   const _tyVectorValueType &GetEl(size_t _st) const
@@ -1411,7 +1415,7 @@ public:
     Assert(m_vecValues.empty()); // Note that this isn't required just that it is expected. Remove assertion if needed.
     JsonRestoreContext<t_tyJsonInputStream> rxc(_jrc);
     if (!_jrc.FMoveDown())
-      THROWJSONBADUSAGE("_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly.");
+      THROWJSONBADUSAGE("FMoveDown() returned false unexpectedly.");
     for (; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement())
     {
       _tyJsoValue jvValue(_jrc.JvtGetValueType());
@@ -1430,7 +1434,7 @@ public:
 #endif                           //0
     JsonRestoreContext<t_tyJsonInputStream> rxc(_jrc);
     if (!_jrc.FMoveDown())
-      THROWJSONBADUSAGE("_JsoArray::FromJSONStream(EJsonValueType): FMoveDown() returned false unexpectedly.");
+      THROWJSONBADUSAGE("FMoveDown() returned false unexpectedly.");
     for (; !_jrc.FAtEndOfAggregate(); (void)_jrc.FNextElement())
     {
       if (!_rfFilter(_jrc, _rjvContainer))

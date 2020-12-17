@@ -174,7 +174,7 @@ public:
     _tyThis & assign( const _tyChar * _psz, size_type _stLen = std::numeric_limits<size_type>::max() )
     {
         if ( !_psz )
-            THROWNAMEDEXCEPTION( "StrWRsv::assign(): null _psz." );
+            THROWNAMEDEXCEPTION( "null _psz." );
         if ( std::numeric_limits<size_type>::max() == _stLen )
             _stLen = StrNLen( _psz );
         if ( _stLen < t_kstReserve )
