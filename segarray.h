@@ -216,6 +216,21 @@ public:
     return ElGet(_n);
   }
 
+  template < class t_tyStringView, class t_tyDataRange >
+  bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
+    requires ( TIsCharType_v< t_tyStringView::value_type > )
+  {
+    Assert( _rsv.empty() );
+    if ( _rdr.begin() == _rdr.end() )
+      return true; // empty result.
+    if ( _rdr.begin() / NElsPerSegment() == (_rdr.end() - 1 ) / NElsPerSegment() )
+    {
+      _rsv = t_tyStringView( &ElGet( _rdr.begin() ), _rdr.end() - _rdr.begin() );
+      return true;
+    }
+    return false;
+  }
+
   template <class... t_tysArgs>
   _tyT &emplaceAtEnd(t_tysArgs &&... _args)
   {
@@ -406,10 +421,11 @@ public:
     _tySizeType nElsLeft = _nElsRead;
     _tySizeType stCurWrite = _nPosWrite;
     _tySizeType nPosReadCur = _nPosRead;
+    _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurWrite % NElsPerSegment());
     while (!!nElsLeft)
     {
-      _tySizeType stFwdOffWrite = NElsPerSegment() - (stCurWrite % NElsPerSegment());
-      _tySizeType stMin = std::min(nElsLeft, stFwdOffOrig);
+      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       // We read a stream in bytes.
       _rs.ReadAtPos(&ElGet(stCurWrite), nPosReadCur * sizeof(_tyT), stMin * sizeof(_tyT)); // Throws on EOF.
@@ -421,7 +437,7 @@ public:
   }
 
   // We enable reading for non-contructed types only.
-  _tySignedSizeType Read(_tySizeType _nPos, _tyT *_pt, _tySizeType _nEls) const requires(s_kfNotOwnLifetime)
+  _tySizeType Read(_tySizeType _nPos, _tyT *_pt, _tySizeType _nEls) const requires(s_kfNotOwnLifetime)
   {
     AssertValid();
     if (!_nEls)
@@ -451,6 +467,32 @@ public:
     return _nEls;
   }
 
+  template < class t_tyIter >
+  _tySignedSizeType ReadSegmented( t_tyIter _itBegin, t_tyIter _itEnd, _tyT *_pt, _tySizeType _nEls ) const 
+    requires(s_kfNotOwnLifetime)
+  {
+    AssertValid();
+    _tySizeType nRangeObjs = distance( _itBegin, _itEnd );
+    if ( !nRangeObjs )
+      return 0; // nothing to do.
+    _tyT * ptCur = _pt;
+    _tySizeType nElsRemaining = _nEls; // don't buffer overrun.
+    for ( ; !!nElsRemaining && ( _itBegin != _itEnd ); ++_itBegin )
+    {
+      Assert( _itBegin->end() >= _itBegin->begin() );
+      _tySignedSizeType nReadCur = _tySignedSizeType(_itBegin->end()) - _tySignedSizeType(_itBegin->begin());
+      if ( nReadCur > 0 )
+      {
+        _tySizeType nReadMin = min( nReadCur, nElsRemaining );
+        _tySize nRead = Read( _itBegin->begin(), ptCur, nReadMin );
+        Assert( nRead == nReadMin );
+        ptCur += nRead;
+        nElsRemaining -= nRead;
+      }
+    }
+    return _nEls - nElsRemaining;
+  }
+
   // We allow writing to a file for all types because why not? It might not make sense but you can do it.
   void WriteToFd(int _fd, _tySizeType _nPos = 0, _tySizeType _nElsWrite = std::numeric_limits<_tySizeType>::max()) const
   {
@@ -466,10 +508,11 @@ public:
 
     _tySizeType nElsLeft = _nElsWrite;
     _tySizeType stCurOrig = _nPos;
+    _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurOrig % NElsPerSegment());
     while (!!nElsLeft)
     {
-      _tySizeType stFwdOffOrig = NElsPerSegment() - (stCurOrig % NElsPerSegment());
-      _tySizeType stMin = std::min(nElsLeft, stFwdOffOrig);
+      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       errno = 0;
       ssize_t sstWrote = ::write(_fd, &ElGet(stCurOrig), stMin * sizeof(_tyT));
@@ -481,6 +524,52 @@ public:
       stCurOrig += stMin;
     }
   }
+
+  // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
+  template < class t_tyApply >
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply )
+  {
+    AssertValid();
+    Assert( _posEnd >= _posBegin );
+    if ( _posEnd <= _posBegin )
+      return; // no-op.
+    _tySizeType nElsLeft = _posEnd - _posBegin;
+    _tySizeType stCurApply = _nPosBegin;
+    _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
+    while (!!nElsLeft)
+    {
+      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      stSegRemainWrite = NElsPerSegment(); // From here on out.
+      Assert(stMin);
+      _tyT * pBegin = &ElGet(stCurApply);
+      _apply( pBegin, pBegin + stMin );
+      nElsLeft -= stMin;
+      stCurApply += stMin;
+    }
+  }
+  // const version.
+  template < class t_tyApply >
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply ) const
+  {
+    AssertValid();
+    Assert( _posEnd >= _posBegin );
+    if ( _posEnd <= _posBegin )
+      return; // no-op.
+    _tySizeType nElsLeft = _posEnd - _posBegin;
+    _tySizeType stCurApply = _nPosBegin;
+    _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
+    while (!!nElsLeft)
+    {
+      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      stSegRemainWrite = NElsPerSegment(); // From here on out.
+      Assert(stMin);
+      const _tyT * pBegin = &ElGet(stCurApply);
+      _apply( pBegin, pBegin + stMin );
+      nElsLeft -= stMin;
+      stCurApply += stMin;
+    }
+  }
+
 
 protected:
   uint8_t **_PpbyGetCurSegment() const
@@ -628,8 +717,10 @@ public:
     }
     else
     {
-      _rStr.reserve( (_tySizeType)m_sstLen );
-      m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+      _rStr.resize( (_tySizeType)m_sstLen );
+      _tySizeType nRead = m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+      Assert( (_tySizeType)m_sstLen == nRead );
+      _rStr.resize( nRead );
       return false;
     }
   }
@@ -645,8 +736,8 @@ public:
     Assert( _rStr.empty() );
     if ( !m_psaContainer || !m_sstLen )
       return true; // The empty string view is perfect.
-    const _tySizeType kstLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
-    static const _tySizeType kstMaxAllocaSize = ( 1 << 19 ); // Allow 512KB on the stack. After that we go to a string.
+    const _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
+    static const _tySizeType knchMaxAllocaSize = ( 1 << 19 ) / sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
     basic_string< _tyTRemoveCV > strTempBuf;
     _tyTRemoveCV * ptContigBuf;
     if ( m_sstLen < 0 )
@@ -655,19 +746,21 @@ public:
     }
     else
     {
-      if ( kstLen > kstMaxAllocaSize )
+      if ( stLen > knchMaxAllocaSize )
       {
-        strTempBuf.reserve( kstLen );
+        strTempBuf.resize( stLen );
         ptContigBuf = &strTempBuf[0];
       }
       else
-        ptContigBuf = (_tyTRemoveCV*)alloca( kstLen * sizeof( _tyTRemoveCV ) );
-      
-      _rStr.reserve( kstLen );
-      m_psaContainer->Read( m_stBegin, ptContigBuf, kstLen );
+        ptContigBuf = (_tyTRemoveCV*)alloca( stLen * sizeof( _tyTRemoveCV ) );
+      const _tySizeType kstRead = m_psaContainer->Read( m_stBegin, ptContigBuf, stLen );
+      Assert( kstRead == stLen );
+      if ( stLen > knchMaxAllocaSize )
+        strTempBuf.resize( kstRead );
+      stLen = kstRead;
     }
     // Do the conversion:
-    ConvertString( _rStr, ptContigBuf, kstLen );
+    ConvertString( _rStr, ptContigBuf, stLen );
     return false;
   }
 
@@ -686,8 +779,10 @@ public:
       _rStr.assign( m_ptBegin, (_tySizeType)-m_sstLen );
     else
     {
-      _rStr.reserve( (_tySizeType)m_sstLen );
-      m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+      _rStr.resize( (_tySizeType)m_sstLen );
+      _tySizeType stRead = m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+      Assert( stRead == (_tySizeType)m_sstLen );
+      _rStr.resize( stRead );
     }
   }
   // This is the converting method. When there is any data it always returns true and returns a string since it converted the character type.
@@ -700,8 +795,8 @@ public:
     Assert( _rStr.empty() );
     if ( !m_psaContainer || !m_sstLen )
       return; // The empty string is perfect.
-    const _tySizeType kstLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
-    static const _tySizeType kstMaxAllocaSize = ( 1 << 19 ); // Allow 512KB on the stack. After that we go to a string.
+    const _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
+    static const _tySizeType knchMaxAllocaSize = ( 1 << 19 )/ sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
     basic_string< _tyTRemoveCV > strTempBuf;
     _tyTRemoveCV * ptContigBuf;
     if ( m_sstLen < 0 )
@@ -710,19 +805,21 @@ public:
     }
     else
     {
-      if ( kstLen > kstMaxAllocaSize )
+      if ( stLen > knchMaxAllocaSize )
       {
-        strTempBuf.reserve( kstLen );
+        strTempBuf.resize( stLen );
         ptContigBuf = &strTempBuf[0];
       }
       else
-        ptContigBuf = (_tyTRemoveCV*)alloca( kstLen * sizeof( _tyTRemoveCV ) );
+        ptContigBuf = (_tyTRemoveCV*)alloca( stLen * sizeof( _tyTRemoveCV ) );
       
-      _rStr.reserve( kstLen );
-      m_psaContainer->Read( m_stBegin, ptContigBuf, kstLen );
+      _rStr.resize( stLen );
+      _tySizeType stRead = m_psaContainer->Read( m_stBegin, ptContigBuf, stLen );
+      Assert( stRead == stLen );
+      _rStr.resize( stRead );
     }
     // Do the conversion:
-    ConvertString( _rStr, ptContigBuf, kstLen );
+    ConvertString( _rStr, ptContigBuf, stLen );
   }
 
 protected:
