@@ -11,6 +11,7 @@
 // Would like to templatize by allocator but I have to propagate it and it's annoying right now. Later.
 
 // Predeclare.
+#include <unicode/urename.h>
 template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType = size_t>
 class SegArrayView;
 
@@ -30,9 +31,10 @@ public:
   typedef t_tySizeType _tySizeType;
   static_assert(!std::numeric_limits<_tySizeType>::is_signed);
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
+  static constexpr _tySizeType s_knbySizeSegment = std::max( sizeof(_tyT) * 16, 4096 );
 
   SegArray() = delete;
-  SegArray(_tySizeType _nbySizeSegment = 65536 / sizeof(_tyT))
+  SegArray(_tySizeType _nbySizeSegment = s_knbySizeSegment)
       : m_nbySizeSegment(_nbySizeSegment - (_nbySizeSegment % sizeof(_tyT))) // even number of t_tyT's.
   {
   }
@@ -428,7 +430,7 @@ public:
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       // We read a stream in bytes.
-      _rs.ReadAtPos(&ElGet(stCurWrite), nPosReadCur * sizeof(_tyT), stMin * sizeof(_tyT)); // Throws on EOF.
+      _rs.Read(nPosReadCur * sizeof(_tyT), &ElGet(stCurWrite), stMin * sizeof(_tyT)); // Throws on EOF.
       nElsLeft -= stMin;
       stCurWrite += stMin;
       nPosReadCur += stMin;
@@ -639,6 +641,276 @@ protected:
   uint8_t **m_ppbyEndSegments{};
   _tySizeType m_nElements{};
   _tySizeType m_nbySizeSegment{};
+};
+
+// SegArrayRotatingBuffer:
+// This object stores a "current base position" with the SegArray. Nothing before this base position is accessible anymore - but some of it may still
+//  be allocated. As the base position is moved forward, vacated memory chunks are recycled and placed on the end, creating a rotating buffer with no
+//  reallocation required.
+template <class t_tyT, class t_tySizeType = size_t>
+class SegArrayRotatingBuffer : protected SegArray< t_tyT, std::false_type, t_tySizeType >
+{
+  typedef SegArrayRotatingBuffer _tyThis;
+  typedef SegArray< t_tyT, std::false_type, t_tySizeType > _tyBase;
+public:
+  using _tyBase::_tyT;
+  using _tyBase::_tySizeType;
+  using _tyBase::_tySignedSizeType;
+  using _TyBase::s_knbySizeSegment;
+
+  SegArrayRotatingBuffer() = delete;
+  SegArrayRotatingBuffer( _tySizeType _nbySizeSegment = s_knbySizeSegment )
+    : _TyBase( _nbySizeSegment )
+  {
+  }
+  SegArrayRotatingBuffer( SegArrayRotatingBuffer const & ) = default;
+  SegArrayRotatingBuffer( SegArrayRotatingBuffer &&_rr )
+      : m_nbySizeSegment(_rr.m_nbySizeSegment) // Hopefully get a non-zero value from this object.
+  {
+    _rr.AssertValid();
+    swap(_rr);
+  }
+  ~SegArrayRotatingBuffer() = default;
+
+  void AssertValid() const
+#if ASSERTSENABLED
+  {
+    _tyBase::AssertValid();
+    // Assert we aren't overflowing when computing the number of elements.
+    Assert( signbit( (_tySignedSizeType)( m_nElements + m_nBaseEl ) ) == signbit( (_tySignedSizeType)m_nElements ) );
+  }
+#else  //!ASSERTSENABLED
+  {
+  }
+#endif //!ASSERTSENABLED
+  void Clear()
+  {
+    _tyBase::Clear();
+    m_nBaseEl = 0;
+  }
+  void swap( _tyThis &_r )
+  {    
+    _tyBase::swap( _r );
+    std::swap(m_nBaseEl, _r.m_nBaseEl);
+  }
+  _tyThis &operator=(const _tyThis &_r)
+  {
+    _tyThis saCopy(_r);
+    swap(saCopy);
+  }
+  _tyThis &operator=(_tyThis &&_rr)
+  {
+    // Caller doesn't want _rr to have anything in it or they would have just called swap directly.
+    // So Clear() first.
+    Clear();
+    swap(_rr);
+  }
+
+  _tySizeType _NBaseOffset() const
+  {
+    return ( m_nBaseEl - ( m_nBaseEl % NElsPerSegment() ) );
+  }
+  // We constantly track the thing we are buffering with a window that starts _NBaseOffset() and ends m_nElements beyond that.
+  // The user of this object can only access between m_nBaseEl and ( _NBaseOffset() + m_nElements ).
+  _tySizeType NElements() const
+  {
+    AssertValid();
+    return _tyBase::m_nElements + _NBaseOffset();
+  }
+  _tySizeType GetSize() const
+  {
+    return NElements();
+  }
+  using _tyBase::NElsPerSegment;
+  using _tyBase::FHasAnyCapacity;
+
+  // Base element updating:
+  void SetNBaseEl( _tySizeType _nBaseEl )
+  {
+    VerifyThrowSz( _nBaseEl >= m_nBaseEl, 
+      "Trying to set the base element to something less than the current base. _nBaseEl[%lu], m_nBaseEl[%lu].", uint64_t(_nBaseEl), uint64_t(m_nBaseEl) );
+    // If the new base el is less than the current number of elements then:
+    //  1) Set the new base el.
+    //  2) Move all blocks before the block containing the base el to the end of the block pointer array - in any order. Just need to memmove,etc.
+    // If the new base el is beyond the current number of elements then:
+    //  1) Just set the number of elements to ( m_nBaseEl % NElsPerSegment() ).
+    if ( m_nBaseEl != _nBaseEl )
+    {
+      if ( _nBaseEl >= NElements() )
+      {
+        m_nBaseEl = _nBaseEl;
+        _tyBase::SetSize( m_nBaseEl % NElsPerSegment() );
+      }
+      else
+      {
+        ptrdiff_t nShifted =  ( _nBaseEl / NElsPerSegment() ) - ( m_nBaseEl / NElsPerSegment() ) );
+        m_nBaseEl = _nBaseEl;
+        if ( !!nShifted )
+        {
+          // This is the rotation code, btw, lol:
+          Assert( nShifted > 0 );
+          uint8_t ** ppbyBuffer = (uint8_t **)alloca( nShifted * sizeof( uint8_t * ) );
+          memcpy( ppbyBuffer, m_ppbySegments, nShifted * sizeof( uint8_t * ) );
+          memmove( m_ppbySegments, m_ppbySegments + nShifted, ( ( m_ppbyEndSegments - m_ppbySegments ) - nShifted ) * sizeof(uint8_t *) );
+          memcpy( m_ppbySegments + ( ( m_ppbyEndSegments - m_ppbySegments ) - nShifted ) * sizeof(uint8_t *), ppbyBuffer, nShifted * sizeof( uint8_t * ) );
+          _tyBase::m_nElements -= nShifted * NElsPerSegment();
+        }
+      }
+    }
+  }
+
+  _tyT &ElGet(_tySizeType _nEl, bool _fMaybeEnd = false)
+  {
+    AssertValid();
+    _tySizeType nEls = NElements();
+    if ( ( _nEl < m_nBaseEl ) || ( _nEl > nEls ) ||  (!_fMaybeEnd && ( _nEl == nEls ) ) )
+      THROWNAMEDEXCEPTION("Out of bounds m_nBaseEl[%lu] _nEl[%lu] m_nElements[%lu].", (uint64_t)m_nBaseEl, (uint64_t)_nEl, (uint64_t)nEls);
+    return _tyBase::ElGet( _nEl - _NBaseOffset() );
+  }
+  _tyT const &ElGet(_tySizeType _nEl) const
+  {
+    return const_cast<_tyThis *>(this)->ElGet(_nEl);
+  }
+  _tyT &operator[](_tySizeType _n)
+  {
+    return ElGet(_n);
+  }
+  const _tyT &operator[](_tySizeType _n) const
+  {
+    return ElGet(_n);
+  }
+
+  template < class t_tyStringView, class t_tyDataRange >
+  bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
+    requires ( TIsCharType_v< t_tyStringView::value_type > )
+  {
+    VerifyThrowSz( ( _rdr.begin() >= m_nBaseEl ), 
+      "Trying to read data before the base of the rotating buffer, _rdr.begin()[%lu], m_nBaseEl[%lu].", uint64_t(_rdr.begin()), uint64_t(m_nBaseEl) );
+    t_tyDataRange drOff( _rdr.begin() - _NBaseOffset(), _rdr.end() - _NBaseOffset() );
+    return _tyBase::FGetStringView( _rsv, drOff );
+  }
+  using _tyBase::emplaceAtEnd;
+
+  // Set the number of elements in this object. Note that it is invalid to set the number of elements to be less than m_nBaseEl.
+  // If we manage the lifetime of these object then they must have a default constructor.
+  void SetSize(_tySizeType _nElements, bool _fCompact = false, _tySizeType _nNewBlockMin = 16)
+  {
+    AssertValid();
+    VerifyThrowSz( _nElements >= m_nBaseEl, 
+      "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%lu], m_nBaseEl[%lu].", uint64_t(_nElements), uint64_t(m_nBaseEl) );
+    _tyBase::SetSize( _nElements - _NBaseOffset(), _fCompact, _nNewBlockMin );
+  }
+
+  // Set the number of elements in this object less than the current number.
+  // If the object contained within doesn't have a default constructor you can still call this method.
+  void SetSizeSmaller(_tySizeType _nElements, bool _fCompact = false)
+  {
+    AssertValid();
+    VerifyThrowSz( _nElements >= m_nBaseEl, 
+      "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%lu], m_nBaseEl[%lu].", uint64_t(_nElements), uint64_t(m_nBaseEl) );
+    _tyBase::SetSizeSmaller( _nElements - _NBaseOffset(), _fCompact );
+  }
+  using _tyBase::Compact;
+
+  // We enable insertion for non-contructed types only.
+  void Insert(_tySizeType _nPos, const _tyT *_pt, _tySizeType _nEls)
+  {
+    AssertValid();
+    VerifyThrowSz( _nPos >= m_nBaseEl, 
+      "Trying to insert before the base of the rotating buffer, _nPos[%lu], m_nBaseEl[%lu].", uint64_t(_nPos), uint64_t(m_nBaseEl) );
+    _tyBase::Insert( _nPos - _NBaseOffset(), _pt, _nEls );
+    AssertValid();
+  }
+
+  // We enable overwriting for non-contructed types only.
+  void Overwrite(_tySizeType _nPos, const _tyT *_pt, _tySizeType _nEls)
+  {
+    AssertValid();
+    VerifyThrowSz( _nPos >= m_nBaseEl, 
+      "Trying to overwrite before the base of the rotating buffer, _nPos[%lu], m_nBaseEl[%lu].", uint64_t(_nPos), uint64_t(m_nBaseEl) );
+    _tyBase::Overwrite( _nPos - _NBaseOffset(), _pt, _nEls );
+    AssertValid();
+  }
+
+  // Read data from the given stream overwriting data in this segmented array.
+  // May throw due to allocation error or _rs throwing an EOF error, or perhaps some other reason.
+  template <class t_tyStream>
+  void OverwriteFromStream(_tySizeType _nPosWrite, t_tyStream const &_rs, _tySizeType _nPosRead, _tySizeType _nElsRead) noexcept(false)
+  {
+    AssertValid();
+    VerifyThrowSz( _nPosWrite >= m_nBaseEl, 
+      "Trying to write before the base of the rotating buffer, _nPosWrite[%lu], m_nBaseEl[%lu].", uint64_t(_nPosWrite), uint64_t(m_nBaseEl) );
+    _tyBase::OverwriteFromStream( _nPosWrite - _NBaseOffset(), _rs, _nPosRead, _nElsRead );
+    AssertValid();
+  }
+
+  // We enable reading for non-contructed types only.
+  _tySizeType Read(_tySizeType _nPos, _tyT *_pt, _tySizeType _nEls) const
+  {
+    AssertValid();
+    VerifyThrowSz( _nPos >= m_nBaseEl, 
+      "Trying to read before the base of the rotating buffer, _nPos[%lu], m_nBaseEl[%lu].", uint64_t(_nPos), uint64_t(m_nBaseEl) );
+    return _tyBase::Read( _nPos - _NBaseOffset(), _pt, _nEls );
+  }
+
+  // This one just needs to be done here since each range in the iteration must be offset.
+  template < class t_tyIter >
+  _tySignedSizeType ReadSegmented( t_tyIter _itBegin, t_tyIter _itEnd, _tyT *_pt, _tySizeType _nEls ) const 
+  {
+    AssertValid();
+    _tySizeType nRangeObjs = distance( _itBegin, _itEnd );
+    if ( !nRangeObjs )
+      return 0; // nothing to do.
+    _tyT * ptCur = _pt;
+    _tySizeType nElsRemaining = _nEls; // don't buffer overrun.
+    for ( ; !!nElsRemaining && ( _itBegin != _itEnd ); ++_itBegin )
+    {
+      Assert( _itBegin->end() >= _itBegin->begin() );
+      _tySignedSizeType nReadCur = _tySignedSizeType(_itBegin->end()) - _tySignedSizeType(_itBegin->begin());
+      if ( nReadCur > 0 )
+      {
+        _tySizeType nReadMin = min( nReadCur, nElsRemaining );
+        _tySize nRead = Read( _itBegin->begin(), ptCur, nReadMin );
+        Assert( nRead == nReadMin );
+        ptCur += nRead;
+        nElsRemaining -= nRead;
+      }
+    }
+    return _nEls - nElsRemaining;
+  }
+
+  // We allow writing to a file for all types because why not? It might not make sense but you can do it.
+  void WriteToFd(int _fd, _tySizeType _nPos, _tySizeType _nElsWrite = std::numeric_limits<_tySizeType>::max()) const
+  {
+    AssertValid();
+    VerifyThrowSz( _nPos >= m_nBaseEl, 
+      "Trying to read before the base of the rotating buffer, _nPos[%lu], m_nBaseEl[%lu].", uint64_t(_nPos), uint64_t(m_nBaseEl) );
+    _tyBase::WriteToFd( fd, _nPos - _NBaseOffset(), _nElsWrite );
+  }
+
+  // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
+  template < class t_tyApply >
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply )
+  {
+    AssertValid();
+    VerifyThrowSz( _posBegin >= m_nBaseEl, 
+      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_nBaseEl[%lu].", uint64_t(_posBegin), uint64_t(m_nBaseEl) );
+    _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), _apply );
+  }
+  // const version.
+  template < class t_tyApply >
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply ) const
+  {
+    AssertValid();
+    VerifyThrowSz( _posBegin >= m_nBaseEl, 
+      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_nBaseEl[%lu].", uint64_t(_posBegin), uint64_t(m_nBaseEl) );
+    _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), _apply );
+  }
+
+protected:
+  // The current base element. The invariant that is maintained is that m_nBaseEl is always located in the first chunk.
+  //  When m_nBaseEl is moved into the next chunk (or beyond) those chunk(s) are rotated around to the end.
+  _tySizeType m_nBaseEl{0}; 
 };
 
 // SegArrayView:
