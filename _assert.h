@@ -59,6 +59,29 @@ public:
 #endif // !NDEBUG
 #endif // !ASSERTSENABLED
 
+// We might have assert-related statements - i.e. when we record some initial state and then assert something about it later.
+// In those case we need to have these previous assert-related statements (or subsequent for that matter) present in the build regardless of NDEBUG value.
+#if ASSERTSENABLED
+#define AssertStatement( s ) s;
+#else
+#define AssertStatement( s )
+#endif
+#if ASSERTSENABLED
+#define AssertFragment( s ) s
+#else
+#define AssertFragment( s )
+#endif
+#if ASSERTSENABLED
+#define AssertComma( s )  ,s
+#else
+#define AssertComma( s )
+#endif
+#if ASSERTSENABLED
+#define AssertComma2( s1, s2 ) s1##,##s2
+#else
+#define AssertComma2( s )
+#endif
+
 #ifndef ACTIONONASSERT
 // By default we do not abort on assert. Abort generates a core dump so if you want to examine the state of things you would want to abort.
 #define ACTIONONASSERT eabiBreak
