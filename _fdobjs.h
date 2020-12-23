@@ -36,6 +36,7 @@ public:
   {
     FdObj fdo( std::move( _rr ) );
     swap( fdo );
+    return *this;
   }
   void swap( FdObj & _r )
   {

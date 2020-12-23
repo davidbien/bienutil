@@ -173,8 +173,8 @@ protected:
   // For non-infinite values of m_stchLenRead:
   //  ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements()
   _tySegArray m_saBuffer;
-  size_t m_stchLenRead{std::numeric_limits< size_t >::max()>};
-  size_t m_stchLenRemaining{std::numeric_limits< size_t >::max()>};
+  size_t m_stchLenRead{std::numeric_limits< size_t >::max()};
+  size_t m_stchLenRemaining{std::numeric_limits< size_t >::max()};
   size_t m_posCur{0};
   int m_fd{-1};
   bool m_fReadAhead{false};

@@ -21,6 +21,7 @@
 #include "_namdexc.h"
 #include "_smartp.h"
 #include "_assert.h"
+#include <unicode/ustring.h>
 #if __APPLE__
 #include <libproc.h>
 #include <mach-o/dyld.h>
@@ -36,28 +37,33 @@ struct TIsCharType
 {
 	static constexpr bool value = false;
 };
+template <>
 struct TIsCharType< char >
 {
 	static constexpr bool value = true;
 };
+template <>
 struct TIsCharType< wchar_t >
 {
 	static constexpr bool value = true;
 };
+template <>
 struct TIsCharType< char8_t >
 {
 	static constexpr bool value = true;
 };
+template <>
 struct TIsCharType< char16_t >
 {
 	static constexpr bool value = true;
 };
+template <>
 struct TIsCharType< char32_t >
 {
 	static constexpr bool value = true;
 };
 template < class t_ty >
-using TIsCharType_v = TIsCharType::value;
+inline constexpr bool TIsCharType_v = TIsCharType< t_ty >::value;
 
 // TIsStringView, TIsStringView_v: Is this a basic_string_view type?
 template < class t_ty >
@@ -71,7 +77,7 @@ struct TIsStringView< std::basic_string_view< t_tyChar, t_tyCharTraits > >
 	static constexpr bool value = true;
 };
 template < class t_ty >
-using TIsStringView_v = TIsStringView::value;
+inline constexpr bool TIsStringView_v = TIsStringView< t_ty >::value;
 
 // StrRSpn:
 // Find the count of _pszSet chars that occur at the end of [_pszBegin,_pszEnd).
@@ -270,9 +276,10 @@ inline void GetErrnoDescStdStr(int _errno, std::basic_string<char, std::char_tra
 }
 
 // This method will not look for negative numbers but it can read into a signed number.
-template <class t_tyNum>
-int IReadPositiveNum(const char *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool _fThrowOnError)
+template <class t_tyChar, class t_tyNum>
+int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool _fThrowOnError)
 {
+	typedef t_tyChar _tyChar;
 	_rNum = 0;
 	if (!_psz || !*_psz)
 	{
@@ -281,12 +288,12 @@ int IReadPositiveNum(const char *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool _fT
 		return -1;
 	}
 	if (_sstLen <= 0)
-		_sstLen = strlen(_psz);
-	const char *pszCur = _psz;
-	const char *const pszEnd = pszCur + _sstLen;
+		_sstLen = StrNLen(_psz);
+	const _tyChar *pszCur = _psz;
+	const _tyChar *const pszEnd = pszCur + _sstLen;
 	for (; pszEnd != pszCur; ++pszCur)
 	{
-		int iCur = int(*pszCur) - int('0');
+		int iCur = int(*pszCur) - int('0'); // using the fact that '0' is same in all character types.
 		if ((iCur < 0) || (iCur > 9))
 		{
 			if (_fThrowOnError)
@@ -384,7 +391,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size
 	else
 		Assert( _stLenSource == StrNLen( _pc32Source, _stLenSource ) );
 	int32_t nLenReq = 0;
-	(void)u_strFromUTF32WithSub( nullptr, 0, &nLenReq, _pc32Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
+	(void)u_strFromUTF32WithSub( nullptr, 0, &nLenReq, (const UChar32 *)_pc32Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -392,7 +399,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
-	(void)u_strFromUTF32WithSub( (UChar*)&_rstrDest[0], nLenReq, nullptr, _pc32Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
+	(void)u_strFromUTF32WithSub( (UChar*)&_rstrDest[0], nLenReq, nullptr, (const UChar32 *)_pc32Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -401,7 +408,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
 template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest & _rstrDest, const wchar_t * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+void ConvertString( t_tyString16 & _rstrDest, const wchar_t * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( wchar_t ) == 4 ) )
 {
 	ConvertString( _rstrDest, (char32_t*)_pc32Source, _stLenSource );
@@ -464,7 +471,7 @@ void ConvertString( t_tyString8 & _rstrDest, const char16_t * _pc16Source, size_
 }
 // This handles casting for the Windows' case of wchar_t being 2 bytes long for the above two functions.
 template < class t_tyString8 >
-void ConvertString( t_tyString8 & _rstrDest & _rstrDest, const wchar_t * _pwc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
 	requires( ( ( sizeof( typename t_tyString8::value_type ) == 4 ) || ( sizeof( typename t_tyString8::value_type ) == 1 ) ) && ( sizeof( wchar_t ) == 2 ) )
 {
 	ConvertString( _rstrDest, (char16_t*)_pwc16Source, _stLenSource );
@@ -500,7 +507,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char8_t * _pc8Source, size_t
 }
 // casting char->char8_t.
 template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest & _rstrDest, const char * _pcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) )
 {
 	ConvertString( _rstrDest, (char8_t*)_pcSource, _stLenSource );
@@ -532,21 +539,21 @@ void ConvertString( t_tyString8 & _rstrDest, const char32_t * _pc32Source, size_
 // This one should work for both strings and string_views.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires(	is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
+	requires(	std::is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
 {
 	_rstrDest = _rstrSrc;
 }
 // The below should work for all kinds of strings and also when the source is a string view.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc && _rrstrSrc ) 
-	requires( is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
+	requires ( std::is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
 {
 	_rstrDest = std::move( _rrstrSrc );
 }
 // The below will work when the source is a string view as well.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires( !is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type >  && !TIsStringView_v< t_tyStringDest > )
+	requires( !std::is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
 {
 	ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
 }

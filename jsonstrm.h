@@ -17,7 +17,6 @@
 #include <limits.h>
 #include <sys/mman.h>
 #include <uuid/uuid.h>
-#include <unicode/ustring.h>
 
 #include "bienutil.h"
 #include "bientypes.h"
@@ -73,12 +72,12 @@ class JsonFormatSpec;
 template < class t_tyCharTraits >
 class bad_json_stream_exception : public std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR >
 {
-    typedef std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
+    typedef std::_t__Named_exception_errno< __JSONSTRM_DEFAULT_ALLOCATOR > _tyBase;
 public:
     typedef t_tyCharTraits _tyCharTraits;
 
     bad_json_stream_exception( const string_type & __s, int _nErrno = 0 ) 
-        : _TyBase( __s, _nErrno ) 
+        : _tyBase( __s, _nErrno ) 
     {
     }
     bad_json_stream_exception( const char * _pcFmt, va_list args ) 
@@ -86,7 +85,7 @@ public:
         RenderVA( _pcFmt, args );
     }
     bad_json_stream_exception( int _errno, const char * _pcFmt, va_list args ) 
-        : _TyBase( _errno )
+        : _tyBase( _errno )
     {
         RenderVA( _pcFmt, args );
     }
@@ -111,7 +110,7 @@ public:
         }
         *pcBufCur = 0;
 
-        _TyBase::RenderVA( rgcBuf, args ); // Render into the exception description buffer.
+        _tyBase::RenderVA( rgcBuf, args ); // Render into the exception description buffer.
     }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
@@ -122,17 +121,17 @@ public:
 template < class t_tyCharTraits >
 class json_stream_bad_semantic_usage_exception : public std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR >
 {
-    typedef json_stream_bad_semantic_usage_exception _TyThis;
-    typedef std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR > _TyBase;
+    typedef json_stream_bad_semantic_usage_exception _tyThis;
+    typedef std::_t__Named_exception< __JSONSTRM_DEFAULT_ALLOCATOR > _tyBase;
 public:
     typedef t_tyCharTraits _tyCharTraits;
 
     json_stream_bad_semantic_usage_exception( const char * _pc ) 
-        : _TyBase( _pc ) 
+        : _tyBase( _pc ) 
     {
     }
     json_stream_bad_semantic_usage_exception( const string_type & __s ) 
-        : _TyBase( __s ) 
+        : _tyBase( __s ) 
     {
     }
     json_stream_bad_semantic_usage_exception( const char * _pcFmt, va_list args ) 
@@ -938,7 +937,7 @@ public:
     typedef t_tyCharTraits _tyCharTraits;
     typedef typename _tyCharTraits::_tyChar _tyChar;
     typedef t_tyPersistAsChar _tyPersistAsChar;
-    typedef std::basic_string< _tyPersistAsChar, std::char_traits< _tyPersistAsChar > > _TyStdStrPersist;
+    typedef std::basic_string< _tyPersistAsChar, std::char_traits< _tyPersistAsChar > > _tyStdStrPersist;
     typedef typename _tyCharTraits::_tyLPCSTR _tyLPCSTR;
     typedef size_t _tyFilePos;
     typedef JsonReadCursor< _tyThis > _tyJsonReadCursor;
@@ -1048,7 +1047,7 @@ public:
         }
         else
         {
-            _TyStdStrPersist strPersist;
+            _tyStdStrPersist strPersist;
             ConvertString( strPersist, &_tc, 1 );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
             errno = 0;
@@ -1068,7 +1067,7 @@ public:
             _sstLen = _tyCharTraits::StrLen( _psz );
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            _TyStdStrPersist strPersist;
+            _tyStdStrPersist strPersist;
             ConvertString( strPersist, _psz, _sstLen );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
             errno = 0;
@@ -1348,7 +1347,7 @@ public:
         }
         else
         {
-            _TyStdStrPersist strPersist;
+            _tyStdStrPersist strPersist;
             ConvertString( strPersist, &_tc, 1 );
             _CheckGrowMap( strPersist.length() );
             memcpy( m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof _tyPersistAsChar );
@@ -1363,7 +1362,7 @@ public:
             _sstLen = _tyCharTraits::StrLen( _psz );
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            _TyStdStrPersist strPersist;
+            _tyStdStrPersist strPersist;
             ConvertString( strPersist, _psz, _sstLen );
             _CheckGrowMap( strPersist.length() );
             memcpy( m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof _tyPersistAsChar );
@@ -1595,7 +1594,7 @@ public:
         }
         else
         {
-            _TyStdStrPersist strPersist;
+            _tyStdStrPersist strPersist;
             ConvertString( strPersist, &_tc, 1 );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
             errno = 0;
@@ -1615,7 +1614,7 @@ public:
             _sstLen = _tyCharTraits::StrLen( _psz );
         if ( sizeof(_tyChar) != sizeof(_tyPersistAsChar) )
         {
-            _TyStdStrPersist strPersist;
+            _tyStdStrPersist strPersist;
             ConvertString( strPersist, _psz, _sstLen );
             ssize_t sstWrite = strPersist.length() * sizeof( _tyPersistAsChar );
             errno = 0;
@@ -2520,9 +2519,9 @@ public:
         _WriteValue( ejvtString, _pszKey, _stLenKey, std::move( _rrstrVal ) );
     }
     // Allow conversion of the key and movement of the value.
-    template < class t_TyKeyChar >
-    void WriteStringValue( const t_TyKeyChar * _pszKey, ssize_t _stLenKey, _tyStdStr && _rrstrVal )
-        requires ( !is_same_v< t_tyKeyChar, t_tyChar > )
+    template < class t_tyKeyChar >
+    void WriteStringValue( const t_tyKeyChar * _pszKey, ssize_t _stLenKey, _tyStdStr && _rrstrVal )
+        requires ( !std::is_same_v< t_tyKeyChar, _tyChar > )
     {
         std::basic_string< t_tyKeyChar > strConvertKey;
         ConvertString( strConvertKey, _pszKey, _stLenKey );
@@ -2565,7 +2564,7 @@ public:
     // Key conversion only:
     template < class t_tyKeyChar >
     void WriteStringValue( const t_tyKeyChar * _pszKey, ssize_t _stLenKey, _tyLPCSTR _pszValue, ssize_t _stLenValue = -1 )
-        requires ( !is_same_v< t_tyKeyChar, t_tyChar > )
+        requires ( !std::is_same_v< t_tyKeyChar, _tyChar > )
     {
         std::basic_string< t_tyKeyChar > strConvertKey;
         ConvertString( strConvertKey, _pszKey, _stLenKey );
@@ -2576,7 +2575,7 @@ public:
     // Value conversion only:
     template < class t_tyValueChar >
     void WriteStringValue( _tyLPCSTR _pszKey, ssize_t _stLenKey, const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1 )
-        requires ( !is_same_v< t_tyValueChar, t_tyChar > )
+        requires ( !std::is_same_v< t_tyValueChar, _tyChar > )
     {
         if ( _stLenKey < 0 )
             _stLenKey = StrNLen( _pszKey );
@@ -2587,7 +2586,7 @@ public:
     // Key and value conversion:
     template < class t_tyKeyChar, class t_tyValueChar >
     void WriteStringValue( const t_tyKeyChar * _pszKey, ssize_t _stLenKey, const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1 )
-        requires ( !is_same_v< t_tyKeyChar, t_tyChar > && !is_same_v< t_tyValueChar, t_tyChar > )
+        requires ( !std::is_same_v< t_tyKeyChar, _tyChar > && !std::is_same_v< t_tyValueChar, _tyChar > )
     {
         std::basic_string< t_tyKeyChar > strConvertKey;
         ConvertString( strConvertKey, _pszKey, _stLenKey );
@@ -2595,8 +2594,8 @@ public:
         ConvertString( strConvertValue, _pszValue, _stLenValue );
         _WriteValue( ejvtString, &strConvertKey[0], strConvertKey.length(), &strConvertValue[0], strConvertValue.length() );
     }
-    // We don't offer any string conversion with the printf stuff currently.
-    void PrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ... )
+    template < class t_tyConvertFromChar >
+    void PrintfStringKeyValue( const t_tyConvertFromChar * _pszKey, const t_tyConvertFromChar * _pszValue, ... )
     {
         va_list ap;
         va_start(ap, _pszValue);
@@ -2611,11 +2610,12 @@ public:
         }
         va_end(ap);
     }
-    void VPrintfStringKeyValue( _tyLPCSTR _pszKey, _tyLPCSTR _pszValue, va_list _ap )
+    template < class t_tyConvertFromChar >
+    void VPrintfStringKeyValue( const t_tyConvertFromChar * _pszKey, const t_tyConvertFromChar * _pszValue, va_list _ap )
     {
-        _tyStdStr str;
+        std::basic_string< t_tyConvertFromChar > str;
         VPrintfStdStr(str, _pszValue, _ap);
-        _WriteValue( ejvtString, _pszKey, &str[0], str.length() );
+        WriteStringValue( _pszKey, -1, &str[0], str.length() );
     }
     
     void WriteValue( _tyLPCSTR _pszKey, uint8_t _by )
@@ -2660,15 +2660,15 @@ public:
     }
     void WriteTimeStringValue( _tyLPCSTR _pszKey, time_t const & _tt )
     {
-        std::string strTime;
+        _tyStdStr strTime;
         n_TimeUtil::TimeToString( _tt, strTime );
-        _WriteValue( ejvtString, _pszKey, std::move( strTime ) );
+        WriteStringValue( _pszKey, -1, std::move( strTime ) );
     }
     void WriteUuidStringValue( _tyLPCSTR _pszKey, uuid_t const & _uuidt )
     {
         uuid_string_t ustOut;
         uuid_unparse_lower( _uuidt, ustOut );
-        _WriteValue( ejvtString, _pszKey, ustOut );
+        WriteStringValue( _pszKey, -1, ustOut, -1 );
     }
 
 // Arrray (value) operations:
@@ -2708,13 +2708,13 @@ public:
 
     void WriteStringValue( _tyLPCSTR _pszValue, ssize_t _stLenValue = -1 )
     {
-        if ( _stLen < 0 )
-            _stLen = _tyCharTraits::StrLen( _pszValue );
+        if ( _stLenValue < 0 )
+            _stLenValue = _tyCharTraits::StrLen( _pszValue );
         _WriteValue( ejvtString, _pszValue, (size_t)_stLenValue );
     }
     template < class t_tyValueChar >
     void WriteStringValue( const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1 )
-        requires( !is_same_v< t_tyValueChar, t_tyChar > )
+        requires( !std::is_same_v< t_tyValueChar, _tyChar > )
     {
         std::basic_string< t_tyValueChar > strConvertValue;
         ConvertString( strConvertValue, _pszValue, _stLenValue );
@@ -2733,7 +2733,7 @@ public:
     }
     template < class t_tyStr >
     void WriteStrOrNumValue( EJsonValueType _jvt, t_tyStr const & _rstrVal )
-        requires( !is_same_v< typename t_tyStr::value_type, t_tyChar > )
+        requires( !std::is_same_v< typename t_tyStr::value_type, _tyChar > )
     {
         if ( ( ejvtString != _jvt ) && ( ejvtNumber != _jvt ) )
             THROWBADJSONSEMANTICUSE( "This method only for numbers and strings." );
@@ -2829,7 +2829,7 @@ protected:
       _tyChar rgcNum[ knNum ];
       int nPrinted = _tyCharTraits::Snprintf( rgcNum, knNum, _pszFmt, _num );
       Assert( nPrinted < knNum );
-      _WriteValue( ejvtNumber, _pszKey, rgcNum, std::min( nPrinted, knNum-1 ) );
+      _WriteValue( ejvtNumber, _pszKey, StrNLen( _pszKey ), rgcNum, std::min( nPrinted, knNum-1 ) );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, size_t _stLenKey, _tyLPCSTR _pszValue, size_t _stLenValue )
     {
@@ -2839,7 +2839,7 @@ protected:
         Assert( _tyCharTraits::StrNLen( _pszValue, _stLenValue ) == _stLenValue );
         Assert( _tyCharTraits::StrNLen( _pszKey, _stLenKey ) == _stLenKey );
         JsonValueLife jvlObjectElement( *this, _pszKey, _stLenKey, _ejvt );
-        jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
+        jvlObjectElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLenValue );
     }
     void _WriteValue( EJsonValueType _ejvt, _tyLPCSTR _pszKey, size_t _stLenKey, _tyStdStr && _rrstrVal )
     {
@@ -2865,7 +2865,7 @@ protected:
         Assert( FAtArrayValue() );
         if ( !FAtArrayValue() )
             THROWBADJSONSEMANTICUSE( "Writing a value to a non-array." );
-        Assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) >= _stLen );
+        Assert( _tyCharTraits::StrNLen( _pszValue, _stLen ) == _stLen );
         JsonValueLife jvlArrayElement( *this, _ejvt );
         jvlArrayElement.RJvGet().PGetStringValue()->assign( _pszValue, _stLen );
     }

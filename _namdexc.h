@@ -18,6 +18,7 @@
 
 #include <stdarg.h>
 #include <string>
+#include <variant>
 #include "bienutil.h"
 
 namespace std // REVIEW:<dbien>: Not sure why I extended std here - should rid that.
@@ -41,7 +42,7 @@ public:
     strncpy( m_rgcExceptionName, "_t__Named_exception", s_stBufSize );
     m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
-  _t__Named_exception(const char * _pc);
+  _t__Named_exception(const char * _pc)
   {
     if ( _pc )
     {
@@ -176,19 +177,19 @@ protected:
 template < class t_TyAllocator = allocator< char > >
 class named_bad_variant_access : public std::_t__Named_exception< t_TyAllocator, bad_variant_access >
 {
-  typedef VerifyFailedException _TyThis;
-  typedef std::_t__Named_exception<> _TyBase;
+  typedef named_bad_variant_access _TyThis;
+  typedef std::_t__Named_exception< t_TyAllocator, bad_variant_access > _TyBase;
 public:
-  using _TyBase::string_type;
-  VerifyFailedException( const char * _pc ) 
+  using typename _TyBase::string_type;
+  named_bad_variant_access( const char * _pc ) 
       : _TyBase( _pc ) 
   {
   }
-  VerifyFailedException( const string_type & __s ) 
+  named_bad_variant_access( const string_type & __s ) 
       : _TyBase( __s ) 
   {
   }
-  VerifyFailedException( const char * _pcFmt, va_list _args )
+  named_bad_variant_access( const char * _pcFmt, va_list _args )
       : _TyBase( _pcFmt, _args )
   {
   }

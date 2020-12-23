@@ -14,9 +14,23 @@
 
 namespace n_TimeUtil
 {
-    // Choose a simple representation for now.
-    inline void TimeToString( time_t const & _rtt, std::string & _rstr )
+    template < class t_tyChar >
+    size_t StrFTime( t_tyChar * _rgcBufOut, size_t _nMaxBufOut, const t_tyChar * _szFmt, const struct tm * _ptm );
+    template <> inline
+    size_t StrFTime( char * _rgcBufOut, size_t _nMaxBufOut, const char * _szFmt, const struct tm * _ptm )
     {
+        return strftime( _rgcBufOut, _nMaxBufOut, _szFmt, _ptm );
+    }
+    template <> inline
+    size_t StrFTime( wchar_t * _rgcBufOut, size_t _nMaxBufOut, const wchar_t * _szFmt, const struct tm * _ptm )
+    {
+        return wcsftime( _rgcBufOut, _nMaxBufOut, _szFmt, _ptm );
+    }
+    // Choose a simple representation for now.
+    template < class t_tyString >
+    inline void TimeToString( time_t const & _rtt, t_tyString & _rstr )
+    {
+        typedef typename t_tyString::value_type _tyChar;
         struct tm tmLocal;
         struct tm * ptm = localtime_r( &_rtt, &tmLocal );
         if ( !ptm )
@@ -26,18 +40,20 @@ namespace n_TimeUtil
         }
         Assert( ptm == &tmLocal );
 
-        const int knBuf = 128;
-        char rgcBuf[ knBuf ];
-        size_t stWritten = strftime( rgcBuf, knBuf-1, "%Y%m%d-%H%M%S", &tmLocal );
+        const size_t knBuf = 128;
+        _tyChar rgcBuf[ knBuf ];
+        // REVIEW:<dbien>: For some reason I had to insert an explicit cast here to get things to compile.
+        size_t stWritten = StrFTime( rgcBuf, knBuf-1, static_cast< _tyChar const * >( str_array_cast< _tyChar >( "%Y%m%d-%H%M%S" ) ), &tmLocal );
         Assert( !!stWritten ); // not much we can do about this if it fires.
         rgcBuf[ knBuf-1 ] = 0;
         _rstr = rgcBuf;
     }
-    inline int ITimeFromString( const char * _pszTimeStr, time_t & _rtt )
+    template < class t_tyChar >
+    inline int ITimeFromString( const t_tyChar * _pszTimeStr, time_t & _rtt )
     {
         // We are looking for YYYYMMDD-HHMMSS and this is in local time.
         struct tm tmLocal;
-        size_t nLen = strlen( _pszTimeStr );
+        size_t nLen = StrNLen( _pszTimeStr );
         if ( nLen < 15 )
             return -1;
         
@@ -66,5 +82,4 @@ namespace n_TimeUtil
             return -9;
         return 0;
     }
-
 };

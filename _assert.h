@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <string>
 #include "syslogmgr.h"
+#include "_namdexc.h"
 
 // This file defines assertion and runtime check stuff.
 // We allow assertion when ASSERTSENABLED is set non-zero. Normal in release binaries this is not set.

@@ -12,7 +12,9 @@
 
 // Predeclare.
 #include <unicode/urename.h>
-template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType = size_t>
+#include "_strutil.h"
+
+template <class t_tyT, class t_tyFOwnLifetime = std::false_type, class t_tySizeType = size_t>
 class SegArrayView;
 
 // REVIEW: <dbien>: We could break out a base from SegArray which would be agnostic of t_tyFOwnLifetime and allow
@@ -31,7 +33,7 @@ public:
   typedef t_tySizeType _tySizeType;
   static_assert(!std::numeric_limits<_tySizeType>::is_signed);
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
-  static constexpr _tySizeType s_knbySizeSegment = std::max( sizeof(_tyT) * 16, 4096 );
+  static constexpr _tySizeType s_knbySizeSegment = std::max( sizeof(_tyT) * 16, size_t(4096) );
 
   SegArray() = delete;
   SegArray(_tySizeType _nbySizeSegment = s_knbySizeSegment)
@@ -220,7 +222,7 @@ public:
 
   template < class t_tyStringView, class t_tyDataRange >
   bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
-    requires ( TIsCharType_v< t_tyStringView::value_type > )
+    requires ( TIsCharType_v< typename t_tyStringView::value_type > )
   {
     Assert( _rsv.empty() );
     if ( _rdr.begin() == _rdr.end() )
@@ -719,9 +721,9 @@ class SegArrayRotatingBuffer : protected SegArray< t_tyT, std::false_type, t_tyS
   typedef SegArrayRotatingBuffer _tyThis;
   typedef SegArray< t_tyT, std::false_type, t_tySizeType > _tyBase;
 public:
-  using _tyBase::_tyT;
-  using _tyBase::_tySizeType;
-  using _tyBase::_tySignedSizeType;
+  using typename _tyBase::_tyT;
+  using typename _tyBase::_tySizeType;
+  using typename _tyBase::_tySignedSizeType;
   using _tyBase::s_knbySizeSegment;
 
   SegArrayRotatingBuffer() = delete;
@@ -881,7 +883,7 @@ public:
   {
     VerifyThrowSz( ( _rdr.begin() >= NBaseElMagnitude() ), 
       "Trying to read data before the base of the rotating buffer, _rdr.begin()[%lu], m_iBaseEl[%ld].", uint64_t(_rdr.begin()), int64_t(m_iBaseEl) );
-    _TySizeType nOff = _NBaseOffset();
+    _tySizeType nOff = _NBaseOffset();
     t_tyDataRange drOff( _rdr.begin() - nOff, _rdr.end() - nOff );
     return _tyBase::FGetStringView( _rsv, drOff );
   }
@@ -889,7 +891,7 @@ public:
 
   // This will destructively transfer data from [_posBegin,_posEnd) from *this to _rsaTo.
   // It will move the m_iBaseEl to _posEnd.
-  void CopyOrTransferData( _tySizeType _posBegin, _tySizeType _posEnd, _TyThis & _rsaTo )
+  void CopyOrTransferData( _tySizeType _posBegin, _tySizeType _posEnd, _tyThis & _rsaTo )
   {
     AssertValid();
     VerifyThrowSz( m_iBaseEl >= 0, 
@@ -1034,14 +1036,14 @@ protected:
 // Note that we specifically do not define a value_type as _tyT on this object as we are using
 //  this to discern std strings and string_views when setting strings into objects (and we want to override operator[]() here for ease of use)
 // We optimize for the case where the object fits inside of a segment by storing the pointer in that case.
-template <class t_tyT, class t_tyFOwnLifetime = std::false_type, class t_tySizeType = size_t >
+template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType >
 class SegArrayView
 {
   typedef SegArrayView _tyThis;
 
 public:
   typedef t_tyT _tyT;
-  typedef remove_cv_t< _tyT > _tyTRemoveCV;
+  typedef std::remove_cv_t< _tyT > _tyTRemoveCV;
   typedef t_tySizeType _tySizeType;
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
   typedef SegArray< std::remove_cv_t< _tyT >, t_tyFOwnLifetime, t_tySizeType > _tySegArray;
@@ -1091,7 +1093,7 @@ public:
   // Return true if we were able to populate the string_view, false for string.
   template < class t_tyStrView, class t_tyString > bool
   FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && is_same_v< typename t_tyStrView::value_type, _tyTRemoveCV > && is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+    requires( TIsCharType_v< _tyTRemoveCV > && std::is_same_v< typename t_tyStrView::value_type, _tyTRemoveCV > && std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
   {
     AssertValid();
     Assert( _rStrView.empty() ); // we expect empties.
@@ -1117,7 +1119,7 @@ public:
   template < class t_tyStrView, class t_tyString > bool
   FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
     requires( TIsCharType_v< _tyTRemoveCV > && TIsCharType_v< typename t_tyStrView::value_type > &&
-              !is_same_v< _tyTRemoveCV, typename t_tyStrView::value_type > && is_same_v< typename t_tyString::value_type, t_tyStrView::value_type > )
+              !std::is_same_v< _tyTRemoveCV, typename t_tyStrView::value_type > && std::is_same_v< typename t_tyString::value_type, t_tyStrView::value_type > )
   {
     AssertValid();
     Assert( _rStrView.empty() ); // we expect empties.
@@ -1157,7 +1159,7 @@ public:
   // Return true if we were able to populate the string_view, false for string.
   template < class t_tyString > void
   GetString( t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+    requires( TIsCharType_v< _tyTRemoveCV > && std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
   {
     AssertValid();
     Assert( _rStr.empty() );
@@ -1177,7 +1179,7 @@ public:
   // If there is no data then it returns false and a null string_view.
   template < class t_tyString > void
   GetString( t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && !is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+    requires( TIsCharType_v< _tyTRemoveCV > && !std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
   {
     AssertValid();
     Assert( _rStr.empty() );
