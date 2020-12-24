@@ -147,9 +147,7 @@ public:
 #if ASSERTSENABLED
   {
     Assert(!!m_nbySizeSegment && !(m_nbySizeSegment % sizeof(_tyT)));
-    Assert(!m_nElements == !m_ppbySegments);
-    Assert(!m_nElements == !m_ppbyEndSegments);
-    Assert(!m_nElements || !(m_nElements % NElsPerSegment()) == !*_PpbyGetCurSegment());
+    // We could do a little better here.
   }
 #else  //!ASSERTSENABLED
   {
@@ -203,6 +201,7 @@ public:
   _tyT &ElGet(_tySizeType _nEl, bool _fMaybeEnd = false)
   {
     AssertValid();
+    Assert( !((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements))) );
     if ((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements)))
       THROWNAMEDEXCEPTION("Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements);
     return ((_tyT *)m_ppbySegments[_nEl / NElsPerSegment()])[_nEl % NElsPerSegment()];
@@ -303,8 +302,8 @@ public:
       if (s_kfOwnLifetime)
       {
         // Then just destruct all the elements:
-        while (m_nElements != _nElements)
-          ElGet(--m_nElements).~_tyT(); // destructors should never throw.
+        for (; m_nElements != _nElements; --m_nElements )
+          ElGet( m_nElements - 1 ).~_tyT();
       }
       else
         m_nElements = _nElements;
@@ -668,30 +667,20 @@ protected:
 
   void _Clear()
   {
-    uint8_t **ppbyEndData = _PpbyGetCurSegment();
+    // First, if we own the lifetimes, then end them all:
+    if ( s_kfOwnLifetime && !!m_nElements )
+    {
+      for ( ; m_nElements; --m_nElements )
+        ElGet(m_nElements-1).~_tyT();
+    }    
+    uint8_t **ppbyEndData = m_ppbyEndSegments;
+    m_ppbyEndSegments = 0;
     uint8_t **ppbySegments = m_ppbySegments;
     m_ppbySegments = 0;
-    _tySizeType nElements = m_nElements;
-    m_nElements = 0;
-    if ((ppbyEndData != m_ppbyEndSegments) && !!*ppbyEndData)
-      ++ppbyEndData;
-    m_ppbyEndSegments = 0;
-    _tySizeType nElementsDestroyed = 0;
     for (uint8_t **ppbyCurThis = ppbySegments; ppbyEndData != ppbyCurThis; ++ppbyCurThis)
     {
-      if (s_kfOwnLifetime)
-      {
-        Assert(!!*ppbyCurThis);
-        _tyT *ptCurThis = (_tyT *)*ppbyCurThis;
-        const _tyT *const ptEndThis = ptCurThis + m_nbySizeSegment / sizeof(_tyT);
-        for (; ptEndThis != ptCurThis; ++ptCurThis)
-        {
-          ptCurThis->~_tyT();
-          if (++nElementsDestroyed == nElements)
-            break; // We have destroyed all the elements.
-        }
-      }
-      free(*ppbyCurThis);
+      if ( *ppbyCurThis )
+        free(*ppbyCurThis);
     }
   }
 
