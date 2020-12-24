@@ -164,10 +164,14 @@ public:
   {
     Assert( _posEnd <= m_posCur );
     Assert( _posEnd >= m_saBuffer.IBaseElement() );
-    m_saBuffer.CopyOrTransferData( _posBegin, m_saBuffer.IBaseElement(), _rsaConsumed );
+    m_saBuffer.CopyOrTransferData( m_saBuffer.IBaseElement(), _posEnd, _rsaConsumed );
     m_posCur = _posEnd; // Advance the current position to the end of what was consumed.
   }
-
+  // Discard the data until _posEnd.
+  void DiscardData( _tySizeType _posEnd )
+  {
+    m_saBuffer.SetIBaseEl( _posEnd );
+  }
 protected:
   // The current "base" of the SegArrayRotatingBuffer is the beginning of the "view".
   // For non-infinite values of m_stchLenRead:
