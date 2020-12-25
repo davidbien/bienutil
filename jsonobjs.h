@@ -404,7 +404,7 @@ public:
   void swap(JsoValue &_r)
   {
     std::swap(m_jvtType, _r.m_jvtType);
-    if (!_r.FEmpty() || !FEmpty())
+    if (_r._FHasBufData() || _FHasBufData())
     {
       uint8_t rgbyValBuf[s_kstSizeValBuf];
       memcpy(rgbyValBuf, _r.m_rgbyValBuf, sizeof(m_rgbyValBuf));
@@ -508,6 +508,10 @@ public:
   bool FEmpty() const
   {
     return JvtGetValueType() == ejvtJsonValueTypeCount;
+  }
+  bool FIsNullOrEmpty() const
+  {
+    return FIsNull() || FEmpty();
   }
   bool FIsNull() const
   {
@@ -630,7 +634,7 @@ public:
   void GetValue(long double &_rldbl) const { _GetValue("%Le", _rldbl); }
 
   // Setting methods: These overwrite the existing element at this location.
-  void SetNull() // Note that this is not the same as the NullValue - see below.
+  void SetEmpty() // Note that this is not the same as the NullValue - see below.
   {
     SetValueType(ejvtJsonValueTypeCount);
   }

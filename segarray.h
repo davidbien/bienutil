@@ -874,6 +874,9 @@ public:
   bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
     requires ( TIsCharType_v< t_tyStringView::value_type > )
   {
+    Assert( _rsv.empty() );
+    if ( _rdr.begin() == _rdr.end() )
+      return true;
     VerifyThrowSz( ( _rdr.begin() >= NBaseElMagnitude() ), 
       "Trying to read data before the base of the rotating buffer, _rdr.begin()[%lu], m_iBaseEl[%ld].", uint64_t(_rdr.begin()), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
