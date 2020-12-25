@@ -75,15 +75,23 @@ public:
     m_saBuffer.InitSegmentSize( _nbySizeSegment );
   }
 
-  void AssertValid()
+  void AssertValid() const
   {
-#ifndef NDEBUG
+#if ASSERTSENABLED
     m_saBuffer.AssertValid();
     Assert( ( -1 != m_fd ) || ( std::numeric_limits< size_t >::max() == m_stchLenRead ) );
     Assert( ( std::numeric_limits< size_t >::max() == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
     Assert( !m_fReadAhead || !( !( NElements() % m_saBuffer.NElsPerSegment() ) ) );
-#endif //!NDEBUG    
+#endif //ASSERTSENABLED  
+  }
+  void AssertValidRange( size_t _posBegin, size_t _posEnd ) const
+  {
+#if ASSERTSENABLED
+    Assert( _posEnd >= _posBegin );
+    Assert( _posEnd <= m_posCur );
+    Assert( _posBegin >= m_saBuffer.IBaseElement() );
+#endif //ASSERTSENABLED  
   }
   bool FIsNull() const
   {
@@ -132,7 +140,8 @@ public:
             ssize_t sstRead ::read( m_fd, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
             if ( -1 == sstRead )
               THROWNAMEDEXCEPTIONERRNO( errno, "::read(): m_fd[0x%x] m[%lu]", m_fd,( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
-            return (_tySizeType)sstRead;
+            Assert( ( (_tySizeType)sstRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
+            return (_tySizeType)sstRead / sizeof( _tyChar );
           }
         );
         if ( !nRead )

@@ -144,15 +144,19 @@ public:
       _Clear();
   }
   void AssertValid() const
-#if ASSERTSENABLED
   {
+#if ASSERTSENABLED
     Assert(!!m_nbySizeSegment && !(m_nbySizeSegment % sizeof(_tyT)));
     // We could do a little better here.
-  }
-#else  //!ASSERTSENABLED
-  {
-  }
 #endif //!ASSERTSENABLED
+  }
+  void AssertValidRange( _tySizeType _posBegin, _tySizeType _posEnd ) const
+  {
+#if ASSERTSENABLED
+    Assert( _posEnd >= _posBegin );
+    Assert( _posEnd <= m_nElements );
+#endif //!ASSERTSENABLED
+  }
   void Clear()
   {
     AssertValid();
@@ -537,7 +541,7 @@ public:
     if ( _posEnd <= _posBegin )
       return; // no-op.
     _tySizeType nElsLeft = _posEnd - _posBegin;
-    _tySizeType stCurApply = _nPosBegin;
+    _tySizeType stCurApply = _posBegin;
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
     while (!!nElsLeft)
     {
@@ -559,7 +563,7 @@ public:
     if ( _posEnd <= _posBegin )
       return; // no-op.
     _tySizeType nElsLeft = _posEnd - _posBegin;
-    _tySizeType stCurApply = _nPosBegin;
+    _tySizeType stCurApply = _posBegin;
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
     while (!!nElsLeft)
     {
@@ -582,9 +586,9 @@ public:
     AssertValid();
     Assert( _posEnd >= _posBegin );
     if ( _posEnd <= _posBegin )
-      return; // no-op.
+      return 0; // no-op.
     _tySizeType nElsLeft = _posEnd - _posBegin;
-    _tySizeType stCurApply = _nPosBegin;
+    _tySizeType stCurApply = _posBegin;
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
     _tySizeType stNAppls = 0;
     while (!!nElsLeft)
@@ -609,9 +613,9 @@ public:
     AssertValid();
     Assert( _posEnd >= _posBegin );
     if ( _posEnd <= _posBegin )
-      return; // no-op.
+      return 0; // no-op.
     _tySizeType nElsLeft = _posEnd - _posBegin;
-    _tySizeType stCurApply = _nPosBegin;
+    _tySizeType stCurApply = _posBegin;
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
     _tySizeType stNAppls = 0;
     while (!!nElsLeft)
@@ -1063,12 +1067,12 @@ public:
     AssertValid();
   }
 
-  void AssertValid()
+  void AssertValid() const
   {
-#ifndef NDEBUG
+#if ASSERTSENABLED
     Assert( !!m_psaContainer || !m_sstLen );
-    Assert( !!m_sstLen || ( numeric_limits<_tySizeType>::max() == m_stBegin ) );
-#endif //!NDEBUG
+    Assert( !!m_sstLen || ( std::numeric_limits<_tySizeType>::max() == m_stBegin ) );
+#endif //ASSERTSENABLED
   }
 
   bool FIsNull()
@@ -1081,7 +1085,7 @@ public:
   // This is only relevant for t_tyT's which are character types.
   // Return true if we were able to populate the string_view, false for string.
   template < class t_tyStrView, class t_tyString > bool
-  FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
+  FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr ) const
     requires( TIsCharType_v< _tyTRemoveCV > && std::is_same_v< typename t_tyStrView::value_type, _tyTRemoveCV > && std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
   {
     AssertValid();
@@ -1106,7 +1110,7 @@ public:
   // This is the converting method. When there is any data it always returns true and returns a string since it converted the character type.
   // If there is no data then it returns false and a null string_view.
   template < class t_tyStrView, class t_tyString > bool
-  FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr  )
+  FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr ) const
     requires( TIsCharType_v< _tyTRemoveCV > && TIsCharType_v< typename t_tyStrView::value_type > &&
               !std::is_same_v< _tyTRemoveCV, typename t_tyStrView::value_type > && std::is_same_v< typename t_tyString::value_type, t_tyStrView::value_type > )
   {

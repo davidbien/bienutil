@@ -941,6 +941,24 @@ public:
       break;
     }
   }
+  // Output to ostream:
+  template < class t_tyOstream >
+	friend t_tyOstream & operator << ( t_tyOstream & _ros, const _tyThis & _r )
+	{
+    typedef t_tyOstream _tyOstream;
+    std::ostream::sentry s(_ros);
+    if ( s ) 
+		{
+			typedef JsonOutputOStream< _tyCharTraits, _tyOstream > _tyJsonOutputStream;
+			typedef JsonFormatSpec< _tyCharTraits > _tyJsonFormatSpec;
+			_tyJsonOutputStream jos( _ros );
+			_tyJsonFormatSpec jfs;
+			JsonValueLife< _tyJsonOutputStream > jvl( jos, _r.JvtGetValueType(), &jfs );
+      _r.ToJSONStream( jvl );
+    }
+		return _ros;
+	}
+
   // This will change the type of this object to an array (if necessary)
   //  and then set the capacity.
   void SetArrayCapacity( size_t _n )
@@ -1153,13 +1171,9 @@ public:
   _JsoObject(_JsoObject &&) = default;
   _JsoObject &operator=(_JsoObject &&) = default;
 
-#ifdef NDEBUG
-  void AssertValid(bool _fRecursive)
+  void AssertValid(bool _fRecursive) const
   {
-  }
-#else
-  void AssertValid(bool _fRecursive)
-  {
+#if ASSERTSENABLED
     _tyConstIterator itCur = m_mapValues.begin();
     const _tyConstIterator itEnd = m_mapValues.end();
     for (; itCur != itEnd; ++itCur)
@@ -1172,8 +1186,8 @@ public:
       else
         Assert(ejvtJsonValueTypeCount != itCur->second.JvtGetValueType());
     }
+#endif //ASSERTSENABLED
   }
-#endif
 
   void Clear()
   {
@@ -1307,7 +1321,6 @@ public:
       itCur.GetObjectIterator()->second.ToJSONStream(jvlObjectElement, _rfFilter);
     }
   }
-
 protected:
   _tyMapValues m_mapValues;
 };
@@ -1349,7 +1362,7 @@ public:
   }
   void SetCapacity( size_t _nCap )
   {
-    m_vecValue.reserve( _nCap );
+    m_vecValues.reserve( _nCap );
   }
   _tyIterator begin()
   {

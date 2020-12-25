@@ -196,7 +196,7 @@ public:
 
     void AssertValid( const _tyImplType * _pnLastElement = nullptr ) const
     {
-#ifndef NDEBUG
+#if ASSERTSENABLED
         if ( !_pnLastElement )
             return; // all configurations of bits are valid for this set.
         // If a _pnLastElement is passed then we should have no set bits after that point:
@@ -211,7 +211,7 @@ public:
         const _tyUint * const pnEnd = m_rgUint + s_kstNUints;
         for ( ; pnEnd != pnCur; ++pnCur )
             Assert( !*pnCur ); // beyond the limit - bad.
-#endif //!NDEBUG
+#endif //ASSERTSENABLED
     }
 
     bool FEmpty( bool = false ) const
@@ -629,7 +629,7 @@ public:
 
     void AssertValid( const _tyImplType * _pnLastElement = nullptr ) const
     {
-#ifndef NDEBUG
+#if ASSERTSENABLED
         uint8_t byMask = 0b11;
         if ( _pnLastElement )
         {
@@ -639,7 +639,7 @@ public:
                 byMask = 0b01;
         }
         Assert( !( m_byVebTree2 & ~byMask ) );
-#endif //!NDEBUG
+#endif //ASSERTSENABLED
     }
 
     bool FEmpty( bool = false ) const
@@ -1191,7 +1191,7 @@ public:
 
     void AssertValid( const _tyImplType * _pnLastElement = nullptr ) const
     {
-#ifndef NDEBUG
+#if ASSERTSENABLED
         size_t stLastElement = !_pnLastElement ? s_kstUniverse-1 : *_pnLastElement;
         if ( !FHasAnyElements() )
         {
@@ -1257,7 +1257,7 @@ public:
                 m_stSummary.AssertValid(); // ensure internal consistency for the summary.
 
         }
-#endif //!NDEBUG
+#endif //ASSERTSENABLED
     }
 
     bool FEmpty( bool _fRecurse = false ) const
@@ -2212,7 +2212,7 @@ public:
 
     void AssertValid() const
     {
-#ifndef NDEBUG
+#if ASSERTSENABLED
         if ( !FHasAnyElements() )
         {
             Assert( s_kstUniverse-1 == m_nMin ); // canonical form.
@@ -2265,7 +2265,7 @@ public:
 
             m_stSummary.AssertValid();
         }
-#endif //!NDEBUG
+#endif //ASSERTSENABLED
     }
 
     bool FEmpty( bool _fRecurse = false ) const

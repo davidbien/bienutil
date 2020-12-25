@@ -65,7 +65,7 @@ struct TIsCharType< char32_t >
 template < class t_ty >
 inline constexpr bool TIsCharType_v = TIsCharType< t_ty >::value;
 
-// TIsStringView, TIsStringView_v: Is this a basic_string_view type?
+// TIsStringView, TIsStringView_v: Is this a std::basic_string_view type?
 template < class t_ty >
 struct TIsStringView
 {
@@ -380,9 +380,10 @@ void ConvertString( t_tyString & _rstrDest, const typename t_tyString::value_typ
 }
 
 // UTF32->UTF16:
-template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) ) // This should allow Linux's basic_string< char16_t > as well as Windows' basic_string< wchar_t >.
+template < class t_tyString16, class t_tyCharSource >
+void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+	// This should allow Linux's std::basic_string< char16_t > as well as Windows' std::basic_string< wchar_t >.
+	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( t_tyCharSource ) == 4 ) ) 
 {
 	static_assert( sizeof(UChar) == 2 );
 	UErrorCode ec = U_ZERO_ERROR;
@@ -407,17 +408,19 @@ void ConvertString( t_tyString16 & _rstrDest, const char32_t * _pc32Source, size
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
+#if 0
 template < class t_tyString16 >
 void ConvertString( t_tyString16 & _rstrDest, const wchar_t * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( wchar_t ) == 4 ) )
 {
 	ConvertString( _rstrDest, (char32_t*)_pc32Source, _stLenSource );
 }
+#endif //0
 
 // UTF16->UTF32
-template < class t_tyString32 >
-void ConvertString( t_tyString32 & _rstrDest, const char16_t * _pc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-	requires( sizeof( typename t_tyString32::value_type ) == 4 )
+template < class t_tyString32, class t_tyCharSource >
+void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+	requires( ( sizeof( typename t_tyString32::value_type ) == 4 ) && ( sizeof( t_tyCharSource ) == 2 ) )
 {
 	UErrorCode ec = U_ZERO_ERROR;
 	if ( _stLenSource == std::numeric_limits< size_t >::max() )
@@ -443,9 +446,9 @@ void ConvertString( t_tyString32 & _rstrDest, const char16_t * _pc16Source, size
 }
 
 // UTF16->UTF8
-template < class t_tyString8 >
-void ConvertString( t_tyString8 & _rstrDest, const char16_t * _pc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-	requires( sizeof( typename t_tyString8::value_type ) == 1 )
+template < class t_tyString8, class t_tyCharSource >
+void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+	requires( ( sizeof( typename t_tyString8::value_type ) == 1 ) && ( sizeof( t_tyCharSource ) == 2 ) )
 {
 	UErrorCode ec = U_ZERO_ERROR;
 	if ( _stLenSource == std::numeric_limits< size_t >::max() )
@@ -469,6 +472,7 @@ void ConvertString( t_tyString8 & _rstrDest, const char16_t * _pc16Source, size_
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );
 }
+#if 0
 // This handles casting for the Windows' case of wchar_t being 2 bytes long for the above two functions.
 template < class t_tyString8 >
 void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
@@ -476,11 +480,13 @@ void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_
 {
 	ConvertString( _rstrDest, (char16_t*)_pwc16Source, _stLenSource );
 }
+#endif //0
 
 // UTF8->UTF16:
-template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest, const char8_t * _pc8Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) ) // This should allow Linux's basic_string< char16_t > as well as Windows' basic_string< wchar_t >.
+template < class t_tyString16, class t_tyCharSource >
+void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+	// This should allow Linux's std::basic_string< char16_t > as well as Windows' std::basic_string< wchar_t >.
+	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( t_tyCharSource ) == 1 ) )
 {
 	static_assert( sizeof(UChar) == 2 );
 	UErrorCode ec = U_ZERO_ERROR;
@@ -505,6 +511,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char8_t * _pc8Source, size_t
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
+#if 0
 // casting char->char8_t.
 template < class t_tyString16 >
 void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _stLenSource = std::numeric_limits< size_t >::max() )
@@ -512,24 +519,25 @@ void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _st
 {
 	ConvertString( _rstrDest, (char8_t*)_pcSource, _stLenSource );
 }
+#endif //0
 
 // UTF8 <-> UTF32 require double conversion:
 // UTF8->UTF32:
-template < class t_tyString32 >
-void ConvertString( t_tyString32 & _rstrDest, const char8_t * _pc8Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-	requires ( ( sizeof( typename t_tyString32::value_type ) == 4 ) ) // This should allow Linux's basic_string< char32_t > as well as Windows' basic_string< wchar_t >.
+template < class t_tyString32, class t_tyCharSource >
+void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc8Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+	requires ( ( sizeof( typename t_tyString32::value_type ) == 4 ) && ( sizeof( t_tyCharSource ) == 1 ) )
 {
-	typedef basic_string< char16_t > _tyString16;
+	typedef std::basic_string< char16_t > _tyString16;
 	_tyString16 str16;
 	ConvertString( str16, _pc8Source, _stLenSource );
 	ConvertString( _rstrDest, &str16[0], str16.length() );
 }
 // UTF32->UTF8:
-template < class t_tyString8 >
-void ConvertString( t_tyString8 & _rstrDest, const char32_t * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
-	requires ( ( sizeof( typename t_tyString8::value_type ) == 4 ) ) // This should allow Linux's basic_string< char8_t > as well as Windows' basic_string< wchar_t >.
+template < class t_tyString8, class t_tyCharSource >
+void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc32Source, size_t _stLenSource = std::numeric_limits< size_t >::max() )
+	requires ( ( sizeof( typename t_tyString8::value_type ) == 1 ) && ( sizeof( t_tyCharSource ) == 4 ) )
 {
-	typedef basic_string< char16_t > _tyString16;
+	typedef std::basic_string< char16_t > _tyString16;
 	_tyString16 str16;
 	ConvertString( str16, _pc32Source, _stLenSource );
 	ConvertString( _rstrDest, &str16[0], str16.length() );
@@ -539,21 +547,21 @@ void ConvertString( t_tyString8 & _rstrDest, const char32_t * _pc32Source, size_
 // This one should work for both strings and string_views.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires(	std::is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > )
+	requires(	std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > )
 {
 	_rstrDest = _rstrSrc;
 }
 // The below should work for all kinds of strings and also when the source is a string view.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc && _rrstrSrc ) 
-	requires ( std::is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
+	requires ( std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
 {
 	_rstrDest = std::move( _rrstrSrc );
 }
 // The below will work when the source is a string view as well.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires( !std::is_same_v< typename t_tyStringDest::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
+	requires( !std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
 {
 	ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
 }
