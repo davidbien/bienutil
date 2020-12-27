@@ -121,6 +121,12 @@ template < class _TyType0, class _TyType1 > struct __select_type2<1, _TyType0, _
   typedef _TyType1  _TyType;
 };
 
+// Note that these to templates represent the standard pattern "overload" for variants.
+template< class... Ts > 
+struct _VisitHelpOverloadFCall : Ts... { using Ts::operator()...; };
+// explicit deduction guide (not needed as of C++20)
+template<class... Ts> _VisitHelpOverloadFCall(Ts...) -> _VisitHelpOverloadFCall<Ts...>;
+
 __BIENUTIL_END_NAMESPACE
 
 #endif //___UTIL_H__BIEN__
