@@ -8,6 +8,8 @@
 
 // _util.h
 
+#include <type_traits>
+#include <variant>
 #include "_booltyp.h"
 
 #if (defined(__GNUC__) && !defined(__clang__))
@@ -126,6 +128,26 @@ template< class... Ts >
 struct _VisitHelpOverloadFCall : Ts... { using Ts::operator()...; };
 // explicit deduction guide (not needed as of C++20)
 template<class... Ts> _VisitHelpOverloadFCall(Ts...) -> _VisitHelpOverloadFCall<Ts...>;
+
+// unique_variant will produce a set of unique types from a set of possibly repeated types.
+// This is useful in many situations.
+template <typename T, typename... Ts>
+struct filter_duplicates { using type = T; };
+
+template <template <typename...> class C, typename... Ts, typename U, typename... Us>
+struct filter_duplicates<C<Ts...>, U, Us...>
+    : std::conditional_t<(std::is_same_v<U, Ts> || ...)
+                       , filter_duplicates<C<Ts...>, Us...>
+                       , filter_duplicates<C<Ts..., U>, Us...>> {};
+
+template <typename T>
+struct unique_variant;
+
+template <typename... Ts>
+struct unique_variant<std::variant<Ts...>> : filter_duplicates<std::variant<>, Ts...> {};
+
+template <typename T>
+using unique_variant_t = typename unique_variant<T>::type;
 
 __BIENUTIL_END_NAMESPACE
 

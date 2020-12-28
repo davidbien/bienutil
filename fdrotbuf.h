@@ -167,13 +167,12 @@ public:
   }
 
   // This method causes "consumption" of the data - i.e. it will be transfered to the caller in the passed SegArrayRotatingBuffer.
+  // _lenBuf characters are consumed starting at PosBase().
   // Using the SegArrayRotatingBuffer as the return buffer allows direct passing of already populated chunks.
   // The resultant SegArrayRotatingBuffer is based at m_saBuffer.IBaseElement() and is (_posEnd - m_saBuffer.IBaseElement()) characters long.
-  void ConsumeData( _tySizeType _posEnd, _tySegArray & _rsaConsumed )
+  void ConsumeData( _tyChar * _pcBuf, _tySizeType _lenBuf )
   {
-    Assert( _posEnd <= m_posCur );
-    Assert( _posEnd >= m_saBuffer.IBaseElement() );
-    m_saBuffer.CopyOrTransferData( m_saBuffer.IBaseElement(), _posEnd, _rsaConsumed );
+    m_saBuffer.CopyDataAndAdvanceBuffer( m_saBuffer.IBaseElement(), _pcBuf, _lenBuf ); // this consumes data residing in the rotating buffer.
     m_posCur = _posEnd; // Advance the current position to the end of what was consumed.
   }
   // Discard the data until _posEnd.

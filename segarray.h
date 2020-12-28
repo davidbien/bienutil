@@ -887,22 +887,21 @@ public:
 
   // This will destructively transfer data from [_posBegin,_posEnd) from *this to _rsaTo.
   // It will move the m_iBaseEl to _posEnd.
-  void CopyOrTransferData( _tySizeType _posBegin, _tySizeType _posEnd, _tyThis & _rsaTo )
+  void CopyDataAndAdvanceBuffer( _tySizeType _posBegin, _tyT * _ptBuf, _tySizeType _nLenEls )
   {
     AssertValid();
     VerifyThrowSz( m_iBaseEl >= 0, 
-      "Can't call CopyOrTransferData() on a negative m_iBaseEl SegArrayRotatingBuffer, m_iBaseEl[%ld].", int64_t(m_iBaseEl) );
-    
-    // For now just copy, in the future we may optimize.
-    _rsaTo.Clear();
-    ApplyContiguous( _posBegin, _posEnd, 
-      []( const _tyT * _ptBegin, const _tyT * _ptEnd )
+      "Can't call CopyDataAndAdvanceBuffer() on a negative m_iBaseEl SegArrayRotatingBuffer, m_iBaseEl[%ld].", int64_t(m_iBaseEl) );
+    _tyT * ptBufCur = _ptBuf;
+    ApplyContiguous( _posBegin, _posBegin + _nLenEls, 
+      [&ptBufCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
       {
-        _rsaTo.Overwrite( _rsaTo.NElements(), _ptBegin, _ptEnd - _ptBegin );
+        memcpy( ptBufCur, _ptBegin, ( _ptEnd - _ptBegin ) * sizeof _tyT );
+        ptBufCur += ( _ptEnd - _ptBegin );
       }
     );
-    _rsaTo.HardResetIBaseEl( -_tySignedSizeType( _posBegin ) );
-    SetIBaseEl( _posEnd ); // Consume that data that we copied to the user.
+    Assert( ptBufCur == ( _ptBuf + _nLenEls ) );
+    SetIBaseEl( _posBegin + _nLenEls ); // Consume that data that we copied to the user.
   }
 
   // Set the number of elements in this object. Note that it is invalid to set the number of elements to be less than m_iBaseEl.
