@@ -180,6 +180,12 @@ public:
   {
     m_saBuffer.SetIBaseEl( _posEnd );
   }
+  // Return the data in the buffer between the base of the buffer and m_posCur.
+  template < class t_tyString >
+  void GetCurrentString( t_tyString & _rstr )
+  {
+    m_saBuffer.GetString( _rstr,m_saBuffer.IBaseElement(), m_posCur );
+  }
 protected:
   // The current "base" of the SegArrayRotatingBuffer is the beginning of the "view".
   // For non-infinite values of m_stchLenRead:

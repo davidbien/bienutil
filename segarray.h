@@ -224,18 +224,75 @@ public:
   }
 
   template < class t_tyStringView, class t_tyDataRange >
-  bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
-    requires ( TIsCharType_v< typename t_tyStringView::value_type > )
+  bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
+    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
   {
     Assert( _rsv.empty() );
-    if ( _rdr.begin() == _rdr.end() )
+    if ( _posBegin == _posEnd )
       return true; // empty result.
-    if ( _rdr.begin() / NElsPerSegment() == (_rdr.end() - 1 ) / NElsPerSegment() )
+    if ( _posBegin / NElsPerSegment() == ( _posEnd - 1 ) / NElsPerSegment() )
     {
-      _rsv = t_tyStringView( &ElGet( _rdr.begin() ), _rdr.end() - _rdr.begin() );
+      _rsv = t_tyStringView( &ElGet( _posBegin ), _posEnd - _posBegin );
       return true;
     }
     return false;
+  }
+  template < class t_tyStringView, class t_tyDataRange >
+  bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
+    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
+  {
+    return FGetStringView( _rdr.begin(), _rdr.end() );
+  }
+  void _CopyStringToBuf( _tySizeType _posBegin, _tySizeType _posEnd, _tyT * _ptBuf )
+  {
+    _tyT * ptCur = _ptBuf;
+    ApplyContiguous( _posBegin, _posEnd, 
+      [&ptCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
+      {
+        memcpy( ptCur, _ptBegin, ( _ptEnd - _ptBegin ) * sizeof _tyT );
+        ptCur += ( _ptEnd - _ptBegin );
+      }
+    );
+    Assert( ptCur == _ptBuf + ( _posEnd - _posBegin ) );
+  }
+  template < class t_tyString, class t_tyDataRange >
+  void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
+    requires ( std::is_same_v< typename t_tyString::value_type, _tyT > ) // non-converting version.
+  {
+    Assert( _rstr.empty() );
+    if ( _posBegin == _posEnd )
+      return true; // empty result.
+    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%ul],_posEnd[%ul],NElements()[%ul]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
+    _rstr.resize( _posEnd - _posBegin );
+    _CopyStringToBuf( _posBegin, _posEnd, &_rstr[0] );
+    Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
+  }
+  template < class t_tyString, class t_tyDataRange >
+  void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
+    requires ( !std::is_same_v< typename t_tyString::value_type, _tyT > ) // converting version.
+  {
+    Assert( _rstr.empty() );
+    if ( _posBegin == _posEnd )
+      return true; // empty result.
+    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%ul],_posEnd[%ul],NElements()[%ul]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
+    static size_t knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof( _tyChar );
+    std::basic_string< _tyT > strTempBuf; // For when we have more than knchMaxAllocaSize - avoid using t_tyString as it may be some derivation of string or anything else for that matter.
+    _tySizeType nLen = _posEnd - _posBegin;
+    _tyT * ptBuf;
+    if ( nLen > knchMaxAllocaSize )
+    {
+      strTempBuf.resize( nLen );
+      ptBuf = &strTempBuf[0];
+    }
+    else
+      ptBuf = (_tyT*)alloca( nLen * sizeof( _tyT ) );
+    _CopyStringToBuf( _posBegin, _posEnd, ptBuf );
+    ConvertString( _rstr, ptBuf, _posEnd - _posBegin );
+  }
+  template < class t_tyString, class t_tyDataRange >
+  void GetString( t_tyString & _rstr, t_tyDataRange const & _rdr ) const
+  {
+    return GetString( _rstr, _rdr.begin(), _rdr.end() );
   }
 
   template <class... t_tysArgs>
@@ -871,18 +928,40 @@ public:
   }
 
   template < class t_tyStringView, class t_tyDataRange >
-  bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
-    requires ( TIsCharType_v< t_tyStringView::value_type > )
+  bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
+    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
   {
     Assert( _rsv.empty() );
-    if ( _rdr.begin() == _rdr.end() )
+    if ( _posBegin == _posEnd )
       return true;
-    VerifyThrowSz( ( _rdr.begin() >= NBaseElMagnitude() ), 
-      "Trying to read data before the base of the rotating buffer, _rdr.begin()[%lu], m_iBaseEl[%ld].", uint64_t(_rdr.begin()), int64_t(m_iBaseEl) );
+    VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
+      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
-    t_tyDataRange drOff( _rdr.begin() - nOff, _rdr.end() - nOff );
-    return _tyBase::FGetStringView( _rsv, drOff );
+    return _tyBase::FGetStringView( _rsv, _posBegin - nOff, _posEnd - nOff );
   }
+  template < class t_tyStringView, class t_tyDataRange >
+  bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
+    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
+  {
+    return FGetStringView( _rdr.begin(), _rdr.end() );
+  }
+  template < class t_tyString, class t_tyDataRange >
+  void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
+  {
+    Assert( _rstr.empty() );
+    if ( _posBegin == _posEnd )
+      return true; // empty result.
+    VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
+      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+    _tySizeType nOff = _NBaseOffset();
+    return _tyBase::FGetString( _rstr, _posBegin - nOff, _posEnd - nOff );
+  }
+  template < class t_tyString, class t_tyDataRange >
+  void GetString( t_tyString & _rstr, t_tyDataRange const & _rdr ) const
+  {
+    return GetString( _rstr, _rdr.begin(), _rdr.end() );
+  }
+
   using _tyBase::emplaceAtEnd;
 
   // This will destructively transfer data from [_posBegin,_posEnd) from *this to _rsaTo.

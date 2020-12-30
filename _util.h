@@ -33,6 +33,11 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+// The maximum amount that we will allocate using alloca:
+// Allow 512KB on the stack. I used to allocate like 30MB under Windows. Could allow this to be more but want to see how things go.
+static const size_t vknbyMaxAllocaSize = ( 1 << 19 );
+
+
 // this is an abstract class that is used to produce an error for the programmer:
 struct ___semantic_error_object
 {
