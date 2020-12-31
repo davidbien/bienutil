@@ -578,12 +578,12 @@ public:
       _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
-      errno = 0;
+      PrepareErrNo();
       ssize_t sstWrote = ::write(_fd, &ElGet(stCurOrig), stMin * sizeof(_tyT));
       if (-1 == sstWrote)
-        THROWNAMEDEXCEPTIONERRNO(errno, "Error writing to fd[%d].", _fd);
+        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error writing to fd[%d].", _fd);
       if (stMin * sizeof(_tyT) != sstWrote)
-        THROWNAMEDEXCEPTIONERRNO(errno, "Didn't write all data to fd[%d].", _fd);
+        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Didn't write all data to fd[%d].", _fd);
       nElsLeft -= stMin;
       stCurOrig += stMin;
     }

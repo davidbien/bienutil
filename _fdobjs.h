@@ -1,6 +1,6 @@
 #pragma once
-// _fdobjs.h
-// FdObj: Object(s) for the management lifetime of an fd.
+// _hFileobjs.h
+// FileObj: Object(s) for the management lifetime of an hFile.
 
 //          Copyright David Lawrence Bien 1997 - 2020.
 // Distributed under the Boost Software License, Version 1.0.
@@ -8,86 +8,94 @@
 //          https://www.boost.org/LICENSE_1_0.txt).
 
 #include <fcntl.h>
+#include "_compat.h"
 #include "_assert.h"
-#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include "_namdexc.h"
 
-// FdObj: The basest object just knows about the fd and will close it if open on destruct.
+__BIENUTIL_BEGIN_NAMESPACE
+
+// FileObj: The basest object just knows about the hFile and will close it if open on destruct.
 // Note that this object is not explicitly multithread aware.
-class FdObj
+class FileObj
 {
-  typedef FdObj _tyThis;
+  typedef FileObj _tyThis;
 public:
-  FdObj( FdObj const & ) = delete;
-  FdObj & operator=( FdObj const & ) = delete;
-  FdObj() = default;
-  FdObj( int _fd, bool _fOwnFd = true )
-    : m_fd (_fd ),
-      m_fOwnFd( _fOwnFd )
+  FileObj( FileObj const & ) = delete;
+  FileObj & operator=( FileObj const & ) = delete;
+  FileObj() = default;
+  FileObj( vtyFileHandle _hFile, bool _fOwnFile = true )
+    : m_hFile( _hFile ),
+      m_fOwnFile( _fOwnFile )
   {
   }
-  FdObj( FdObj && _rr )
+  FileObj( FileObj && _rr )
   {
     swap( _rr );
   }
-  FdObj & operator = ( FdObj && _rr )
+  FileObj & operator = ( FileObj && _rr )
   {
-    FdObj fdo( std::move( _rr ) );
+    FileObj fdo( std::move( _rr ) );
     swap( fdo );
     return *this;
   }
-  void swap( FdObj & _r )
+  void swap( FileObj & _r )
   {
-    std::swap( m_fd, _r.m_fd );
+    std::swap( m_hFile, _r.m_hFile );
   }
-  ~FdObj()
+  ~FileObj()
   {
-    if ( m_fOwnFd && FIsOpen() )
-      (void)_Close( m_fd ); // Nothing to do about close errors on this codepath - throwing here seems like a bad idea.
+    if ( m_fOwnFile && FIsOpen() )
+      (void)_Close( m_hFile ); // Nothing to do about close errors on this codepath - throwing here seems like a bad idea.
   }
   bool FIsOpen() const
   {
-    return -1 != m_fd;
+    return vkhInvalidFileHandle != m_hFile;
   }
-  operator int () const
+  operator vtyFileHandle () const
   {
-    return FdGet();
+    return HFileGet();
   }
-  int FdGet() const
+  vtyFileHandle HFileGet() const
   {
-    return m_fd;
+    return m_hFile;
   }
-  void SetFd( const int _fd, bool _fOwnFd = true )
+  void SetHFile( const vtyFileHandle _hFile, bool _fOwnFile = true )
   {
-    if ( _fd == m_fd  )
+    if ( _hFile == m_hFile  )
     {
-      Assert( m_fOwnFd == _fOwnFd );
+      m_fOwnFile = _fOwnFile; // Allow resetting of the ownership here.
       return; // no-op.
     }
     Close();
-    m_fd = _fd;
-    m_fOwnFd = _fOwnFd;
+    m_hFile = _hFile;
+    m_fOwnFile = _fOwnFile;
   }
   int Close()
   {
     if ( FIsOpen() )
     {
-      int fd = m_fd;
-      m_fd = -1;
-      return !m_fOwnFd ? 0 : _Close( fd );
+      vtyFileHandle hFile = m_hFile;
+      m_hFile = vkhInvalidFileHandle;
+      return !m_fOwnFile ? 0 : _Close( hFile );
     }
     return 0;
   }
 protected:
-  static int _Close(int _fd)
+  static int _Close(int _hFile)
   {
-    Assert( -1 != _fd );
-    return ::close(_fd);
+    Assert( vkhInvalidFileHandle != _hFile );
+#ifdef WIN32
+    return CloseHandle( _hFile ) ? 0 : -1;
+#else
+    return ::close(_hFile);
+#endif
   }
-  int m_fd{-1};
-  bool m_fOwnFd{true}; // utility for when an object doesn't own the fd lifetime.
+  vtyFileHandle m_hFile{vkhInvalidFileHandle};
+  bool m_fOwnFile{true}; // utility for when an object doesn't own the file lifetime.
 };
 
-// We can imagine some possible additional base-level fd-objects here.
+// We can imagine some possible additional base-level hFile-objects here.
+
+__BIENUTIL_END_NAMESPACE

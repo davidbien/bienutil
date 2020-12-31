@@ -781,7 +781,7 @@ public:
   }
   void FromString(const _tyChar *_psz, size_t _stLen)
   {
-    typedef JsonInputFixedMemStream<_tyCharTraits> _tyJsonInputStream;
+    typedef JsonFixedMemInputStream<_tyCharTraits> _tyJsonInputStream;
     typedef JsonReadCursor<_tyJsonInputStream> _tyJsonReadCursor;
     _tyJsonInputStream jisFixed(_psz, _stLen);
     _tyJsonReadCursor jrc;
@@ -822,7 +822,7 @@ public:
   template <class t_tyFilter>
   void FromString( const _tyChar *_psz, size_t _stLen, t_tyFilter &_rfFilter )
   {
-    typedef JsonInputFixedMemStream<_tyCharTraits> _tyJsonInputStream;
+    typedef JsonFixedMemInputStream<_tyCharTraits> _tyJsonInputStream;
     typedef JsonReadCursor<_tyCharTraits> _tyJsonReadCursor;
     _tyJsonInputStream jisFixed(_psz, _stLen);
     _tyJsonReadCursor jrc;

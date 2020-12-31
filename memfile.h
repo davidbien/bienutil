@@ -219,7 +219,7 @@ public:
     {
         if ( !m_spmfMemFile )
         {
-            errno = EBADF;
+            SetGenericFileError();
             return -1;
         }
         _tySignedFilePos posRet = m_spmfMemFile->Write( m_posCur, _pbyWrite, _nBytes );
@@ -233,7 +233,7 @@ public:
     {
         if ( !m_spmfMemFile )
         {
-            errno = EBADF;
+            SetGenericFileError();
             return -1;
         }
         _tySignedFilePos posRet = m_spmfMemFile->Read( m_posCur, _pbyRead, _nBytes );
@@ -246,7 +246,7 @@ public:
     {
         if ( !m_spmfMemFile )
         {
-            errno = EBADF;
+            SetGenericFileError();
             return -1;
         }
         _tySignedFilePos posRet = m_spmfMemFile->Insert( m_posCur, _pbyInsert, _nBytes );

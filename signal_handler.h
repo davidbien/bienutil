@@ -156,9 +156,9 @@ public:
         ss.ss_sp = &p[0];
         ss.ss_size = SIGSTKSZ;
         ss.ss_flags = 0;
-        errno = 0;
+        PrepareErrNo();
         if ( sigaltstack( &ss, &s_ssOldSigAltStack ) != 0 )
-            n_SysLog::Log( eslmtError, errno, "DefaultSignalHandler::SetupAlternateSignalStack(): sigaltstack() failed." );
+            n_SysLog::Log( eslmtError, GetLastErrNo(), "DefaultSignalHandler::SetupAlternateSignalStack(): sigaltstack() failed." );
     }
 
     // Allow the caller to pass in a method call to determine how we will treat a given signal.

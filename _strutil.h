@@ -159,17 +159,17 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 		va_copy(ap2, _ap); // Do this correctly
 		// Initially just pass a single character bufffer since we only care about the return value:
 		_tyChar tc;
-		errno = 0;
+		PrepareErrNo();
 		nRequired = VNSPrintf( &tc, 1, _pcFmt, ap2 );
 		va_end(ap2);
 		if (nRequired < 0)
-			THROWNAMEDEXCEPTIONERRNO(errno, "vsnprintf() returned nRequired[%d].", nRequired);
+			THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRequired[%d].", nRequired);
 		_rstr.resize(nRequired); // this will reserve nRequired+1.
 	}//EB
-	errno = 0;
+	PrepareErrNo();
 	int nRet = VNSPrintf(&_rstr[0], nRequired + 1, _pcFmt, _ap);
 	if (nRet < 0)
-		THROWNAMEDEXCEPTIONERRNO(errno, "vsnprintf() returned nRet[%d].", nRet);
+		THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRet[%d].", nRet);
 }
 
 template < class t_tyString >
@@ -188,15 +188,15 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 	{
 		va_list ap2;
 		va_copy(ap2, _ap);
-		errno = 0;
+		PrepareErrNo();
 		int nWritten = VNSPrintf( pcBuf, stBufSize, _pcFmt, ap2 );
 		va_end(ap2);
 		if ( -1 == nWritten )
 		{
-			if ( 0 != errno )
+			if ( 0 != GetLastErrNo() )
 			{
 				// Then some error besides not having a big enough buffer.
-				THROWNAMEDEXCEPTIONERRNO(errno, "vsnprintf() returned nRequired[%d].", nWritten);
+				THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRequired[%d].", nWritten);
 			}
 			if ( pcBuf == rgcFirstTry )
 				pcBuf = (_tyChar*)alloca( stBufSize = kst2ndTryBufSize );

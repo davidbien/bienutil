@@ -10,7 +10,7 @@
 // Note that no seeking is done on the fd - only reading.
 // There is no assumption that seeking will be succesful (as in seeking of STDIN).
 // Thus the postiion where the fd is at when passed to the object is considered 0 position.
-// The user of the object owns the lifetime of _fd.
+// The user of the object owns the lifetime of _hFile.
 // At most _stchLenRead contains the number of bytes to read from the file before returning EOF -
 //  even if EOF is not encountered. Otherwise reading will read until EOF.
 // The rotating buffer has to have at least 2 chunks to operate correctly so that is what we will create it with.
@@ -28,6 +28,7 @@
 #include <cerrno>
 #include <utility>
 #include <limits>
+#include "segarray.h"
 
 // Templatize by character type - which is fine if it is unsigned char for bytes, 
 //  but adds convenience for other character types, and even integer types if desired.
@@ -47,7 +48,6 @@ public:
     : m_saBuffer( _nbySizeSegment )
   {
   }
-  // Note that the returned 
   FdReadRotating( FdReadRotating && _rr )
   {
     swap( _rr );
@@ -58,16 +58,16 @@ public:
     std::swap( m_stchLenRead, _r.m_stchLenRead );
     std::swap( m_stchLenRemaining, _r.m_stchLenRemaining );
     std::swap( m_posCur, _r.m_posCur );
-    std::swap( m_fd, _r.m_fd );
+    std::swap( m_hFile, _r.m_hFile );
     std::swap( m_fReadAhead, _r.m_fReadAhead );
   }
 
   // Initialize - we should be empty.
-  void Init( int _fd, size_t _posCur = 0, bool _fReadAhead = false, 
+  void Init( vtyFileHandle _hFile, size_t _posCur = 0, bool _fReadAhead = false, 
     size_t _stchLenRead = std::numeric_limits< size_t >::max(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
   {
     Assert( !m_saBuffer.FHasAnyCapacity() );
-    m_fd = _fd;
+    m_hFile = _hFile;
     m_posCur = _posCur;
     m_stchLenRead = _stchLenRead;
     m_stchLenRemaining = _stchLenRead;
@@ -79,7 +79,7 @@ public:
   {
 #if ASSERTSENABLED
     m_saBuffer.AssertValid();
-    Assert( ( -1 != m_fd ) || ( std::numeric_limits< size_t >::max() == m_stchLenRead ) );
+    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( std::numeric_limits< size_t >::max() == m_stchLenRead ) );
     Assert( ( std::numeric_limits< size_t >::max() == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
     Assert( !m_fReadAhead || !( !( NElements() % m_saBuffer.NElsPerSegment() ) ) );
@@ -96,7 +96,7 @@ public:
   bool FIsNull() const
   {
     AssertValid();
-    return -1 == m_fd;
+    return vkhInvalidFileHandle == m_hFile;
   }
   size_t PosCurrent() const
   {
@@ -116,12 +116,15 @@ public:
     {
       if ( !m_fReadAhead )
       {
-        errno = 0;
-        ssize_t sstRead ::read( m_fd, &_rc, sizeof _rc );
-        if ( !sstRead )
+        size_t stRead;
+        int iReadResult = FileRead( m_hFile, &_rc, sizeof _rc, &stRead )
+        if ( -1 == iReadResult )
+          THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): 1 char, m_hFile[0x%lx]", (uint64_t)m_hFile );
+        if ( stRead < sizeof _rc )
+        {
+          Assert( !stRead );
           return false; // EOF.
-        if ( -1 == sstRead )
-          THROWNAMEDEXCEPTIONERRNO( errno, "::read(): 1 char, m_fd[0x%x]", m_fd );
+        }
         m_saBuffer.Overwrite( m_posCur++, &_rc, sizeof _rc );
         if ( numeric_limits< size_t >::max() != m_stchLenRemaining )
           --m_stchLenRemaining;
@@ -132,20 +135,22 @@ public:
       {
         // Then we should read ahead by the amount we like to read ahead by - which is s_knSegmentsReadAhead segments.
         Assert( !( m_posCur % m_saBuffer.NElsPerSegment() ) ); // Should always be at a tile boundary when we are reading ahead.
-        m_saBuffer.SetSize( m_nPosCur + ( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead ) );
+        _tySizeType sizeAdd = min( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, m_stchLenRemaining );
+        if ( !sizeAdd )
+          return false;
+        m_saBuffer.SetSize( m_nPosCur + sizeAdd );
         _tySizeType nRead = m_saBuffer.NApplyContiguous( m_posCur, m_posCur + ( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead ),
           [this]( _TyChar * _pcBegin, _TyChar * _pcEnd ) -> _tySizeType
           {
-            errno = 0;
-            ssize_t sstRead ::read( m_fd, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
-            if ( -1 == sstRead )
-              THROWNAMEDEXCEPTIONERRNO( errno, "::read(): m_fd[0x%x] m[%lu]", m_fd,( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
-            Assert( ( (_tySizeType)sstRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
-            return (_tySizeType)sstRead / sizeof( _tyChar );
+            size_t stRead;
+            int iReadResult = FileRead( m_hFile, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ), &stRead )
+            if ( -1 == iReadResult )
+              THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): m_hFile[0x%lx] m[%lu]", (uint64_t)m_hFile, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
+            Assert( ( (_tySizeType)stRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
+            return (_tySizeType)stRead / sizeof( _tyChar );
           }
         );
-        if ( !nRead )
-          return false;
+        Assert( nRead == sizeAdd );
         nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
         Assert( nRead ); // Should always get something here since we would have failed above.
         if ( numeric_limits< size_t >::max() != m_stchLenRemaining )
@@ -194,6 +199,6 @@ protected:
   size_t m_stchLenRead{std::numeric_limits< size_t >::max()};
   size_t m_stchLenRemaining{std::numeric_limits< size_t >::max()};
   size_t m_posCur{0};
-  int m_fd{-1};
+  vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fReadAhead{false};
 };

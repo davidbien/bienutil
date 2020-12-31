@@ -71,9 +71,9 @@ struct termios
 #define _HAVE_STRUCT_TERMIOS_C_OSPEED 1
 };
 
-class FdSerial : protected FdObj
+class FdSerial : protected FileObj
 {
-  typedef FdObj _TyBase;
+  typedef FileObj _TyBase;
   typedef FdSerial _TyThis;
 public:
   typedef char _tyChar;
@@ -109,7 +109,7 @@ public:
     return -1 != m_fd;
   }
 
-  int FdGet() const
+  int HFileGet() const
   {
     return m_fd;
   }

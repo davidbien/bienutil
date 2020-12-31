@@ -88,7 +88,7 @@ protected:
   char m_rgcExceptionName[s_stBufSize];
 };
 
-#define THROWNAMEDEXCEPTION( MESG... ) ExceptionUsage< std::_t__Named_exception<> >::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG )
+#define THROWNAMEDEXCEPTION( MESG, ... ) ExceptionUsage< std::_t__Named_exception<> >::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG, ##__VA_ARGS__ )
 
 template < class t_TyAllocator = allocator< char >, class t_TyBaseClass = exception >
 class _t__Named_exception_errno : public _t__Named_exception< t_TyAllocator, t_TyBaseClass >
@@ -171,11 +171,11 @@ protected:
   int m_errno{0};
 };
 
-#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG... ) ExceptionUsage< std::_t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, __PRETTY_FUNCTION__, _errno, MESG )
+#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG, ... ) ExceptionUsage< std::_t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, __PRETTY_FUNCTION__, _errno, MESG, ##__VA_ARGS__ )
 
 // Override the bad_variant_access exception to return a bit more info about what went wrong. Put it here for general usage.
 template < class t_TyAllocator = allocator< char > >
-class named_bad_variant_access : public std::_t__Named_exception< t_TyAllocator, bad_variant_access >
+class named_bad_variant_access : public std::_t__Named_exception< t_TyAllocator, std::bad_variant_access >
 {
   typedef named_bad_variant_access _TyThis;
   typedef std::_t__Named_exception< t_TyAllocator, bad_variant_access > _TyBase;
@@ -195,7 +195,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG... ) ExceptionUsage<named_bad_variant_access>::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG )
+#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG, ... ) ExceptionUsage<named_bad_variant_access>::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG, ##__VA_ARGS__ )
 
 } // namespace std
 
