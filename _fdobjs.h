@@ -83,19 +83,94 @@ public:
     return 0;
   }
 protected:
-  static int _Close(int _hFile)
+  static int _Close(vtyFileHandle _hFile)
   {
     Assert( vkhInvalidFileHandle != _hFile );
-#ifdef WIN32
-    return CloseHandle( _hFile ) ? 0 : -1;
-#else
-    return ::close(_hFile);
-#endif
+    FileClose( _hFile );
   }
   vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fOwnFile{true}; // utility for when an object doesn't own the file lifetime.
 };
 
-// We can imagine some possible additional base-level hFile-objects here.
+// FileMappingObj:
+// Maintains the lifetime of a file mapping.
+class FileMappingObj
+{
+  typedef FileMappingObj _tyThis;
+public:
+  FileMappingObj( FileMappingObj const & ) = delete;
+  FileMappingObj & operator=( FileMappingObj const & ) = delete;
+  FileMappingObj() = default;
+  FileMappingObj( vtyMappedMemoryHandle const & _hmmFile, bool _fOwnFile = true )
+    : m_hmmFile( _hmmFile ),
+      m_fOwnFile( _fOwnFile )
+  {
+  }
+  FileMappingObj( FileMappingObj && _rr )
+  {
+    swap( _rr );
+  }
+  FileMappingObj & operator = ( FileMappingObj && _rr )
+  {
+    FileMappingObj fmo( std::move( _rr ) );
+    swap( fmo );
+    return *this;
+  }
+  void swap( FileMappingObj & _r )
+  {
+    m_hmmFile.swap( _r.m_hmmFile );
+  }
+  ~FileMappingObj()
+  {
+    if ( m_fOwnFile && FIsOpen() )
+      (void)_Close( m_hmmFile ); // Nothing to do about close errors on this codepath - throwing here seems like a bad idea.
+  }
+  void * Pv() const
+  {
+    Assert( FIsOpen() );
+    return m_hmmFile.Pv();
+  }
+  bool FIsOpen() const
+  {
+    return !m_hmmFile.FIsNull();
+  }
+  operator vtyMappedMemoryHandle () const
+  {
+    return HMMFileGet();
+  }
+  vtyMappedMemoryHandle const & HMMFileGet() const
+  {
+    return m_hmmFile;
+  }
+  void SetHMMFile( const vtyMappedMemoryHandle & _rhmmFile, bool _fOwnFile = true )
+  {
+    if ( _rhmmFile == m_hmmFile  )
+    {
+      m_fOwnFile = _fOwnFile; // Allow resetting of the ownership here.
+      return; // no-op.
+    }
+    Close();
+    m_hmmFile = _rhmmFile;
+    m_fOwnFile = _fOwnFile;
+  }
+  int Close()
+  {
+    if ( FIsOpen() )
+    {
+      vtyMappedMemoryHandle hmmFile = m_hmmFile;
+      m_hmmFile.Clear();
+      return !m_fOwnFile ? 0 : _Close( hmmFile );
+    }
+    return 0;
+  }
+protected:
+  static int _Close(vtyMappedMemoryHandle const & _rhmmFile)
+  {
+    Assert( !_rhmmFile.FIsNull() );
+    return  UnmapHandle( _rhmmFile );
+  }
+  vtyMappedMemoryHandle m_hmmFile;
+  bool m_fOwnFile{true};
+};
 
 __BIENUTIL_END_NAMESPACE

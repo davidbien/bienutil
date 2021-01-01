@@ -26,6 +26,7 @@
 #include "_namdexc.h"
 #include "_debug.h"
 #include "_util.h"
+#include "_fdobjs.h"
 #include "_timeutl.h"
 #include "_dbgthrw.h"
 #include "memfile.h"
@@ -494,7 +495,7 @@ public:
     }
     return 0;
   }
-  static int _Close(vtyFileHandle _hFile)
+  static int _Close(vtyFileHandle & _hFile)
   {
     return FileClose(_hFile);
   }
@@ -638,7 +639,7 @@ protected:
 };
 
 // JsonFixedMemInputStream: Stream a fixed piece o' mem'ry at the JSON parser.
-template <class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar>
+template <class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar, t_tyTypeBegin = >
 class JsonFixedMemInputStream : public JsonInputStreamBase<t_tyCharTraits, size_t>
 {
   typedef JsonFixedMemInputStream _tyThis;
@@ -806,22 +807,15 @@ public:
   typedef JsonReadCursor<_tyThis> _tyJsonReadCursor;
 
   JsonMemMappedInputStream() = default;
-  ~JsonMemMappedInputStream()
-  {
-    (void)Close();
-  }
+  ~JsonMemMappedInputStream() = default;
 
   bool FOpened() const
   {
-    return FFileOpened() && FFileMapped();
-  }
-  bool FFileOpened() const
-  {
-    return -1 != m_hFile;
+    return FFileMapped();
   }
   bool FFileMapped() const
   {
-    return (t_tyPersistAsChar *)vkpvNullMapping != m_pcpxBegin;
+    return !m_fmoMapping.FIsOpen();
   }
   using _tyBase::FEOF;
   using _tyBase::StLenBytes;
@@ -835,59 +829,30 @@ public:
     if ( vkhInvalidFileHandle == m_hFile )
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to open() file [%s]", _szFilename);
     FileObj fileLocal( hFile ); // We will close the file after we map it since that is fine and results in easier cleanup.
-    // Since we will map the entire file we will just use the utility method:
-    
     // Now get the size of the file and then map it.
     vtyHandleAttr attrFile;
-    int iResult = GetHandleAttrs( m_hFile, attrFile );
+    int iResult = GetHandleAttrs( fileLocal.HFileGet(), attrFile );
     if (-1 == iResult)
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "GetHandleAttrs() failed for [%s]", _szFilename);
     size_t stSize = GetSize_HandleAttr( attrFile );
     if (0 == stSize )
       THROWBADJSONSTREAM("File [%s] is empty - it contains no JSON value.", _szFilename);
     if (!!(stSize % sizeof(t_tyPersistAsChar)))
-      THROWBADJSONSTREAM("File [%s]'s size not multiple of char size [%ld].", _szFilename, stSize);
+      THROWBADJSONSTREAM("File [%s]'s size not multiple of char size stSize[%ld].", _szFilename, stSize);
     if ( !FIsRegularFile_HandleAttr( attrFile ) )
       THROWBADJSONSTREAM("File [%s] is not a regular file.", _szFilename);
-    
-    PrepareErrNo();
-    m_pcpxBegin = (t_tyPersistAsChar *)mmap(0, statBuf.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, m_hFile, 0);
-    if (m_pcpxBegin == (t_tyPersistAsChar *)vkpvNullMapping)
-      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "mmap() failed for [%s], size [%ld].", _szFilename, statBuf.st_size);
-    m_pcpxCur = m_pcpxBegin;
-    m_pcpxEnd = m_pcpxCur + (posEnd / sizeof(t_tyPersistAsChar));
+    m_fmoMapping.SetHMMFile( MapReadOnlyHandle( fileLocal.HFileGet(), nullptr ) );
+    if ( m_fmoMapping.FIsOpen() )
+      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Failed to map [%s], size [%ld].", _szFilename, stSize);
+    m_pcpxBegin = m_pcpxCur = (const t_tyPersistAsChar *)m_fmoMapping.Pv();
+    m_pcpxEnd = m_pcpxCur + (stSize / sizeof(t_tyPersistAsChar));
     m_fHasLookahead = false;    // ensure that if we had previously been opened that we don't think we still have a lookahead.
     m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
   }
-
   int Close()
   {
-    if (FFileMapped())
-    {
-      Assert(FFileOpened());
-      const void *pvMapped = m_pcpxBegin;
-      size_t stMapped = StLenBytes();
-      _tyBase::Close();
-      _Unmap(pvMapped, stMapped);
-    }
-    if (FFileOpened())
-    {
-      int hFile = m_hFile;
-      m_hFile = 0;
-      return _Close(hFile);
-    }
-    Assert(!FOpened());
-    return 0;
+    return m_fmoMapping.Close();
   }
-  static int _Unmap(const void *_pvMapped, size_t _stMapped)
-  {
-    return munmap(const_cast<void *>(_pvMapped), _stMapped);
-  }
-  static int _Close(int _hFile)
-  {
-    return close(_hFile);
-  }
-
   // Attach to this FOpened() JsonFileInputStream.
   // We *could* use the base's impl for this but then the read cursor only see's the base's type and not the full type.
   // In this case that works fine but in the general case it might not. Anyway, it adds very little code to do it this way so no worries.
@@ -897,30 +862,25 @@ public:
     Assert(FOpened());
     _rjrc.AttachRoot(*this);
   }
-
   void SkipWhitespace()
   {
     return _tyBase::SkipWhitespace(m_szFilename.c_str());
   }
   using _tyBase::ByPosGet;
-
   // Read a single character from the file - always throw on EOF.
   _tyChar ReadChar(const char *_pcEOFMessage)
   {
     return _tyBase::ReadChar(_pcEOFMessage, m_szFilename.c_str());
   }
-
   bool FReadChar(_tyChar &_rtch, bool _fThrowOnEOF, const char *_pcEOFMessage)
   {
     return _tyBase::FReadChar(_rtch, _fThrowOnEOF, _pcEOFMessage, m_szFilename.c_str());
   }
-
   using _tyBase::PushBackLastChar;
   std::strong_ordering ICompare(_tyThis const &_rOther) const
   {
     return _tyBase::ICompare(_rOther);
   }
-
 protected:
   using _tyBase::m_fHasLookahead;
   using _tyBase::m_pcpxBegin;
@@ -928,7 +888,7 @@ protected:
   using _tyBase::m_pcpxEnd;
   using _tyBase::m_tcLookahead;
   std::string m_szFilename;
-  int m_hFile{-1}; // file descriptor.
+  FileMappingObj m_fmoMapping; // Use the smart obj...
 };
 
 // Utility method used by the various output streams.
@@ -944,9 +904,7 @@ void JsonOutputStream_WriteString( t_tyJsonOutputStream & _rjos, bool _fEscape,
   Assert(!_pjfs || _fEscape); // only pass formatting when we are escaping the string.
   if (!_sstLen)
     return;
-  size_t stLen = (size_t)_sstLen;
-  if (_sstLen < 0)
-    stLen = _tyCharTraits::StrLen(_psz);
+  size_t stLen = (_sstLen < 0) ? _tyCharTraits::StrLen(_psz) : (size_t)_sstLen;
   if (!_fEscape) // We shouldn't write such characters to strings so we had better know that we don't have any.
     Assert(stLen <= _tyCharTraits::StrCSpn(_psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar + 1,
                                             _tyCharTraits::s_szEscapeStringChars));
@@ -1043,12 +1001,12 @@ void JsonOutputStream_WriteString( t_tyJsonOutputStream & _rjos, bool _fEscape,
   }
 }
 
-// JsonLinuxOutputStream: A class using open(), read(), etc.
+// JsonFileOutputStream: A class using open(), read(), etc.
 template <class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar>
-class JsonLinuxOutputStream : public JsonOutputStreamBase<t_tyCharTraits, size_t>
+class JsonFileOutputStream : public JsonOutputStreamBase<t_tyCharTraits, size_t>
 {
-  typedef JsonLinuxOutputStream _tyThis;
-
+  typedef JsonFileOutputStream _tyThis;
+  typedef JsonOutputStreamBase<t_tyCharTraits, size_t> _tyBase;
 public:
   typedef t_tyCharTraits _tyCharTraits;
   typedef typename _tyCharTraits::_tyChar _tyChar;
@@ -1059,8 +1017,8 @@ public:
   typedef JsonReadCursor<_tyThis> _tyJsonReadCursor;
   typedef JsonFormatSpec<_tyCharTraits> _tyJsonFormatSpec;
 
-  JsonLinuxOutputStream() = default;
-  ~JsonLinuxOutputStream()
+  JsonFileOutputStream() = default;
+  ~JsonFileOutputStream()
   {
     if (m_fOwnFdLifetime && FOpened())
     {
@@ -1068,15 +1026,13 @@ public:
       (void)_Close(m_hFile);
     }
   }
-
-  void swap(JsonLinuxOutputStream &_r)
+  void swap(JsonFileOutputStream &_r)
   {
     _r.m_szFilename.swap(m_szFilename);
     _r.m_szExceptionString.swap(m_szExceptionString);
     std::swap(_r.m_hFile, m_hFile);
     std::swap(_r.m_fOwnFdLifetime, m_fOwnFdLifetime);
   }
-
   // This is a manner of indicating that something happened during streaming.
   // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
   void SetExceptionString(const char *_szWhat)
@@ -1087,94 +1043,86 @@ public:
   {
     _rstrExceptionString = m_szExceptionString;
   }
-
   bool FOpened() const
   {
-    return -1 != m_hFile;
+    return vkhInvalidFileHandle != m_hFile;
   }
-
   // Throws on open failure. This object owns the lifetime of the file descriptor.
   void Open(const char *_szFilename)
   {
     Assert(!FOpened());
     PrepareErrNo();
-    m_hFile = open(_szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    m_hFile = CreateWriteOnlyFile( _szFilename );
     if (!FOpened())
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to open() file [%s]", _szFilename);
     m_fOwnFdLifetime = true;    // This object owns the lifetime of m_hFile - ie. we need to close upon destruction.
     m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
   }
-
   // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdout which is usually at FD 1 (unless reopen()ed).
-  void AttachFd(int _hFile)
+  void AttachFd(vtyFileHandle _hFile)
   {
     Assert(!FOpened());
-    Assert(_hFile != -1);
+    Assert(_hFile != vkhInvalidFileHandle);
     m_hFile = _hFile;
     m_fOwnFdLifetime = false; // This object owns the lifetime of m_hFile - ie. we need to close upon destruction.
     m_szFilename.clear();     // No filename indicates we are attached to "some hFile".
   }
-
   int Close()
   {
     if (FOpened())
     {
-      int hFile = m_hFile;
-      m_hFile = 0;
+      vtyFileHandle hFile = m_hFile;
+      m_hFile = vkhInvalidFileHandle;
       if (m_fOwnFdLifetime)
         return _Close(hFile);
     }
     return 0;
   }
-  static int _Close(int _hFile)
+  static int _Close(vtyFileHandle & _hFile)
   {
-    return close(_hFile);
+    return FileClose(_hFile);
   }
-
   void WriteByteOrderMark() const
   {
-    Assert(0 == ::lseek(m_hFile, 0, SEEK_CUR));
+    Assert( 0 == ::NFileSeekAndThrow( m_hFile, 0, vkSeekCur ) );
     uint8_t rgBOM[] = {0xFF, 0xFE};
-    PrepareErrNo();
-    ssize_t sstWrote = write(m_hFile, &rgBOM, sizeof rgBOM);
-    if (sstWrote != sizeof rgBOM)
+    size_t stWrote;
+    int iWriteResult = FileWrite( m_hFile, &rgBOM, sizeof rgBOM, &stWrote );
+    if (!!iWriteResult)
     {
-      if (-1 == sstWrote)
-        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "write() failed for file [%s]", m_szFilename.c_str());
-      else
-        THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof rgBOM, m_szFilename.c_str());
+      Assert( -1 == iWriteResult );
+      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
     }
+    Assert( stWrote == sizeof rgBOM );
   }
-  // Read a single character from the file - always throw on EOF.
+  // Write a single character from the file - always throw on EOF.
   void WriteChar(_tyChar _tc)
   {
     Assert(FOpened());
     if (sizeof(_tyChar) == sizeof(_tyPersistAsChar))
     {
-      PrepareErrNo();
-      ssize_t sstWrote = write(m_hFile, &_tc, sizeof _tc);
-      if (sstWrote != sizeof _tc)
+      size_t stWrote;
+      int iWriteResult = FileWrite( m_hFile, &_tc, sizeof _tc, &stWrote );
+      if (!!iWriteResult)
       {
-        if (-1 == sstWrote)
-          THROWBADJSONSTREAMERRNO(GetLastErrNo(), "write() failed for file [%s]", m_szFilename.c_str());
-        else
-          THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sizeof _tc, m_szFilename.c_str());
+        Assert( -1 == iWriteResult );
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "write() failed for file [%s]", m_szFilename.c_str());
       }
+      Assert( stWrote == sizeof _tc );
     }
     else
     {
       _tyStdStrPersist strPersist;
       ConvertString(strPersist, &_tc, 1);
-      ssize_t sstWrite = strPersist.length() * sizeof(_tyPersistAsChar);
-      PrepareErrNo();
-      ssize_t sstWrote = write(m_hFile, &strPersist[0], sstWrite);
-      if (sstWrote != sstWrite)
+      size_t stWrite = strPersist.length() * sizeof(_tyPersistAsChar);
+      size_t stWrote;
+      int iWriteResult = FileWrite( m_hFile, &strPersist[0], stWrite, &stWrote );
+      if (!!iWriteResult)
       {
-        if (-1 == sstWrote)
-          THROWBADJSONSTREAMERRNO(GetLastErrNo(), "write() failed for file [%s]", m_szFilename.c_str());
-        else
-          THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, sstWrite, m_szFilename.c_str());
+        Assert( -1 == iWriteResult );
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
+      Assert( stWrote == stWrite );
     }
   }
   void WriteRawChars(_tyLPCSTR _psz, ssize_t _sstLen = -1)
@@ -1185,28 +1133,26 @@ public:
     {
       _tyStdStrPersist strPersist;
       ConvertString(strPersist, _psz, _sstLen);
-      ssize_t sstWrite = strPersist.length() * sizeof(_tyPersistAsChar);
-      PrepareErrNo();
-      ssize_t sstWrote = write(m_hFile, &strPersist[0], sstWrite);
-      if (sstWrote != sstWrite)
+      size_t stWrite = strPersist.length() * sizeof(_tyPersistAsChar);
+      size_t stWrote;
+      int iWriteResult = FileWrite( m_hFile, &strPersist[0], stWrite, &stWrote );
+      if (!!iWriteResult)
       {
-        if (-1 == sstWrote)
-          THROWBADJSONSTREAMERRNO(GetLastErrNo(), "write() failed for file [%s]", m_szFilename.c_str());
-        else
-          THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote,
-                             sstWrite, m_szFilename.c_str());
+        Assert( -1 == iWriteResult );
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
+      Assert( stWrote == stWrite );
     }
     else
     {
-      ssize_t sstWrote = write(m_hFile, _psz, _sstLen);
-      if (sstWrote != _sstLen)
+      size_t stWrote;
+      int iWriteResult = FileWrite( m_hFile, _psz, _sstLen, &stWrote );
+      if (!!iWriteResult)
       {
-        if (-1 == sstWrote)
-          THROWBADJSONSTREAMERRNO(GetLastErrNo(), "write() failed for file [%s]", m_szFilename.c_str());
-        else
-          THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] for file [%s]", sstWrote, _sstLen, m_szFilename.c_str());
+        Assert( -1 == iWriteResult );
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
+      Assert( stWrote == _sstLen );
     }
   }
   // If <_fEscape> then we escape all special characters when writing.
@@ -1214,12 +1160,11 @@ public:
   {
     JsonOutputStream_WriteString( *this, _fEscape, _psz, _sstLen, _pjfs );
   }
-
 protected:
   std::string m_szFilename;
   std::string m_szExceptionString;
-  int m_hFile{-1};                 // file descriptor.
-  bool m_fOwnFdLifetime{false}; // Should we close the FD upon destruction?
+  vtyFileHandle m_hFile{vkhInvalidFileHandle};
+  bool m_fOwnFdLifetime{false}; // Should we close the file upon destruction?
 };
 
 // JsonOutputMemMappedStream: A class using open(), read(), etc.
@@ -1244,7 +1189,6 @@ public:
   {
     (void)Close();
   }
-
   void swap(JsonOutputMemMappedStream &_r)
   {
     _r.m_szFilename.swap(m_szFilename);
@@ -1255,7 +1199,6 @@ public:
     std::swap(_r.m_cpxMappedEnd, m_cpxMappedEnd);
     std::swap(_r.m_stMapped, m_stMapped);
   }
-
   // This is a manner of indicating that something happened during streaming.
   // Since we use object destruction to finalize writes to a file and cannot throw out of a destructor.
   void SetExceptionString(const char *_szWhat)
@@ -1266,7 +1209,6 @@ public:
   {
     _rstrExceptionString = m_szExceptionString;
   }
-
   bool FOpened() const
   {
     return FFileOpened() && FFileMapped();
@@ -1283,12 +1225,22 @@ public:
   {
     return vkpvNullMapping != m_pvMapped;
   }
-
   // Throws on open failure. This object owns the lifetime of the file descriptor.
   void Open(const char *_szFilename)
   {
     Assert(!FAnyOpened());
     Close();
+    FileObj file( CreateReadWriteFile( _szFilename ) );
+    if ( !file.FIsOpened() )
+      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to CreateReadWriteFile() file [%s]", _szFilename);
+    int iResult = FileSetSize( file.HFileGet(), s_knGrowFileByBytes ); // Set initial size.
+    if ( !!iResult )
+      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to FileSetSize() file [%s]", _szFilename);
+    iResult = MapReadWriteHandle( file.HFileGet() )
+
+
+
+
     PrepareErrNo();
     m_hFile = open(_szFilename, O_RDWR | O_CREAT | O_TRUNC, 0666);
     if (!FFileOpened())
@@ -1299,7 +1251,7 @@ public:
     if (-1 == posEnd)
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Attempting to lseek() failed for [%s]", _szFilename);
     PrepareErrNo();
-    ssize_t stRet = write(m_hFile, "Z", 1); // write a single byte to grow the file to s_knGrowFileByBytes.
+    ssize_t stRet = write(m_hFile, "", 1); // write a single byte to grow the file to s_knGrowFileByBytes.
     if (-1 == stRet)
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Attempting to write() failed for [%s]", _szFilename);
     // No need to reset the file pointer to the beginning - and in fact we like it at the end in case someone were to actually try to write to it.

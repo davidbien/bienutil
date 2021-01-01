@@ -40,7 +40,7 @@ class JsonValueLife;
 template <class t_tyCharTraits>
 class JsonFormatSpec;
 template <class t_tyCharTraits, class t_tyPersistAsChar>
-class JsonLinuxOutputStream;
+class JsonFileOutputStream;
 template <class t_tyChar>
 class JsoValue;
 
@@ -158,7 +158,7 @@ class _SysLogMgr
   typedef _SysLogMgr _tyThis;
 
 protected: // These methods aren't for general consumption. Use the s_SysLog namespace methods.
-  typedef JsonLinuxOutputStream<JsonCharTraits<char>, char> _tyJsonOutputStream;
+  typedef JsonFileOutputStream<JsonCharTraits<char>, char> _tyJsonOutputStream;
   typedef JsonFormatSpec<JsonCharTraits<char>> _tyJsonFormatSpec;
   typedef JsonValueLife<_tyJsonOutputStream> _tyJsonValueLife;
 
