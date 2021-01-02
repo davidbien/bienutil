@@ -16,24 +16,73 @@
 #ifndef WIN32
 #include <errno.h>
 #endif //!WIN32
-#include "bienutil.h"
+#include "bienutil.h" // This should be the only non-OS file included here.
 
 // Define some types that are standard in Linux in the global namespace:
 #ifdef WIN32
 typedef std::make_signed<size_t>::type ssize_t;
 #endif
 
+#ifdef _MSC_VER
+#define FUNCTION_PRETTY_NAME __FUNCSIG__
+#else
+// We are assuming gcc or clang here.
+#define FUNCTION_PRETTY_NAME __PRETTY_FUNCTION__
+#endif
+
 __BIENUTIL_BEGIN_NAMESPACE
 
+// Thead stuff:
+#ifdef WIN32
+#define THREAD_DECL __declspec( thread )
+#elif defined( __linux__ ) || defined( __APPLE__ )
+#define THREAD_DECL __thread
+#endif
+
+// This is for cases where I special cased code building on the Mac - need to review.
+#if defined(WIN32) || defined(__linux__)
+#define THREAD_LOCAL_DECL_APPLE thread_local
+#elif defined( __APPLE__ )
+// This may have changed but when it was working on the Mac this is what I used.
+#define THREAD_LOCAL_DECL_APPLE __thread
+#endif
+
+#ifdef WIN32
+typedef DWORD vtyProcThreadId;
+#elif defined( __linux__ )
+typedef pid_t vtyProcThreadId;
+#elif defined (__APPLE__)
+typedef __uint64_t vtyProcThreadId;
+#endif
+
+void ThreadGetId(vtyProcThreadId& _rtid)
+{
+#ifdef WIN32
+  _rtid = GetCurrentThreadId();
+#elif defined( __linux__ )
+  _rtid = syscall(SYS_gettid);
+#elif defined (__APPLE__)
+  (void)pthread_threadid_np(0, &_rtid);
+#endif
+}
+
+// Error number stuff:
 #ifdef WIN32
 typedef DWORD vtyErrNo;
 #elif defined( __linux__ ) || defined( __APPLE__ )
 typedef int vtyErrNo;
 #endif
+
+static const vtyErrNo vkerrNullErrNo = 0; // This is standard for unix variations and Windows.
+
+// REVIEW:<dbien>: This "preparation" is only necessary for methods that:
+// 1) Don't set an errno on failure. Hence we could have a garbage value in the errno.
+// 2) Might set an errno on success.
+// Also I don't think it is necessary for Windows for those scenarios where they use errno on success - and there are a few.
 inline void PrepareErrNo()
 {
 #if defined( __linux__ ) || defined( __APPLE__ )
-    errno = 0;
+    errno = vkerrNullErrNo;
 #endif // Nothing to do under Windows.
 }
 inline vtyErrNo GetLastErrNo()
@@ -60,6 +109,7 @@ inline void SetGenericFileError()
     errno = EBADF;
 #endif
 }
+int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen );
 
 #ifdef WIN32
 typedef HANDLE vtyFileHandle;
@@ -70,7 +120,7 @@ static const vtyFileHandle vkhInvalidFileHandle = -1;
 #endif
 
 // A null mapping value for pointers.
-static const void * vkpvNullMapping = (void*)-1;
+static void * vkpvNullMapping = (void*)-1;
 #if defined( __linux__ ) || defined( __APPLE__ )
 static_assert( vkpvNullMapping == MAP_FAILED );
 #endif
@@ -126,7 +176,7 @@ public:
     MappedMemoryHandle( MappedMemoryHandle const & ) = default;
     MappedMemoryHandle & operator=(MappedMemoryHandle const &) = default;
 #ifdef WIN32
-    MappedMemoryHandle( void * _pv, size_t _st )
+    MappedMemoryHandle( void * _pv )
         : m_pv( _pv )
     {
     }
@@ -140,7 +190,7 @@ public:
     }
     void swap( MappedMemoryHandle & _r )
     {
-        std::swap( m_pv );
+        std::swap( m_pv, _r.m_pv );
     }
     bool operator == ( _tyThis const & _r ) const
     {
@@ -196,8 +246,8 @@ typedef MappedMemoryHandle vtyMappedMemoryHandle;
 inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0 ) noexcept(true)
 {
 #ifdef WIN32
-    static_assert( sizeof(sizeFile) == sizeof(*_pstSizeMapping) );
-    if ( !!_pstSizeMapping && ( !GetFileSizeEx( _hFile, _pstSizeMapping ) || !*_pstSizeMapping ) )
+    static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
+    if ( !!_pstSizeMapping && ( !GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) || !*_pstSizeMapping ) )
         return vtyMappedMemoryHandle(); // Can't map a zero size file.
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READONLY, 0, 0, NULL );
@@ -227,7 +277,7 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0 ) noexcept(true)
 {
 #ifdef WIN32
-    if ( !!_pstSizeMapping && ( !GetFileSizeEx( _hFile, _pstSizeMapping ) || !*_pstSizeMapping ) )
+    if ( !!_pstSizeMapping && ( !GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) || !*_pstSizeMapping ) )
         return vtyMappedMemoryHandle(); // Can't map a zero size file.
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READWRITE, 0, 0, NULL );
@@ -255,21 +305,7 @@ inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * 
 }
 
 // Unmap the mapping given the handle and set the handle to a null handle.
-inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
-{
-    if ( !!_rhmm.FFailedMapping() )
-    {
-#ifdef WIN32
-        BOOL f = UnmapViewOfFile( hmm.Pv() );
-        Assert( f );
-        return f ? 0 : -1;
-#elif defined( __APPLE__ ) || defined( __linux__ )
-        int iUnmap = ::munmap( hmm.Pv(), hmm.length() );
-        Assert( !iUnmap );
-        return iUnmap;
-#endif
-    }
-}
+int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true);
 
 // This provides a general usage method that returns a void* and closes all other files and handles, etc. Clean and is a major usage scenario.
 // Return the size of the mapping in _rstSizeMapping.
@@ -329,7 +365,7 @@ typedef struct stat vtyHandleAttr;
 int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha )
 {
 #ifdef WIN32
-    return GetFileInformationByHandle( _pszFileName, &_rha ) ? 0 : -1;
+    return GetFileInformationByHandle(_hFile, &_rha ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
     PrepareErrNo();
     return ::fstat( _hFile, &_rha );
@@ -356,7 +392,7 @@ bool FIsRegularFile_HandleAttr( vtyHandleAttr const & _rha )
 // Seeking files:
 #ifdef WIN32
 typedef DWORD vtySeekWhence;
-typedef LARGE_INTEGER vtySeekOffset;
+typedef ssize_t vtySeekOffset;
 static const vtySeekWhence vkSeekBegin = FILE_BEGIN;
 static const vtySeekWhence vkSeekCur = FILE_CURRENT;
 static const vtySeekWhence vkSeekEnd = FILE_END;
@@ -368,83 +404,22 @@ static const vtySeekWhence vkSeekCur = SEEK_CUR;
 static const vtySeekWhence vkSeekEnd = SEEK_END;
 #endif
 inline int
-FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult = 0 )
-{
-#ifdef WIN32
-    return SetFilePointerEx( _hFile, _off, _poffResult, _whence ) ? 0 : -1;
-#elif defined( __APPLE__ ) || defined( __linux__ )
-    PrepareErrNo();
-    vtySeekOffset off = lseek( _hFile, _off, _whence );
-    if ( -1 != off )
-    {
-        Assert( off >= 0 );
-        if ( _poffResult )
-            *_poffResult = off;
-        return 0;
-    }
-    return -1;
-#endif
-}
+FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult = 0 );
+
 // Seek and return the offset, throw on seek failure.
 inline vtySeekOffset
-NFileSeekAndThrow( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence )
-{
-    vtySeekOffset offResult;
-    int iSeek = FileSeek( _hFile, _off, _whence, &offResult );
-    if ( !!iSeek )
-        THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileSeek() failed, _hFile[0x%lx].", (uint64_t)_hFile );
-    return offResult;
-}
+NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence);
 
 // Reading and writing files:
-inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 )
-{
-#ifdef WIN32
-    VerifyThrowSz( _stNBytesToRead <= std::numeric_limits<DWORD>::max(), "Windows is limited to 4GB reads. This read was for [%lu] bytes.", _stNBytesToRead );
-    DWORD nBytesRead;
-    if ( !::ReadFile( _hFile, _pvBuffer, (DWORD)_stNBytesToRead, &nBytesRead, NULL ) )
-        return -1;
-    if ( _pstNBytesRead )
-        *_pstNBytesRead = nBytesRead;
-    return 0;
-#elif defined( __APPLE__ ) || defined( __linux__ )
-    PrepareErrNo();
-    ssize_t sstRead = ::read( _hFile, _pvBuffer, _stNBytesToRead );
-    if ( -1 == sstRead )
-        return -1;
-    if ( _pstNBytesRead )
-        *_pstNBytesRead = sstRead;
-    return 0;
-#endif
-}
-
-inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 )
-{
-#ifdef WIN32
-    VerifyThrowSz( _stNBytesToWrite <= std::numeric_limits<DWORD>::max(), "Windows is limited to 4GB writes. This write was for [%lu] bytes.", _stNBytesToWrite );
-    DWORD nBytesWritten;
-    if ( !WriteFile( _hFile, _pvBuffer, (DWORD)_stNBytesToWrite, &nBytesWritten, NULL ) )
-        return -1;
-    if ( _pstNBytesWritten )
-        *_pstNBytesWritten = nBytesWritten;
-    return 0;
-#elif defined( __APPLE__ ) || defined( __linux__ )
-    PrepareErrNo();
-    ssize_t sstWritten = ::write( _hFile, _pvBuffer, _stNBytesToWrite );
-    if ( -1 == sstWritten )
-        return -1;
-    if ( _pstNBytesWritten )
-        *_pstNBytesWritten = sstWritten;
-    return 0;
-#endif
-}
+int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 );
+int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 );
 
 // Set the size of the file bigger or smaller. I avoid using truncate to set the file larger in linux due to performance concerns.
 // There is no expectation that this results in zeros in the new portion of a larger file.
 inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 {
 #ifdef WIN32
-    if ( !SetFilePointerEx( _hFile, _stSize, NULL, FILE_BEGIN ) )
+    if ( !SetFilePointerEx( _hFile, *(LARGE_INTEGER*)(&_stSize), NULL, FILE_BEGIN ) )
         return -1;
     return SetEndOfFile( _hFile ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )

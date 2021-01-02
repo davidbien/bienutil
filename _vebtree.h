@@ -338,7 +338,7 @@ public:
                 }
             }
             else
-                *pnCurThis = numeric_limits< _tyUint >::max();
+                *pnCurThis = (numeric_limits< _tyUint >::max)();
         }
         // Now update the last processed element by removing any bits beyond the last element:
         if ( _pnLastElement && !!( ( ( stLastElement + 1 ) % s_kstNBitsUint ) ) )
@@ -2082,9 +2082,9 @@ public:
     static constexpr size_t s_kstUniverse = t_kstUniverseCluster * t_kstUniverseCluster;
     static constexpr size_t s_kstUIntMax = n_VanEmdeBoasTreeImpl::KNextIntegerSize( s_kstUniverse );
     typedef n_VanEmdeBoasTreeImpl::t_tyMapToIntType< s_kstUIntMax > _tyImplType;
-    // In VebTreeWrap *only* we will always return numeric_limits< size_t >::max() when there is no successor/predecessor.
-    static constexpr size_t s_kitNoSuccessor = numeric_limits< size_t >::max();
-    static constexpr size_t s_kitNoPredecessor = numeric_limits< size_t >::max();
+    // In VebTreeWrap *only* we will always return (numeric_limits< size_t >::max)() when there is no successor/predecessor.
+    static constexpr size_t s_kitNoSuccessor = (numeric_limits< size_t >::max)();
+    static constexpr size_t s_kitNoPredecessor = (numeric_limits< size_t >::max)();
     static constexpr size_t s_kstUniverseCluster = t_kstUniverseCluster;
     typedef VebTreeFixed< t_kstUniverseCluster, true > _tySubtree; // We are composed of fixed size clusters.
     typedef typename _tySubtree::_tyImplType _tyImplTypeSubtree;
@@ -2683,13 +2683,13 @@ public:
         return m_rgstSubtrees[ NCluster(_x) ].FHasElement( NElInCluster( _x ) );
     }
     // Return the next element after _x or 0 if there is no such element.
-    // If numeric_limits< size_t >::max() is passed then the first element of the set is returned.
-    size_t NSuccessor( size_t _x = numeric_limits< size_t >::max() ) const
+    // If (numeric_limits< size_t >::max)() is passed then the first element of the set is returned.
+    size_t NSuccessor( size_t _x = (numeric_limits< size_t >::max)() ) const
     {
         if ( !FHasAnyElements() )
             return s_kitNoSuccessor;
         else
-        if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
+        if ( ( (numeric_limits< size_t >::max)() == _x ) || ( _x < m_nMin ) )
             return m_nMin;
         Assert( _x <= m_nLastElement );
         if ( _x > m_nLastElement )
@@ -2715,14 +2715,14 @@ public:
         }
         return s_kitNoSuccessor;
     }
-    // Return and remove the next element after _x or numeric_limits< size_t >::max() if there is no such element.
-    // If numeric_limits< size_t >::max() is passed then the first element of the set is returned.
-    size_t NSuccessorDelete( size_t _x = numeric_limits< size_t >::max() )
+    // Return and remove the next element after _x or (numeric_limits< size_t >::max)() if there is no such element.
+    // If (numeric_limits< size_t >::max)() is passed then the first element of the set is returned.
+    size_t NSuccessorDelete( size_t _x = (numeric_limits< size_t >::max)() )
     {
         if ( !FHasAnyElements() )
             return s_kitNoSuccessor;
         else
-        if ( ( numeric_limits< size_t >::max() == _x ) || ( _x < m_nMin ) )
+        if ( ( (numeric_limits< size_t >::max)() == _x ) || ( _x < m_nMin ) )
         {
             _tyImplType n = m_nMin;
             Delete( m_nMin );
@@ -2780,13 +2780,13 @@ public:
         return s_kitNoSuccessor;
     }
     // Return the previous element before _x or s_kstUniverse-1 if there is no such element.
-    // If numeric_limits< size_t >::max() is passed then the last element of the set is returned.
-    size_t NPredecessor( size_t _x = numeric_limits< size_t >::max() ) const
+    // If (numeric_limits< size_t >::max)() is passed then the last element of the set is returned.
+    size_t NPredecessor( size_t _x = (numeric_limits< size_t >::max)() ) const
     {
         if ( !FHasAnyElements() )
             return s_kitNoPredecessor;
         else
-        if ( numeric_limits< size_t >::max() == _x )
+        if ( (numeric_limits< size_t >::max)() == _x )
             return m_nMax;
         if ( _x > m_nLastElement )
             THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
@@ -2819,14 +2819,14 @@ public:
         return s_kitNoPredecessor;
     }
     // Return and remove the previous element before _x or s_kstUniverse-1 if there is no such element.
-    // If numeric_limits< size_t >::max() is passed then the last element of the set is removed and returned.
+    // If (numeric_limits< size_t >::max)() is passed then the last element of the set is removed and returned.
     // This is significantly easier than NSuccessorDelete because m_nMin isn't contained in the subtree elements.
-    size_t NPredecessorDelete( size_t _x = numeric_limits< size_t >::max() )
+    size_t NPredecessorDelete( size_t _x = (numeric_limits< size_t >::max)() )
     {
         if ( !FHasAnyElements() )
             return s_kitNoPredecessor;
         else
-        if ( ( numeric_limits< size_t >::max() == _x ) || ( ( _x > m_nMax ) && ( _x <= m_nLastElement ) ) )
+        if ( ( (numeric_limits< size_t >::max)() == _x ) || ( ( _x > m_nMax ) && ( _x <= m_nLastElement ) ) )
         {
             _tyImplType n = m_nMax;
             Delete( m_nMax );

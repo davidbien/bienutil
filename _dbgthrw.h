@@ -23,18 +23,13 @@
 // Objects for testing throw-safety in a repeatable manner.
 
 #ifndef __DBGTHROW_DEFAULT_ALLOCATOR
-#if defined(_USE_STLPORT) && !defined(NDEBUG)
-#define __DBGTHROW_DEFAULT_ALLOCATOR __STD::_stlallocator< char, __STD::__debug_alloc< __STD::__malloc_alloc > >
-#define __DBGTHROW_GET_ALLOCATOR(t) __STD::_stlallocator< t, __STD::__debug_alloc< __STD::__malloc_alloc > >
-#else // defined(_USE_STLPORT) && !defined(NDEBUG)
 #define __DBGTHROW_DEFAULT_ALLOCATOR __STD::allocator< char >
 #define __DBGTHROW_GET_ALLOCATOR(t) __STD::allocator< t >
-#endif //defined(_USE_STLPORT) && !defined(NDEBUG)
 #endif //!__DBGTHROW_DEFAULT_ALLOCATOR
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-enum EThrowType : unsigned int
+enum EThrowType : uint32_t
 {
   e_ttMemory      = 0x00000001,
   e_ttFileOutput  = 0x00000002,
@@ -48,27 +43,27 @@ enum EThrowType : unsigned int
   e_ttChronicMask = e_ttFileOutput | e_ttMemory
 };
 
-class _debug_memory_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
+class _debug_memory_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
-  typedef std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
+  typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_memory_except()
     : _TyBase( "_debug_memory_except" )
   {
   }
 };
-class _debug_output_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
+class _debug_output_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
-  typedef std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
+  typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_output_except()
     : _TyBase( "_debug_output_except" )
   {
   }
 };
-class _debug_input_except : public std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
+class _debug_input_except : public _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR >
 {
-  typedef std::_t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
+  typedef _t__Named_exception< __DBGTHROW_DEFAULT_ALLOCATOR > _TyBase;
 public:
   _debug_input_except()
     : _TyBase( "_debug_input_except" )
@@ -83,15 +78,15 @@ struct _throw_object_base
 private:
   typedef _throw_object_base _TyThis;
 public:
-  unsigned long m_rgttType{};
+  uint32_t m_rgttType{};
   const char *  m_cpFileName{};
-  unsigned long m_ulLineNumber{};
+  uint32_t m_ulLineNumber{};
   static _throw_static_base ms_tsb;
 
   _throw_object_base() = default;
-  _throw_object_base( unsigned long _rgttType, 
+  _throw_object_base( uint32_t _rgttType, 
                       const char * _cpFileName,
-                      unsigned long _ulLineNumber,
+                      uint32_t _ulLineNumber,
                       bool _fMaybeThrow = false,
                       bool _fAlwaysThrow = false,
                       bool _fInUnwind = false ) :
@@ -152,18 +147,18 @@ _count_set_bits( size_t _i )
 
 struct _throw_static_base
 {
-  unsigned long m_grfOn{0};
-  unsigned int  m_uRandSeed{0};
+  uint32_t m_grfOn{0};
+  uint32_t  m_uRandSeed{0};
   int           m_iThrowRate{1000}; 
     // A number less than RAND_MAX that determines whether a given throw object will throw.
 
-  unsigned long m_rgttTypeAccum{0};
+  uint32_t m_rgttTypeAccum{0};
     // This accumulates the type of exceptions thrown.
 
   // Current throw parameters:
-  unsigned long m_rgttTypeCur{};
+  uint32_t m_rgttTypeCur{};
   const char *  m_cpFileNameCur{};
-  unsigned long m_ulLineNumberCur{};
+  uint32_t m_ulLineNumberCur{};
 
   // Save a set of previous throw parameters for utility:
   static const int  ms_kiNumSaved = 200;
@@ -188,19 +183,19 @@ struct _throw_static_base
   _throw_static_base()
   {
 	  // Scale the throw rate according to the impl's RAND_MAX.
-	  const unsigned long long llMinRandMax = 0x7fff;
-	  unsigned long long llRandMax = RAND_MAX;
+	  const uint64_t llMinRandMax = 0x7fff;
+	  uint64_t llRandMax = RAND_MAX;
 	  llRandMax *= m_iThrowRate;
 	  llRandMax /= llMinRandMax;
 	  m_iThrowRate = (int)llRandMax;
   }
 
-  void set_on( unsigned long _grfOn )
+  void set_on( uint32_t _grfOn )
   {
     m_grfOn = _grfOn;
   }
 
-  void set_seed( unsigned int _uRandSeed )
+  void set_seed( uint32_t _uRandSeed )
   {
     m_uRandSeed = _uRandSeed;
     srand( m_uRandSeed );

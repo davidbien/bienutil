@@ -11,6 +11,8 @@
 
 #include "_assert.h"
 
+z_NAMESPACE
+
 #ifdef Trace
 #error _trace.h: Trace() macro is already defined.
 #endif
@@ -39,9 +41,11 @@ Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned in
 #define TraceAndBreak(szMesg...) (static_cast<void>(0))
 #define TraceAndAbort(szMesg...)		(static_cast<void>(0))
 #else // #if !TRACESSENABLED
-#define Trace(szMesg...) Trace_LogMessage( ACTIONONTRACE, __FILE__, __LINE__, __PRETTY_FUNCTION__, nullptr, szMesg )
-#define TraceJson(JSONVAL,szMesg...) Trace_LogMessage( ACTIONONTRACE, __FILE__, __LINE__, __PRETTY_FUNCTION__, &JSONVAL, szMesg )
-#define TraceAndIgnore(szMesg...) Trace_LogMessage( eabiIgnore, __FILE__, __LINE__, __PRETTY_FUNCTION__, nullptr, szMesg )
-#define TraceAndBreak(szMesg...) Trace_LogMessage( eabiBreak, __FILE__, __LINE__, __PRETTY_FUNCTION__, nullptr, szMesg )
-#define TraceAndAbort(szMesg...) Trace_LogMessage( eabiAbort, __FILE__, __LINE__, __PRETTY_FUNCTION__, nullptr, szMesg )
+#define Trace(szMesg, ...) Trace_LogMessage( ACTIONONTRACE, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, nullptr, szMesg, ##__VA_ARGS__ )
+#define TraceJson(JSONVAL,szMesg, ...) Trace_LogMessage( ACTIONONTRACE, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, &JSONVAL, szMesg, ##__VA_ARGS__ )
+#define TraceAndIgnore(szMesg, ...) Trace_LogMessage( eabiIgnore, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, nullptr, szMesg, ##__VA_ARGS__ )
+#define TraceAndBreak(szMesg, ...) Trace_LogMessage( eabiBreak, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, nullptr, szMesg, ##__VA_ARGS__ )
+#define TraceAndAbort(szMesg, ...) Trace_LogMessage( eabiAbort, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, nullptr, szMesg, ##__VA_ARGS__ )
 #endif // #if !TRACESSENABLED
+
+__BIENUTIL_END_NAMESPACE

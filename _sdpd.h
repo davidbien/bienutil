@@ -55,11 +55,19 @@ public:
 			m_fConstructed( _rr.m_fConstructed )
 	{
 		m_pt = _rr.transfer();
+		_rr.m_fConstructed = false;
 	}
 	_sdpd & operator = ( _TyThis && _rr )
 	{
-		m_alloc = _rr.m_alloc; // Don't move the allocator - at least for now.
+		//m_alloc = _rr.m_alloc; // Don't muck with the allocator.
+		if (m_fConstructed)
+		{
+			m_fConstructed = false;
+			_TyBase::destruct();
+			_TyBase::clear();
+		}
 		m_fConstructed = _rr.m_fConstructed;
+		_rr.m_fConstructed = false;
 		m_pt = _rr.transfer();
 	}
 
@@ -85,8 +93,7 @@ public:
 			_TyBase::destruct();
 		}
 		if ( _fDeallocate )
-			_TyBase::clear();
-		
+			_TyBase::clear();		
 	}
 
   // Indicate that the contained object is constructed.

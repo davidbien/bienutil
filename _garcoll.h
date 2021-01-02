@@ -1840,7 +1840,7 @@ protected:
 	{
 		t_TyGCO *	pgco = m_pgco->copy();
 
-		__STD_OR_GLOBAL_QUALIFIER swap( pgco, m_pgco );	// We own the copy.
+		std::swap( pgco, m_pgco );	// We own the copy.
 
 		pgco->Release();
     Assert( pgco->m_ref );
@@ -1939,9 +1939,6 @@ public:
 protected:
   void  _Release()
   {
-#ifndef _BIEN_USE_EXCEPTIONS	// If we aren't using exceptions then we need to test the address.
-		if ( m_pgco )
-#endif //!_BIEN_USE_EXCEPTIONS
 		if ( !RGCO().Release() )
 		{
 			RGCO().destroy( );
@@ -2097,7 +2094,7 @@ public:
 
   void  swap( _TyThis & _r ) _BIEN_NOTHROW
   {
-    __STD_OR_GLOBAL_QUALIFIER swap( m_pgco, _r.m_pgco );
+    std::swap( m_pgco, _r.m_pgco );
   }
 
 protected:
@@ -2125,7 +2122,7 @@ protected:
 	void	_DoCopy()
 	{
 		t_TyGCO *	pgco = m_pgco->copy();
-		__STD_OR_GLOBAL_QUALIFIER swap( pgco, m_pgco );	// We own the copy.
+		std::swap( pgco, m_pgco );	// We own the copy.
     pgco->Release();
     Assert( pgco->m_ref );
 	}

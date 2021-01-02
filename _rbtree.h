@@ -30,6 +30,8 @@
  *   You should not attempt to use it directly.
  */
 
+#error this code is no longer in use.
+
 #ifndef __SGI_STL_INTERNAL_TREE_H
 #define __SGI_STL_INTERNAL_TREE_H
 
@@ -223,28 +225,6 @@ inline bool operator!=(const _Rb_tree_base_iterator<_type_Rb_tree_node_base>& __
                        const _Rb_tree_base_iterator<_type_Rb_tree_node_base>& __y) {
   return __x._M_node != __y._M_node;
 }
-
-#ifndef _STLP_CLASS_PARTIAL_SPECIALIZATION
-
-template < class _type_Rb_tree_node_base >
-inline bidirectional_iterator_tag
-iterator_category(const _Rb_tree_base_iterator<_type_Rb_tree_node_base>&) {
-  return bidirectional_iterator_tag();
-}
-
-template < class _type_Rb_tree_node_base >
-inline typename _Rb_tree_base_iterator<_type_Rb_tree_node_base>::difference_type*
-distance_type(const _Rb_tree_base_iterator<_type_Rb_tree_node_base>&) {
-  return (typename _Rb_tree_base_iterator<_type_Rb_tree_node_base>::difference_type*) 0;
-}
-
-template <class _Value, class _Ref, class _Ptr, class _type_Rb_tree_node, class _type_Rb_tree_node_base>
-inline _Value *	value_type( const _Rb_tree_iterator<_Value, _Ref, _Ptr, _type_Rb_tree_node, _type_Rb_tree_node_base >& ) 
-{
-  return (_Value*) 0;
-}
-
-#endif /* _STLP_CLASS_PARTIAL_SPECIALIZATION */
 
 template < class _type_Rb_tree_node_base >
 inline void 
@@ -588,11 +568,9 @@ public:
   allocator_type const & get_allocator() const { return _Base::get_allocator(); }
 
 protected:
-#ifdef _STLP_USE_NAMESPACES
   using _Base::_M_get_node;
   using _Base::_M_put_node;
   using _Base::_M_header;
-#endif /* _STLP_USE_NAMESPACES */
 
 protected:
 
@@ -669,17 +647,8 @@ public:
   typedef _Rb_tree_iterator<value_type, const_reference, const_pointer, _type_Rb_tree_node, _type_Rb_tree_node_base> 
           const_iterator;
 
-#ifdef _STLP_CLASS_PARTIAL_SPECIALIZATION
   typedef reverse_iterator<const_iterator> const_reverse_iterator;
   typedef reverse_iterator<iterator> reverse_iterator;
-#else /* _STLP_CLASS_PARTIAL_SPECIALIZATION */
-  typedef reverse_bidirectional_iterator<iterator, value_type, reference,
-                                         difference_type>
-          reverse_iterator; 
-  typedef reverse_bidirectional_iterator<const_iterator, value_type,
-                                         const_reference, difference_type>
-          const_reverse_iterator;
-#endif /* _STLP_CLASS_PARTIAL_SPECIALIZATION */ 
 
 private:
   iterator _M_insert_value(_Base_ptr __x, _Base_ptr __y, const value_type& __v);
@@ -766,17 +735,10 @@ public:
   iterator insert_unique_node(iterator __position, node_type & __n);
   iterator insert_equal_node(iterator __position, node_type & __n);
 
-#ifdef _STLP_MEMBER_TEMPLATES  
   template <class _InputIterator>
   void insert_unique(_InputIterator __first, _InputIterator __last);
   template <class _InputIterator>
   void insert_equal(_InputIterator __first, _InputIterator __last);
-#else /* _STLP_MEMBER_TEMPLATES */
-  void insert_unique(const_iterator __first, const_iterator __last);
-  void insert_unique(const value_type* __first, const value_type* __last);
-  void insert_equal(const_iterator __first, const_iterator __last);
-  void insert_equal(const value_type* __first, const value_type* __last);
-#endif /* _STLP_MEMBER_TEMPLATES */
 
   void erase(iterator __position);
   size_type erase(const key_type& __x);
@@ -831,8 +793,6 @@ operator<(const _Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_n
                                  __y.begin(), __y.end());
 }
 
-#ifdef _STLP_FUNCTION_TMPL_PARTIAL_ORDER
-
 template <class _Key, class _Value, class _KeyOfValue, 
           class _Compare, class _Alloc, 
 					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
@@ -842,9 +802,6 @@ swap(_Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_node,_type_R
 {
   __x.swap(__y);
 }
-
-#endif /* _STLP_FUNCTION_TMPL_PARTIAL_ORDER */
-
 
 template <class _Key, class _Value, class _KeyOfValue, 
           class _Compare, class _Alloc, 
@@ -1144,8 +1101,6 @@ _Rb_tree<_Key,_Value,_KeyOfValue,_Compare,_Alloc,_type_Rb_tree_node,_type_Rb_tre
   }
 }
 
-#ifdef _STLP_MEMBER_TEMPLATES  
-
 template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
 					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
   template<class _II>
@@ -1164,49 +1119,6 @@ void _Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc, _type_Rb_tree_node, _type_Rb_tree_node
   for ( ; __first != __last; ++__first)
     insert_unique(*__first);
 }
-
-#else /* _STLP_MEMBER_TEMPLATES */
-
-template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
-					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
-void
-_Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc, _type_Rb_tree_node, _type_Rb_tree_node_base>
-  ::insert_equal(const _Val* __first, const _Val* __last)
-{
-  for ( ; __first != __last; ++__first)
-    insert_equal(*__first);
-}
-
-template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
-					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
-void
-_Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc, _type_Rb_tree_node, _type_Rb_tree_node_base>
-  ::insert_equal(const_iterator __first, const_iterator __last)
-{
-  for ( ; __first != __last; ++__first)
-    insert_equal(*__first);
-}
-
-template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
-					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
-void 
-_Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc, _type_Rb_tree_node, _type_Rb_tree_node_base>
-  ::insert_unique(const _Val* __first, const _Val* __last)
-{
-  for ( ; __first != __last; ++__first)
-    insert_unique(*__first);
-}
-
-template <class _Key, class _Val, class _KoV, class _Cmp, class _Alloc, 
-					class _type_Rb_tree_node, class _type_Rb_tree_node_base>
-void _Rb_tree<_Key,_Val,_KoV,_Cmp,_Alloc,_type_Rb_tree_node,_type_Rb_tree_node_base>
-  ::insert_unique(const_iterator __first, const_iterator __last)
-{
-  for ( ; __first != __last; ++__first)
-    insert_unique(*__first);
-}
-
-#endif /* _STLP_MEMBER_TEMPLATES */
          
 template <class _Key, class _Value, class _KeyOfValue, 
           class _Compare, class _Alloc, 

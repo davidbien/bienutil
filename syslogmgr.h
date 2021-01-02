@@ -24,12 +24,17 @@
 #include <thread>
 #include <memory>
 #include <optional>
+#include <chrono>
+#ifndef WIN32
 #include <syslog.h>
 #include <sys/syscall.h>
 #include <uuid/uuid.h>
+#endif //!WIN32
 #include "bienutil.h"
 #include "bientypes.h"
 #include "_util.h"
+
+__BIENUTIL_BEGIN_NAMESPACE
 
 template <class t_tyChar>
 struct JsonCharTraits;
@@ -58,11 +63,19 @@ namespace n_SysLog
 {
   struct GetProgramStart
   {
+    typedef chrono::high_resolution_clock _tyClock;
+    typedef chrono::time_point< _tyClock > _tyTimePoint;
     GetProgramStart()
     {
-      (void)clock_gettime(CLOCK_MONOTONIC_COARSE, &m_tsProgramStart);
+      m_tpProgramStart = _tyClock::now();
     }
-    timespec m_tsProgramStart;
+    size_t NMillisecondsSinceStart() const
+    {
+      _tyTimePoint tpNow = _tyClock::now();
+      _tyClock::duration dur = tpNow - m_tpProgramStart;
+      return chrono::duration_cast<chrono::milliseconds>(dur).count();
+    }
+    _tyTimePoint m_tpProgramStart;
   };
   typedef JsoValue<char> vtyJsoValueSysLog;
   void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog *_pjvThreadSpecificJson = 0);
@@ -80,10 +93,10 @@ namespace n_SysLog
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...);
 } // namespace n_SysLog
 
-#define LOGSYSLOG(TYPE, MESG...) n_SysLog::Log(TYPE, __FILE__, __LINE__, MESG)
-#define LOGSYSLOGERRNO(TYPE, ERRNO, MESG...) n_SysLog::Log(TYPE, ERRNO, __FILE__, __LINE__, MESG)
-#define LOGSYSLOG_JSON(TYPE, JSONVALUE, MESG...) n_SysLog::Log(TYPE, JSONVALUE, __FILE__, __LINE__, MESG)
-#define LOGSYSLOGERRNO_JSON(TYPE, JSONVALUE, ERRNO, MESG...) n_SysLog::Log(TYPE, JSONVALUE, ERRNO, __FILE__, __LINE__, MESG)
+#define LOGSYSLOG(TYPE, MESG, ...) n_SysLog::Log(TYPE, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
+#define LOGSYSLOGERRNO(TYPE, ERRNO, MESG, ...) n_SysLog::Log(TYPE, ERRNO, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
+#define LOGSYSLOG_JSON(TYPE, JSONVALUE, MESG, ...) n_SysLog::Log(TYPE, JSONVALUE, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
+#define LOGSYSLOGERRNO_JSON(TYPE, JSONVALUE, ERRNO, MESG, ...) n_SysLog::Log(TYPE, JSONVALUE, ERRNO, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
 
 // _SysLogThreadHeader:
 // This contains thread level info about syslog messages that is constant for all contained messages.
@@ -91,15 +104,13 @@ struct _SysLogThreadHeader
 {
   size_t m_nmsSinceProgramStart{0}; // easiest way to do this.
   std::string m_szProgramName;
-#if __APPLE__
-  __uint64_t m_tidThreadId{0}; // The result of the call to gettid() for this thread.
-#elif __linux__
-  pid_t m_tidThreadId{0}; // The result of the call to gettid() for this thread.
-#else
-#error Need to know the OS for thread id representation.
-#endif
+  vtyProcThreadId m_tidThreadId{0};
   time_t m_timeStart{0}; // The time that this program was started - or at least when InitSysLog() was called.
+#ifdef WIN32
+  uuid_t m_uuid{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+#else
   uuid_t m_uuid{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+#endif
 
   _SysLogThreadHeader() = default;
 
@@ -186,18 +197,7 @@ protected: // These methods aren't for general consumption. Use the s_SysLog nam
     // If we haven't created the SysLogMgr() on this thread then do so now.
     if (!s_tls_pThis)
     {
-#if __APPLE__
-      // This gets the thread id that we see in the Console syslog, etc.
-      (void)pthread_threadid_np(0, &s_tls_tidThreadId);
-#elif __linux__
-#ifdef SYS_gettid
-      s_tls_tidThreadId = syscall(SYS_gettid);
-#else
-#error "SYS_gettid unavailable on this system"
-#endif
-#else
-#error Need to know the OS for thread id representation.
-#endif
+      (void)ThreadGetId(s_tls_tidThreadId);
       s_tls_upThis = std::make_unique<_SysLogMgr>(s_pslmOverlord); // This ensures we destroy this before the app goes away.
       s_tls_pThis = &*s_tls_upThis;                                // Get the non-object pointer because thread_local objects are function calls to obtain pointer.
     }
@@ -207,7 +207,9 @@ protected: // These methods aren't for general consumption. Use the s_SysLog nam
 public:
   static void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson)
   {
+#ifndef WIN32 // For windows we just don't do anything at all.
     openlog(_pszProgramName, _grfOption, _grfFacility);
+#endif //!WIN32
     assert(!_pjvThreadSpecificJson || s_fGenerateUniqueJSONLogFile);
     if (s_fGenerateUniqueJSONLogFile)
     {
@@ -271,16 +273,8 @@ public:
 
   static size_t _GetMsSinceProgramStart()
   {
-    timespec tsCur;
-    if (!clock_gettime(CLOCK_MONOTONIC_COARSE, &tsCur))
-    {
-      size_t ms = (tsCur.tv_sec - s_psProgramStart.m_tsProgramStart.tv_sec) * 1000;
-      ms += (tsCur.tv_nsec - s_psProgramStart.m_tsProgramStart.tv_nsec) / 1000000;
-      return ms;
-    }
-    return 0;
+    return s_psProgramStart.NMillisecondsSinceStart();
   }
-
 protected:
   // non-static members:
   _SysLogMgr *m_pslmOverlord; // If this is zero then we are the overlord or there is no overlord.
@@ -293,14 +287,8 @@ protected:
   static std::mutex s_mtxOverlord;                              // This used by overlord to guard access.
   static thread_local std::unique_ptr<_SysLogMgr> s_tls_upThis; // This object will be created in all threads the first time something logs in that thread.
                                                                 // However the "overlord thread" will create this on purpose when it is created.
-  static __thread _SysLogMgr *s_tls_pThis;                      // The result of the call to gettid() for this thread.
-#if __APPLE__
-  static __thread __uint64_t s_tls_tidThreadId; // The result of the call to gettid() for this thread.
-#elif __linux__
-  static thread_local pid_t s_tls_tidThreadId; // The result of the call to gettid() for this thread.
-#else
-#error Need to know the OS for thread id representation.
-#endif
+  static THREAD_DECL _SysLogMgr *s_tls_pThis;
+  static THREAD_LOCAL_DECL_APPLE vtyProcThreadId s_tls_tidThreadId; // The result of the call to gettid() for this thread.
   static bool s_fCallSysLogEachThread;
   static bool s_fGenerateUniqueJSONLogFile; // Generate a unique log file in the same directory as the executable and then log that log filename to the syslog.
   static n_SysLog::GetProgramStart s_psProgramStart;
@@ -313,16 +301,9 @@ std::mutex _SysLogMgr<t_kiInstance>::s_mtxOverlord;
 template <const int t_kiInstance>
 thread_local std::unique_ptr<_SysLogMgr<t_kiInstance>> _SysLogMgr<t_kiInstance>::s_tls_upThis;
 template <const int t_kiInstance>
-__thread _SysLogMgr<t_kiInstance> *_SysLogMgr<t_kiInstance>::s_tls_pThis = 0;
-#if __APPLE__
+THREAD_DECL _SysLogMgr<t_kiInstance> *_SysLogMgr<t_kiInstance>::s_tls_pThis = 0;
 template <const int t_kiInstance>
-__thread __uint64_t _SysLogMgr<t_kiInstance>::s_tls_tidThreadId;
-#elif __linux__
-template <const int t_kiInstance>
-thread_local pid_t _SysLogMgr<t_kiInstance>::s_tls_tidThreadId;
-#else
-#error Need to know the OS for thread id representation.
-#endif
+THREAD_LOCAL_DECL_APPLE vtyProcThreadId _SysLogMgr<t_kiInstance>::s_tls_tidThreadId;
 template <const int t_kiInstance>
 bool _SysLogMgr<t_kiInstance>::s_fCallSysLogEachThread = true;
 template <const int t_kiInstance>
@@ -358,3 +339,5 @@ namespace n_SysLog
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFmt, ...);
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...);
 } // namespace n_SysLog
+
+__BIENUTIL_END_NAMESPACE

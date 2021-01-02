@@ -20,16 +20,6 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-#if 0 // !defined( _STLP_STD ) && ( defined( __FreeBSD__ ) || defined(__APPLE__) || !defined( __GNUC__ ) ) // STLport defines these locally, FreeBSD's STL seems not to, gcc otherwise does.
-struct std::true_type
-{
-};
-
-struct std::false_type
-{
-};
-#endif // 0 !_STLP_STD
-
 #ifdef __GNUC__ // doesn't like templates declared like this.
 // Type->boolean functions:
 template < class t_TyBoolean >

@@ -26,10 +26,10 @@ template <class t_tyChar, bool t_kfConst>
 class JsoIterator;
 
 // This exception will get thrown if the user of the read cursor does something inappropriate given the current context.
-class json_objects_bad_usage_exception : public std::_t__Named_exception<__JSONSTRM_DEFAULT_ALLOCATOR>
+class json_objects_bad_usage_exception : public _t__Named_exception<__JSONSTRM_DEFAULT_ALLOCATOR>
 {
   typedef json_objects_bad_usage_exception _TyThis;
-  typedef std::_t__Named_exception<__JSONSTRM_DEFAULT_ALLOCATOR> _TyBase;
+  typedef _t__Named_exception<__JSONSTRM_DEFAULT_ALLOCATOR> _TyBase;
 public:
   json_objects_bad_usage_exception( const char * _pc ) 
       : _TyBase( _pc ) 
@@ -45,7 +45,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWJSONBADUSAGE(MESG...) ExceptionUsage<json_objects_bad_usage_exception>::ThrowFileLineFunc(__FILE__, __LINE__, __PRETTY_FUNCTION__, MESG)
+#define THROWJSONBADUSAGE(MESG...) ExceptionUsage<json_objects_bad_usage_exception>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG)
 
 // JsoIterator:
 // This iterator may be iterating an object or an array.
@@ -650,9 +650,9 @@ public:
   {
     SetBoolValue(_f);
   }
-  void SetStringValue(_tyLPCSTR _psz, size_t _stLen = std::numeric_limits<size_t>::max())
+  void SetStringValue(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
   {
-    if (_stLen == std::numeric_limits<size_t>::max())
+    if (_stLen == (std::numeric_limits<size_t>::max)())
       _stLen = StrNLen(_psz);
     SetValueType(ejvtString);
     StrGet().assign(_psz, _stLen);

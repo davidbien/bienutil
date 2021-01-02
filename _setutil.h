@@ -10,7 +10,7 @@
 
 // Set utilities.
 
-_STLP_BEGIN_NAMESPACE
+__BIENUTIL_BEGIN_NAMESPACE
 
 // Since sets and maps don't have a templatized copy constructor ( or assignment operator )
 // ( and since the structural copy is likely faster ) - we have an object that chooses
@@ -104,6 +104,6 @@ set_set_intersection(	t_TyInputIter1 __first1, t_TyInputIter1 __last1,
 	}
 }
 
-_STLP_END_NAMESPACE
+__BIENUTIL_END_NAMESPACE
 
 #endif //__SETUTIL_H

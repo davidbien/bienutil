@@ -1,6 +1,4 @@
-#ifndef __SMARTP_H_
-#define __SMARTP_H_
-
+#pragma once
 //          Copyright David Lawrence Bien 1997 - 2020.
 // Distributed under the Boost Software License, Version 1.0.
 //    (See accompanying file LICENSE_1_0.txt or copy at
@@ -11,33 +9,33 @@ __BIENUTIL_BEGIN_NAMESPACE
 // Simple list "delete" on destruct object.
 
 template < class t_Ty >
-class _sptr
+class _smartptr
 {
-  typedef _sptr _TyThis;
+  typedef _smartptr _TyThis;
   t_Ty * m_pt;
 public:
-  _sptr() : m_pt( 0 )
+  _smartptr() : m_pt( 0 )
   {
   }
-  explicit _sptr( t_Ty * _pt ) : m_pt( _pt )
+  explicit _smartptr( t_Ty * _pt ) : m_pt( _pt )
   {
   }
-  explicit _sptr( _sptr & _r ) : m_pt( _r.m_pt )
+  explicit _smartptr( _smartptr & _r ) : m_pt( _r.m_pt )
   {
     _r.Reset();
   }
-  _sptr( _sptr && _rr )
+  _smartptr( _smartptr && _rr )
   {
     _rr.swap( *this );
   }
-  ~_sptr() _BIEN_NOTHROW
+  ~_smartptr() _BIEN_NOTHROW
   {
     if ( m_pt )
     {
       delete m_pt;
     }
   }
-  void swap( _sptr & _r )
+  void swap( _smartptr & _r )
   {
     std:swap( _r.m_pt, m_pt );
   }
@@ -158,6 +156,4 @@ protected:
 };
 
 __BIENUTIL_END_NAMESPACE
-
-#endif //__SMARTP_H_
 

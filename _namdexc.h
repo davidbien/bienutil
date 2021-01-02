@@ -1,28 +1,16 @@
-/*
- * Copyright (c) 1997
- * Silicon Graphics Computer Systems, Inc.
- *
- * Permission to use, copy, modify, distribute and sell this software
- * and its documentation for any purpose is hereby granted without fee,
- * provided that the above copyright notice appear in all copies and
- * that both that copyright notice and this permission notice appear
- * in supporting documentation.  Silicon Graphics makes no
- * representations about the suitability of this software for any
- * purpose.  It is provided "as is" without express or implied warranty.
- */
+#pragma once
 
-// dbien: This modified from SGI STL's v3.22 "stdexcept" header.
-
-#ifndef ___NAMDEXC_H___
-#define ___NAMDEXC_H___
+// _namdexc.h
+// dbien
+// Originally from STLPORT's header, but there is nothing left of that anymore...
+// Sometime in 1999.
 
 #include <stdarg.h>
 #include <string>
 #include <variant>
 #include "bienutil.h"
 
-namespace std // REVIEW:<dbien>: Not sure why I extended std here - should rid that.
-{
+__BIENUTIL_BEGIN_NAMESPACE
 
 #define NAMEDEXC_BUFSIZE 4096
 
@@ -88,7 +76,7 @@ protected:
   char m_rgcExceptionName[s_stBufSize];
 };
 
-#define THROWNAMEDEXCEPTION( MESG, ... ) ExceptionUsage< std::_t__Named_exception<> >::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG, ##__VA_ARGS__ )
+#define THROWNAMEDEXCEPTION( MESG, ... ) ExceptionUsage< _t__Named_exception<> >::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )
 
 template < class t_TyAllocator = allocator< char >, class t_TyBaseClass = exception >
 class _t__Named_exception_errno : public _t__Named_exception< t_TyAllocator, t_TyBaseClass >
@@ -130,8 +118,8 @@ public:
       const int knErrorMesg = 256;
       char rgcErrorMesg[ knErrorMesg ];
       char rgcErrorMesg2[ knErrorMesg ];
-      if ( !!strerror_r( m_errno, rgcErrorMesg2, knErrorMesg ) )
-        (void)snprintf( rgcErrorMesg, knErrorMesg, "errno:[%d]", m_errno );
+      if ( !!GetErrorString( m_errno, rgcErrorMesg2, knErrorMesg ) )
+        (void)snprintf( rgcErrorMesg, knErrorMesg, "errno:[%u]", m_errno );
       else
       {
         rgcErrorMesg2[knErrorMesg-1] = 0;
@@ -161,24 +149,24 @@ public:
     }
   }
 
-  int Errno() const { return m_errno; }
-  void SetErrno( int _errno )
+  vtyErrNo Errno() const { return m_errno; }
+  void SetErrno( vtyErrNo _errno )
   {
     m_errno = _errno;
   }
 protected:
   using _TyBase::m_rgcExceptionName;
-  int m_errno{0};
+  vtyErrNo m_errno{0};
 };
 
-#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG, ... ) ExceptionUsage< std::_t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, __PRETTY_FUNCTION__, _errno, MESG, ##__VA_ARGS__ )
+#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG, ... ) ExceptionUsage< __BIENUTIL_USE_NAMESPACE::_t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, _errno, MESG, ##__VA_ARGS__ )
 
 // Override the bad_variant_access exception to return a bit more info about what went wrong. Put it here for general usage.
 template < class t_TyAllocator = allocator< char > >
-class named_bad_variant_access : public std::_t__Named_exception< t_TyAllocator, std::bad_variant_access >
+class named_bad_variant_access : public _t__Named_exception< t_TyAllocator, std::bad_variant_access >
 {
   typedef named_bad_variant_access _TyThis;
-  typedef std::_t__Named_exception< t_TyAllocator, bad_variant_access > _TyBase;
+  typedef _t__Named_exception< t_TyAllocator, bad_variant_access > _TyBase;
 public:
   using typename _TyBase::string_type;
   named_bad_variant_access( const char * _pc ) 
@@ -195,9 +183,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG, ... ) ExceptionUsage<named_bad_variant_access>::ThrowFileLineFunc( __FILE__, __LINE__, __PRETTY_FUNCTION__, MESG, ##__VA_ARGS__ )
-
-} // namespace std
+#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG, ... ) ExceptionUsage<named_bad_variant_access>::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )
 
 // ExceptionUsage: Provide some useful template methods for throw exception with variable number of arguments.
 template < class t_tyException >
@@ -279,4 +265,5 @@ struct ExceptionUsage
   }
 };
 
-#endif //___NAMDEXC_H___
+__BIENUTIL_END_NAMESPACE
+

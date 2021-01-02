@@ -25,7 +25,7 @@
 // 7) change variable length property. This can be as fast as (1) if allocation is less.
 
 // Since this is a utility class we will make part of std.
-_STLP_BEGIN_NAMESPACE
+__BIENUTIL_BEGIN_NAMESPACE
 
 interface IStream;	// For OLE persistence.
 
@@ -668,7 +668,7 @@ public:
 
 	// Remove the variable length index record located at <_pplv>.
 	// Remove the associated value at the same time.
-	void	remove_variable( _TyPropLookupVariable * _pplv ) __STLP_NOTHROW
+	void	remove_variable( _TyPropLookupVariable * _pplv ) noexcept(true)
 	{
 		Assert( _valid_variable( _pplv ) );
 
@@ -684,7 +684,7 @@ public:
 	
 	// Remove the fixed length index record located at <_pplf>.
 	// Remove the associated value at the same time.
-	void	remove_fixed( _TyPropLookupFixed * _pplf ) __STLP_NOTHROW
+	void	remove_fixed( _TyPropLookupFixed * _pplf ) noexcept(true)
 	{
 		Assert( _valid_fixed( _pplv ) );
 
@@ -1355,6 +1355,6 @@ protected:
 
 };
 
-_STLP_END_NAMESPACE
+__BIENUTIL_END_NAMESPACE
 
 #endif //__C_PPLST_H

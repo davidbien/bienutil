@@ -52,7 +52,7 @@ public:
 	_TyThis & operator = ( _TyThis && _rr )
 	{
 		clear();
-		((_tyBase&)*this) = std::move( (_tyBase&)_rr );
+		((_TyBase&)*this) = std::move( (_TyBase&&)_rr );
 		m_pt = _rr.transfer();
 		return *this;
 	}

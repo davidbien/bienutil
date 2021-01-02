@@ -558,10 +558,10 @@ public:
   }
 
   // We allow writing to a file for all types because why not? It might not make sense but you can do it.
-  void WriteToFd(int _fd, _tySizeType _nPos = 0, _tySizeType _nElsWrite = std::numeric_limits<_tySizeType>::max()) const
+  void WriteToFd(int _fd, _tySizeType _nPos = 0, _tySizeType _nElsWrite = (std::(numeric_limits<_tySizeType>::max))()) const
   {
     AssertValid();
-    if (std::numeric_limits<_tySizeType>::max() == _nElsWrite)
+    if ((std::(numeric_limits<_tySizeType>::max))() == _nElsWrite)
     {
       if (_nPos > m_nElements)
         THROWNAMEDEXCEPTION("Attempt to write data beyond end of segmented array.");
@@ -797,7 +797,7 @@ public:
     // Assert we aren't overflowing when computing the number of elements.
     // Since we are using a signed m_iBaseEl we have limited the size of the file we can process to 2^63-1 in size
     //  from 2^64-1 in size had we used an unsigned m_iBaseEl. Thats fine with me.
-    Assert( NBaseElMagnitude() + m_nElements < std::numeric_limits<_tySignedSizeType>::max() ); 
+    Assert( NBaseElMagnitude() + m_nElements < (std::numeric_limits<_tySignedSizeType>::max)() ); 
   }
 #else  //!ASSERTSENABLED
   {
@@ -1072,7 +1072,7 @@ public:
   }
 
   // We allow writing to a file for all types because why not? It might not make sense but you can do it.
-  void WriteToFd(int _fd, _tySizeType _nPos, _tySizeType _nElsWrite = std::numeric_limits<_tySizeType>::max()) const
+  void WriteToFd(int _fd, _tySizeType _nPos, _tySizeType _nElsWrite = (std::(numeric_limits<_tySizeType>::max))()) const
   {
     AssertValid();
     VerifyThrowSz( _nPos >= NBaseElMagnitude(), 
@@ -1123,12 +1123,12 @@ public:
   typedef SegArray< std::remove_cv_t< _tyT >, t_tyFOwnLifetime, t_tySizeType > _tySegArray;
 
   SegArrayView()
-      : m_stBegin(numeric_limits<_tySizeType>::max())
+      : m_stBegin((numeric_limits<_tySizeType>::max)())
   {
   }
   SegArrayView(_tySegArray *_psaContainer)
       : m_psaContainer(_psaContainer),
-        m_stBegin(numeric_limits<_tySizeType>::max())
+        m_stBegin((numeric_limits<_tySizeType>::max)())
   {
     AssertValid();
   }
@@ -1137,7 +1137,7 @@ public:
         m_ptBegin(_ptBegin),
         m_sstLen( -((_tySignedSizeType)_sstLen)) 
   {
-    Assert( _nEls < (_tySizeType)numberic_limits< _tySignedSizeType >::max() );
+    Assert( _nEls < (_tySizeType)(numeric_limits< _tySignedSizeType >::max)() );
     AssertValid();
   }
   SegArrayView(_tySegArray *_psaContainer, _tySizeType _stBegin, _tySizeType _sstLen )
@@ -1152,14 +1152,14 @@ public:
   {
 #if ASSERTSENABLED
     Assert( !!m_psaContainer || !m_sstLen );
-    Assert( !!m_sstLen || ( std::numeric_limits<_tySizeType>::max() == m_stBegin ) );
+    Assert( !!m_sstLen || ( (std::(numeric_limits<_tySizeType>::max))() == m_stBegin ) );
 #endif //ASSERTSENABLED
   }
 
   bool FIsNull()
   {
     AssertValid();
-    return ( numeric_limits<_tySizeType>::max() == m_stBegin );
+    return ( (numeric_limits<_tySizeType>::max)() == m_stBegin );
   }
 
   // Return contiguous memory - either a string_view if possible, or a string if not.
@@ -1289,7 +1289,7 @@ public:
 protected:
   union
   {
-    _tySizeType m_stBegin; // { numeric_limits< _tySizeType >::max() }; // Can't initialize inside of a union but this is the null value.
+    _tySizeType m_stBegin; // { (numeric_limits< _tySizeType >::max)() }; // Can't initialize inside of a union but this is the null value.
     _tyT *m_ptBegin;       // When the length in m_sstEnd is < 0 then this is populated and the length is -m_sstLen.
   };
   // When m_sstLen is zero then m_stBegin should contain max() and this object is NULL.

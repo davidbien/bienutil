@@ -16,9 +16,9 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-class ole_exception : public std::_t__Named_exception<>
+class ole_exception : public _t__Named_exception<>
 {
-	typedef std::_t__Named_exception<> _tyBase;
+	typedef _t__Named_exception<> _tyBase;
 public:
 	HRESULT	m_hr;
 

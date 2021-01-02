@@ -49,8 +49,6 @@
 
 // The fully general version.
 
-#ifndef _USE_STLPORT
-
 #include <memory>
 
 template <class _Tp, class _Allocator>
@@ -63,32 +61,5 @@ struct _Alloc_traits
   using size_type = typename std::allocator_traits< allocator_type >::size_type;
 	// deprecated typedef typename _Allocator::template rebind<_Tp>::other allocator_type;
 };
-
-#else //!_USE_STLPORT
-_STLP_BEGIN_NAMESPACE
-
-template <class _Tp, class _Allocator>
-struct _Alloc_traits
-{
-  static const bool _S_instanceless = false;
-  typedef typename _Allocator::_STLP_TEMPLATE rebind<_Tp>::other 
-          allocator_type;
-};
-
-template <class _Tp, class _Allocator>
-const bool _Alloc_traits<_Tp, _Allocator>::_S_instanceless;
-
-// The version for the default allocator.
-
-template <class _Tp, class _Tp1>
-struct _Alloc_traits<_Tp, allocator<_Tp1> >
-{
-  static const bool _S_instanceless = true;
-  typedef simple_alloc<_Tp, alloc> _Alloc_type;
-  typedef allocator<_Tp> allocator_type;
-};
-
-_STLP_END_NAMESPACE
-#endif //_USE_STLPORT
 
 #endif //__ALOCTRT_H

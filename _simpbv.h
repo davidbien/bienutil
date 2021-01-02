@@ -52,26 +52,6 @@ _bv_get_first_set( t_Ty const & _rt )
   return UMSBitSet( tBit );
 }
 
-#ifdef IVEC_H_INCLUDED  // If we have the intel ivec stuff included.
-
-// Define some specializations:
-_STLP_TEMPLATE_NULL
-__INLINE size_t
-_bv_get_clear_first_set( Iu64vec1 & _rt )
-{
-  Assert( !!_rt );  // We assume that there is such a bit to get.
-
-  // We don't 64 bit subtraction in the mmx stuff - we need to simulate it
-  //  using 32 bit - only need to subtract 1 from the high dword if we
-  //  have zero in the low dword.
-
-  #error incomplete
-
-}
-
-#endif //IVEC_H_INCLUDED
-
-
 // Note: Should be able to use intel integer vectors as elements. Will have
 //  to specialize _bv_clear_first_set() and UMSBSet().
 

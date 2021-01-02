@@ -1,5 +1,4 @@
-#ifndef __PAIRFXN_H
-#define __PAIRFXN_H
+#pragma once
 
 //          Copyright David Lawrence Bien 1997 - 2020.
 // Distributed under the Boost Software License, Version 1.0.
@@ -14,10 +13,6 @@ __BIENUTIL_BEGIN_NAMESPACE
 
 template < class t_TyPair, class t_TyUnaryFunction >
 struct _unary2nd 
-#ifdef _USE_STLPORT
-	: public unary_function<	typename t_TyUnaryFunction::argument_type, 
-														typename t_TyUnaryFunction::result_type >
-#endif //_USE_STLPORT
 {
 	t_TyUnaryFunction	m_f1;
 
@@ -46,10 +41,6 @@ unary2nd( t_TyUnaryFunction const & _f, t_TyPair const & )
 
 template < class t_TyPair, class t_TyUnaryFunction >
 struct _unary1st
-#ifdef _USE_STLPORT
-  : public unary_function<	typename t_TyUnaryFunction::argument_type,
-														typename t_TyUnaryFunction::result_type >
-#endif //_USE_STLPORT
 {
 	t_TyUnaryFunction	m_f1;
 
@@ -77,5 +68,3 @@ unary1st( t_TyUnaryFunction const & _f, t_TyPair const & )
 }
 
 __BIENUTIL_END_NAMESPACE
-
-#endif //__PAIRFXN_H

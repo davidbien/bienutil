@@ -124,11 +124,11 @@ public:
   }
   bool FHasStringObj() const
   {
-    return UFlags() == std::numeric_limits<_tyUnsignedChar>::max();
+    return UFlags() == (std::numeric_limits<_tyUnsignedChar>::max)();
   }
   void SetHasStringObj()
   {
-    m_rgtcBuffer[t_kstReserve - 1] = std::numeric_limits<_tyUnsignedChar>::max();
+    m_rgtcBuffer[t_kstReserve - 1] = (std::numeric_limits<_tyUnsignedChar>::max)();
   }
   void ClearHasStringObj()
   {
@@ -170,11 +170,11 @@ public:
     }
   }
 
-  _tyThis &assign(const _tyChar *_psz, size_type _stLen = std::numeric_limits<size_type>::max())
+  _tyThis &assign(const _tyChar *_psz, size_type _stLen = (std::numeric_limits<size_type>::max)())
   {
     if (!_psz)
       THROWNAMEDEXCEPTION("null _psz.");
-    if (std::numeric_limits<size_type>::max() == _stLen)
+    if ((std::numeric_limits<size_type>::max)() == _stLen)
       _stLen = StrNLen(_psz);
     if (_stLen < t_kstReserve)
     {

@@ -110,7 +110,7 @@ public:
         m_rgsImpl.Insert( _posInsert, _pbyInsert, _nBytes );
         return _nBytes;
     }
-    void WriteToFd( int _fd, _tyFilePos _nPos = 0, _tyFilePos _nElsWrite = std::numeric_limits< _tyFilePos >::max() ) const
+    void WriteToFd( int _fd, _tyFilePos _nPos = 0, _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
     {
         _tyLock lock;
         LockMutex( lock );
@@ -258,11 +258,11 @@ public:
     }
     // This will write from the current position of this memstream until the end of the stream to the FD.
     // That is unless you pass in overriding arguments.
-    void WriteToFd( int _fd, _tyFilePos _nPos = std::numeric_limits< _tyFilePos >::max(), _tyFilePos _nElsWrite = std::numeric_limits< _tyFilePos >::max() ) const
+    void WriteToFd( int _fd, _tyFilePos _nPos = (std::numeric_limits< _tyFilePos >::max)(), _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
     {
         if ( !m_spmfMemFile )
             THROWNAMEDEXCEPTIONERRNO( EBADF, "Not connected to a file." );
-        if ( std::numeric_limits< _tyFilePos >::max() == _nPos )
+        if ( (std::numeric_limits< _tyFilePos >::max)() == _nPos )
             _nPos = m_posCur;
         m_spmfMemFile->WriteToFd( _fd, _nPos, _nElsWrite );
     }

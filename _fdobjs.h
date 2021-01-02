@@ -11,7 +11,9 @@
 #include "_compat.h"
 #include "_assert.h"
 #include <stdlib.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif //!WIN32
 #include "_namdexc.h"
 
 __BIENUTIL_BEGIN_NAMESPACE

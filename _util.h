@@ -16,12 +16,6 @@
 #define GCC_COMPILER 1
 #endif
 
-#ifdef _STLP_USE_NAMESPACES
-#define __STD_OR_GLOBAL_QUALIFIER std::
-#else //_STLP_USE_NAMESPACES
-#define __STD_OR_GLOBAL_QUALIFIER ::
-#endif //_STLP_USE_NAMESPACES
-
 #ifndef __ICL
 #define __MSC_INLINE __INLINE
 #else //!__ICL
@@ -64,10 +58,8 @@ struct __AssertSameType< t_Ty, t_Ty >
 {
   typedef std::true_type   _TyF;
 };
-#define _pptokenpaste(x,y) x ## y
-#define pptokenpaste(x,y) _pptokenpaste(x,y)
-#define __ASSERT_SAME_TYPE3( _t1, _t2, _Ty ) typedef typename __BIENUTIL_NAMESPACE __AssertSameType< _t1, _t2 >::_TyF _Ty
-#define __ASSERT_SAME_TYPE( _t1, _t2 ) typedef typename __BIENUTIL_NAMESPACE __AssertSameType< _t1, _t2 >::_TyF pptokenpaste(_TyFooSameType,__LINE__)
+
+#define __ASSERT_SAME_TYPE( _t1, _t2 ) static_assert( std::is_same_v< _t1, _t2 > )
 
 // Whether to allow a const/non-const object reference to be transfered to
 //  a const/non-const:

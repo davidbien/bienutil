@@ -64,7 +64,7 @@ public:
 
   // Initialize - we should be empty.
   void Init( vtyFileHandle _hFile, size_t _posCur = 0, bool _fReadAhead = false, 
-    size_t _stchLenRead = std::numeric_limits< size_t >::max(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
+    size_t _stchLenRead = (std::numeric_limits<size_t>::max), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
   {
     Assert( !m_saBuffer.FHasAnyCapacity() );
     m_hFile = _hFile;
@@ -79,8 +79,8 @@ public:
   {
 #if ASSERTSENABLED
     m_saBuffer.AssertValid();
-    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( std::numeric_limits< size_t >::max() == m_stchLenRead ) );
-    Assert( ( std::numeric_limits< size_t >::max() == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
+    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max) == m_stchLenRead ) );
+    Assert( ( (std::numeric_limits<size_t>::max) == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
     Assert( !m_fReadAhead || !( !( NElements() % m_saBuffer.NElsPerSegment() ) ) );
 #endif //ASSERTSENABLED  
@@ -126,7 +126,7 @@ public:
           return false; // EOF.
         }
         m_saBuffer.Overwrite( m_posCur++, &_rc, sizeof _rc );
-        if ( numeric_limits< size_t >::max() != m_stchLenRemaining )
+        if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
           --m_stchLenRemaining;
         AssertValid();
         return true;
@@ -153,7 +153,7 @@ public:
         Assert( nRead == sizeAdd );
         nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
         Assert( nRead ); // Should always get something here since we would have failed above.
-        if ( numeric_limits< size_t >::max() != m_stchLenRemaining )
+        if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
           --m_stchLenRemaining;
         AssertValid();
         return true;
@@ -164,7 +164,7 @@ public:
       Assert( m_fReadAhead ); // Should always get into the above loop when not reading ahead.
       nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
       Assert( nRead ); // Should always get something here since we would have failed above.
-      if ( numeric_limits< size_t >::max() != m_stchLenRemaining )
+      if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
         --m_stchLenRemaining;
       AssertValid();
       return true;
@@ -196,8 +196,8 @@ protected:
   // For non-infinite values of m_stchLenRead:
   //  ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements()
   _tySegArray m_saBuffer;
-  size_t m_stchLenRead{std::numeric_limits< size_t >::max()};
-  size_t m_stchLenRemaining{std::numeric_limits< size_t >::max()};
+  size_t m_stchLenRead{(std::numeric_limits<size_t>::max)};
+  size_t m_stchLenRemaining{(std::numeric_limits<size_t>::max)};
   size_t m_posCur{0};
   vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fReadAhead{false};

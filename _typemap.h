@@ -10,6 +10,8 @@
 
 // simple character type mapping
 
+#error this isn't used and isn't correct in some ways.
+
 #include <limits.h>
 
 __BIENUTIL_BEGIN_NAMESPACE
