@@ -15,6 +15,8 @@
 #include "jsonstrm.h"
 #include "strwrsv.h"
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 // predeclare
 template <class t_tyChar>
 class JsoValue;
@@ -45,7 +47,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWJSONBADUSAGE(MESG...) ExceptionUsage<json_objects_bad_usage_exception>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG)
+#define THROWJSONBADUSAGE(MESG, ...) ExceptionUsage<json_objects_bad_usage_exception>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__)
 
 // JsoIterator:
 // This iterator may be iterating an object or an array.
@@ -411,6 +413,10 @@ public:
       memcpy(_r.m_rgbyValBuf, m_rgbyValBuf, sizeof(m_rgbyValBuf));
       memcpy(m_rgbyValBuf, rgbyValBuf, sizeof(m_rgbyValBuf));
     }
+  }
+  bool _FHasBufData() const
+  {
+    return m_jvtType >= ejvtFirstJsonValueless && m_jvtType <= ejvtLastJsonSpecifiedValue;
   }
 
   EJsonValueType JvtGetValueType() const
@@ -1035,8 +1041,10 @@ public:
   }
 
 // We either return or throw and clang can't recognize that.
+#ifndef _MSC_VER
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreturn-type"
+#endif //!_MSC_VER
   iterator begin()
   {
     Assert( FIsAggregate() );
@@ -1077,7 +1085,9 @@ public:
     else
       THROWJSONBADUSAGE("Called on non-aggregate.");
   }
+#ifndef _MSC_VER
 #pragma GCC diagnostic pop
+#endif //!_MSC_VER
 
 protected:
   template <class t_tyNum>
@@ -1088,7 +1098,7 @@ protected:
     int nPrinted = snprintf(rgcNum, knNum, _pszFmt, _num);
     Assert(nPrinted < knNum);
     SetValueType(ejvtNumber);
-    StrGet().assign(rgcNum, std::min(nPrinted, knNum - 1));
+    StrGet().assign(rgcNum, (std::min)(nPrinted, knNum - 1));
   }
   void _ClearValue()
   {
@@ -1142,7 +1152,7 @@ protected:
   }
 
   // Put the object buffer as the first member because then it will have alignment of the object - which is 8(64bit) or 4(32bit).
-  static constexpr size_t s_kstSizeValBuf = std::max(sizeof(_tyStrWRsv), std::max(sizeof(_tyJsoObject), sizeof(_tyJsoArray)));
+  static constexpr size_t s_kstSizeValBuf = (std::max)(sizeof(_tyStrWRsv), (std::max)(sizeof(_tyJsoObject), sizeof(_tyJsoArray)));
   uint8_t m_rgbyValBuf[s_kstSizeValBuf]; // We aren't initializing this on purpose.
   EJsonValueType m_jvtType{ejvtJsonValueTypeCount};
 };
@@ -1521,9 +1531,9 @@ namespace n_JSONObjects
     typedef JsonFormatSpec<_tyCharTraits> _tyJsonFormatSpec;
     typedef JsonReadCursor<_tyJsonInputStream> _tyJsonReadCursor;
     typedef JsonValueLife<_tyJsonOutputStream> _tyJsonValueLife;
-    typedef std::pair<const char *, int> _tyPrFilenameFd;
+    typedef std::pair<const char *, vtyFileHandle> _tyPrFilenameHandle;
 
-    static void Stream(const char *_pszInputFile, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
+    static void Stream(const char *_pszInputFile, _tyPrFilenameHandle _prfnhOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
     {
       typedef JsoValue<typename t_tyJsonInputStream::_tyChar> _tyJsoValue;
       _tyJsoValue jvRead;
@@ -1540,21 +1550,21 @@ namespace n_JSONObjects
       {
         // Open the write file to which we will be streaming JSON.
         _tyJsonOutputStream jos;
-        if (!!_prfnfdOutput.first)
-          jos.Open(_prfnfdOutput.first); // Open by default will truncate the file.
+        if (!!_prfnhOutput.first)
+          jos.Open(_prfnhOutput.first); // Open by default will truncate the file.
         else
-          jos.AttachFd(_prfnfdOutput.second);
+          jos.AttachFd(_prfnhOutput.second);
         _tyJsonValueLife jvl(jos, jvRead.JvtGetValueType(), _pjfs);
         jvRead.ToJSONStream(jvl);
       }
     }
-    static void Stream(int _fdInput, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
+    static void Stream(vtyFileHandle _fileInput, _tyPrFilenameHandle _prfnhOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
     {
       typedef JsoValue<typename t_tyJsonInputStream::_tyChar> _tyJsoValue;
       _tyJsoValue jvRead;
       { //B
         _tyJsonInputStream jis;
-        jis.AttachFd(_fdInput);
+        jis.AttachFd(_fileInput);
         _tyJsonReadCursor jrc;
         jis.AttachReadCursor(jrc);
         jvRead.SetValueType(jrc.JvtGetValueType());
@@ -1565,10 +1575,10 @@ namespace n_JSONObjects
       {
         // Open the write file to which we will be streaming JSON.
         _tyJsonOutputStream jos;
-        if (!!_prfnfdOutput.first)
-          jos.Open(_prfnfdOutput.first); // Open by default will truncate the file.
+        if (!!_prfnhOutput.first)
+          jos.Open(_prfnhOutput.first); // Open by default will truncate the file.
         else
-          jos.AttachFd(_prfnfdOutput.second);
+          jos.AttachFd(_prfnhOutput.second);
         _tyJsonValueLife jvl(jos, jvRead.JvtGetValueType(), _pjfs);
         jvRead.ToJSONStream(jvl);
       }
@@ -1595,13 +1605,13 @@ namespace n_JSONObjects
         jvRead.ToJSONStream(jvl);
       }
     }
-    static void Stream(int _fdInput, const char *_pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
+    static void Stream(vtyFileHandle _fileInput, const char *_pszOutputFile, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
     {
       typedef JsoValue<typename t_tyJsonInputStream::_tyChar> _tyJsoValue;
       _tyJsoValue jvRead;
       { //B
         _tyJsonInputStream jis;
-        jis.AttachFd(_fdInput);
+        jis.AttachFd(_fileInput);
         _tyJsonReadCursor jrc;
         jis.AttachReadCursor(jrc);
         jvRead.SetValueType(jrc.JvtGetValueType());
@@ -1620,3 +1630,5 @@ namespace n_JSONObjects
   };
 
 } // namespace n_JSONObjects
+
+__BIENUTIL_END_NAMESPACE

@@ -125,6 +125,23 @@ static void * vkpvNullMapping = (void*)-1;
 static_assert( vkpvNullMapping == MAP_FAILED );
 #endif
 
+inline vtyFileHandle FileGetStdInHandle()
+{
+#ifdef WIN32
+  return GetStdHandle(STD_INPUT_HANDLE);
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  return STDIN_FILENO;
+#endif
+}
+inline vtyFileHandle FileGetStdOutHandle()
+{
+#ifdef WIN32
+  return GetStdHandle(STD_OUTPUT_HANDLE);
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  return STDOUT_FILENO;
+#endif
+}
+
 // Close the file and set the handle to vkhInvalidFileHandle.
 inline int FileClose( vtyFileHandle & _rhFile )
 {
@@ -451,11 +468,12 @@ typedef UUID vtyUUID;
 typedef uuid_t vtyUUID;
 #endif
 
+// UUID stuff:
 static const size_t vkstUUIDNChars = 36;
 static const size_t vkstUUIDNCharsWithNull = vkstUUIDNChars + 1;
 typedef char vtyUUIDString[vkstUUIDNCharsWithNull];
 
-// UUID stuff:
+void UUIDCreate(vtyUUID& _ruuid);
 int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf);
 int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid);
 

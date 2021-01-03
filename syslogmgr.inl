@@ -13,6 +13,8 @@
 #include "_strutil.h"
 #include "jsonobjs.h"
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 namespace n_SysLog
 {
   inline void Log(ESysLogMessageType _eslmtType, const char *_pcFmt, ...)
@@ -470,7 +472,7 @@ void _SysLogContext::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_jrc)
           {
             if (strKey == "msec")
             {
-              _jrc.GetValue(m_nmsSinceStart);
+              _jrc.GetValue(m_nmsSinceProgramStart);
               continue;
             }
             if (strKey == "Time")
@@ -546,14 +548,14 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.
   slth.m_timeStart = time(0);
   slth.m_nmsSinceProgramStart = _GetMsSinceProgramStart();
-  uuid_generate(slth.m_uuid);
+  UUIDCreate(slth.m_uuid);
   slth.m_tidThreadId = s_tls_tidThreadId;
 
   std::string strLogFile = slth.m_szProgramName;
-  uuid_string_t ustUuid;
-  uuid_unparse_lower(slth.m_uuid, ustUuid);
+  vtyUUIDString uusUuid;
+  UUIDToString(slth.m_uuid, uusUuid, sizeof uusUuid);
   strLogFile += ".";
-  strLogFile += ustUuid;
+  strLogFile += uusUuid;
   strLogFile += ".log.json";
 
   // We must make sure we can initialize the file before we declare that it is opened.
@@ -587,6 +589,7 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
 template <const int t_kiInstance>
 void _SysLogMgr<t_kiInstance>::Log(ESysLogMessageType _eslmt, std::string &&_rrStrLog, const _SysLogContext *_pslc)
 {
+#ifndef WIN32
   int iPriority;
   switch (_eslmt)
   {
@@ -613,6 +616,8 @@ void _SysLogMgr<t_kiInstance>::Log(ESysLogMessageType _eslmt, std::string &&_rrS
   // First log.
   syslog(iPriority, _rrStrLog.c_str());
 #pragma GCC diagnostic pop
+#endif //!WIN32
+
   // Then log the context to thread logging file.
   if (!!_pslc && !!m_pjosThreadLog && m_pjosThreadLog->FOpened() && !!m_pjvlRootThreadLog && !!m_pjvlSysLogArray)
   {
@@ -734,7 +739,7 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
 }
 
 inline void 
-Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, va_list _ap ) noexcept(true)
+Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, va_list _ap )
 {
   try
   {
@@ -805,3 +810,5 @@ Trace_LogMessage( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _n
     va_start(ap, _szMesg);
   Trace_LogMessageVArg( _eabi, _szFile, _nLine, _szFunction, _pjvTrace, _szMesg, ap );
 }
+
+__BIENUTIL_END_NAMESPACE

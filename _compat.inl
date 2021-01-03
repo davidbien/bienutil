@@ -29,7 +29,7 @@ inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
     if ( !!_rhmm.FFailedMapping() )
     {
 #ifdef WIN32
-        BOOL f = UnmapViewOfFile( hmm.Pv() );
+      BOOL f = UnmapViewOfFile(_rhmm.Pv());
         Assert( f );
         return f ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
@@ -41,10 +41,10 @@ inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
 }
 
 inline int
-FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult = 0 )
+FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult )
 {
 #ifdef WIN32
-    return SetFilePointerEx( _hFile, *((LARGE_INTEGER*)&_off), _poffResult, _whence ) ? 0 : -1;
+    return SetFilePointerEx( _hFile, *((LARGE_INTEGER*)&_off), (PLARGE_INTEGER)_poffResult, _whence ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
     PrepareErrNo();
     vtySeekOffset off = lseek( _hFile, _off, _whence );
@@ -70,7 +70,7 @@ NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whenc
   return offResult;
 }
 
-inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 )
+inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead )
 {
 #ifdef WIN32
     VerifyThrowSz( _stNBytesToRead <= (std::numeric_limits<DWORD>::max)(), "Windows is limited to 4GB reads. This read was for [%lu] bytes.", _stNBytesToRead );
@@ -91,7 +91,7 @@ inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToR
 #endif
 }
 
-inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 )
+inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten )
 {
 #ifdef WIN32
     VerifyThrowSz( _stNBytesToWrite <= (std::numeric_limits<DWORD>::max)(), "Windows is limited to 4GB writes. This write was for [%lu] bytes.", _stNBytesToWrite );
@@ -121,6 +121,15 @@ inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest)
 #elif defined( __APPLE__ ) || defined( __linux__ )
   struct tm* ptm = localtime_r(&_rtt, &tmLocal);
   return !ptm ? -1 : 0;
+#endif
+}
+
+inline void UUIDCreate(vtyUUID& _ruuid)
+{
+#ifdef WIN32
+  (void)UuidCreate(&_ruuid); // Not much to do on failure...
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  uuid_generate(_ruuid);
 #endif
 }
 

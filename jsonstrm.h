@@ -73,9 +73,9 @@ class JsonFormatSpec;
 
 // This exception will get thrown when there is an issue with the JSON stream.
 template <class t_tyCharTraits>
-class bad_json_stream_exception : public std::_t__Named_exception_errno<__JSONSTRM_DEFAULT_ALLOCATOR>
+class bad_json_stream_exception : public _t__Named_exception_errno<__JSONSTRM_DEFAULT_ALLOCATOR>
 {
-  typedef std::_t__Named_exception_errno<__JSONSTRM_DEFAULT_ALLOCATOR> _tyBase;
+  typedef _t__Named_exception_errno<__JSONSTRM_DEFAULT_ALLOCATOR> _tyBase;
 
 public:
   typedef t_tyCharTraits _tyCharTraits;
@@ -1664,6 +1664,7 @@ enum _EJsonValueType : uint8_t
   ejvtFirstJsonSimpleValue = ejvtNumber,
   ejvtString,
   ejvtTrue,
+  ejvtFirstJsonValueless = ejvtTrue,
   ejvtFalse,
   ejvtNull,
   ejvtLastJsonSpecifiedValue = ejvtNull,
@@ -4447,9 +4448,9 @@ namespace n_JSONStream
     typedef JsonFormatSpec<_tyCharTraits> _tyJsonFormatSpec;
     typedef JsonReadCursor<_tyJsonInputStream> _tyJsonReadCursor;
     typedef JsonValueLife<_tyJsonOutputStream> _tyJsonValueLife;
-    typedef std::pair<const char *, int> _tyPrFilenameFd;
+    typedef std::pair<const char*, vtyFileHandle> _tyPrFilenameHandle;
 
-    static void Stream(const char *_pszInputFile, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
+    static void Stream(const char *_pszInputFile, _tyPrFilenameHandle _prfnhOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
     {
       _tyJsonInputStream jis;
       jis.Open(_pszInputFile);
@@ -4462,10 +4463,10 @@ namespace n_JSONStream
       {
         // Open the write file to which we will be streaming JSON.
         _tyJsonOutputStream jos;
-        if (!!_prfnfdOutput.first)
-          jos.Open(_prfnfdOutput.first); // Open by default will truncate the file.
+        if (!!_prfnhOutput.first)
+          jos.Open(_prfnhOutput.first); // Open by default will truncate the file.
         else
-          jos.AttachFd(_prfnfdOutput.second);
+          jos.AttachFd(_prfnhOutput.second);
         _tyJsonValueLife jvl(jos, jrc.JvtGetValueType(), _pjfs);
         if (_fCheckSkippedKey)
         {
@@ -4476,7 +4477,7 @@ namespace n_JSONStream
           n_JSONStream::StreamReadWriteJsonValue(jrc, jvl); // Read the value at jrc - more specifically stream in the value.
       }
     }
-    static void Stream(vtyFileHandle _hFileInput, _tyPrFilenameFd _prfnfdOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
+    static void Stream(vtyFileHandle _hFileInput, _tyPrFilenameHandle _prfnhOutput, bool _fReadOnly, bool _fCheckSkippedKey, const _tyJsonFormatSpec *_pjfs)
     {
       _tyJsonInputStream jis;
       jis.AttachFd(_hFileInput);
@@ -4489,10 +4490,10 @@ namespace n_JSONStream
       {
         // Open the write file to which we will be streaming JSON.
         _tyJsonOutputStream jos;
-        if (!!_prfnfdOutput.first)
-          jos.Open(_prfnfdOutput.first); // Open by default will truncate the file.
+        if (!!_prfnhOutput.first)
+          jos.Open(_prfnhOutput.first); // Open by default will truncate the file.
         else
-          jos.AttachFd(_prfnfdOutput.second);
+          jos.AttachFd(_prfnhOutput.second);
         _tyJsonValueLife jvl(jos, jrc.JvtGetValueType(), _pjfs);
         if (_fCheckSkippedKey)
         {
