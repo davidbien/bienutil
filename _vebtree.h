@@ -2876,7 +2876,7 @@ public:
     {
         // Currently we only allow oring between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%lu] doesn't match _r.NSize()[%lu].", NSize(), _r.NSize() );
         if ( !_r.FHasAnyElements() )
             return *this; // nop
         // Process the min:
@@ -2907,7 +2907,7 @@ public:
     {
         // Currently we only allow anding between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%lu] doesn't match _r.NSize()[%lu].", NSize(), _r.NSize() );
         
         // Boundary conditions:
         if ( !_r.FHasAnyElements() )
@@ -2998,7 +2998,7 @@ public:
     {
         // Currently we only allow anding between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("NSize()[%ul] doesn't match _r.NSize()[%ul].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%lu] doesn't match _r.NSize()[%lu].", NSize(), _r.NSize() );
 
         if ( !_r.FHasAnyElements() )
             return *this; // nop

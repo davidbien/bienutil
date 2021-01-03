@@ -11,7 +11,7 @@
 
 #include "_assert.h"
 
-z_NAMESPACE
+__BIENUTIL_BEGIN_NAMESPACE
 
 #ifdef Trace
 #error _trace.h: Trace() macro is already defined.

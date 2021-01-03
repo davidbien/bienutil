@@ -12,6 +12,8 @@
 #include <string>
 #include <_strutil.h>
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 namespace n_TimeUtil
 {
     template < class t_tyChar >
@@ -32,14 +34,12 @@ namespace n_TimeUtil
     {
         typedef typename t_tyString::value_type _tyChar;
         struct tm tmLocal;
-        struct tm * ptm = localtime_r( &_rtt, &tmLocal );
-        if ( !ptm )
+        int iLocalTime = LocalTimeFromTime(&_rtt, &tmLocal);
+        if (!!iLocalTime)
         {
-            _rstr = "error";
-            return;
+          _rstr = "error";
+          return;
         }
-        Assert( ptm == &tmLocal );
-
         const size_t knBuf = 128;
         _tyChar rgcBuf[ knBuf ];
         // REVIEW:<dbien>: For some reason I had to insert an explicit cast here to get things to compile.
@@ -83,3 +83,5 @@ namespace n_TimeUtil
         return 0;
     }
 };
+
+__BIENUTIL_END_NAMESPACE

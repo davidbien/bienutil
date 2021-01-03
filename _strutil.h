@@ -14,8 +14,8 @@
 #include <limits.h>
 #ifndef WIN32
 #include <unistd.h>
-#include <unicode/ustring.h>
 #endif //!WIN32
+#include <unicode/ustring.h>
 #include <string>
 #include <string_view>
 #include <compare>
@@ -254,11 +254,11 @@ int NPrintfStdStr( t_tyString &_rstr, int _nRequired, const typename t_tyString:
 
 // Return an error message string to the caller in a standard manner.
 template < class t_tyAllocator >
-inline void GetErrnoStdStr(int _errno, std::basic_string<char, std::char_traits<char>, t_tyAllocator> &_rstr)
+inline void GetErrnoStdStr(vtyErrNo _errno, std::basic_string<char, std::char_traits<char>, t_tyAllocator> &_rstr)
 {
 	const int knErrorMesg = 256;
 	char rgcErrorMesg[knErrorMesg];
-	if (!strerror_r(_errno, rgcErrorMesg, knErrorMesg))
+	if ( !GetErrorString( _errno, rgcErrorMesg, knErrorMesg ) )
 	{
 		rgcErrorMesg[knErrorMesg - 1] = 0;
 		PrintfStdStr(_rstr, "errno:[%d]: %s", _errno, rgcErrorMesg);
@@ -269,11 +269,11 @@ inline void GetErrnoStdStr(int _errno, std::basic_string<char, std::char_traits<
 
 // Just return the error description if found.
 template <class t_tyAllocator >
-inline void GetErrnoDescStdStr(int _errno, std::basic_string<char, std::char_traits<char>, t_tyAllocator> &_rstr)
+inline void GetErrnoDescStdStr(vtyErrNo _errno, std::basic_string<char, std::char_traits<char>, t_tyAllocator> &_rstr)
 {
 	const int knErrorMesg = 256;
 	char rgcErrorMesg[knErrorMesg];
-	if (!strerror_r(_errno, rgcErrorMesg, knErrorMesg))
+	if (!GetErrorString(_errno, rgcErrorMesg, knErrorMesg))
 		_rstr = rgcErrorMesg;
 	else
 		_rstr.clear();
@@ -361,6 +361,15 @@ GetCurrentExecutablePath(std::string &_rstrPath)
 		else
 			_rstrPath = rgcBuf;
 	}
+#elif defined( WIN32 )
+	const DWORD kdwBuf = 4096;
+	char rgcBuf[kdwBuf];
+	DWORD dwWritten = ::GetModuleFileNameA(NULL, rgcBuf, kdwBuf);
+	Assert(!!dwWritten);
+	if (!dwWritten)
+		_rstrPath.clear();
+	else
+		_rstrPath.assign(rgcBuf, kdwBuf);
 #else
 #error What to do in this sichiation.
 #endif
@@ -374,9 +383,9 @@ static const UChar32 vkc32RelacementChar = 0xFFFD;
 // String conversion:
 // The non-converting copier.
 template < class t_tyString >
-void ConvertString( t_tyString & _rstrDest, const typename t_tyString::value_type * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString & _rstrDest, const typename t_tyString::value_type * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)())
 {
-	if ( (std::numeric_limits<size_t>::max) == _stLenSource )
+	if ( (std::numeric_limits<size_t>::max)() == _stLenSource )
 		_stLenSource = StrNLen( _pcSource );
 	else
 		Assert( _stLenSource == StrNLen( _pcSource ) ); // Not sure how these u_*() methods react to embedded nulls.
@@ -385,13 +394,13 @@ void ConvertString( t_tyString & _rstrDest, const typename t_tyString::value_typ
 
 // UTF32->UTF16:
 template < class t_tyString16, class t_tyCharSource >
-void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	// This should allow Linux's std::basic_string< char16_t > as well as Windows' std::basic_string< wchar_t >.
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( t_tyCharSource ) == 4 ) ) 
 {
 	static_assert( sizeof(UChar) == 2 );
 	UErrorCode ec = U_ZERO_ERROR;
-	if ( _stLenSource == (std::numeric_limits<size_t>::max) )
+	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc32Source );
 	else
 		Assert( _stLenSource == StrNLen( _pc32Source, _stLenSource ) );
@@ -414,7 +423,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source
 }
 #if 0
 template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest, const wchar_t * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString16 & _rstrDest, const wchar_t * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( wchar_t ) == 4 ) )
 {
 	ConvertString( _rstrDest, (char32_t*)_pc32Source, _stLenSource );
@@ -423,11 +432,11 @@ void ConvertString( t_tyString16 & _rstrDest, const wchar_t * _pc32Source, size_
 
 // UTF16->UTF32
 template < class t_tyString32, class t_tyCharSource >
-void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires( ( sizeof( typename t_tyString32::value_type ) == 4 ) && ( sizeof( t_tyCharSource ) == 2 ) )
 {
 	UErrorCode ec = U_ZERO_ERROR;
-	if ( _stLenSource == (std::numeric_limits<size_t>::max) )
+	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc16Source );
 	else
 		Assert( _stLenSource == StrNLen( _pc16Source, _stLenSource ) );
@@ -451,11 +460,11 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 
 // UTF16->UTF8
 template < class t_tyString8, class t_tyCharSource >
-void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires( ( sizeof( typename t_tyString8::value_type ) == 1 ) && ( sizeof( t_tyCharSource ) == 2 ) )
 {
 	UErrorCode ec = U_ZERO_ERROR;
-	if ( _stLenSource == (std::numeric_limits<size_t>::max) )
+	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc16Source );
 	else
 		Assert( _stLenSource == StrNLen( _pc16Source, _stLenSource ) );
@@ -479,7 +488,7 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 #if 0
 // This handles casting for the Windows' case of wchar_t being 2 bytes long for the above two functions.
 template < class t_tyString8 >
-void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires( ( ( sizeof( typename t_tyString8::value_type ) == 4 ) || ( sizeof( typename t_tyString8::value_type ) == 1 ) ) && ( sizeof( wchar_t ) == 2 ) )
 {
 	ConvertString( _rstrDest, (char16_t*)_pwc16Source, _stLenSource );
@@ -488,18 +497,18 @@ void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_
 
 // UTF8->UTF16:
 template < class t_tyString16, class t_tyCharSource >
-void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	// This should allow Linux's std::basic_string< char16_t > as well as Windows' std::basic_string< wchar_t >.
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( t_tyCharSource ) == 1 ) )
 {
 	static_assert( sizeof(UChar) == 2 );
 	UErrorCode ec = U_ZERO_ERROR;
-	if ( _stLenSource == (std::numeric_limits<size_t>::max) )
+	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc8Source );
 	else
 		Assert( _stLenSource == StrNLen( _pc8Source, _stLenSource ) );
 	int8_t nLenReq = 0;
-	(void)u_strFromUTF8WithSub( nullptr, 0, &nLenReq, _pc8Source, (int8_t)_stLenSource, vkc8RelacementChar, 0, &ec );
+	(void)u_strFromUTF8WithSub( nullptr, 0, &nLenReq, _pc8Source, (int8_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -507,7 +516,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
-	(void)u_strFromUTF8WithSub( (UChar*)&_rstrDest[0], nLenReq, nullptr, _pc8Source, (int8_t)_stLenSource, vkc8RelacementChar, 0, &ec );
+	(void)u_strFromUTF8WithSub( (UChar*)&_rstrDest[0], nLenReq, nullptr, _pc8Source, (int8_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -518,7 +527,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 #if 0
 // casting char->char8_t.
 template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) )
 {
 	ConvertString( _rstrDest, (char8_t*)_pcSource, _stLenSource );
@@ -528,7 +537,7 @@ void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _st
 // UTF8 <-> UTF32 require double conversion:
 // UTF8->UTF32:
 template < class t_tyString32, class t_tyCharSource >
-void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc8Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc8Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires ( ( sizeof( typename t_tyString32::value_type ) == 4 ) && ( sizeof( t_tyCharSource ) == 1 ) )
 {
 	typedef std::basic_string< char16_t > _tyString16;
@@ -538,7 +547,7 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc8Source,
 }
 // UTF32->UTF8:
 template < class t_tyString8, class t_tyCharSource >
-void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max) )
+void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
 	requires ( ( sizeof( typename t_tyString8::value_type ) == 1 ) && ( sizeof( t_tyCharSource ) == 4 ) )
 {
 	typedef std::basic_string< char16_t > _tyString16;

@@ -7,6 +7,7 @@
 
 #include "bienutil.h"
 #include "_namdexc.h"
+#include "_compat.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -108,6 +109,92 @@ inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNB
     if ( _pstNBytesWritten )
         *_pstNBytesWritten = sstWritten;
     return 0;
+#endif
+}
+
+// Time methods:
+inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest)
+{
+#ifdef WIN32
+  errno_t e = localtime_s(_ptmDest, _ptt);
+  return !e ? 0 : -1;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  struct tm* ptm = localtime_r(&_rtt, &tmLocal);
+  return !ptm ? -1 : 0;
+#endif
+}
+
+inline int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf)
+{
+  Assert(_knBuf >= vkstUUIDNCharsWithNull);
+#ifdef WIN32
+  if (_knBuf < vkstUUIDNCharsWithNull)
+  {
+    ::SetLastError(ERROR_BAD_ARGUMENTS);
+    return -1;
+  }
+  RPC_CSTR cstrResult;
+  RPC_STATUS s = UuidToStringA(&_ruuid, &cstrResult);
+  if ((RPC_S_OK == s) && !!cstrResult)
+  {
+    strncpy_s(_rgcBuffer, _knBuf, (char*)cstrResult, _TRUNCATE);
+    RpcStringFreeA(&cstrResult);
+    return 0;
+  }
+  ::SetLastError(s);
+  return -1;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  if (_knBuf < vkstUUIDNCharsWithNull)
+  {
+    errno = EINVAL;
+    return -1;
+  }
+  uuid_string_t ustOut;
+  uuid_unparse_lower(_ruuid, ustOut);
+  memcpy(_rgcBuffer, ustOut, (std::min)(sizeof(ustOut), _knBuf));
+  _rgcBuffer[_knBuf - 1] = 0;
+  return 0;
+#endif
+}
+
+inline int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid)
+{
+  size_t nLenBuf = StrNLen(_rgcBuffer, vkstUUIDNChars);
+  Assert(nLenBuf == vkstUUIDNChars);
+#ifdef WIN32
+  if (nLenBuf < vkstUUIDNChars)
+  {
+    ::SetLastError(ERROR_BAD_ARGUMENTS);
+    return -1;
+  }
+  // Copy to string buf before sending in for safety - ensures null termination, etc.
+  vtyUUIDString uusBuf;
+  memcpy(uusBuf, _rgcBuffer, vkstUUIDNChars);
+  uusBuf[vkstUUIDNChars] = 0;
+  RPC_STATUS s = ::UuidFromStringA((RPC_CSTR)uusBuf, &_ruuid);
+  if (RPC_S_OK != s)
+  {
+    ::SetLastError(s);
+    return -1;
+  }
+  return 0;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  if (nLenBuf < vkstUUIDNChars)
+  {
+    errno = EINVAL;
+    return -1;
+  }
+  // Copy to string buf before sending in for safety - ensures null termination, etc.
+  vtyUUIDString uusBuf;
+  memcpy(uusBuf, _rgcBuffer, vkstUUIDNChars);
+  uusBuf[vkstUUIDNChars] = 0;
+  int iParseUuid = ::uuid_parse(uusBuf, _ruuid);
+  if (!!iParseUuid)
+  {
+    errno = EINVAL;
+    return -1;
+  }
+  return 0;
 #endif
 }
 

@@ -14,6 +14,8 @@
 #include <unicode/urename.h>
 #include "_strutil.h"
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 template <class t_tyT, class t_tyFOwnLifetime = std::false_type, class t_tySizeType = size_t>
 class SegArrayView;
 
@@ -33,7 +35,7 @@ public:
   typedef t_tySizeType _tySizeType;
   static_assert(!std::numeric_limits<_tySizeType>::is_signed);
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
-  static constexpr _tySizeType s_knbySizeSegment = std::max( sizeof(_tyT) * 16, size_t(4096) );
+  static constexpr _tySizeType s_knbySizeSegment = (std::max)( sizeof(_tyT) * 16, size_t(4096) );
 
   SegArray() = delete;
   SegArray(_tySizeType _nbySizeSegment = s_knbySizeSegment)
@@ -262,7 +264,7 @@ public:
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
       return true; // empty result.
-    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%ul],_posEnd[%ul],NElements()[%ul]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
+    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     _rstr.resize( _posEnd - _posBegin );
     _CopyStringToBuf( _posBegin, _posEnd, &_rstr[0] );
     Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
@@ -274,8 +276,8 @@ public:
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
       return true; // empty result.
-    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%ul],_posEnd[%ul],NElements()[%ul]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
-    static size_t knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof( _tyChar );
+    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
+    static size_t knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof(_tyT);
     std::basic_string< _tyT > strTempBuf; // For when we have more than knchMaxAllocaSize - avoid using t_tyString as it may be some derivation of string or anything else for that matter.
     _tySizeType nLen = _posEnd - _posBegin;
     _tyT * ptBuf;
@@ -417,7 +419,7 @@ public:
       {
         _tySizeType stBackOffDest = ((stEndDest - 1) % NElsPerSegment()) + 1;
         _tySizeType stBackOffOrig = ((stEndOrig - 1) % NElsPerSegment()) + 1;
-        _tySizeType stMin = std::min(nElsLeft, std::min(stBackOffDest, stBackOffOrig));
+        _tySizeType stMin = (std::min)(nElsLeft, (std::min)(stBackOffDest, stBackOffOrig));
         Assert(stMin); // We should always have something here.
         memmove(&ElGet(stEndDest - stMin), &ElGet(stEndOrig - stMin), stMin * sizeof(_tyT));
         nElsLeft -= stMin;
@@ -433,7 +435,7 @@ public:
     while (!!nElsLeft)
     {
       _tySizeType stBackOffDest = ((stEndDest - 1) % NElsPerSegment()) + 1;
-      _tySizeType stMin = std::min(nElsLeft, stBackOffDest);
+      _tySizeType stMin = (std::min)(nElsLeft, stBackOffDest);
       Assert(stMin);
       memcpy(&ElGet(stEndDest - stMin), ptEndOrig - stMin, stMin * sizeof(_tyT));
       nElsLeft -= stMin;
@@ -460,7 +462,7 @@ public:
     while (!!nElsLeft)
     {
       _tySizeType stBackOffDest = ((stEndDest - 1) % NElsPerSegment()) + 1;
-      _tySizeType stMin = std::min(nElsLeft, stBackOffDest);
+      _tySizeType stMin = (std::min)(nElsLeft, stBackOffDest);
       Assert(stMin);
       memcpy(&ElGet(stEndDest - stMin, true), ptEndOrig - stMin, stMin * sizeof(_tyT));
       nElsLeft -= stMin;
@@ -488,7 +490,7 @@ public:
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurWrite % NElsPerSegment());
     while (!!nElsLeft)
     {
-      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       // We read a stream in bytes.
@@ -521,7 +523,7 @@ public:
     while (!!nElsLeft)
     {
       _tySizeType stBackOffOrig = ((stEndOrig - 1) % NElsPerSegment()) + 1;
-      _tySizeType stMin = std::min(nElsLeft, stBackOffOrig);
+      _tySizeType stMin = (std::min)(nElsLeft, stBackOffOrig);
       Assert(stMin);
       memcpy(ptEndDest - stMin, &ElGet(stEndOrig - stMin), stMin * sizeof(_tyT));
       nElsLeft -= stMin;
@@ -548,7 +550,7 @@ public:
       if ( nReadCur > 0 )
       {
         _tySizeType nReadMin = min( nReadCur, nElsRemaining );
-        _tySize nRead = Read( _itBegin->begin(), ptCur, nReadMin );
+        _tySizeType nRead = Read( _itBegin->begin(), ptCur, nReadMin );
         Assert( nRead == nReadMin );
         ptCur += nRead;
         nElsRemaining -= nRead;
@@ -558,10 +560,10 @@ public:
   }
 
   // We allow writing to a file for all types because why not? It might not make sense but you can do it.
-  void WriteToFd(int _fd, _tySizeType _nPos = 0, _tySizeType _nElsWrite = (std::(numeric_limits<_tySizeType>::max))()) const
+  void WriteToFile(vtyFileHandle _hFile, _tySizeType _nPos = 0, _tySizeType _nElsWrite = (std::numeric_limits<_tySizeType>::max)()) const
   {
     AssertValid();
-    if ((std::(numeric_limits<_tySizeType>::max))() == _nElsWrite)
+    if ((std::numeric_limits<_tySizeType>::max)() == _nElsWrite)
     {
       if (_nPos > m_nElements)
         THROWNAMEDEXCEPTION("Attempt to write data beyond end of segmented array.");
@@ -575,15 +577,13 @@ public:
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurOrig % NElsPerSegment());
     while (!!nElsLeft)
     {
-      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
-      PrepareErrNo();
-      ssize_t sstWrote = ::write(_fd, &ElGet(stCurOrig), stMin * sizeof(_tyT));
-      if (-1 == sstWrote)
-        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error writing to fd[%d].", _fd);
-      if (stMin * sizeof(_tyT) != sstWrote)
-        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Didn't write all data to fd[%d].", _fd);
+      size_t stWritten;
+      int iWrite = FileWrite( _hFile, &ElGet(stCurOrig), stMin * sizeof(_tyT), &stWritten );
+      if ( !!iWrite || ( stWritten != stMin * sizeof(_tyT) ) )
+        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error writing to _hFile[0x%lx], towrite[%lu] stWritten[%lu].", (uint64_t)_hFile, stMin * sizeof(_tyT), stWritten );
       nElsLeft -= stMin;
       stCurOrig += stMin;
     }
@@ -602,7 +602,7 @@ public:
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
     while (!!nElsLeft)
     {
-      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       _tyT * pBegin = &ElGet(stCurApply);
@@ -624,7 +624,7 @@ public:
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
     while (!!nElsLeft)
     {
-      _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       const _tyT * pBegin = &ElGet(stCurApply);
@@ -650,7 +650,7 @@ public:
     _tySizeType stNAppls = 0;
     while (!!nElsLeft)
     {
-      const _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      const _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       _tyT * pBegin = &ElGet(stCurApply);
@@ -677,7 +677,7 @@ public:
     _tySizeType stNAppls = 0;
     while (!!nElsLeft)
     {
-      const _tySizeType stMin = std::min(nElsLeft, stSegRemainWrite);
+      const _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       const _tyT * pBegin = &ElGet(stCurApply);
@@ -783,7 +783,7 @@ public:
   }
   SegArrayRotatingBuffer( SegArrayRotatingBuffer const & ) = default;
   SegArrayRotatingBuffer( SegArrayRotatingBuffer &&_rr )
-      : m_nbySizeSegment(_rr.m_nbySizeSegment) // Hopefully get a non-zero value from this object.
+      : _tyBase(_rr.m_nbySizeSegment) // Hopefully get a non-zero value from this object.
   {
     _rr.AssertValid();
     swap(_rr);
@@ -793,11 +793,12 @@ public:
   void AssertValid() const
 #if ASSERTSENABLED
   {
+    using _tyBase::m_nElements;
     _tyBase::AssertValid();
     // Assert we aren't overflowing when computing the number of elements.
     // Since we are using a signed m_iBaseEl we have limited the size of the file we can process to 2^63-1 in size
     //  from 2^64-1 in size had we used an unsigned m_iBaseEl. Thats fine with me.
-    Assert( NBaseElMagnitude() + m_nElements < (std::numeric_limits<_tySignedSizeType>::max)() ); 
+    Assert( ( NBaseElMagnitude() + m_nElements ) < (numeric_limits<_tySignedSizeType>::max)() );
   }
 #else  //!ASSERTSENABLED
   {
@@ -865,7 +866,9 @@ public:
   //  2) m_iBaseEl is >= 0 and _iBasaEl >= 0: This activates rotation when m_iBaseEl goes over a segment boundary.
   void SetIBaseEl( _tySignedSizeType _iBaseEl )
   {
-    if ( _iBaseEl < 0 ) )
+    using _tyBase::m_ppbyEndSegments;
+    using _tyBase::m_ppbySegments;
+    if ( _iBaseEl < 0 )
     {
       VerifyThrowSz( m_iBaseEl <= 0, "Trying to switch signs on the base element index which is not permitted.");
       m_iBaseEl = _iBaseEl;
@@ -888,7 +891,7 @@ public:
       else
       {
         AssertStatement( _tySizeType ast_nElsBefore = NElements() );
-        ssize_t sstShifted = ( _iBaseEl / NElsPerSegment() ) - ( m_iBaseEl / NElsPerSegment() ) );
+        ssize_t sstShifted = ( _iBaseEl / NElsPerSegment() ) - ( m_iBaseEl / NElsPerSegment() );
         Assert( sstShifted < ( m_ppbyEndSegments - m_ppbySegments ) );
         m_iBaseEl = _iBaseEl;
         if ( !!( sstShifted % ( m_ppbyEndSegments - m_ppbySegments ) ) ) // in case the above assert can fail - in my mind currently it can't.
@@ -961,7 +964,6 @@ public:
   {
     return GetString( _rstr, _rdr.begin(), _rdr.end() );
   }
-
   using _tyBase::emplaceAtEnd;
 
   // This will destructively transfer data from [_posBegin,_posEnd) from *this to _rsaTo.
@@ -982,7 +984,6 @@ public:
     Assert( ptBufCur == ( _ptBuf + _nLenEls ) );
     SetIBaseEl( _posBegin + _nLenEls ); // Consume that data that we copied to the user.
   }
-
   // Set the number of elements in this object. Note that it is invalid to set the number of elements to be less than m_iBaseEl.
   // If we manage the lifetime of these object then they must have a default constructor.
   void SetSize(_tySizeType _nElements, bool _fCompact = false, _tySizeType _nNewBlockMin = 16)
@@ -992,7 +993,6 @@ public:
       "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%lu], m_iBaseEl[%ld].", uint64_t(_nElements), int64_t(m_iBaseEl) );
     _tyBase::SetSize( _nElements - _NBaseOffset(), _fCompact, _nNewBlockMin );
   }
-
   // Set the number of elements in this object less than the current number.
   // If the object contained within doesn't have a default constructor you can still call this method.
   void SetSizeSmaller(_tySizeType _nElements, bool _fCompact = false)
@@ -1013,7 +1013,6 @@ public:
     _tyBase::Insert( _nPos - _NBaseOffset(), _pt, _nEls );
     AssertValid();
   }
-
   // We enable overwriting for non-contructed types only.
   void Overwrite(_tySizeType _nPos, const _tyT *_pt, _tySizeType _nEls)
   {
@@ -1023,7 +1022,6 @@ public:
     _tyBase::Overwrite( _nPos - _NBaseOffset(), _pt, _nEls );
     AssertValid();
   }
-
   // Read data from the given stream overwriting data in this segmented array.
   // May throw due to allocation error or _rs throwing an EOF error, or perhaps some other reason.
   template <class t_tyStream>
@@ -1035,7 +1033,6 @@ public:
     _tyBase::OverwriteFromStream( _nPosWrite - _NBaseOffset(), _rs, _nPosRead, _nElsRead );
     AssertValid();
   }
-
   // We enable reading for non-contructed types only.
   _tySizeType Read(_tySizeType _nPos, _tyT *_pt, _tySizeType _nEls) const
   {
@@ -1044,7 +1041,6 @@ public:
       "Trying to read before the base of the rotating buffer, _nPos[%lu], m_iBaseEl[%ld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
     return _tyBase::Read( _nPos - _NBaseOffset(), _pt, _nEls );
   }
-
   // This one just needs to be done here since each range in the iteration must be offset.
   template < class t_tyIter >
   _tySignedSizeType ReadSegmented( t_tyIter _itBegin, t_tyIter _itEnd, _tyT *_pt, _tySizeType _nEls ) const 
@@ -1062,7 +1058,7 @@ public:
       if ( nReadCur > 0 )
       {
         _tySizeType nReadMin = min( nReadCur, nElsRemaining );
-        _tySize nRead = Read( _itBegin->begin(), ptCur, nReadMin );
+        _tySizeType nRead = Read( _itBegin->begin(), ptCur, nReadMin );
         Assert( nRead == nReadMin );
         ptCur += nRead;
         nElsRemaining -= nRead;
@@ -1070,16 +1066,14 @@ public:
     }
     return _nEls - nElsRemaining;
   }
-
   // We allow writing to a file for all types because why not? It might not make sense but you can do it.
-  void WriteToFd(int _fd, _tySizeType _nPos, _tySizeType _nElsWrite = (std::(numeric_limits<_tySizeType>::max))()) const
+  void WriteToFile(vtyFileHandle _hFile, _tySizeType _nPos, _tySizeType _nElsWrite = (std::numeric_limits<_tySizeType>::max)()) const
   {
     AssertValid();
     VerifyThrowSz( _nPos >= NBaseElMagnitude(), 
       "Trying to read before the base of the rotating buffer, _nPos[%lu], m_iBaseEl[%ld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
-    _tyBase::WriteToFd( fd, _nPos - _NBaseOffset(), _nElsWrite );
+    _tyBase::WriteToFile( _hFile, _nPos - _NBaseOffset(), _nElsWrite );
   }
-
   // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
   template < class t_tyApply >
   void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply )
@@ -1098,7 +1092,6 @@ public:
       "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), _apply );
   }
-
 protected:
   // The current base element. The invariant that is maintained is that m_iBaseEl is always located in the first chunk.
   //  When m_iBaseEl is moved into the next chunk (or beyond) those chunk(s) are rotated around to the end.
@@ -1137,7 +1130,7 @@ public:
         m_ptBegin(_ptBegin),
         m_sstLen( -((_tySignedSizeType)_sstLen)) 
   {
-    Assert( _nEls < (_tySizeType)(numeric_limits< _tySignedSizeType >::max)() );
+    Assert( _sstLen < (_tySizeType)(numeric_limits< _tySignedSizeType >::max)() );
     AssertValid();
   }
   SegArrayView(_tySegArray *_psaContainer, _tySizeType _stBegin, _tySizeType _sstLen )
@@ -1152,7 +1145,7 @@ public:
   {
 #if ASSERTSENABLED
     Assert( !!m_psaContainer || !m_sstLen );
-    Assert( !!m_sstLen || ( (std::(numeric_limits<_tySizeType>::max))() == m_stBegin ) );
+    Assert( !!m_sstLen || ( (std::numeric_limits<_tySizeType>::max)() == m_stBegin ) );
 #endif //ASSERTSENABLED
   }
 
@@ -1296,3 +1289,5 @@ protected:
   _tySignedSizeType m_sstLen{0};
   _tySegArray *m_psaContainer{nullptr}; // The SegArray container to which we are connected.
 };
+
+__BIENUTIL_END_NAMESPACE

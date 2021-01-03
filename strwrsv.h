@@ -13,6 +13,8 @@
 #include <string>
 #include <compare>
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 // StrWRsv:
 // String with reserve. We don't store a length because we assume that in the places we will use this we won't need a length often.
 template <class t_tyStrBase = std::string, typename t_tyStrBase::size_type t_kstReserve = 48>
@@ -299,3 +301,5 @@ protected:
   _tyChar m_rgtcBuffer[t_kstReserve]{}; // This may contain a null terminated string or it may contain the string object.
                                         // The last byte are the flags which are zero when we are using the buffer, and non-zero (-1) when there is a string lifetime present.
 };
+
+__BIENUTIL_END_NAMESPACE

@@ -442,4 +442,21 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 #endif
 }
 
+// Time methods:
+int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest);
+
+#ifdef WIN32
+typedef UUID vtyUUID;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+typedef uuid_t vtyUUID;
+#endif
+
+static const size_t vkstUUIDNChars = 36;
+static const size_t vkstUUIDNCharsWithNull = vkstUUIDNChars + 1;
+typedef char vtyUUIDString[vkstUUIDNCharsWithNull];
+
+// UUID stuff:
+int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf);
+int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid);
+
 __BIENUTIL_END_NAMESPACE

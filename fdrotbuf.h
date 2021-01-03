@@ -30,6 +30,8 @@
 #include <limits>
 #include "segarray.h"
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 // Templatize by character type - which is fine if it is unsigned char for bytes, 
 //  but adds convenience for other character types, and even integer types if desired.
 template < class t_tyChar >
@@ -64,7 +66,7 @@ public:
 
   // Initialize - we should be empty.
   void Init( vtyFileHandle _hFile, size_t _posCur = 0, bool _fReadAhead = false, 
-    size_t _stchLenRead = (std::numeric_limits<size_t>::max), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
+    size_t _stchLenRead = (std::numeric_limits<size_t>::max)(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
   {
     Assert( !m_saBuffer.FHasAnyCapacity() );
     m_hFile = _hFile;
@@ -79,8 +81,8 @@ public:
   {
 #if ASSERTSENABLED
     m_saBuffer.AssertValid();
-    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max) == m_stchLenRead ) );
-    Assert( ( (std::numeric_limits<size_t>::max) == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
+    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) );
+    Assert( ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
     Assert( !m_fReadAhead || !( !( NElements() % m_saBuffer.NElsPerSegment() ) ) );
 #endif //ASSERTSENABLED  
@@ -196,9 +198,11 @@ protected:
   // For non-infinite values of m_stchLenRead:
   //  ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements()
   _tySegArray m_saBuffer;
-  size_t m_stchLenRead{(std::numeric_limits<size_t>::max)};
-  size_t m_stchLenRemaining{(std::numeric_limits<size_t>::max)};
+  size_t m_stchLenRead{(std::numeric_limits<size_t>::max)()};
+  size_t m_stchLenRemaining{(std::numeric_limits<size_t>::max)()};
   size_t m_posCur{0};
   vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fReadAhead{false};
 };
+
+__BIENUTIL_END_NAMESPACE

@@ -14,6 +14,8 @@
 #include <mutex>
 #include "segarray.h"
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 template < class t_tyFilePos = size_t, bool t_kfMultithreaded = false >
 class MemFile;
 template < class t_tyFilePos = size_t, bool t_kfMultithreaded = false >
@@ -110,11 +112,11 @@ public:
         m_rgsImpl.Insert( _posInsert, _pbyInsert, _nBytes );
         return _nBytes;
     }
-    void WriteToFd( int _fd, _tyFilePos _nPos = 0, _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
+    void WriteToFile( vtyFileHandle _hFile, _tyFilePos _nPos = 0, _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
     {
         _tyLock lock;
         LockMutex( lock );
-        m_rgsImpl.WriteToFd( _fd, _nPos, _nElsWrite );
+        m_rgsImpl.WriteToFile( _hFile, _nPos, _nElsWrite );
     }
 protected:
     using _tyBase::LockMutex;
@@ -258,13 +260,13 @@ public:
     }
     // This will write from the current position of this memstream until the end of the stream to the FD.
     // That is unless you pass in overriding arguments.
-    void WriteToFd( int _fd, _tyFilePos _nPos = (std::numeric_limits< _tyFilePos >::max)(), _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
+    void WriteToFile( vtyFileHandle _hFile, _tyFilePos _nPos = (std::numeric_limits< _tyFilePos >::max)(), _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
     {
         if ( !m_spmfMemFile )
             THROWNAMEDEXCEPTIONERRNO( EBADF, "Not connected to a file." );
         if ( (std::numeric_limits< _tyFilePos >::max)() == _nPos )
             _nPos = m_posCur;
-        m_spmfMemFile->WriteToFd( _fd, _nPos, _nElsWrite );
+        m_spmfMemFile->WriteToFile( _hFile, _nPos, _nElsWrite );
     }
     
 protected:
@@ -276,3 +278,5 @@ protected:
     std::shared_ptr< _tyMemFile > m_spmfMemFile; // This file to which this MemStream is connected.
     _tyFilePos m_posCur{};
 };
+
+__BIENUTIL_END_NAMESPACE

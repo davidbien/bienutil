@@ -159,7 +159,7 @@ protected:
   vtyErrNo m_errno{0};
 };
 
-#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG, ... ) ExceptionUsage< __BIENUTIL_USE_NAMESPACE::_t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, _errno, MESG, ##__VA_ARGS__ )
+#define THROWNAMEDEXCEPTIONERRNO( _errno, MESG, ... ) ExceptionUsage< __BIENUTIL_NAMESPACE _t__Named_exception_errno<> >::ThrowFileLineFuncErrno( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, _errno, MESG, ##__VA_ARGS__ )
 
 // Override the bad_variant_access exception to return a bit more info about what went wrong. Put it here for general usage.
 template < class t_TyAllocator = allocator< char > >

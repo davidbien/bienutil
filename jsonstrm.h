@@ -118,8 +118,8 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSTREAM(MESG...) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG)
-#define THROWBADJSONSTREAMERRNO(ERRNO, MESG...) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineFuncErrno(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, ERRNO, MESG)
+#define THROWBADJSONSTREAM(MESG, ...) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__)
+#define THROWBADJSONSTREAMERRNO(ERRNO, MESG, ...) ExceptionUsage<bad_json_stream_exception<_tyCharTraits>>::ThrowFileLineFuncErrno(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, ERRNO, MESG,##__VA_ARGS__)
 
 // This exception will get thrown if the user of the read cursor does something inappropriate given the current context.
 template <class t_tyCharTraits>
@@ -164,7 +164,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWBADJSONSEMANTICUSE(MESG...) ExceptionUsage<json_stream_bad_semantic_usage_exception<_tyCharTraits>>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG)
+#define THROWBADJSONSEMANTICUSE(MESG, ...) ExceptionUsage<json_stream_bad_semantic_usage_exception<_tyCharTraits>>::ThrowFileLineFunc(__FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__)
 
 // JsonCharTraits< char > : Traits for 8bit char representation.
 template <>
@@ -250,7 +250,7 @@ struct JsonCharTraits<char>
   }
   static size_t StrNLen(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
   {
-    return ::StrNLen(_psz, _stLen);
+    return __BIENUTIL_NAMESPACE StrNLen(_psz, _stLen);
   }
   static size_t StrCSpn(_tyLPCSTR _psz, _tyLPCSTR _pszCharSet)
   {
@@ -272,7 +272,7 @@ struct JsonCharTraits<char>
   }
   static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
   {
-    return ::StrRSpn(_pszBegin, _pszEnd, _pszSet);
+    return __BIENUTIL_NAMESPACE StrRSpn(_pszBegin, _pszEnd, _pszSet);
   }
   static void MemSet(_tyLPSTR _psz, _tyChar _tc, size_t _n)
   {
@@ -371,7 +371,7 @@ struct JsonCharTraits<wchar_t>
   }
   static size_t StrNLen(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
   {
-    return ::StrNLen(_psz, _stLen);
+    return __BIENUTIL_NAMESPACE StrNLen(_psz, _stLen);
   }
   static size_t StrCSpn(_tyLPCSTR _psz, _tyLPCSTR _pszCharSet)
   {
@@ -393,7 +393,7 @@ struct JsonCharTraits<wchar_t>
   }
   static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
   {
-    return ::StrRSpn(_pszBegin, _pszEnd, _pszSet);
+    return __BIENUTIL_NAMESPACE StrRSpn(_pszBegin, _pszEnd, _pszSet);
   }
   static void MemSet(_tyLPSTR _psz, _tyChar _tc, size_t _n)
   {
@@ -557,8 +557,8 @@ public:
     m_tcLookahead = cpxRead;
     if (stRead != sizeof cpxRead)
     {
-      Assert(!sstRead); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
-      m_pos += sstRead;
+      Assert(!stRead); // For multibyte characters this could fail but then we would have a bogus file anyway and would want to throw.
+      m_pos += stRead;
       THROWBADJSONSTREAM("[%s]: %s", m_szFilename.c_str(), _pcEOFMessage);
     }
     if (_tyCharTraits::FIsIllegalChar(m_tcLookahead))
@@ -619,7 +619,7 @@ protected:
 };
 
 // JsonFixedMemInputStream: Stream a fixed piece o' mem'ry at the JSON parser.
-template <class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar, t_tyTypeBegin = >
+template <class t_tyCharTraits, class t_tyPersistAsChar = typename t_tyCharTraits::_tyPersistAsChar >
 class JsonFixedMemInputStream : public JsonInputStreamBase<t_tyCharTraits, size_t>
 {
   typedef JsonFixedMemInputStream _tyThis;
@@ -784,7 +784,7 @@ public:
   }
   JsonMemMappedInputStream & operator = ( JsonMemMappedInputStream const & _r )
   {
-    _TyThis copy( _r );
+    _tyThis copy( _r );
     swap( copy );
   }
   JsonMemMappedInputStream( JsonMemMappedInputStream && _rr )
@@ -793,7 +793,7 @@ public:
   }
   JsonMemMappedInputStream & operator = ( JsonMemMappedInputStream && _rr )
   {
-    _TyThis acquire( std::move( _rr ) );
+    _tyThis acquire( std::move( _rr ) );
     swap( acquire );
   }
   void swap( _tyThis & _r )
@@ -1031,13 +1031,13 @@ public:
   }
   bool FOpened() const
   {
-    return m_foObj.FIsOpen();
+    return m_foFile.FIsOpen();
   }
   // Throws on open failure. This object owns the lifetime of the file descriptor.
   void Open(const char *_szFilename)
   {
     m_szExceptionString.clear();
-    m_foObj.SetHFile( CreateWriteOnlyFile( _szFilename ) );
+    m_foFile.SetHFile( CreateWriteOnlyFile( _szFilename ) );
     if (!FOpened())
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to CreateWriteOnlyFile() file [%s]", _szFilename);
     m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
@@ -1046,7 +1046,7 @@ public:
   void AttachFd(vtyFileHandle _hFile, bool _fOwnFdLifetime = false)
   {
     Assert(_hFile != vkhInvalidFileHandle);
-    m_fdObj.SetHFile( _hFile, _fOwnFdLifetime );
+    m_foFile.SetHFile( _hFile, _fOwnFdLifetime );
     m_szFilename.clear();     // No filename indicates we are attached to "some hFile".
   }
   int Close()
@@ -1163,15 +1163,15 @@ public:
     (void)Close(!fInUnwinding); // Only throw on error from close if we are not currently unwinding.
   }
   // We can't allow copying because the mapping may be resized under the copy.
-  JsonMemMappedInputStream( JsonMemMappedInputStream const & _r ) = delete;
-  JsonMemMappedInputStream & operator = ( JsonMemMappedInputStream const & _r ) = delete;
-  JsonMemMappedInputStream( JsonMemMappedInputStream && _rr )
+  JsonMemMappedOutputStream( JsonMemMappedOutputStream const & _r ) = delete;
+  JsonMemMappedOutputStream & operator = ( JsonMemMappedOutputStream const & _r ) = delete;
+  JsonMemMappedOutputStream( JsonMemMappedOutputStream && _rr )
   {
     swap( _rr );
   }
-  JsonMemMappedInputStream & operator = ( JsonMemMappedInputStream && _rr )
+  JsonMemMappedOutputStream & operator = ( JsonMemMappedOutputStream && _rr )
   {
-    _TyThis acquire( std::move( _rr ) );
+    _tyThis acquire( std::move( _rr ) );
     swap( acquire );
   }
   void swap(JsonMemMappedOutputStream &_r)
@@ -1204,7 +1204,7 @@ public:
   {
     Close(true); // If truncating the previously open file fails then we want to know.
     FileObj foFile( CreateReadWriteFile( _szFilename ) );
-    if ( !foFile.FIsOpened() )
+    if ( !foFile.FIsOpen() )
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to CreateReadWriteFile() file [%s]", _szFilename);
     int iResult = FileSetSize( foFile.HFileGet(), s_knGrowFileByBytes ); // Set initial size.
     if ( !!iResult )
@@ -1261,7 +1261,7 @@ public:
           case 3: pcThrow = "Error encountered closing file [%s]"; break;
           default: pcThrow = "Wh-what?! [%s]"; break;
         }
-        THROWBADJSONSTREAMERRNO(errFirst, pcThrow, _szFilename);
+        THROWBADJSONSTREAMERRNO( errFirst, pcThrow, m_szFilename.c_str() );
       }
     }
     return errFirst == vkerrNullErrNo ? 0 : -1;
@@ -1519,27 +1519,22 @@ public:
   }
   bool FOpened() const
   {
-    return -1 != m_hFile;
+    return m_foFile.FIsOpen();
   }
   // Throws on open failure. This object owns the lifetime of the file descriptor.
   void Open(const char *_szFilename)
   {
     Close();
     Assert(!FOpened());
-    PrepareErrNo();
-    m_hFile = open(_szFilename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    m_foFile.SetHFile(CreateWriteOnlyFile(_szFilename));
     if (!FOpened())
-      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to open() file [%s]", _szFilename);
-    m_fOwnFdLifetime = true;    // This object owns the lifetime of m_hFile - ie. we need to close upon destruction.
+      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to CreateWriteOnlyFile() file [%s]", _szFilename);
     m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
   }
   // Attach to an FD whose lifetime we do not own. This can be used, for instance, to attach to stdout which is usually at FD 1 (unless reopen()ed).
-  void AttachFd(int _hFile)
+  void AttachFd(vtyFileHandle _hFile)
   {
-    Assert(!FOpened());
-    Assert(_hFile != -1);
-    m_hFile = _hFile;
-    m_fOwnFdLifetime = false; // This object owns the lifetime of m_hFile - ie. we need to close upon destruction.
+    m_foFile.SetHFile(_hFile, false);
     m_szFilename.clear();     // No filename indicates we are attached to "some hFile".
   }
   using _tyBase::IWriteMemStreamToFile;
@@ -1595,7 +1590,7 @@ public:
   void swap(JsonOutputOStream &_r)
   {
     _r.m_szExceptionString.swap(m_szExceptionString);
-    VerifyThrowSz( &_r.m_ros == &m_ros, "swap only support for JsonOutputOStreams referencing the same ostream object.")
+    VerifyThrowSz(&_r.m_ros == &m_ros, "swap only support for JsonOutputOStreams referencing the same ostream object.");
   }
   const _tyOStream &GetOStream() const
   {
@@ -2458,12 +2453,13 @@ public:
   }
   void WriteUuidStringValue(_tyLPCSTR _pszKey, uuid_t const &_uuidt)
   {
-    uuid_string_t ustOut;
-    uuid_unparse_lower(_uuidt, ustOut);
-    WriteStringValue(_pszKey, -1, ustOut, -1);
+    vtyUUIDString uusOut;
+    int iRes = UUIDToString(_uuidt, uusOut, sizeof uusOut);
+    Assert(!!iRes);
+    WriteStringValue(_pszKey, -1, uusOut, -1);
   }
 
-  // Arrray (value) operations:
+  // Array (value) operations:
   void WriteNullValue()
   {
     Assert(FAtArrayValue());
@@ -2505,7 +2501,8 @@ public:
     _WriteValue(ejvtString, _pszValue, (size_t)_stLenValue);
   }
   template <class t_tyValueChar>
-  void WriteStringValue(const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) requires(!std::is_same_v<t_tyValueChar, _tyChar>)
+  void WriteStringValue(const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) 
+    requires(!std::is_same_v<t_tyValueChar, _tyChar>)
   {
     std::basic_string<t_tyValueChar> strConvertValue;
     ConvertString(strConvertValue, _pszValue, _stLenValue);
@@ -2523,11 +2520,12 @@ public:
     _WriteValue(_jvt, &_rstrVal[0], _rstrVal.length());
   }
   template <class t_tyStr>
-  void WriteStrOrNumValue(EJsonValueType _jvt, t_tyStr const &_rstrVal) requires(!std::is_same_v<typename t_tyStr::value_type, _tyChar>)
+  void WriteStrOrNumValue(EJsonValueType _jvt, t_tyStr const &_rstrVal) 
+    requires(!std::is_same_v<typename t_tyStr::value_type, _tyChar>)
   {
     if ((ejvtString != _jvt) && (ejvtNumber != _jvt))
       THROWBADJSONSEMANTICUSE("This method only for numbers and strings.");
-    std::basic_string<t_tyValueChar> strConvertValue;
+    std::basic_string<_tyChar> strConvertValue;
     ConvertString(strConvertValue, _rstrVal);
     _WriteValue(_jvt, &strConvertValue[0], strConvertValue.length());
   }
@@ -2565,9 +2563,10 @@ public:
   }
   void WriteUuidStringValue(uuid_t const &_uuidt)
   {
-    uuid_string_t ustOut;
-    uuid_unparse_lower(_uuidt, ustOut);
-    _WriteValue(ejvtString, ustOut);
+    vtyUUIDString uusOut;
+    int iRes = UUIDToString(_uuidt, uusOut, sizeof uusOut);
+    Assert(!!iRes);
+    _WriteValue(ejvtString, uusOut);
   }
 
   void WriteValue(uint8_t _by)
@@ -2619,7 +2618,7 @@ protected:
     _tyChar rgcNum[knNum];
     int nPrinted = _tyCharTraits::Snprintf(rgcNum, knNum, _pszFmt, _num);
     Assert(nPrinted < knNum);
-    _WriteValue(ejvtNumber, _pszKey, StrNLen(_pszKey), rgcNum, std::min(nPrinted, knNum - 1));
+    _WriteValue(ejvtNumber, _pszKey, StrNLen(_pszKey), rgcNum, (std::min)(nPrinted, knNum - 1));
   }
   void _WriteValue(EJsonValueType _ejvt, _tyLPCSTR _pszKey, size_t _stLenKey, _tyLPCSTR _pszValue, size_t _stLenValue)
   {
@@ -2648,7 +2647,7 @@ protected:
     _tyChar rgcNum[knNum];
     int nPrinted = _tyCharTraits::Snprintf(rgcNum, knNum, _pszFmt, _num);
     Assert(nPrinted < knNum);
-    _WriteValue(ejvtNumber, rgcNum, std::min(nPrinted, knNum - 1));
+    _WriteValue(ejvtNumber, rgcNum, (std::min)(nPrinted, knNum - 1));
   }
   void _WriteValue(EJsonValueType _ejvt, _tyLPCSTR _pszValue, size_t _stLen)
   {
@@ -3465,12 +3464,9 @@ public:
   {
     if (ejvtString != JvtGetValueType())
       THROWBADJSONSEMANTICUSE("Not at a string value type.");
-    if (m_pjrxCurrent->PGetStringValue()->length() < std::size(std::declval<uuid_string_t>()) - 1)
-      THROWBADJSONSEMANTICUSE("Not enough characters in the string for uuid_string_t.");
-    uuid_string_t ustUuid;
-    memcpy(&ustUuid, m_pjrxCurrent->PGetStringValue()->c_str(), sizeof ustUuid);
-    ustUuid[std::size(ustUuid) - 1] = 0;
-    int iRet = uuid_parse(ustUuid, _uuidt);
+    if (m_pjrxCurrent->PGetStringValue()->length() < vkstUUIDNChars)
+      THROWBADJSONSEMANTICUSE("Not enough characters in the string for a UUID string - 36 chars are required.");
+    int iRet = UUIDFromString(m_pjrxCurrent->PGetStringValue()->c_str(), _uuidt);
     if (!!iRet)
       THROWBADJSONSEMANTICUSE("Failed to parse a uuid from string [%s].", m_pjrxCurrent->PGetStringValue()->c_str());
   }
