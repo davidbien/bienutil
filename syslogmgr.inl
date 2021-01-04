@@ -806,7 +806,7 @@ Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned in
   }
 }
 inline void 
-Trace_LogMessage( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, ... ) noexcept(true)
+Trace_LogMessage( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, ... )
 {
   va_list ap;
   if ( !!_szMesg && !!*_szMesg )

@@ -183,7 +183,7 @@ public:
   }
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
-#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG, ... ) ExceptionUsage<named_bad_variant_access>::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )
+#define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG, ... ) ExceptionUsage<named_bad_variant_access<>>::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )
 
 // ExceptionUsage: Provide some useful template methods for throw exception with variable number of arguments.
 template < class t_tyException >

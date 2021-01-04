@@ -28,5 +28,6 @@ endif (WIN32)
 if (LINUX)
 link_libraries(
   uuid
+  icuuc
 )
 endif(LINUX)

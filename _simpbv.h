@@ -313,12 +313,13 @@ public:
     t_TyEl *  pcurLeft = _rl.m_rgEls;
     t_TyEl *  pcurRight = _rr.m_rgEls;
     t_TyEl * pcurThis = m_rgEls;
+    bool fAnyIntersection = false;
     for ( ; pcurThis != pendThis; ++pcurLeft, ++pcurRight, ++pcurThis )
     {
-      if ( *pcurThis = *pcurLeft & *pcurRight )
-        return true;
+      if ( !!( *pcurThis = ( *pcurLeft & *pcurRight ) ) )
+        fAnyIntersection = true;
     }
-    return false;
+    return fAnyIntersection;
   }
 
   size_type FirstIntersection( _TyThis const & _r ) const _BIEN_NOTHROW

@@ -1811,7 +1811,7 @@ protected:
     if ( _pgco != m_pgco )
     {
 		  _Release();
-		  if ( m_pgco = _pgco )
+		  if ( !!( m_pgco = _pgco ) )
 		  {
 			  m_pgco->AddRef();
 		  }
