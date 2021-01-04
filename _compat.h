@@ -14,7 +14,15 @@
 #include <utility>
 #include <filesystem>
 #ifndef WIN32
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include <errno.h>
+#include <dirent.h>
+#include <uuid/uuid.h>
 #endif //!WIN32
 #include "bienutil.h" // This should be the only non-OS file included here.
 
@@ -121,9 +129,6 @@ static const vtyFileHandle vkhInvalidFileHandle = -1;
 
 // A null mapping value for pointers.
 static void * vkpvNullMapping = (void*)-1;
-#if defined( __linux__ ) || defined( __APPLE__ )
-static_assert( vkpvNullMapping == MAP_FAILED );
-#endif
 
 // File separator in any character type:
 template < class t_tyChar >
@@ -159,7 +164,7 @@ inline int FileClose( vtyFileHandle & _rhFile )
 #ifdef WIN32
     int iResult = ::CloseHandle( _rhFile ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
-    int iResult = ::close( _RhFile );
+    int iResult = ::close( _rhFile );
 #endif
     _rhFile = vkhInvalidFileHandle;
     return iResult;
@@ -289,13 +294,13 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 #elif defined( __APPLE__ ) || defined( __linux__ )
     // We must specify a size to mmap under linux:
     struct stat bufStat;
-    static_assert( sizeof(bufStat.st_stat) == sizeof(*_pstSizeMapping) );
-    int iStat = ::fstat( fd, &bufStat );
+    static_assert( sizeof(bufStat.st_size) == sizeof(*_pstSizeMapping) );
+    int iStat = ::fstat( _hFile, &bufStat );
     if ( -1 == iStat )
         return vtyMappedMemoryHandle();
     if ( !!_pstSizeMapping )
         *_pstSizeMapping = bufStat.st_size;
-    void * pvFile = mmap( 0, bufStat.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile );
+    void * pvFile = ::mmap( 0, bufStat.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, 0 );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
     return vtyMappedMemoryHandle( pvFile, bufStat.st_size );
@@ -319,13 +324,13 @@ inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * 
 #elif defined( __APPLE__ ) || defined( __linux__ )
     // We must specify a size to mmap under linux:
     struct stat bufStat;
-    static_assert( sizeof(bufStat.st_stat) == sizeof(*_pstSizeMapping) );
-    int iStat = ::fstat( fd, &bufStat );
+    static_assert( sizeof(bufStat.st_size) == sizeof(*_pstSizeMapping) );
+    int iStat = ::fstat( _hFile, &bufStat );
     if ( -1 == iStat )
         return vtyMappedMemoryHandle();
     if ( !!_pstSizeMapping )
         *_pstSizeMapping = bufStat.st_size;
-    void * pvFile = mmap( 0, bufStat.st_size,  PROT_READ | PROT_WRITE, MAP_NORESERVE | MAP_SHARED, _hFile );
+    void * pvFile = ::mmap( 0, bufStat.st_size,  PROT_READ | PROT_WRITE, MAP_NORESERVE | MAP_SHARED, _hFile, 0 );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
     return vtyMappedMemoryHandle( pvFile, bufStat.st_size );
@@ -350,9 +355,9 @@ inline vtyMappedMemoryHandle MapReadOnlyFilename( const char * _pszFileName, siz
 #elif defined( __APPLE__ ) || defined( __linux__ )
     int fd = ::open( _pszFileName, O_RDONLY );
     if ( -1 == fd )
-        return nullptr;
+        return vtyMappedMemoryHandle();
     vtyMappedMemoryHandle hmm = MapReadOnlyHandle( fd, _pstSizeMapping );
-    ::close( fd )
+    ::close( fd );
     return hmm;
 #endif
 }
@@ -388,7 +393,7 @@ bool FIsDir_FileAttrs(vtyFileAttr const& _rfa)
   // May need to modify this:
   return !!(FILE_ATTRIBUTE_DIRECTORY & _rfa.dwFileAttributes);
 #elif defined( __APPLE__ ) || defined( __linux__ )
-  return !!S_ISDIR(_rha.st_mode);
+  return !!S_ISDIR(_rfa.st_mode);
 #endif
 }
 bool FDirExists(const char* _pszDir)
@@ -479,11 +484,11 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
   else
   if ( _stSize > bufStat.st_size )
   { // ftruncate writes zeros and it is unclear if that cause perf issues. We don't care about zeros here.
-      ssize_t posEnd = ::lseek(_hFile, s_knGrowFileByBytes - 1, SEEK_SET);
+      ssize_t posEnd = ::lseek(_hFile, _stSize - 1, SEEK_SET);
       if (-1 == posEnd)
           return -1;
       errno = 0;
-      return ::write(m_hFile, "", 1); // write a single byte to grow the file to s_knGrowFileByBytes.
+      return ( 1 == ::write(_hFile, "", 1) ) ? 0 : -1; // write a single byte to grow the file to s_knGrowFileByBytes.
   }
   return 0; // no-op.
 #endif

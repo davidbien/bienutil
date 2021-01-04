@@ -1279,7 +1279,7 @@ public:
       _tyStdStrPersist strPersist;
       ConvertString(strPersist, &_tc, 1);
       _CheckGrowMap(strPersist.length());
-      memcpy(m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof _tyPersistAsChar);
+      memcpy(m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof( _tyPersistAsChar ));
       m_cpxMappedCur += strPersist.length();
     }
   }
@@ -1294,7 +1294,7 @@ public:
       _tyStdStrPersist strPersist;
       ConvertString(strPersist, _psz, _sstLen);
       _CheckGrowMap(strPersist.length());
-      memcpy(m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof _tyPersistAsChar);
+      memcpy(m_cpxMappedCur, &strPersist[0], strPersist.length() * sizeof(_tyPersistAsChar ));
       m_cpxMappedCur += strPersist.length();
     }
     else
@@ -2452,6 +2452,7 @@ public:
   {
     _WriteValue(_pszKey, str_array_cast<_tyChar>("%Lf"), _ldbl);
   }
+#ifdef WIN32 // Linux seems to handle this correctly without - and there's an endless loop with...
   // Translate long and unsigned long appropriately by platform size:
   void WriteValue(_tyLPCSTR _pszKey, long _l)
      requires ( sizeof( int32_t ) == sizeof( long ) )
@@ -2473,6 +2474,7 @@ public:
   {
     return WriteValue(_pszKey, (uint64_t)_l);
   }
+#endif //WIN32
 
   void WriteTimeStringValue(_tyLPCSTR _pszKey, time_t const &_tt)
   {
@@ -2983,7 +2985,7 @@ public:
   {
     return m_jvCur;
   }
-
+#if 0
   int NElement() const
   {
     return m_nObjectOrArrayElement;
@@ -2996,7 +2998,7 @@ public:
   {
     ++m_nObjectOrArrayElement;
   }
-
+#endif //0
   void SetEndOfIteration(bool _fObject)
   {
     m_jvCur.SetEndOfIteration(_fObject);
@@ -3004,7 +3006,9 @@ public:
 
 protected:
   _tyJsonValue m_jvCur;          // The current JsonValue for this object.
+#if 0
   int m_nObjectOrArrayElement{}; // The index of the object or array that this context's value corresponds to.
+#endif //0
 };
 
 // class JsonObject:
@@ -3025,10 +3029,12 @@ public:
   {
   }
   JsonObject(JsonObject const &_r) = default;
+  using _tyBase::RJvGet;
+#if 0
   using _tyBase::IncElement;
   using _tyBase::NElement;
-  using _tyBase::RJvGet;
   using _tyBase::SetNElement;
+#endif //0
 
   const _tyStdStr &RStrKey() const
   {
@@ -3081,10 +3087,12 @@ public:
   {
   }
   JsonArray(JsonArray const &_r) = default;
+  using _tyBase::RJvGet;
+#if 0
   using _tyBase::IncElement;
   using _tyBase::NElement;
-  using _tyBase::RJvGet;
   using _tyBase::SetNElement;
+#endif //0
 
   // Set the JsonArray for the end of iteration.
   void SetEndOfIteration()

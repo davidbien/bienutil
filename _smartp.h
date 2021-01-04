@@ -72,8 +72,6 @@ public:
     Reset();
 		return _pt;
 	}
-
-
   // acquire <_pt> - destruct any current object.
   _TyThis & operator = ( t_Ty * _pt ) _BIEN_NOTHROW
   {
@@ -84,7 +82,6 @@ public:
     }
     return *this;
   }
-
   // Transfers ownership from <_r>.
   _TyThis & operator = ( _TyThis && _rr )
   {
@@ -95,7 +92,6 @@ public:
     }
     return *this;
   }
-
   t_Ty * operator ->() const _BIEN_NOTHROW
   {
     return m_pt;
@@ -104,7 +100,6 @@ public:
   {
     return *m_pt;
   }
-
 #if 0 // Don't see why these are desireable.
   // Make convert to object pointer a non-const member,
   //  prevents accidental construction or assignment to
@@ -146,6 +141,7 @@ public:
   {
     FreeVoid acquire(std::move(_rr));
     swap(acquire);
+    return *this;
   }
   void swap(_TyThis& _r)
   {

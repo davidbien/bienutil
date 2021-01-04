@@ -19,7 +19,7 @@ inline int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen )
     _rgchBuffer[_stLen-1] = 0;
     return !dwLen ? -1 : 0;
 #elif defined( __linux__ ) || defined( __APPLE__ )
-    return strerror_r( _errno, _pszString, _stLen );
+    return ::strerror_r( _errno, _rgchBuffer, _stLen ) ? 0 : -1;
 #endif
 }
 
@@ -33,7 +33,7 @@ inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
         Assert( f );
         return f ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
-        int iUnmap = ::munmap( hmm.Pv(), hmm.length() );
+        int iUnmap = ::munmap( _rhmm.Pv(), _rhmm.length() );
         Assert( !iUnmap );
         return iUnmap;
 #endif
@@ -120,7 +120,7 @@ inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest)
   errno_t e = localtime_s(_ptmDest, _ptt);
   return !e ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
-  struct tm* ptm = localtime_r(&_rtt, &tmLocal);
+  struct tm* ptm = localtime_r(_ptt, _ptmDest);
   return !ptm ? -1 : 0;
 #endif
 }

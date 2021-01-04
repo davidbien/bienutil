@@ -254,7 +254,7 @@ public:
     ApplyContiguous( _posBegin, _posEnd, 
       [&ptCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
       {
-        memcpy( ptCur, _ptBegin, ( _ptEnd - _ptBegin ) * sizeof _tyT );
+        memcpy( ptCur, _ptBegin, ( _ptEnd - _ptBegin ) * sizeof(_tyT) );
         ptCur += ( _ptEnd - _ptBegin );
       }
     );
@@ -266,7 +266,7 @@ public:
   {
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
-      return true; // empty result.
+      return; // empty result.
     VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     _rstr.resize( _posEnd - _posBegin );
     _CopyStringToBuf( _posBegin, _posEnd, &_rstr[0] );
@@ -278,7 +278,7 @@ public:
   {
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
-      return true; // empty result.
+      return; // empty result.
     VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     static size_t knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof(_tyT);
     std::basic_string< _tyT > strTempBuf; // For when we have more than knchMaxAllocaSize - avoid using t_tyString as it may be some derivation of string or anything else for that matter.
@@ -956,7 +956,7 @@ public:
   {
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
-      return true; // empty result.
+      return; // empty result.
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
       "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
@@ -980,7 +980,7 @@ public:
     ApplyContiguous( _posBegin, _posBegin + _nLenEls, 
       [&ptBufCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
       {
-        memcpy( ptBufCur, _ptBegin, ( _ptEnd - _ptBegin ) * sizeof _tyT );
+        memcpy( ptBufCur, _ptBegin, ( _ptEnd - _ptBegin ) * sizeof( _tyT ) );
         ptBufCur += ( _ptEnd - _ptBegin );
       }
     );

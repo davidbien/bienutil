@@ -286,7 +286,7 @@ public:
   {
     typename std::ostream::sentry s(_ros);
     if (s)
-      _ros.write(c_str(), length());
+      _ros.write(_r.c_str(), _r.length());
     return _ros;
   }
 protected:
