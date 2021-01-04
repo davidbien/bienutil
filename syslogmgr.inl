@@ -534,15 +534,18 @@ template <const int t_kiInstance>
 bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProgramName, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson)
 {
   // Move _pszProgramName past any directory:
-  const char *pszProgNameNoPath = strrchr(_pszProgramName, '/');
+  const char *pszProgNameNoPath = strrchr(_pszProgramName, TChGetFileSeparator<char>() );
   if (!!pszProgNameNoPath)
     _pszProgramName = pszProgNameNoPath + 1;
   // Now get the executable path:
   std::string strExePath;
   GetCurrentExecutablePath(strExePath);
   if (!strExePath.length())
-    strExePath = "./"; // Just use current working directory if we can't find exe directory.
-  Assert('/' == strExePath[strExePath.length() - 1]);
+  {
+    strExePath = "."; // Just use current working directory if we can't find exe directory.
+    strExePath += TChGetFileSeparator<char>();
+  }
+  Assert(TChGetFileSeparator<char>() == strExePath[strExePath.length() - 1]);
   _SysLogThreadHeader slth;
   slth.m_szProgramName = strExePath;
   slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.

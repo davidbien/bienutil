@@ -40,7 +40,7 @@ public:
   }
   _t__Named_exception(const string_type& __str) 
   {
-    strncpy(m_rgcExceptionName, __str.c_str(), s_stBufSize);
+    strncpy_s(m_rgcExceptionName, __str.c_str(), s_stBufSize);
     m_rgcExceptionName[s_stBufSize - 1] = '\0';
   }
   _t__Named_exception( const char * _pcFmt, va_list args ) 

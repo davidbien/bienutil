@@ -1044,7 +1044,10 @@ public:
 #ifndef _MSC_VER
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wreturn-type"
-#endif //!_MSC_VER
+#else //_MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4715)
+#endif //_MSC_VER
   iterator begin()
   {
     Assert( FIsAggregate() );
@@ -1087,7 +1090,9 @@ public:
   }
 #ifndef _MSC_VER
 #pragma GCC diagnostic pop
-#endif //!_MSC_VER
+#else //_MSC_VER
+#pragma warning(pop)
+#endif //_MSC_VER
 
 protected:
   template <class t_tyNum>

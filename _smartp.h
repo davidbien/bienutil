@@ -123,7 +123,6 @@ public:
 };
 
 // Implement a very simple object to call free() on a void* on destruct.
-
 class FreeVoid
 {
   typedef FreeVoid _TyThis;
@@ -135,6 +134,22 @@ public:
   {
     if ( m_pv )
       free( m_pv );
+  }
+  FreeVoid() = default;
+  FreeVoid(FreeVoid const&) = delete;
+  FreeVoid& operator = (FreeVoid const&) = delete;
+  FreeVoid(FreeVoid && _rr)
+  {
+    swap(_rr);
+  }
+  FreeVoid& operator = (FreeVoid && _rr)
+  {
+    FreeVoid acquire(std::move(_rr));
+    swap(acquire);
+  }
+  void swap(_TyThis& _r)
+  {
+    std::swap(m_pv, _r.m_pv);
   }
   void Clear()
   {
@@ -151,8 +166,98 @@ public:
       m_pv = 0;
       return pv;
   }
+  bool operator !() const
+  {
+    return !m_pv;
+  }
+  void* Pv() const
+  {
+    return m_pv;
+  }
 protected:
-  void * m_pv;
+  void* m_pv{ nullptr };
+};
+
+// Implement a very simple object to call free() on a void* on destruct.
+template < class t_tyT, bool t_kfManageLifetime >
+class FreeT
+{
+  typedef FreeT _TyThis;
+public:
+  typedef t_tyT _tyT;
+  static const bool s_kfManageLifetime = t_kfManageLifetime;
+  FreeT(t_tyT* _pt)
+    : m_pt(_pt)
+  { }
+  ~FreeT()
+  {
+    Clear();
+  }
+  FreeT() = default;
+  FreeT(FreeT const&) = delete;
+  FreeT& operator = (FreeT const&) = delete;
+  FreeT(FreeT && _rr)
+  {
+    swap(_rr);
+  }
+  FreeT& operator = (FreeT && _rr)
+  {
+    FreeT acquire(std::move(_rr));
+    swap(acquire);
+  }
+  void swap(_TyThis & _r)
+  {
+    std::swap(m_pt, _r.m_pt);
+  }
+  void Clear()
+  {
+    if (m_pt)
+    {
+      _tyT* pt = m_pt;
+      m_pt = nullptr;
+      exception_ptr eptrSave = nullptr;
+      bool fInUnwinding = !!std::uncaught_exceptions();
+      if (s_kfManageLifetime)
+      {
+        try
+        {
+          pt->~_tyT();
+        }
+        catch (...)
+        {
+          if (!fInUnwinding) // Not sure that we could actually get here. If ~t_tyT doesn't check to see if it is in an unwinding before throwing an exception then we might get here or we might abort() first.
+            eptrSave = current_exception();
+        }
+      }
+      free(pt);
+      if (s_kfManageLifetime && !!eptrSave)
+        rethrow_exception(eptrSave);
+    }
+  }
+  t_tyT* PtTransfer()
+  {
+    t_tyT* pt = m_pt;
+    m_pt = 0;
+    return pt;
+  }
+  bool operator !() const
+  {
+    return !m_pt;
+  }
+  t_tyT* Pt() const
+  {
+    return m_pt;
+  }
+  t_tyT* operator ->() const
+  {
+    return m_pt;
+  }
+  t_tyT& operator *() const
+  {
+    return *m_pt;
+  }
+protected:
+  t_tyT* m_pt{ nullptr };
 };
 
 __BIENUTIL_END_NAMESPACE

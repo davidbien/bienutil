@@ -808,7 +808,7 @@ public:
   }
   bool FFileMapped() const
   {
-    return !m_fmoMapping.FIsOpen();
+    return m_fmoMapping.FIsOpen();
   }
   using _tyBase::FEOF;
   using _tyBase::StLenBytes;
@@ -1312,7 +1312,7 @@ public:
 protected:
   void _CheckGrowMap(size_t _charsByAtLeast)
   {
-    if ((m_cpxMappedEnd - m_cpxMappedCur) < _charsByAtLeast)
+    if (size_t(m_cpxMappedEnd - m_cpxMappedCur) < _charsByAtLeast)
       _GrowMap(_charsByAtLeast);
   }
   void _GrowMap(size_t _charsByAtLeast)
@@ -2074,7 +2074,13 @@ public:
   // The maximum indentation to keep things from getting out of view.
   unsigned int m_nMaximumIndent{60};
   // Should be use CR+LF (Windows style) for EOL?
-  bool m_fUseCRLF{false};
+  bool m_fUseCRLF{
+#ifdef WIN32
+    true
+#else //!WIN32
+    false
+#endif //!WIN32
+  };
   // Should we use escape sequences for newlines, carriage returns and tabs:
   bool m_fEscapePrintableWhitespace{true}; // Note that setting this to false violates the JSON standard - but it is useful for reading files sometimes.
   // Should we escape such whitespace when it appears at the end of a value or the whole value is whitespace?
@@ -2446,6 +2452,28 @@ public:
   {
     _WriteValue(_pszKey, str_array_cast<_tyChar>("%Lf"), _ldbl);
   }
+  // Translate long and unsigned long appropriately by platform size:
+  void WriteValue(_tyLPCSTR _pszKey, long _l)
+     requires ( sizeof( int32_t ) == sizeof( long ) )
+  {
+    return WriteValue(_pszKey, (int32_t)_l);
+  }
+  void WriteValue(_tyLPCSTR _pszKey, long _l)
+    requires (sizeof(int64_t) == sizeof(long))
+  {
+    return WriteValue(_pszKey, (int64_t)_l);
+  }
+  void WriteValue(_tyLPCSTR _pszKey, unsigned long _l)
+    requires (sizeof(uint32_t) == sizeof(unsigned long))
+  {
+    return WriteValue(_pszKey, (uint32_t)_l);
+  }
+  void WriteValue(_tyLPCSTR _pszKey, unsigned long _l)
+    requires (sizeof(uint64_t) == sizeof(unsigned long))
+  {
+    return WriteValue(_pszKey, (uint64_t)_l);
+  }
+
   void WriteTimeStringValue(_tyLPCSTR _pszKey, time_t const &_tt)
   {
     _tyStdStr strTime;
@@ -2456,7 +2484,7 @@ public:
   {
     vtyUUIDString uusOut;
     int iRes = UUIDToString(_uuidt, uusOut, sizeof uusOut);
-    Assert(!!iRes);
+    Assert(!iRes);
     WriteStringValue(_pszKey, -1, uusOut, -1);
   }
 
@@ -3538,7 +3566,6 @@ public:
     else // ( !fZeroFirst )
     {
       // Then we expect more digits or a period or an 'e' or an 'E' or EOF if we are the root element.
-      bool fFoundChar;
       for (;;)
       {
         bool fFoundChar = m_pis->FReadChar(tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number."); // Throw on EOF if we aren't at the root element.
@@ -3628,7 +3655,6 @@ public:
     else // ( !fZeroFirst )
     {
       // Then we expect more digits or a period or an 'e' or an 'E' or EOF if we are the root element.
-      bool fFoundChar;
       do
       {
         bool fFoundChar = m_pis->FReadChar(tchCurrentChar, !_fAtRootElement, "Hit EOF looking for a non-number."); // Throw on EOF if we aren't at the root element.

@@ -25,6 +25,7 @@
 #include <memory>
 #include <optional>
 #include <chrono>
+#include <assert.h>
 #ifndef WIN32
 #include <syslog.h>
 #include <sys/syscall.h>

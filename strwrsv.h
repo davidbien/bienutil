@@ -224,11 +224,12 @@ public:
       }
       else
       {
-        _tyChar rgInit[stLenCur + stLenAdd];
+        size_type stTotal = stLenCur + stLenAdd;
+        _tyChar* rgInit = (_tyChar*)alloca(stTotal);
         memcpy(rgInit, m_rgtcBuffer, stLenCur);
         memcpy(rgInit + stLenCur, _psz, stLenAdd);
-        new ((void *)m_rgtcBuffer) t_tyStrBase(rgInit, stLenCur + stLenAdd); // may throw.
-        SetHasStringObj();                                                   // throw-safe.
+        new ((void *)m_rgtcBuffer) t_tyStrBase(rgInit, stTotal); // may throw.
+        SetHasStringObj(); // throw-safe.
       }
     }
     else

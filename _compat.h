@@ -125,6 +125,17 @@ static void * vkpvNullMapping = (void*)-1;
 static_assert( vkpvNullMapping == MAP_FAILED );
 #endif
 
+// File separator in any character type:
+template < class t_tyChar >
+constexpr t_tyChar TChGetFileSeparator()
+{
+#ifdef WIN32
+  return t_tyChar('\\');
+#else // Assume all other OS use /.
+  return t_tyChar('/');
+#endif
+}
+
 inline vtyFileHandle FileGetStdInHandle()
 {
 #ifdef WIN32
@@ -371,6 +382,23 @@ int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
     return ::stat( _pszFileName, &_rfa );
 #endif
 }
+bool FIsDir_FileAttrs(vtyFileAttr const& _rfa)
+{
+#ifdef WIN32
+  // May need to modify this:
+  return !!(FILE_ATTRIBUTE_DIRECTORY & _rfa.dwFileAttributes);
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  return !!S_ISDIR(_rha.st_mode);
+#endif
+}
+bool FDirExists(const char* _pszDir)
+{
+  vtyFileAttr fa;
+  int iRes = GetFileAttrs(_pszDir, fa);
+  if (!!iRes)
+    return false;
+  return FIsDir_FileAttrs(fa);
+}
 
 // Handle attributes and related methods:
 #ifdef WIN32
@@ -436,26 +464,54 @@ int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToW
 inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 {
 #ifdef WIN32
-    if ( !SetFilePointerEx( _hFile, *(LARGE_INTEGER*)(&_stSize), NULL, FILE_BEGIN ) )
-        return -1;
-    return SetEndOfFile( _hFile ) ? 0 : -1;
+  LARGE_INTEGER li;
+  li.QuadPart = _stSize;
+  if ( !SetFilePointerEx( _hFile, li, NULL, FILE_BEGIN ) )
+      return -1;
+  return SetEndOfFile( _hFile ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
-    struct stat bufStat;
-    int iResult = ::fstat( _hFile, &bufStat );
-    if ( -1 == iResult )
-        return -1;
-    if ( _stSize < bufStat.st_size )
-        return ::ftruncate( _hFile, _stSize );
-    else
-    if ( _stSize > bufStat.st_size )
-    { // ftruncate writes zeros and it is unclear if that cause perf issues. We don't care about zeros here.
-        ssize_t posEnd = ::lseek(_hFile, s_knGrowFileByBytes - 1, SEEK_SET);
-        if (-1 == posEnd)
-            return -1;
-        errno = 0;
-        return ::write(m_hFile, "", 1); // write a single byte to grow the file to s_knGrowFileByBytes.
-    }
-    return 0; // no-op.
+  struct stat bufStat;
+  int iResult = ::fstat( _hFile, &bufStat );
+  if ( -1 == iResult )
+      return -1;
+  if ( _stSize < bufStat.st_size )
+      return ::ftruncate( _hFile, _stSize );
+  else
+  if ( _stSize > bufStat.st_size )
+  { // ftruncate writes zeros and it is unclear if that cause perf issues. We don't care about zeros here.
+      ssize_t posEnd = ::lseek(_hFile, s_knGrowFileByBytes - 1, SEEK_SET);
+      if (-1 == posEnd)
+          return -1;
+      errno = 0;
+      return ::write(m_hFile, "", 1); // write a single byte to grow the file to s_knGrowFileByBytes.
+  }
+  return 0; // no-op.
+#endif
+}
+
+// Directory entries:
+// Windows supplies tons more info than Linux but currently we don't need to do any of that multiplatform.
+// I only added accessors below for things I need now of course.
+#ifdef WIN32
+typedef WIN32_FIND_DATAA vtyDirectoryEntry;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+typedef struct dirent vtyDirectoryEntry;
+#endif
+
+const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde)
+{
+#ifdef WIN32
+  return _rde.cFileName;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  return _rde.d_name;
+#endif
+}
+bool FIsDir_DirectoryEntry(vtyDirectoryEntry const& _rde)
+{
+#ifdef WIN32
+  return !!( FILE_ATTRIBUTE_DIRECTORY & _rde.dwFileAttributes );
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  return !!( DT_DIR & _rde.d_type );
 #endif
 }
 

@@ -88,7 +88,7 @@ protected:
   static int _Close(vtyFileHandle _hFile)
   {
     Assert( vkhInvalidFileHandle != _hFile );
-    FileClose( _hFile );
+    return FileClose( _hFile );
   }
   vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fOwnFile{true}; // utility for when an object doesn't own the file lifetime.

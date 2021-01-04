@@ -11,14 +11,18 @@
 // class during the filter callback inside of scandir().
 // dbien: 09MAR2020
 
+#ifndef WIN32
 #include <sys/types.h>
 #include <dirent.h>
+#endif //!WIN32
 #include <string>
 #include <memory>
 
+__BIENUTIL_BEGIN_NAMESPACE
+
 struct ScanDirectory_SelectAll
 {
-    bool operator()( const struct dirent & _rdeFilter )
+    bool operator()( const vtyDirectoryEntry & _rdeFilter )
     {
         return true;
     }
@@ -33,6 +37,10 @@ public:
         :   m_strDir( _pszDir ),
             m_selector( _selector )
     {
+      if (m_strDir.back() == TChGetFileSeparator<char>() && m_strDir.length() > 1)
+      {
+        m_strDir.resize(m_strDir.length() - 1);
+      }
     }
     ~ScanDirectory()
     {
@@ -44,14 +52,18 @@ public:
     int NDoScan()
     {
         _FreeEntries();
-        struct dirent ** ppdeEntries;
+        vtyDirectoryEntry ** ppdeEntries;
         // We are pretty sure that scandir cannot throw a C++ exception. It could crash, perhaps, but not much we can do about that and C++ object won't be unwound on a crash.
         // Therefore set the TLS pointer for this here since this thread clearly cannot be in this place twice.
         Assert( !s_tls_pThis );
         if ( !!s_tls_pThis )
             return -1; // This code is not reentrant.
         s_tls_pThis = this;
+#ifndef WIN32
         int nScandir = scandir( m_strDir.c_str(), &ppdeEntries, ScanDirectory::StaticFilterDirEnts, alphasort );
+#else //!WIN32
+        int nScandir = _EmulateScanDirWin32(&ppdeEntries);
+#endif //!WIN32
         Assert( this == s_tls_pThis );
         s_tls_pThis = nullptr;
         if ( -1 == nScandir )
@@ -61,14 +73,14 @@ public:
         return m_nEntries;
     }
 
-    bool FGetNextEntry( dirent *& _rpdeEntry, std::string & _rstrFilePath )
+    bool FGetNextEntry( vtyDirectoryEntry *& _rpdeEntry, std::string & _rstrFilePath )
     {
         if ( m_ppdeCurEntry == m_ppdeEntries + m_nEntries )
             return false;
         _rpdeEntry = *m_ppdeCurEntry++;
         _rstrFilePath = m_strDir;
-        _rstrFilePath += "/";
-        _rstrFilePath += _rpdeEntry->d_name;
+        _rstrFilePath += TChGetFileSeparator<char>();
+        _rstrFilePath += PszGetName_DirectoryEntry(*_rpdeEntry);
         return true;
     }
     void ResetEntryIteration()
@@ -96,13 +108,13 @@ protected:
         {
             Assert( !!m_nEntries );
             m_ppdeCurEntry = 0;
-            struct dirent ** ppdeEntries = m_ppdeEntries;
+            vtyDirectoryEntry ** ppdeEntries = m_ppdeEntries;
             m_ppdeEntries = 0;
             int nEntries = m_nEntries;
             m_nEntries = 0;
             // Free each individual pointer:
-            struct dirent ** const ppdeEntriesEnd = ppdeEntries + nEntries;
-            for ( struct dirent ** ppdeEntriesCur = ppdeEntries; ppdeEntriesEnd != ppdeEntriesCur; ++ppdeEntriesCur )
+            vtyDirectoryEntry ** const ppdeEntriesEnd = ppdeEntries + nEntries;
+            for ( vtyDirectoryEntry ** ppdeEntriesCur = ppdeEntries; ppdeEntriesEnd != ppdeEntriesCur; ++ppdeEntriesCur )
             {
                 Assert( !!*ppdeEntriesCur );
                 free( *ppdeEntriesCur );
@@ -110,33 +122,95 @@ protected:
             free( ppdeEntries ); // Free the array of pointers.
         }
     }
-
-    int FilterDirEnts( const struct dirent * _pdeFilter )
+    int FilterDirEnts( const vtyDirectoryEntry * _pdeFilter )
     {
-        if ( !!( DT_DIR & _pdeFilter->d_type ) )
+        if (FIsDir_DirectoryEntry(*_pdeFilter))
         {
             if ( !m_fIncludeDirectories )
                 return false;
-            if ( !m_fIncludeCurParentDirs && ( !!strcmp( _pdeFilter->d_name, "." ) || !!strcmp( _pdeFilter->d_name, ".." ) ) )
+            if ( !m_fIncludeCurParentDirs && ( !!strcmp(PszGetName_DirectoryEntry(*_pdeFilter), "." ) || !!strcmp(PszGetName_DirectoryEntry(*_pdeFilter), ".." ) ) )
                 return false;
         }
         // Now run it against the selector:
         return m_selector( *_pdeFilter );
     }
-    static int StaticFilterDirEnts( const struct dirent * _pdeFilter )
+    static int StaticFilterDirEnts( const vtyDirectoryEntry * _pdeFilter )
     {
         return s_tls_pThis->FilterDirEnts( _pdeFilter );
     }
-
+#ifdef WIN32
+    typedef FreeT< vtyDirectoryEntry, false > _tyFreeDirEntObj;
+    int _EmulateScanDirWin32( vtyDirectoryEntry*** _pppdeEntries )
+    {
+      // So, we will use FindFirstFile, ..NextFile, to find the files.
+      // We immediately pass it through the filter. If it passes then we added it to the segmented array.
+      typedef SegArray< _tyFreeDirEntObj, true_type > _tySegArray;
+      _tySegArray saDirEnts;
+      vtyDirectoryEntry dirent;
+      string strWildcard(m_strDir);
+      strWildcard += TChGetFileSeparator<char>();
+      strWildcard += "*";
+      HANDLE hFindFile = ::FindFirstFileA(strWildcard.c_str(), &dirent);
+      if (INVALID_HANDLE_VALUE == hFindFile)
+        return -1;
+      try
+      {
+        do
+        {
+          if (!!FilterDirEnts(&dirent))
+          {
+            _tyFreeDirEntObj pdeNew((vtyDirectoryEntry*)malloc(sizeof(vtyDirectoryEntry)));
+            if (!pdeNew)
+            {
+              ::FindClose(hFindFile);
+              ::SetLastError(ERROR_OUTOFMEMORY);
+              return -1;
+            }
+            memcpy(&*pdeNew, &dirent, sizeof dirent);
+            saDirEnts.emplaceAtEnd(std::move(pdeNew));
+          }
+        } 
+        while (FindNextFileA(hFindFile, &dirent));
+      }
+      catch (...)
+      {
+        ::FindClose(hFindFile);
+        throw;
+      }
+      ::FindClose(hFindFile);
+      // Take what we have found and transfer the pointers to a fixed size array:
+      size_t nDirEnts = saDirEnts.NElements();
+      *_pppdeEntries = (vtyDirectoryEntry**)malloc(nDirEnts * sizeof(vtyDirectoryEntry*));
+      if (!*_pppdeEntries)
+      {
+        ::SetLastError(ERROR_OUTOFMEMORY);
+        return -1;
+      }
+      vtyDirectoryEntry** ppdeCur = *_pppdeEntries;
+      vtyDirectoryEntry** const ppdeEnd = *_pppdeEntries + nDirEnts;
+      saDirEnts.ApplyContiguous(0, nDirEnts,
+        [&ppdeCur, ppdeEnd](_tyFreeDirEntObj* _pfdeoBegin, _tyFreeDirEntObj* _pfdeoEnd)
+        {
+          Assert(ppdeCur + (_pfdeoEnd - _pfdeoBegin) <= ppdeEnd);
+          _tyFreeDirEntObj* pfdeoCur = _pfdeoBegin;
+          for (; _pfdeoEnd != pfdeoCur; ++pfdeoCur)
+            *ppdeCur++ = pfdeoCur->PtTransfer();
+        }
+      );
+      return (int)nDirEnts;
+    }
+#endif //WIN32
     std::string m_strDir;
-    struct dirent ** m_ppdeEntries{};
+    vtyDirectoryEntry ** m_ppdeEntries{};
     int m_nEntries{};
-    struct dirent ** m_ppdeCurEntry{};
+    vtyDirectoryEntry ** m_ppdeCurEntry{};
     t_tySelector m_selector;
     bool m_fIncludeDirectories{false};
     bool m_fIncludeCurParentDirs{false}; // Only included if also m_fIncludeDirectories.
-    static __thread _tyThis * s_tls_pThis; // This is a pointer to the this pointer for the *unique class*.
+    static THREAD_DECL _tyThis * s_tls_pThis; // This is a pointer to the this pointer for the *unique class*.
 };
 
-template < class t_tySelector > __thread ScanDirectory< t_tySelector > *
+template < class t_tySelector > THREAD_DECL ScanDirectory< t_tySelector > *
 ScanDirectory< t_tySelector >::s_tls_pThis = nullptr;
+
+__BIENUTIL_END_NAMESPACE

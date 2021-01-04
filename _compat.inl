@@ -26,7 +26,7 @@ inline int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen )
 // Unmap the mapping given the handle and set the handle to a null handle.
 inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
 {
-    if ( !!_rhmm.FFailedMapping() )
+    if ( !_rhmm.FFailedMapping() )
     {
 #ifdef WIN32
       BOOL f = UnmapViewOfFile(_rhmm.Pv());
@@ -38,6 +38,7 @@ inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
         return iUnmap;
 #endif
     }
+    return 0;
 }
 
 inline int

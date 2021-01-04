@@ -134,6 +134,9 @@ int VNSPrintf( wchar_t * _rgcOut, size_t _n, const wchar_t * _szFormat, va_list 
 	return vswprintf( _rgcOut, _n, _szFormat, _ap );
 }
 
+template < class t_tyString >
+void VPrintfStdStr(t_tyString& _rstr, const typename t_tyString::value_type* _pcFmt, va_list _ap) noexcept(false);
+
 // Return a string formatted like printf. Throws.
 template < class t_tyString >
 void PrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, ...) noexcept(false) 
@@ -373,7 +376,7 @@ GetCurrentExecutablePath(std::string &_rstrPath)
 #else
 #error What to do in this sichiation.
 #endif
-	std::string::size_type stLastSlash = _rstrPath.find_last_of('/');
+	std::string::size_type stLastSlash = _rstrPath.find_last_of( TChGetFileSeparator<char>() );
 	if (std::string::npos != stLastSlash)
 		_rstrPath.resize(stLastSlash + 1);
 }

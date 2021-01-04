@@ -36,9 +36,12 @@ public:
   static_assert(!std::numeric_limits<_tySizeType>::is_signed);
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
   static constexpr _tySizeType s_knbySizeSegment = (std::max)( sizeof(_tyT) * 16, size_t(4096) );
-
-  SegArray() = delete;
-  SegArray(_tySizeType _nbySizeSegment = s_knbySizeSegment)
+ 
+  SegArray()
+    : m_nbySizeSegment(s_knbySizeSegment - (s_knbySizeSegment % sizeof(_tyT))) // even number of t_tyT's.
+  {
+  }
+  SegArray(_tySizeType _nbySizeSegment )
       : m_nbySizeSegment(_nbySizeSegment - (_nbySizeSegment % sizeof(_tyT))) // even number of t_tyT's.
   {
   }
@@ -327,7 +330,7 @@ public:
       else
       {
         _tySizeType nBlocksNeeded = ((_nElements - 1) / NElsPerSegment()) + 1;
-        if (nBlocksNeeded > (m_ppbyEndSegments - m_ppbySegments))
+        if (nBlocksNeeded > _tySizeType(m_ppbyEndSegments - m_ppbySegments))
         {
           _tySizeType nNewBlocks = nBlocksNeeded - (m_ppbyEndSegments - m_ppbySegments);
           AllocNewSegmentPointerBlock((!_fCompact && (nNewBlocks < _nNewBlockMin)) ? _nNewBlockMin : nNewBlocks);
@@ -382,7 +385,7 @@ public:
   {
     AssertValid();
     _tySizeType nBlocksNeeded = ((m_nElements - 1) / NElsPerSegment()) + 1;
-    if (nBlocksNeeded < (m_ppbyEndSegments - m_ppbySegments))
+    if (nBlocksNeeded < _tySizeType(m_ppbyEndSegments - m_ppbySegments))
     {
       uint8_t **ppbyDealloc = m_ppbySegments + nBlocksNeeded;
       for (; ppbyDealloc != m_ppbyEndSegments; ++ppbyDealloc)
