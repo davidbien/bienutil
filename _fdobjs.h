@@ -165,6 +165,13 @@ public:
     }
     return 0;
   }
+  // Caller assumes OWNERSHIP of mapped memory handle returned.
+  void * PvTransferHandle()
+  {
+    void * pv = m_hmmFile.Pv();
+    m_hmmFile.Clear();
+    return pv;
+  }
 protected:
   static int _Close(vtyMappedMemoryHandle const & _rhmmFile)
   {

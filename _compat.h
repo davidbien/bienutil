@@ -287,8 +287,18 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 {
 #ifdef WIN32
     static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
-    if ( !!_pstSizeMapping && ( !GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) || !*_pstSizeMapping ) )
-        return vtyMappedMemoryHandle(); // Can't map a zero size file.
+    BOOL fGetFileSize;
+    if ( !!_pstSizeMapping && ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || !*_pstSizeMapping ) )
+    {
+        if ( !fGetFileSize )
+        {
+            if ( !!_pstSizeMapping )
+                *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+        }
+        else
+            SetLastErrNo( ERROR_INVALID_ARGUMENT );// Can't map a zero size file.
+        return vtyMappedMemoryHandle(); 
+    }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READONLY, 0, 0, NULL );
     if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
@@ -303,10 +313,19 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
     struct stat bufStat;
     static_assert( sizeof(bufStat.st_size) == sizeof(*_pstSizeMapping) );
     int iStat = ::fstat( _hFile, &bufStat );
-    if ( -1 == iStat )
+    if ( -1 == iStat )    
+    {
+        if ( !!_pstSizeMapping )
+            *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
         return vtyMappedMemoryHandle();
+    }
     if ( !!_pstSizeMapping )
         *_pstSizeMapping = bufStat.st_size;
+    if ( !bufStat.st_size )
+    {
+        SetLastErrNo( EINVAL );
+        return vtyMappedMemoryHandle();
+    }
     void * pvFile = ::mmap( 0, bufStat.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, 0 );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
