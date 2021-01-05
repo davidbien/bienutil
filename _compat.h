@@ -296,7 +296,7 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
                 *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
         }
         else
-            SetLastErrNo( ERROR_INVALID_ARGUMENT );// Can't map a zero size file.
+            SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file.
         return vtyMappedMemoryHandle(); 
     }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.

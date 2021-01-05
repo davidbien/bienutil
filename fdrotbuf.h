@@ -24,7 +24,9 @@
 // Currently we do not support non-blocking fds appropriately.
 
 #include <stdlib.h>
+#ifndef WIN32
 #include <unistd.h>
+#endif //!WIN32
 #include <cerrno>
 #include <utility>
 #include <limits>

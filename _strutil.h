@@ -653,14 +653,15 @@ void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_t
 		_stLenSrc = StrNLen( _pcSrc );
 	else
 		Assert( _stLenSrc == StrNLen( _pcSrc, _stLenSrc ) );
-	size_t nCopy = (min)( _stLenSrc, _nBufDest );
+	size_t nCopy = (min)( _stLenSrc, _nBufDest-1 );
 	const t_tyCharSrc * const pcsrcEnd = _pcSrc + nCopy;
 	t_tyCharDest * pcdestCur = _rgcBufDest;
 	for ( const t_tyCharSrc * pcsrcCur = _pcSrc; ( pcsrcEnd != pcsrcCur ); )
 	{
-		VerifyThrowSz( *pcdestCur < t_tyCharDest(128), "This is a size conversion only - can't convert characters over 128." );
+		VerifyThrowSz( *pcsrcCur < t_tyCharDest(128), "This is a size conversion only - can't convert characters over 128." );
 		*pcdestCur++ = (t_tyCharDest)*pcsrcCur++;
 	}
+	*pcdestCur = 0;
 }
 
 namespace n_StrArrayStaticCast
