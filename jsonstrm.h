@@ -509,23 +509,23 @@ struct JsonCharTraits<char16_t>
     __BIENUTIL_NAMESPACE MemSet(_psz, _tc, _n);
 #endif //!BIEN_WCHAR_16BIT
   }
-  static int Snprintf(_tyLPSTR _psz, size_t _n, _tyLPCSTR _pszFmt, ...)
+  static int Snprintf(_tyLPSTR _rgch, size_t _n, _tyLPCSTR _pszFmt, ...)
   {
     va_list ap;
     va_start(ap, _pszFmt);
 #ifdef BIEN_WCHAR_16BIT
-    int iRet = ::vswprintf((_tyCharStd*)_psz, _n, (const _tyCharStd*)_pszFmt, ap);
+    int iRet = ::vswprintf((_tyCharStd*)_rgch, _n, (const _tyCharStd*)_pszFmt, ap);
 #else //!BIEN_WCHAR_16BIT
     static_assert( sizeof( _tyChar ) != sizeof( wchar_t ) ); // If this fails then your system is using 16bit wchar_t - the same as Windows and needs to be special cased the same as Windows.
     // We must convert the string to char32_t and then call vswprintf() and then convert back:
-    wchar_t rgwcBuf = (wchar_t*)alloca( _n * sizeof(wchar_t));
+    wchar_t * rgwcBuf = (wchar_t*)alloca( _n * sizeof(wchar_t));
     size_t stLenFmt = StrNLen( _pszFmt );
     wchar_t * rgwcFmtConv = (wchar_t*)alloca( stLenFmt * sizeof(wchar_t));
-    ConvertAcsiiString( rgwcFmtConv, stLenFmt, _pszFmt );
-    int iRet = ::vswprintf(rgwcBuf, _n, _pszFmt, ap);
+    ConvertAsciiString( rgwcFmtConv, stLenFmt, _pszFmt );
+    int iRet = ::vswprintf(rgwcBuf, _n, rgwcFmtConv, ap);
     Assert( iRet >= 0 );
     if ( iRet >= 0 )
-      ConvertAsciiString( _psz, (size_t)iRet, rgwcBuf );
+      ConvertAsciiString( _rgch, (size_t)iRet, rgwcBuf );
 #endif //!BIEN_WCHAR_16BIT
     va_end(ap);
     VerifyThrow(iRet >= 0);
@@ -2690,78 +2690,91 @@ public:
   }
 
   // Only support one overload of the method that moves the string value in.
-  void WriteStringValue(_tyLPCSTR _pszKey, _tyStdStr &&_rrstrVal) // take ownership of passed string.
+  template <class t_tyKeyChar>
+  void WriteStringValue(const t_tyKeyChar *_pszKey, _tyStdStr &&_rrstrVal) // take ownership of passed string.
+    requires( sizeof( t_tyKeyChar ) == sizeof( _tyChar ) )
   {
-    _WriteValue(ejvtString, _pszKey, StrNLen(_pszKey), std::move(_rrstrVal));
+    _WriteValue(ejvtString, (_tyLPCSTR)_pszKey, StrNLen((_tyLPCSTR)_pszKey), std::move(_rrstrVal));
   }
-  void WriteStringValue(_tyLPCSTR _pszKey, ssize_t _stLenKey, _tyStdStr &&_rrstrVal) // take ownership of passed string.
+  template <class t_tyKeyChar>
+  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, _tyStdStr &&_rrstrVal) // take ownership of passed string.
+    requires( sizeof( t_tyKeyChar ) == sizeof( _tyChar ) )
   {
     if (_stLenKey < 0)
-      _stLenKey = StrNLen(_pszKey);
-    _WriteValue(ejvtString, _pszKey, _stLenKey, std::move(_rrstrVal));
+      _stLenKey = StrNLen((_tyLPCSTR)_pszKey);
+    _WriteValue(ejvtString, (_tyLPCSTR)_pszKey, _stLenKey, std::move(_rrstrVal));
   }
   // Allow conversion of the key and movement of the value.
   template <class t_tyKeyChar>
-  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, _tyStdStr &&_rrstrVal) requires(!std::is_same_v<t_tyKeyChar, _tyChar>)
+  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, _tyStdStr &&_rrstrVal) 
+    requires( sizeof( t_tyKeyChar ) != sizeof( _tyChar ) )
   {
-    std::basic_string<t_tyKeyChar> strConvertKey;
+    _tyStdStr strConvertKey;
     ConvertString(strConvertKey, _pszKey, _stLenKey);
     _WriteValue(ejvtString, &strConvertKey[0], strConvertKey.length(), std::move(_rrstrVal));
   }
 
   template <class t_tyKeyStr, class t_tyValueStr>
-  void WriteStringValue(t_tyKeyStr const &_rstrKey, t_tyValueStr const &_rstrVal) requires(TIsCharType_v<typename t_tyKeyStr::value_type> &&TIsCharType_v<typename t_tyValueStr::value_type>)
+  void WriteStringValue(t_tyKeyStr const &_rstrKey, t_tyValueStr const &_rstrVal) 
+    requires(TIsCharType_v<typename t_tyKeyStr::value_type> &&TIsCharType_v<typename t_tyValueStr::value_type>)
   {
     WriteStringValue(&_rstrKey[0], _rstrKey.length(), &_rstrVal[0], _rstrVal.length());
   }
   template <class t_tyKeyChar, class t_tyValueStr>
-  void WriteStringValue(const t_tyKeyChar *_pszKey, t_tyValueStr const &_rstrVal) requires(TIsCharType_v<typename t_tyValueStr::value_type>)
+  void WriteStringValue(const t_tyKeyChar *_pszKey, t_tyValueStr const &_rstrVal) 
+    requires(TIsCharType_v<typename t_tyValueStr::value_type>)
   {
     WriteStringValue(_pszKey, -1, &_rstrVal[0], _rstrVal.length());
   }
   template <class t_tyKeyChar, class t_tyValueStr>
-  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, t_tyValueStr const &_rstrVal) requires(TIsCharType_v<typename t_tyValueStr::value_type>)
+  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, t_tyValueStr const &_rstrVal) 
+    requires(TIsCharType_v<typename t_tyValueStr::value_type>)
   {
     WriteStringValue(_pszKey, _stLenKey, &_rstrVal[0], _rstrVal.length());
   }
   template <class t_tyKeyStr, class t_tyValueChar>
-  void WriteStringValue(t_tyKeyStr const &_rstrKey, const t_tyValueChar *_pszVal, ssize_t _stLenValue = -1) requires(TIsCharType_v<typename t_tyKeyStr::value_type>)
+  void WriteStringValue(t_tyKeyStr const &_rstrKey, const t_tyValueChar *_pszVal, ssize_t _stLenValue = -1) 
+    requires(TIsCharType_v<typename t_tyKeyStr::value_type>)
   {
     WriteStringValue(&_rstrKey[0], _rstrKey.length(), _pszVal, _stLenValue);
   }
-  // Base level: No conversion.
-  void WriteStringValue(_tyLPCSTR _pszKey, ssize_t _stLenKey, _tyLPCSTR _pszValue, ssize_t _stLenValue = -1)
+  // Base level: No conversion - but yes to casting for same size character types.
+  template <class t_tyKeyChar, class t_tyValueChar >
+  void WriteStringValue(const t_tyKeyChar * _pszKey, ssize_t _stLenKey, const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1)
+    requires( ( sizeof( t_tyKeyChar ) == sizeof( _tyChar ) ) && ( sizeof( t_tyValueChar ) == sizeof( _tyChar ) ) )
   {
     if (_stLenKey < 0)
-      _stLenKey = StrNLen(_pszKey);
+      _stLenKey = StrNLen((_tyLPCSTR)_pszKey);
     if (_stLenValue < 0)
-      _stLenValue = StrNLen(_pszValue);
-    _WriteValue(ejvtString, _pszKey, (size_t)_stLenKey, _pszValue, (size_t)_stLenValue);
+      _stLenValue = StrNLen((_tyLPCSTR)_pszValue);
+    _WriteValue(ejvtString, (_tyLPCSTR)_pszKey, (size_t)_stLenKey, (_tyLPCSTR)_pszValue, (size_t)_stLenValue);
   }
   // Key conversion only:
-  template <class t_tyKeyChar>
-  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, _tyLPCSTR _pszValue, ssize_t _stLenValue = -1) requires(!std::is_same_v<t_tyKeyChar, _tyChar>)
+  template <class t_tyKeyChar, class t_tyValueChar >
+  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, const t_tyValueChar * _pszValue, ssize_t _stLenValue = -1) 
+    requires( ( sizeof( t_tyKeyChar ) != sizeof( _tyChar ) ) && ( sizeof( t_tyValueChar ) == sizeof( _tyChar ) ) )
   {
-    std::basic_string<t_tyKeyChar> strConvertKey;
+    _tyStdStr strConvertKey;
     ConvertString(strConvertKey, _pszKey, _stLenKey);
     if (_stLenValue < 0)
-      _stLenValue = StrNLen(_pszValue);
-    _WriteValue(ejvtString, &strConvertKey[0], strConvertKey.length(), _pszValue, (size_t)_stLenValue);
+      _stLenValue = StrNLen((_tyLPCSTR)_pszValue);
+    _WriteValue(ejvtString, &strConvertKey[0], strConvertKey.length(), (_tyLPCSTR)_pszValue, (size_t)_stLenValue);
   }
   // Value conversion only:
-  template <class t_tyValueChar>
-  void WriteStringValue(_tyLPCSTR _pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1)
-    requires(!std::is_same_v<t_tyValueChar, _tyChar>)
+  template <class t_tyKeyChar, class t_tyValueChar >
+  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1)
+    requires( ( sizeof( t_tyKeyChar ) == sizeof( _tyChar ) ) && ( sizeof( t_tyValueChar ) != sizeof( _tyChar ) ) )
   {
     if (_stLenKey < 0)
-      _stLenKey = StrNLen(_pszKey);
+      _stLenKey = StrNLen((_tyLPCSTR)_pszKey);
     _tyStdStr strConvertValue;
     ConvertString(strConvertValue, _pszValue, _stLenValue);
-    _WriteValue(ejvtString, _pszKey, (size_t)_stLenKey, &strConvertValue[0], strConvertValue.length());
+    _WriteValue(ejvtString, (_tyLPCSTR)_pszKey, (size_t)_stLenKey, &strConvertValue[0], strConvertValue.length());
   }
   // Key and value conversion:
   template <class t_tyKeyChar, class t_tyValueChar>
-  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) requires(!std::is_same_v<t_tyKeyChar, _tyChar> && !std::is_same_v<t_tyValueChar, _tyChar>)
+  void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1)
+    requires( ( sizeof( t_tyKeyChar ) != sizeof( _tyChar ) ) && ( sizeof( t_tyValueChar ) != sizeof( _tyChar ) ) )
   {
     _tyStdStr strConvertKey;
     ConvertString(strConvertKey, _pszKey, _stLenKey);
@@ -2774,7 +2787,7 @@ public:
   // This is fine because the arguments and formating commands are only correct for those types.
   template <class t_tyConvertFromChar>
   void PrintfStringKeyValue(_tyLPCSTR _pszKey, const t_tyConvertFromChar *_pszValue, ...)
-    requires( is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t > ) // reuse this template easily while also limiting application.
+    requires( ( sizeof( t_tyConvertFromChar ) == sizeof( char ) ) || ( sizeof( t_tyConvertFromChar ) == sizeof( wchar_t ) ) ) // reuse this template easily while also limiting application.
   {
     va_list ap;
     va_start(ap, _pszValue);
@@ -2791,7 +2804,7 @@ public:
   }
   template <class t_tyConvertFromChar>
   void VPrintfStringKeyValue(_tyLPCSTR _pszKey, const t_tyConvertFromChar *_pszValue, va_list _ap)
-    requires(is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t >) // reuse this template easily while also limiting application.
+    requires( ( sizeof( t_tyConvertFromChar ) == sizeof( char ) ) || ( sizeof( t_tyConvertFromChar ) == sizeof( wchar_t ) ) ) // reuse this template easily while also limiting application.
   {
     std::basic_string<t_tyConvertFromChar> str;
     VPrintfStdStr(str, _pszValue, _ap);
@@ -2911,15 +2924,17 @@ public:
     }
   }
 
-  void WriteStringValue(_tyLPCSTR _pszValue, ssize_t _stLenValue = -1)
+  template <class t_tyValueChar>
+  void WriteStringValue(const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1)
+    requires( sizeof( t_tyValueChar ) == sizeof( _tyChar ) )
   {
     if (_stLenValue < 0)
-      _stLenValue = _tyCharTraits::StrLen(_pszValue);
-    _WriteValue(ejvtString, _pszValue, (size_t)_stLenValue);
+      _stLenValue = _tyCharTraits::StrLen((_tyLPCSTR)_pszValue);
+    _WriteValue(ejvtString, (_tyLPCSTR)_pszValue, (size_t)_stLenValue);
   }
   template <class t_tyValueChar>
   void WriteStringValue(const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) 
-    requires(!std::is_same_v<t_tyValueChar, _tyChar>)
+    requires( sizeof( t_tyValueChar ) != sizeof( _tyChar ) )
   {
     _tyStdStr strConvertValue;
     ConvertString(strConvertValue, _pszValue, _stLenValue);
@@ -2930,15 +2945,17 @@ public:
   {
     WriteStringValue(&_rstrVal[0], _rstrVal.length());
   }
-  void WriteStrOrNumValue(EJsonValueType _jvt, _tyStdStr const &_rstrVal)
+  template <class t_tyStr>
+  void WriteStrOrNumValue(EJsonValueType _jvt, t_tyStr const &_rstrVal)
+    requires( sizeof( t_tyStr::value_type ) == sizeof( _tyChar ) )
   {
     if ((ejvtString != _jvt) && (ejvtNumber != _jvt))
       THROWBADJSONSEMANTICUSE("This method only for numbers and strings.");
-    _WriteValue(_jvt, &_rstrVal[0], _rstrVal.length());
+    _WriteValue(_jvt, (_tyLPCSTR)&_rstrVal[0], _rstrVal.length());
   }
   template <class t_tyStr>
   void WriteStrOrNumValue(EJsonValueType _jvt, t_tyStr const &_rstrVal) 
-    requires(!std::is_same_v<typename t_tyStr::value_type, _tyChar>)
+    requires( sizeof( t_tyStr::value_type ) != sizeof( _tyChar ) )
   {
     if ((ejvtString != _jvt) && (ejvtNumber != _jvt))
       THROWBADJSONSEMANTICUSE("This method only for numbers and strings.");
@@ -2952,7 +2969,7 @@ public:
   }
   template <class t_tyConvertFromChar>
   void PrintfStringValue(const t_tyConvertFromChar* _pszValue, ...)
-    requires(is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t >) // reuse this template easily while also limiting application.
+    requires( ( sizeof( t_tyConvertFromChar ) == sizeof( char ) ) || ( sizeof( t_tyConvertFromChar ) == sizeof( wchar_t ) ) ) // reuse this template easily while also limiting application.
   {
     va_list ap;
     va_start(ap, _pszValue);
@@ -2969,7 +2986,7 @@ public:
   }
   template <class t_tyConvertFromChar>
   void VPrintfStringValue(const t_tyConvertFromChar* _pszValue, va_list _ap)
-    requires(is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t >) // reuse this template easily while also limiting application.
+    requires( ( sizeof( t_tyConvertFromChar ) == sizeof( char ) ) || ( sizeof( t_tyConvertFromChar ) == sizeof( wchar_t ) ) ) // reuse this template easily while also limiting application.
   {
     std::basic_string<t_tyConvertFromChar> str;
     VPrintfStdStr(str, _pszValue, _ap);

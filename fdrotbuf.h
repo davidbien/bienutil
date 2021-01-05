@@ -84,7 +84,7 @@ public:
     Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) );
     Assert( ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
-    Assert( !m_fReadAhead || !( !( NElements() % m_saBuffer.NElsPerSegment() ) ) );
+    Assert( !m_fReadAhead || !( !( m_saBuffer.NElements() % m_saBuffer.NElsPerSegment() ) ) );
 #endif //ASSERTSENABLED  
   }
   void AssertValidRange( size_t _posBegin, size_t _posEnd ) const
@@ -119,7 +119,7 @@ public:
       if ( !m_fReadAhead )
       {
         size_t stRead;
-        int iReadResult = FileRead( m_hFile, &_rc, sizeof _rc, &stRead )
+        int iReadResult = FileRead( m_hFile, &_rc, sizeof _rc, &stRead );
         if ( -1 == iReadResult )
           THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): 1 char, m_hFile[0x%lx]", (uint64_t)m_hFile );
         if ( stRead < sizeof _rc )
