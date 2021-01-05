@@ -135,17 +135,18 @@ public:
       }
       else
       {
+        static constexpr size_t s_knSegmentsReadAhead = 4;
         // Then we should read ahead by the amount we like to read ahead by - which is s_knSegmentsReadAhead segments.
         Assert( !( m_posCur % m_saBuffer.NElsPerSegment() ) ); // Should always be at a tile boundary when we are reading ahead.
         _tySizeType sizeAdd = min( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, m_stchLenRemaining );
         if ( !sizeAdd )
           return false;
-        m_saBuffer.SetSize( m_nPosCur + sizeAdd );
+        m_saBuffer.SetSize( m_posCur + sizeAdd );
         _tySizeType nRead = m_saBuffer.NApplyContiguous( m_posCur, m_posCur + ( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead ),
-          [this]( _TyChar * _pcBegin, _TyChar * _pcEnd ) -> _tySizeType
+          [this]( _tyChar * _pcBegin, _tyChar * _pcEnd ) -> _tySizeType
           {
             size_t stRead;
-            int iReadResult = FileRead( m_hFile, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ), &stRead )
+            int iReadResult = FileRead( m_hFile, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ), &stRead );
             if ( -1 == iReadResult )
               THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): m_hFile[0x%lx] m[%lu]", (uint64_t)m_hFile, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
             Assert( ( (_tySizeType)stRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
@@ -164,7 +165,7 @@ public:
     else
     {
       Assert( m_fReadAhead ); // Should always get into the above loop when not reading ahead.
-      nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
+      _tySizeType nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
       Assert( nRead ); // Should always get something here since we would have failed above.
       if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
         --m_stchLenRemaining;
@@ -180,7 +181,7 @@ public:
   void ConsumeData( _tyChar * _pcBuf, _tySizeType _lenBuf )
   {
     m_saBuffer.CopyDataAndAdvanceBuffer( m_saBuffer.IBaseElement(), _pcBuf, _lenBuf ); // this consumes data residing in the rotating buffer.
-    m_posCur = _posEnd; // Advance the current position to the end of what was consumed.
+    m_posCur = m_saBuffer.IBaseElement(); // Advance the current position to the end of what was consumed.
   }
   // Discard the data until _posEnd.
   void DiscardData( _tySizeType _posEnd )
