@@ -83,6 +83,14 @@ struct TIsStringView< std::basic_string_view< t_tyChar, t_tyCharTraits > >
 template < class t_ty >
 inline constexpr bool TIsStringView_v = TIsStringView< t_ty >::value;
 
+template < class t_tyChar >
+void MemSet( t_tyChar * _rgcBuf, t_tyChar _cFill, size_t _nValues )
+{
+	t_tyChar * pcEndBuf = _rgcBuf + _nValues;
+	for ( ; pcEndBuf != _rgcBuf; ++_rgcBuf )
+		*_rgcBuf = _cFill;
+}
+
 // StrRSpn:
 // Find the count of _pszSet chars that occur at the end of [_pszBegin,_pszEnd).
 template <class t_tyChar>
@@ -99,6 +107,39 @@ size_t StrRSpn(const t_tyChar *_pszBegin, const t_tyChar *_pszEnd, const t_tyCha
 	}
 	++pszCur;
 	return _pszEnd - pszCur;
+}
+
+template <class t_tyChar>
+static size_t StrCSpn(const t_tyChar * _psz, const t_tyChar * _pszCharSet)
+{
+	typedef const t_tyChar * _tyLPCSTR;
+	_tyLPCSTR pszCur = _psz;
+	for (; !!*pszCur; ++pszCur)
+	{
+		_tyLPCSTR pszCharSetCur = _pszCharSet;
+		for (; !!*pszCharSetCur && (*pszCharSetCur != *pszCur); ++pszCharSetCur)
+			;
+		if (!!*pszCharSetCur)
+			break;
+	}
+	return pszCur - _psz;
+}
+
+template <class t_tyChar>
+static size_t StrCSpn(const t_tyChar * _psz, t_tyChar _tcBegin, t_tyChar _tcEnd, const t_tyChar * _pszCharSet)
+{
+	typedef const t_tyChar * _tyLPCSTR;
+	_tyLPCSTR pszCur = _psz;
+	for (; !!*pszCur && ((*pszCur < _tcBegin) || (*pszCur >= _tcEnd)); ++pszCur)
+	{
+		// Passed the first test, now ensure it isn't one of the _pszCharSet chars:
+		_tyLPCSTR pszCharSetCur = _pszCharSet;
+		for (; !!*pszCharSetCur && (*pszCharSetCur != *pszCur); ++pszCharSetCur)
+			;
+		if (!!*pszCharSetCur)
+			break;
+	}
+	return pszCur - _psz;
 }
 
 template <class t_tyChar>
@@ -155,48 +196,67 @@ void PrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pc
 	va_end(ap);
 }
 
+// char8_t and char:
 template < class t_tyString >
 void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, va_list _ap ) noexcept(false) 
-			requires ( std::is_same_v<typename t_tyString::value_type, char> )
+			requires ( sizeof( typename t_tyString::value_type ) == sizeof( char ) )
 {
-	typedef typename t_tyString::value_type _tyChar;
-  int nRequired;
-	{ //B
+	typedef char _tyChar;
+  	int nRequired;
+	{//B
 		va_list ap2;
 		va_copy(ap2, _ap); // Do this correctly
 		// Initially just pass a single character bufffer since we only care about the return value:
-		_tyChar tc;
 		PrepareErrNo();
-		nRequired = VNSPrintf( &tc, 1, _pcFmt, ap2 );
+		nRequired = VNSPrintf((_tyChar*)nullptr, 0, (const _tyChar *)_pcFmt, ap2 );
 		va_end(ap2);
 		if (nRequired < 0)
 			THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRequired[%d].", nRequired);
 		_rstr.resize(nRequired); // this will reserve nRequired+1.
 	}//EB
 	PrepareErrNo();
-	int nRet = VNSPrintf(&_rstr[0], nRequired + 1, _pcFmt, _ap);
+	int nRet = VNSPrintf((_tyChar *)&_rstr[0], nRequired + 1, (const _tyChar *)_pcFmt, _ap);
 	if (nRet < 0)
 		THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRet[%d].", nRet);
 }
 
+// wchar_t and whatever sized standardized char<n>_t that corresponds to: char16_t on Windows and char32_t on Linux.
 template < class t_tyString >
 void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, va_list _ap ) noexcept(false) 
-			requires ( std::is_same_v<typename t_tyString::value_type, wchar_t> )
+			requires ( sizeof( typename t_tyString::value_type ) == sizeof( wchar_t )  )
 {
+#ifdef WIN32
+	// Of course MS did this correctly - they have all the str..._s() methods as well - Linux is lagging.
+	typedef wchar_t _tyChar;
+  	int nRequired;
+	{//B
+		va_list ap2;
+		va_copy(ap2, _ap); // Do this correctly
+		PrepareErrNo();
+		nRequired = _vscwprintf( (const _tyChar*)_pcFmt, ap2 );
+		va_end(ap2);
+		if (nRequired < 0)
+			THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "_vscwprintf() returned nRequired[%d].", nRequired);
+		_rstr.resize(nRequired); // this will reserve nRequired+1.
+	}//EB
+	PrepareErrNo();
+	int nRet = VNSPrintf((_tyChar*)&_rstr[0], nRequired + 1, (const _tyChar*)_pcFmt, _ap);
+	if (nRet < 0)
+		THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRet[%d].", nRet);
+#else //!WIN32
 	// Due to C99 people sucking butt we have to do this in an awkward way...
-	typedef typename t_tyString::value_type _tyChar;
+	typedef wchar_t _tyChar;
 	_tyChar rgcFirstTry[ 256 ];
 	size_t stBufSize = 256;
 	static constexpr size_t kst2ndTryBufSize = 8192;
 	static constexpr size_t kstMaxBufSize = ( 1 << 24 ); // arbitrary but large.
 	_tyChar * pcBuf = rgcFirstTry;
-	
 	for (;;)
 	{
 		va_list ap2;
 		va_copy(ap2, _ap);
 		PrepareErrNo();
-		int nWritten = VNSPrintf( pcBuf, stBufSize, _pcFmt, ap2 );
+		int nWritten = VNSPrintf( pcBuf, stBufSize, (const _tyChar*)_pcFmt, ap2 );
 		va_end(ap2);
 		if ( -1 == nWritten )
 		{
@@ -213,18 +273,20 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 				if ( stBufSize > kstMaxBufSize )
 					THROWNAMEDEXCEPTION("Overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
 				_rstr.resize( stBufSize-1 );
+				pcBuf = (_tyChar*)&_rstr[0];
 			}
 		}
 		else
 		{
 			// Success!!!
 			if ( stBufSize <= kst2ndTryBufSize )
-				_rstr.assign( pcBuf, nWritten );
+				_rstr.assign( (typename t_tyString::value_type*)pcBuf, nWritten );
 			else
 				_rstr.resize(nWritten); // truncate appropriately.
 			return;
 		}
 	}
+#endif //!WIN32
 }
 
 // Return a string formatted like printf. Doesn't throw.
@@ -444,7 +506,7 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 	else
 		Assert( _stLenSource == StrNLen( _pc16Source, _stLenSource ) );
 	int32_t nLenReq = 0;
-	(void)u_strToUTF32WithSub( nullptr, 0, &nLenReq, _pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
+	(void)u_strToUTF32WithSub( nullptr, 0, &nLenReq, (const UChar*)_pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -452,7 +514,7 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
-	(void)u_strToUTF32WithSub( (UChar32*)&_rstrDest[0], nLenReq, nullptr, _pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
+	(void)u_strToUTF32WithSub( (UChar32*)&_rstrDest[0], nLenReq, nullptr, (const UChar*)_pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -472,7 +534,7 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 	else
 		Assert( _stLenSource == StrNLen( _pc16Source, _stLenSource ) );
 	int32_t nLenReq = 0;
-	(void)u_strToUTF8WithSub( nullptr, 0, &nLenReq, _pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
+	(void)u_strToUTF8WithSub( nullptr, 0, &nLenReq, (const UChar*)_pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -480,7 +542,7 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
-	(void)u_strToUTF8WithSub( (char*)&_rstrDest[0], nLenReq, nullptr, _pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
+	(void)u_strToUTF8WithSub( (char*)&_rstrDest[0], nLenReq, nullptr, (const UChar*)_pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -510,7 +572,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 		_stLenSource = StrNLen( _pc8Source );
 	else
 		Assert( _stLenSource == StrNLen( _pc8Source, _stLenSource ) );
-	int8_t nLenReq = 0;
+	int32_t nLenReq = 0;
 	(void)u_strFromUTF8WithSub( nullptr, 0, &nLenReq, _pc8Source, (int8_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
@@ -580,6 +642,25 @@ void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc )
 	requires( !std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
 {
 	ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
+}
+
+// ASCII string "conversions": As long as the characters are less than 128 they can be "converted" in place:
+// Throws on encountering a character 128 or greater.
+template < class t_tyCharDest, class t_tyCharSrc >
+void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_tyCharSrc * _pcSrc, size_t _stLenSrc = (numeric_limits< size_t >::max)() )
+{
+	if ( (numeric_limits< size_t >::max)() == _stLenSrc )
+		_stLenSrc = StrNLen( _pcSrc );
+	else
+		Assert( _stLenSrc == StrNLen( _pcSrc, _stLenSrc ) );
+	size_t nCopy = (min)( _stLenSrc, _nBufDest );
+	const t_tyCharSrc * const pcsrcEnd = _pcSrc + nCopy;
+	t_tyCharDest * pcdestCur = _rgcBufDest;
+	for ( const t_tyCharSrc * pcsrcCur = _pcSrc; ( pcsrcEnd != pcsrcCur ); )
+	{
+		VerifyThrowSz( *pcdestCur < t_tyCharDest(128), "This is a size conversion only - can't convert characters over 128." );
+		*pcdestCur++ = (t_tyCharDest)*pcsrcCur++;
+	}
 }
 
 namespace n_StrArrayStaticCast

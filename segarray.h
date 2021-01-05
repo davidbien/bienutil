@@ -1197,7 +1197,7 @@ public:
     if ( !m_psaContainer || !m_sstLen )
       return true; // The empty string view is perfect.
     const _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
-    static const _tySizeType knchMaxAllocaSize = ( 1 << 19 ) / sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
+    static const _tySizeType knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
     basic_string< _tyTRemoveCV > strTempBuf;
     _tyTRemoveCV * ptContigBuf;
     if ( m_sstLen < 0 )
@@ -1256,7 +1256,7 @@ public:
     if ( !m_psaContainer || !m_sstLen )
       return; // The empty string is perfect.
     const _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
-    static const _tySizeType knchMaxAllocaSize = ( 1 << 19 )/ sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
+    static const _tySizeType knchMaxAllocaSize = vknbyMaxAllocaSize/ sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
     basic_string< _tyTRemoveCV > strTempBuf;
     _tyTRemoveCV * ptContigBuf;
     if ( m_sstLen < 0 )

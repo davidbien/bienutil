@@ -40,24 +40,32 @@ class _fcallobj
   typedef optional< t_TyF > _TyOptF;
   _TyOptF m_optF;
 public:
-
-  _fcallobj() _BIEN_NOTHROW = default; // construct empty.
-  _fcallobj(_fcallobj const &) _BIEN_NOTHROW = delete;
+  _fcallobj() = default; // construct empty.
+  _fcallobj(_fcallobj const &) = delete;
   _fcallobj & operator = (_fcallobj const &) = delete; // we could allow assigment but I don't need it at this point.
 
   template < typename t__TyF = t_TyF >
-  _fcallobj( t__TyF && _rrf ) _BIEN_NOTHROW
-    : m_optF(_rrf)
+  _fcallobj( t__TyF && _rrf )
+    : m_optF(std::move(_rrf))
   { 
+  }
+  _fcallobj& operator = (_fcallobj && _rr)
+  {
+    _fcallobj acquire(std::move(_rr));
+    swap(_rr);
+  }
+  void swap(_fcallobj& _r)
+  {
+    m_optF.swap(_r.m_optF);
   }
 
   template < typename t__TyF = t_TyF >
-  _fcallobj(t__TyF const & _rf) _BIEN_NOTHROW
+  _fcallobj(t__TyF const & _rf)
     : m_optF(_rf)
   {
   }
 
-  ~_fcallobj() _BIEN_NOTHROW
+  ~_fcallobj() noexcept(false)
   {
     // We shouldn't throw from the destructor and we allow throwing from release() below.
     bool fInUnwinding = !!std::uncaught_exceptions();
@@ -67,16 +75,16 @@ public:
       if (m_optF)
         (*m_optF)();
     }
-    catch ( std::exception const & rexc )
+    catch ( std::exception const & )
     {
         if ( !fInUnwinding )
           throw; // let someone else deal with this.
-        LOGSYSLOG( eslmtError, "Caught exception during another exception's unwinding. [%s]", rexc.what() );
+        Assert(0); // just to see if we ever get here during testing.
     }
   }
 
   // set the optional object to false without signalling any function.
-  void reset() _BIEN_NOTHROW // The presumption is that the destructor of the function object shouldn't throw so we expect a nothrow here.
+  void reset() // The presumption is that the destructor of the function object shouldn't throw so we expect a nothrow here.
   {
     m_optF.reset();
   }

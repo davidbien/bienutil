@@ -24,6 +24,13 @@
 #include <dirent.h>
 #include <uuid/uuid.h>
 #endif //!WIN32
+
+#if ( WCHAR_MAX == 0xffff )
+#define BIEN_WCHAR_16BIT
+#else
+#define BIEN_WCHAR_32BIT
+#endif
+
 #include "bienutil.h" // This should be the only non-OS file included here.
 
 // Define some types that are standard in Linux in the global namespace:

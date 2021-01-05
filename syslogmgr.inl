@@ -29,8 +29,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2,ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -64,8 +63,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -106,8 +104,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -146,8 +143,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -184,8 +180,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -220,8 +215,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -263,8 +257,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -304,8 +297,7 @@ namespace n_SysLog
       va_list ap;
       va_start(ap, _pcFmt);
       va_copy(ap2, ap);
-      char tc;
-      nRequired = vsnprintf(&tc, 1, strFmtAnnotated.c_str(), ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
       if (nRequired < 0)
         THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
@@ -683,8 +675,7 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
           va_list ap;
           va_start(ap, _szMesg);
           va_copy(ap2, ap);
-          char tc;
-          nRequired = vsnprintf( &tc, 1, _szMesg, ap );
+          nRequired = vsnprintf( NULL, 0, _szMesg, ap );
           va_end(ap);
         }//EB
         if ( nRequired < 0 )
@@ -753,8 +744,7 @@ Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned in
       int nRequired;
       {//B
         va_copy(ap2, _ap);
-        char tc;
-        nRequired = vsnprintf( &tc, 1, _szMesg, _ap );
+        nRequired = vsnprintf( NULL, 0, _szMesg, _ap );
         va_end(_ap);
       }//EB
       if ( nRequired < 0 )

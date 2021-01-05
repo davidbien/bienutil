@@ -13,6 +13,7 @@
 #include <ostream>
 #include <memory>
 #include <compare>
+#include <utility>
 #ifndef WIN32
 #include <unistd.h>
 #include <sys/mman.h>
@@ -258,17 +259,7 @@ struct JsonCharTraits<char>
   }
   static size_t StrCSpn(_tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet)
   {
-    _tyLPCSTR pszCur = _psz;
-    for (; !!*pszCur && ((*pszCur < _tcBegin) || (*pszCur >= _tcEnd)); ++pszCur)
-    {
-      // Passed the first test, now ensure it isn't one of the _pszCharSet chars:
-      _tyLPCSTR pszCharSetCur = _pszCharSet;
-      for (; !!*pszCharSetCur && (*pszCharSetCur != *pszCur); ++pszCharSetCur)
-        ;
-      if (!!*pszCharSetCur)
-        break;
-    }
-    return pszCur - _psz;
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _tcBegin, _tcEnd, _pszCharSet);
   }
   static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
   {
@@ -284,16 +275,414 @@ struct JsonCharTraits<char>
     va_start(ap, _pszFmt);
     int iRet = ::vsnprintf(_psz, _n, _pszFmt, ap);
     va_end(ap);
+    VerifyThrow(iRet >= 0);
     return iRet;
   }
 };
 
-// JsonCharTraits< wchar_t > : Traits for 16bit char representation.
+// JsonCharTraits< char8_t >:
+template <>
+struct JsonCharTraits< char8_t >
+{
+  typedef char8_t _tyChar;
+  typedef char8_t _tyPersistAsChar; // This is a hint and each file object can persist as it likes.
+  typedef char _tyCharStd; // The char we need to convert to to call standard string methods.
+  typedef _tyChar *_tyLPSTR;
+  typedef const _tyChar *_tyLPCSTR;
+  typedef StrWRsv<std::basic_string<_tyChar>> _tyStdStr;
+
+  static const bool s_fThrowOnUnicodeOverflow = true; // By default we throw when a unicode character value overflows the representation.
+
+  static const _tyChar s_tcLeftSquareBr = u8'[';
+  static const _tyChar s_tcRightSquareBr = u8']';
+  static const _tyChar s_tcLeftCurlyBr = u8'{';
+  static const _tyChar s_tcRightCurlyBr = u8'}';
+  static const _tyChar s_tcColon = u8':';
+  static const _tyChar s_tcComma = u8',';
+  static const _tyChar s_tcPeriod = u8'.';
+  static const _tyChar s_tcDoubleQuote = u8'"';
+  static const _tyChar s_tcBackSlash = u8'\\';
+  static const _tyChar s_tcForwardSlash = u8'/';
+  static const _tyChar s_tcMinus = u8'-';
+  static const _tyChar s_tcPlus = u8'+';
+  static const _tyChar s_tc0 = u8'0';
+  static const _tyChar s_tc1 = u8'1';
+  static const _tyChar s_tc2 = u8'2';
+  static const _tyChar s_tc3 = u8'3';
+  static const _tyChar s_tc4 = u8'4';
+  static const _tyChar s_tc5 = u8'5';
+  static const _tyChar s_tc6 = u8'6';
+  static const _tyChar s_tc7 = u8'7';
+  static const _tyChar s_tc8 = u8'8';
+  static const _tyChar s_tc9 = u8'9';
+  static const _tyChar s_tca = u8'a';
+  static const _tyChar s_tcb = u8'b';
+  static const _tyChar s_tcc = u8'c';
+  static const _tyChar s_tcd = u8'd';
+  static const _tyChar s_tce = u8'e';
+  static const _tyChar s_tcf = u8'f';
+  static const _tyChar s_tcA = u8'A';
+  static const _tyChar s_tcB = u8'B';
+  static const _tyChar s_tcC = u8'C';
+  static const _tyChar s_tcD = u8'D';
+  static const _tyChar s_tcE = u8'E';
+  static const _tyChar s_tcF = u8'F';
+  static const _tyChar s_tct = u8't';
+  static const _tyChar s_tcr = u8'r';
+  static const _tyChar s_tcu = u8'u';
+  static const _tyChar s_tcl = u8'l';
+  static const _tyChar s_tcs = u8's';
+  static const _tyChar s_tcn = u8'n';
+  static const _tyChar s_tcBackSpace = u8'\b';
+  static const _tyChar s_tcFormFeed = u8'\f';
+  static const _tyChar s_tcNewline = u8'\n';
+  static const _tyChar s_tcCarriageReturn = u8'\r';
+  static const _tyChar s_tcTab = u8'\t';
+  static const _tyChar s_tcSpace = u8' ';
+  static const _tyChar s_tcDollarSign = u8'$';
+  static constexpr _tyLPCSTR s_szCRLF = u8"\r\n";
+  static const _tyChar s_tcFirstUnprintableChar = u8'\01';
+  static const _tyChar s_tcLastUnprintableChar = u8'\37';
+  static constexpr _tyLPCSTR s_szPrintableWhitespace = u8"\t\n\r";
+  static constexpr _tyLPCSTR s_szEscapeStringChars = u8"\\\"\b\f\t\n\r";
+  // The formatting command to format a single character using printf style.
+  static constexpr const char *s_szFormatChar = "%c";
+
+  static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
+
+  static bool FIsWhitespace(_tyChar _tc)
+  {
+    return ((u8' ' == _tc) || (u8'\t' == _tc) || (u8'\n' == _tc) || (u8'\r' == _tc));
+  }
+  static bool FIsIllegalChar(_tyChar _tc)
+  {
+    return !_tc;
+  }
+  static size_t StrLen(_tyLPCSTR _psz)
+  {
+    return strlen((const _tyCharStd*)_psz);
+  }
+  static size_t StrNLen(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
+  {
+    return __BIENUTIL_NAMESPACE StrNLen(_psz, _stLen);
+  }
+  static size_t StrCSpn(_tyLPCSTR _psz, _tyLPCSTR _pszCharSet)
+  {
+    return strcspn((const _tyCharStd*)_psz, (const _tyCharStd*)_pszCharSet);
+  }
+  static size_t StrCSpn(_tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet)
+  {
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _tcBegin, _tcEnd, _pszCharSet);
+  }
+  static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
+  {
+    return __BIENUTIL_NAMESPACE StrRSpn(_pszBegin, _pszEnd, _pszSet);
+  }
+  static void MemSet(_tyLPSTR _psz, _tyChar _tc, size_t _n)
+  {
+    (void)memset(_psz, _tc, _n);
+  }
+  static int Snprintf(_tyLPSTR _psz, size_t _n, _tyLPCSTR _pszFmt, ...)
+  {
+    va_list ap;
+    va_start(ap, _pszFmt);
+    int iRet = ::vsnprintf((_tyCharStd*)_psz, _n, (const _tyCharStd*)_pszFmt, ap);
+    va_end(ap);
+    VerifyThrow(iRet >= 0);
+    return iRet;
+  }
+};
+
+// JsonCharTraits< char16_t > : Traits for 16bit char representation. Uses the Windows wc...() methods where possible.
+template <>
+struct JsonCharTraits<char16_t>
+{
+  typedef char16_t _tyChar;
+  typedef char16_t _tyPersistAsChar; // This is a hint and each file object can persist as it likes.
+#ifdef BIEN_WCHAR_16BIT
+  typedef wchar_t _tyCharStd; // The char we need to convert to to call standard string methods.
+#endif //BIEN_WCHAR_16BIT
+  typedef _tyChar *_tyLPSTR;
+  typedef const _tyChar *_tyLPCSTR;
+  typedef StrWRsv<std::basic_string<_tyChar>> _tyStdStr;
+
+  static const bool s_fThrowOnUnicodeOverflow = true; // By default we throw when a unicode character value overflows the representation.
+
+  static const _tyChar s_tcLeftSquareBr = u'[';
+  static const _tyChar s_tcRightSquareBr = u']';
+  static const _tyChar s_tcLeftCurlyBr = u'{';
+  static const _tyChar s_tcRightCurlyBr = u'}';
+  static const _tyChar s_tcColon = u':';
+  static const _tyChar s_tcComma = u',';
+  static const _tyChar s_tcPeriod = u'.';
+  static const _tyChar s_tcDoubleQuote = u'"';
+  static const _tyChar s_tcBackSlash = u'\\';
+  static const _tyChar s_tcForwardSlash = u'/';
+  static const _tyChar s_tcMinus = u'-';
+  static const _tyChar s_tcPlus = u'+';
+  static const _tyChar s_tc0 = u'0';
+  static const _tyChar s_tc1 = u'1';
+  static const _tyChar s_tc2 = u'2';
+  static const _tyChar s_tc3 = u'3';
+  static const _tyChar s_tc4 = u'4';
+  static const _tyChar s_tc5 = u'5';
+  static const _tyChar s_tc6 = u'6';
+  static const _tyChar s_tc7 = u'7';
+  static const _tyChar s_tc8 = u'8';
+  static const _tyChar s_tc9 = u'9';
+  static const _tyChar s_tca = u'a';
+  static const _tyChar s_tcb = u'b';
+  static const _tyChar s_tcc = u'c';
+  static const _tyChar s_tcd = u'd';
+  static const _tyChar s_tce = u'e';
+  static const _tyChar s_tcf = u'f';
+  static const _tyChar s_tcA = u'A';
+  static const _tyChar s_tcB = u'B';
+  static const _tyChar s_tcC = u'C';
+  static const _tyChar s_tcD = u'D';
+  static const _tyChar s_tcE = u'E';
+  static const _tyChar s_tcF = u'F';
+  static const _tyChar s_tct = u't';
+  static const _tyChar s_tcr = u'r';
+  static const _tyChar s_tcu = u'u';
+  static const _tyChar s_tcl = u'l';
+  static const _tyChar s_tcs = u's';
+  static const _tyChar s_tcn = u'n';
+  static const _tyChar s_tcBackSpace = u'\b';
+  static const _tyChar s_tcFormFeed = u'\f';
+  static const _tyChar s_tcNewline = u'\n';
+  static const _tyChar s_tcCarriageReturn = u'\r';
+  static const _tyChar s_tcTab = u'\t';
+  static const _tyChar s_tcSpace = u' ';
+  static const _tyChar s_tcDollarSign = u'$';
+  static constexpr _tyLPCSTR s_szCRLF = u"\r\n";
+  static const _tyChar s_tcFirstUnprintableChar = u'\01';
+  static const _tyChar s_tcLastUnprintableChar = u'\37';
+  static constexpr _tyLPCSTR s_szPrintableWhitespace = u"\t\n\r";
+  static constexpr _tyLPCSTR s_szEscapeStringChars = u"\\\"\b\f\t\n\r";
+  // The formatting command to format a single character using printf style.
+  static constexpr const char *s_szFormatChar = "%lc";
+
+  static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
+
+  static bool FIsWhitespace(_tyChar _tc)
+  {
+    return ((u' ' == _tc) || (u'\t' == _tc) || (u'\n' == _tc) || (u'\r' == _tc));
+  }
+  static bool FIsIllegalChar(_tyChar _tc)
+  {
+    return !_tc;
+  }
+  static size_t StrLen(_tyLPCSTR _psz)
+  {
+#ifdef BIEN_WCHAR_16BIT
+    return wcslen((_tyCharStd*)_psz);
+#else //!BIEN_WCHAR_16BIT
+    return __BIENUTIL_NAMESPACE StrNLen(_psz);
+#endif //!BIEN_WCHAR_16BIT
+  }
+  static size_t StrNLen(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
+  {
+    return __BIENUTIL_NAMESPACE StrNLen(_psz, _stLen);
+  }
+  static size_t StrCSpn(_tyLPCSTR _psz, _tyLPCSTR _pszCharSet)
+  {
+#ifdef BIEN_WCHAR_16BIT
+    return wcscspn((const _tyCharStd*)_psz, (const _tyCharStd*)_pszCharSet);
+#else //!BIEN_WCHAR_16BIT
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _pszCharSet);
+#endif //!BIEN_WCHAR_16BIT
+  }
+  static size_t StrCSpn(_tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet)
+  {
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _tcBegin, _tcEnd, _pszCharSet);
+  }
+  static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
+  {
+    return __BIENUTIL_NAMESPACE StrRSpn(_pszBegin, _pszEnd, _pszSet);
+  }
+  static void MemSet(_tyLPSTR _psz, _tyChar _tc, size_t _n)
+  {
+#ifdef BIEN_WCHAR_16BIT
+    (void)wmemset( (_tyCharStd*)_psz, (_tyCharStd)_tc, _n );
+#else //!BIEN_WCHAR_16BIT
+    __BIENUTIL_NAMESPACE MemSet(_psz, _tc, _n);
+#endif //!BIEN_WCHAR_16BIT
+  }
+  static int Snprintf(_tyLPSTR _psz, size_t _n, _tyLPCSTR _pszFmt, ...)
+  {
+    va_list ap;
+    va_start(ap, _pszFmt);
+#ifdef BIEN_WCHAR_16BIT
+    int iRet = ::vswprintf((_tyCharStd*)_psz, _n, (const _tyCharStd*)_pszFmt, ap);
+#else //!BIEN_WCHAR_16BIT
+    static_assert( sizeof( _tyChar ) != sizeof( wchar_t ) ); // If this fails then your system is using 16bit wchar_t - the same as Windows and needs to be special cased the same as Windows.
+    // We must convert the string to char32_t and then call vswprintf() and then convert back:
+    wchar_t rgwcBuf = (wchar_t*)alloca( _n * sizeof(wchar_t));
+    size_t stLenFmt = StrNLen( _pszFmt );
+    wchar_t * rgwcFmtConv = (wchar_t*)alloca( stLenFmt * sizeof(wchar_t));
+    ConvertAcsiiString( rgwcFmtConv, stLenFmt, _pszFmt );
+    int iRet = ::vswprintf(rgwcBuf, _n, _pszFmt, ap);
+    Assert( iRet >= 0 );
+    if ( iRet >= 0 )
+      ConvertAsciiString( _psz, (size_t)iRet, rgwcBuf );
+#endif //!BIEN_WCHAR_16BIT
+    va_end(ap);
+    VerifyThrow(iRet >= 0);
+    return iRet;
+  }
+};
+
+// JsonCharTraits< char32_t > : Traits for 16bit char representation. Uses the Windows wc...() methods where possible.
+template <>
+struct JsonCharTraits<char32_t>
+{
+  typedef char32_t _tyChar;
+  typedef char32_t _tyPersistAsChar; // This is a hint and each file object can persist as it likes.
+#ifdef BIEN_WCHAR_32BIT
+  typedef wchar_t _tyCharStd; // The char we need to convert to to call standard string methods.
+#endif //BIEN_WCHAR_32BIT
+  typedef _tyChar *_tyLPSTR;
+  typedef const _tyChar *_tyLPCSTR;
+  typedef StrWRsv<std::basic_string<_tyChar>> _tyStdStr;
+
+  static const bool s_fThrowOnUnicodeOverflow = true; // By default we throw when a unicode character value overflows the representation.
+
+  static const _tyChar s_tcLeftSquareBr = U'[';
+  static const _tyChar s_tcRightSquareBr = U']';
+  static const _tyChar s_tcLeftCurlyBr = U'{';
+  static const _tyChar s_tcRightCurlyBr = U'}';
+  static const _tyChar s_tcColon = U':';
+  static const _tyChar s_tcComma = U',';
+  static const _tyChar s_tcPeriod = U'.';
+  static const _tyChar s_tcDoubleQuote = U'"';
+  static const _tyChar s_tcBackSlash = U'\\';
+  static const _tyChar s_tcForwardSlash = U'/';
+  static const _tyChar s_tcMinus = U'-';
+  static const _tyChar s_tcPlus = U'+';
+  static const _tyChar s_tc0 = U'0';
+  static const _tyChar s_tc1 = U'1';
+  static const _tyChar s_tc2 = U'2';
+  static const _tyChar s_tc3 = U'3';
+  static const _tyChar s_tc4 = U'4';
+  static const _tyChar s_tc5 = U'5';
+  static const _tyChar s_tc6 = U'6';
+  static const _tyChar s_tc7 = U'7';
+  static const _tyChar s_tc8 = U'8';
+  static const _tyChar s_tc9 = U'9';
+  static const _tyChar s_tca = U'a';
+  static const _tyChar s_tcb = U'b';
+  static const _tyChar s_tcc = U'c';
+  static const _tyChar s_tcd = U'd';
+  static const _tyChar s_tce = U'e';
+  static const _tyChar s_tcf = U'f';
+  static const _tyChar s_tcA = U'A';
+  static const _tyChar s_tcB = U'B';
+  static const _tyChar s_tcC = U'C';
+  static const _tyChar s_tcD = U'D';
+  static const _tyChar s_tcE = U'E';
+  static const _tyChar s_tcF = U'F';
+  static const _tyChar s_tct = U't';
+  static const _tyChar s_tcr = U'r';
+  static const _tyChar s_tcu = U'U';
+  static const _tyChar s_tcl = U'l';
+  static const _tyChar s_tcs = U's';
+  static const _tyChar s_tcn = U'n';
+  static const _tyChar s_tcBackSpace = U'\b';
+  static const _tyChar s_tcFormFeed = U'\f';
+  static const _tyChar s_tcNewline = U'\n';
+  static const _tyChar s_tcCarriageReturn = U'\r';
+  static const _tyChar s_tcTab = U'\t';
+  static const _tyChar s_tcSpace = U' ';
+  static const _tyChar s_tcDollarSign = U'$';
+  static constexpr _tyLPCSTR s_szCRLF = U"\r\n";
+  static const _tyChar s_tcFirstUnprintableChar = U'\01';
+  static const _tyChar s_tcLastUnprintableChar = U'\37';
+  static constexpr _tyLPCSTR s_szPrintableWhitespace = U"\t\n\r";
+  static constexpr _tyLPCSTR s_szEscapeStringChars = U"\\\"\b\f\t\n\r";
+  // The formatting command to format a single character using printf style.
+  static constexpr const char *s_szFormatChar = "%lc";
+
+  static const int s_knMaxNumberLength = 512; // Yeah this is absurd but why not?
+
+  static bool FIsWhitespace(_tyChar _tc)
+  {
+    return ((U' ' == _tc) || (U'\t' == _tc) || (U'\n' == _tc) || (U'\r' == _tc));
+  }
+  static bool FIsIllegalChar(_tyChar _tc)
+  {
+    return !_tc;
+  }
+  static size_t StrLen(_tyLPCSTR _psz)
+  {
+#ifdef BIEN_WCHAR_32BIT
+    return wcslen((const _tyCharStd*)_psz);
+#else //!BIEN_WCHAR_32BIT
+    return __BIENUTIL_NAMESPACE StrNLen(_psz);
+#endif //!BIEN_WCHAR_32BIT
+  }
+  static size_t StrNLen(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
+  {
+    return __BIENUTIL_NAMESPACE StrNLen(_psz, _stLen);
+  }
+  static size_t StrCSpn(_tyLPCSTR _psz, _tyLPCSTR _pszCharSet)
+  {
+#ifdef BIEN_WCHAR_32BIT
+    return wcscspn((const _tyCharStd*)_psz, (const _tyCharStd*)_pszCharSet);
+#else //!BIEN_WCHAR_32BIT
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _pszCharSet);
+#endif //!BIEN_WCHAR_32BIT
+  }
+  static size_t StrCSpn(_tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet)
+  {
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _tcBegin, _tcEnd, _pszCharSet);
+  }
+  static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
+  {
+    return __BIENUTIL_NAMESPACE StrRSpn(_pszBegin, _pszEnd, _pszSet);
+  }
+  static void MemSet(_tyLPSTR _psz, _tyChar _tc, size_t _n)
+  {
+#ifdef BIEN_WCHAR_32BIT
+    (void)wmemset((_tyCharStd*)_psz, (_tyCharStd)_tc, _n );
+#else //!BIEN_WCHAR_32BIT
+    __BIENUTIL_NAMESPACE MemSet(_psz, _tc, _n);
+#endif //!BIEN_WCHAR_32BIT
+  }
+  static int Snprintf(_tyLPSTR _rgch, size_t _n, _tyLPCSTR _pszFmt, ...)
+  {
+    va_list ap;
+    va_start(ap, _pszFmt);
+#ifdef BIEN_WCHAR_32BIT
+    int iRet = ::vswprintf((_tyCharStd*)_rgch, _n, (const _tyCharStd*)_pszFmt, ap);
+#else //!BIEN_WCHAR_32BIT
+    static_assert( sizeof( _tyChar ) != sizeof( wchar_t ) ); // If this fails then your system is using 16bit wchar_t - the same as Windows and needs to be special cased the same as Windows.
+    // We must convert the string to char32_t and then call vswprintf() and then convert back:
+    wchar_t * rgwcBuf = (wchar_t*)alloca( _n * sizeof(wchar_t));
+    size_t stLenFmt = StrNLen( _pszFmt );
+    wchar_t * rgwcFmtConv = (wchar_t*)alloca( stLenFmt * sizeof(wchar_t));
+    ConvertAsciiString( rgwcFmtConv, stLenFmt, _pszFmt );
+    int iRet = ::vswprintf(rgwcBuf, _n, rgwcFmtConv, ap);
+    Assert( iRet >= 0 );
+    if ( iRet >= 0 )
+      ConvertAsciiString( _rgch, (min)((size_t)iRet,_n), rgwcBuf );
+#endif //!BIEN_WCHAR_32BIT
+    va_end(ap);
+    VerifyThrow(iRet >= 0);
+    return iRet;
+  }
+};
+
+// JsonCharTraits< wchar_t > : Traits for 16bit(Windows)/32bit(Linux) char representation.
 template <>
 struct JsonCharTraits<wchar_t>
 {
   typedef wchar_t _tyChar;
+#ifdef WIN32
+  typedef wchar_t _tyPersistAsChar; // This is a hint and each file object can persist as it likes.
+#else //!WIN32
   typedef char16_t _tyPersistAsChar; // This is a hint and each file object can persist as it likes.
+#endif
   typedef _tyChar *_tyLPSTR;
   typedef const _tyChar *_tyLPCSTR;
   typedef StrWRsv<std::basic_string<_tyChar>> _tyStdStr;
@@ -379,17 +768,7 @@ struct JsonCharTraits<wchar_t>
   }
   static size_t StrCSpn(_tyLPCSTR _psz, _tyChar _tcBegin, _tyChar _tcEnd, _tyLPCSTR _pszCharSet)
   {
-    _tyLPCSTR pszCur = _psz;
-    for (; !!*pszCur && ((*pszCur < _tcBegin) || (*pszCur >= _tcEnd)); ++pszCur)
-    {
-      // Passed the first test, now ensure it isn't one of the _pszCharSet chars:
-      _tyLPCSTR pszCharSetCur = _pszCharSet;
-      for (; !!*pszCharSetCur && (*pszCharSetCur != *pszCur); ++pszCharSetCur)
-        ;
-      if (!!*pszCharSetCur)
-        break;
-    }
-    return pszCur - _psz;
+    return __BIENUTIL_NAMESPACE StrCSpn(_psz, _tcBegin, _tcEnd, _pszCharSet);
   }
   static size_t StrRSpn(_tyLPCSTR _pszBegin, _tyLPCSTR _pszEnd, _tyLPCSTR _pszSet)
   {
@@ -405,6 +784,7 @@ struct JsonCharTraits<wchar_t>
     va_start(ap, _pszFmt);
     int iRet = ::vswprintf(_psz, _n, _pszFmt, ap);
     va_end(ap);
+    VerifyThrow(iRet >= 0);
     return iRet;
   }
 };
@@ -1157,7 +1537,7 @@ public:
   static const _tyFilePos s_knGrowFileByBytes = 65536 * 4;
 
   JsonMemMappedOutputStream() = default;
-  ~JsonMemMappedOutputStream()
+  ~JsonMemMappedOutputStream() noexcept(false)
   {
     bool fInUnwinding = !!std::uncaught_exceptions();
     (void)Close(!fInUnwinding); // Only throw on error from close if we are not currently unwinding.
@@ -1221,7 +1601,7 @@ public:
   }
 
   // Allow throwing on error because closing actually does something and we need to know if it succeeds.
-  int Close( bool _fThrowOnError )
+  int Close( bool _fThrowOnError ) noexcept(false)
   {
     if ( !m_fmoFile.FIsOpen() )
     {
@@ -2370,11 +2750,12 @@ public:
   }
   // Value conversion only:
   template <class t_tyValueChar>
-  void WriteStringValue(_tyLPCSTR _pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) requires(!std::is_same_v<t_tyValueChar, _tyChar>)
+  void WriteStringValue(_tyLPCSTR _pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1)
+    requires(!std::is_same_v<t_tyValueChar, _tyChar>)
   {
     if (_stLenKey < 0)
       _stLenKey = StrNLen(_pszKey);
-    std::basic_string<t_tyValueChar> strConvertValue;
+    _tyStdStr strConvertValue;
     ConvertString(strConvertValue, _pszValue, _stLenValue);
     _WriteValue(ejvtString, _pszKey, (size_t)_stLenKey, &strConvertValue[0], strConvertValue.length());
   }
@@ -2382,14 +2763,18 @@ public:
   template <class t_tyKeyChar, class t_tyValueChar>
   void WriteStringValue(const t_tyKeyChar *_pszKey, ssize_t _stLenKey, const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) requires(!std::is_same_v<t_tyKeyChar, _tyChar> && !std::is_same_v<t_tyValueChar, _tyChar>)
   {
-    std::basic_string<t_tyKeyChar> strConvertKey;
+    _tyStdStr strConvertKey;
     ConvertString(strConvertKey, _pszKey, _stLenKey);
-    std::basic_string<t_tyValueChar> strConvertValue;
+    _tyStdStr strConvertValue;
     ConvertString(strConvertValue, _pszValue, _stLenValue);
     _WriteValue(ejvtString, &strConvertKey[0], strConvertKey.length(), &strConvertValue[0], strConvertValue.length());
   }
+
+  // For printf formatting directly into a value we can only support two character types natively, char and wchar_t.
+  // This is fine because the arguments and formating commands are only correct for those types.
   template <class t_tyConvertFromChar>
-  void PrintfStringKeyValue(const t_tyConvertFromChar *_pszKey, const t_tyConvertFromChar *_pszValue, ...)
+  void PrintfStringKeyValue(_tyLPCSTR _pszKey, const t_tyConvertFromChar *_pszValue, ...)
+    requires( is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t > ) // reuse this template easily while also limiting application.
   {
     va_list ap;
     va_start(ap, _pszValue);
@@ -2405,7 +2790,8 @@ public:
     va_end(ap);
   }
   template <class t_tyConvertFromChar>
-  void VPrintfStringKeyValue(const t_tyConvertFromChar *_pszKey, const t_tyConvertFromChar *_pszValue, va_list _ap)
+  void VPrintfStringKeyValue(_tyLPCSTR _pszKey, const t_tyConvertFromChar *_pszValue, va_list _ap)
+    requires(is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t >) // reuse this template easily while also limiting application.
   {
     std::basic_string<t_tyConvertFromChar> str;
     VPrintfStdStr(str, _pszValue, _ap);
@@ -2535,7 +2921,7 @@ public:
   void WriteStringValue(const t_tyValueChar *_pszValue, ssize_t _stLenValue = -1) 
     requires(!std::is_same_v<t_tyValueChar, _tyChar>)
   {
-    std::basic_string<t_tyValueChar> strConvertValue;
+    _tyStdStr strConvertValue;
     ConvertString(strConvertValue, _pszValue, _stLenValue);
     _WriteValue(ejvtString, &strConvertValue[0], strConvertValue.length());
   }
@@ -2564,8 +2950,9 @@ public:
   {
     _WriteValue(ejvtString, std::move(_rrstrVal));
   }
-  // We aren't allowing string conversion with the printf stuff currently.
-  void PrintfStringValue(_tyLPCSTR _pszValue, ...)
+  template <class t_tyConvertFromChar>
+  void PrintfStringValue(const t_tyConvertFromChar* _pszValue, ...)
+    requires(is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t >) // reuse this template easily while also limiting application.
   {
     va_list ap;
     va_start(ap, _pszValue);
@@ -2580,11 +2967,13 @@ public:
     }
     va_end(ap);
   }
-  void VPrintfStringValue(_tyLPCSTR _pszValue, va_list _ap)
+  template <class t_tyConvertFromChar>
+  void VPrintfStringValue(const t_tyConvertFromChar* _pszValue, va_list _ap)
+    requires(is_same_v< t_tyConvertFromChar, char > || is_same_v< t_tyConvertFromChar, wchar_t >) // reuse this template easily while also limiting application.
   {
-    _tyStdStr str;
+    std::basic_string<t_tyConvertFromChar> str;
     VPrintfStdStr(str, _pszValue, _ap);
-    _WriteValue(ejvtString, &str[0], str.length());
+    WriteStringValue(&str[0], str.length());
   }
   void WriteTimeStringValue(time_t const &_tt)
   {
@@ -2739,7 +3128,8 @@ public:
   virtual void WriteNullValue(_tyLPCSTR _pszKey) = 0;
   virtual void WriteBoolValue(_tyLPCSTR _pszKey, bool _f) = 0;
   virtual void WriteValueType(_tyLPCSTR _pszKey, EJsonValueType _jvt) = 0;
-  virtual void PrintfStringKeyValue(_tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ...) = 0;
+  virtual void PrintfStringKeyValue(_tyLPCSTR _pszKey, const char * _pszValue, ...) = 0;
+  virtual void PrintfStringKeyValue(_tyLPCSTR _pszKey, const wchar_t * _pszValue, ...) = 0;
   virtual void WriteValue(_tyLPCSTR _pszKey, uint8_t _by) = 0;
   virtual void WriteValue(_tyLPCSTR _pszKey, int8_t _sby) = 0;
   virtual void WriteValue(_tyLPCSTR _pszKey, uint16_t _us) = 0;
@@ -2760,7 +3150,8 @@ public:
   {
     WriteStringValue(&_rstrVal[0], _rstrVal.length());
   }
-  virtual void PrintfStringValue(_tyLPCSTR _pszValue, ...) = 0;
+  virtual void PrintfStringValue( const char * _pszValue, ...) = 0;
+  virtual void PrintfStringValue( const wchar_t * _pszValue, ...) = 0;
   virtual void WriteValue(uint8_t _by) = 0;
   virtual void WriteValue(int8_t _sby) = 0;
   virtual void WriteValue(uint16_t _us) = 0;
@@ -2848,7 +3239,14 @@ public:
   {
     _tyBase::WriteValueType(_pszKey, _jvt);
   }
-  void PrintfStringKeyValue(_tyLPCSTR _pszKey, _tyLPCSTR _pszValue, ...) override
+  void PrintfStringKeyValue(_tyLPCSTR _pszKey, const char * _pszValue, ...) override
+  {
+    va_list ap;
+    va_start(ap, _pszValue);
+    _tyBase::VPrintfStringKeyValue(_pszKey, _pszValue, ap);
+    va_end(ap);
+  }
+  void PrintfStringKeyValue(_tyLPCSTR _pszKey, const wchar_t* _pszValue, ...) override
   {
     va_list ap;
     va_start(ap, _pszValue);
@@ -2912,7 +3310,14 @@ public:
   {
     _tyBase::WriteStringValue(_pszValue, _stLen);
   }
-  void PrintfStringValue(_tyLPCSTR _pszValue, ...) override
+  void PrintfStringValue(const char * _pszValue, ...) override
+  {
+    va_list ap;
+    va_start(ap, _pszValue);
+    _tyBase::VPrintfStringValue(_pszValue, ap);
+    va_end(ap);
+  }
+  void PrintfStringValue(const wchar_t* _pszValue, ...) override
   {
     va_list ap;
     va_start(ap, _pszValue);

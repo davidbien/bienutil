@@ -185,7 +185,7 @@ public:
   FreeT(t_tyT* _pt)
     : m_pt(_pt)
   { }
-  ~FreeT()
+  ~FreeT() noexcept(false)
   {
     Clear();
   }
@@ -205,7 +205,7 @@ public:
   {
     std::swap(m_pt, _r.m_pt);
   }
-  void Clear()
+  void Clear() noexcept(false)
   {
     if (m_pt)
     {

@@ -64,7 +64,7 @@ private:
   typedef _alloc_base< t_TyEl, t_TyAllocator >      _TyAllocBase;
 public:
   
-  typedef t_TyEl size_type;
+  typedef size_t size_type;
   typedef t_TyAllocator _TyAllocator;
   typedef t_TyEl        _TyEl;
 
