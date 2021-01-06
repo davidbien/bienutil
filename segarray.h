@@ -35,7 +35,7 @@ public:
   typedef t_tySizeType _tySizeType;
   static_assert(!std::numeric_limits<_tySizeType>::is_signed);
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
-  static constexpr _tySizeType s_knbySizeSegment = (std::max)( sizeof(_tyT) * 16, size_t(4096) );
+  static const _tySizeType s_knbySizeSegment;// = (std::max)(sizeof(t_tyT) * 16, size_t(4096));
  
   SegArray()
     : m_nbySizeSegment(s_knbySizeSegment - (s_knbySizeSegment % sizeof(_tyT))) // even number of t_tyT's.
@@ -754,6 +754,10 @@ protected:
   _tySizeType m_nElements{};
   _tySizeType m_nbySizeSegment{};
 };
+
+template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType>
+inline const t_tySizeType
+SegArray< t_tyT, t_tyFOwnLifetime, t_tySizeType >::s_knbySizeSegment = (std::max)(sizeof(t_tyT) * 16, size_t(4096));
 
 // SegArrayRotatingBuffer:
 // This object stores a "current base position" with the SegArray. Nothing before this base position is accessible anymore - but some of it may still

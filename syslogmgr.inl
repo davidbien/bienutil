@@ -556,7 +556,7 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   // We must make sure we can initialize the file before we declare that it is opened.
   std::unique_ptr<_tyJsonOutputStream> pjosThreadLog;
   pjosThreadLog = std::make_unique<_tyJsonOutputStream>();
-  pjosThreadLog->Open(strLogFile.c_str());
+  pjosThreadLog->Open(strLogFile.c_str(), FileSharing::ShareRead);
   _tyJsonFormatSpec jfs; // Make sure we pretty print the JSON to make it readable right away.
   jfs.m_nWhitespacePerIndent = 2;
   jfs.m_fEscapePrintableWhitespace = true;

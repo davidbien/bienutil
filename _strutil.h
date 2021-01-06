@@ -249,7 +249,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 	_tyChar rgcFirstTry[ 256 ];
 	size_t stBufSize = 256;
 	static constexpr size_t kst2ndTryBufSize = 8192;
-	static constexpr size_t kstMaxBufSize = ( 1 << 24 ); // arbitrary but large.
+	static constexpr size_t kstMaxBufSize = ( 1ull << 24 ); // arbitrary but large.
 	_tyChar * pcBuf = rgcFirstTry;
 	for (;;)
 	{

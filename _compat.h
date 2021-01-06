@@ -134,6 +134,23 @@ typedef int vtyFileHandle; // file descriptor.
 static const vtyFileHandle vkhInvalidFileHandle = -1;
 #endif
 
+// Sharing:
+enum class FileSharing : uint8_t
+{
+  NoSharing = 0x00,
+  ShareRead = 0x01,
+  ShareWrite = 0x02,
+  ShareReadWrite = 0x03
+};
+FileSharing operator & (FileSharing _l, FileSharing _r)
+{
+  return (FileSharing)(uint8_t(_l) & uint8_t(_r));
+}
+FileSharing operator | (FileSharing _l, FileSharing _r)
+{
+  return (FileSharing)(uint8_t(_l) | uint8_t(_r));
+}
+
 // A null mapping value for pointers.
 static void * vkpvNullMapping = (void*)-1;
 
@@ -187,14 +204,18 @@ inline vtyFileHandle OpenReadOnlyFile( const char * _pszFileName )
     return hFile;
 }
 // This will create or truncate an existing the file specified by _pszFileName.
-inline vtyFileHandle CreateWriteOnlyFile( const char * _pszFileName )
+inline vtyFileHandle CreateWriteOnlyFile( const char * _pszFileName, FileSharing _fs = FileSharing::NoSharing)
 {
 #ifdef WIN32
-    vtyFileHandle hFile = ::CreateFile( _pszFileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
+  DWORD dwShare = (FileSharing::ShareRead == (FileSharing::ShareRead & _fs) ? FILE_SHARE_READ : 0) | 
+                  (FileSharing::ShareWrite == (FileSharing::ShareWrite & _fs) ? FILE_SHARE_WRITE : 0);
+  DWORD dwAccess = GENERIC_WRITE;
+  vtyFileHandle hFile = ::CreateFile( _pszFileName, dwAccess, dwShare, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
 #elif defined( __APPLE__ ) || defined( __linux__ )
-    vtyFileHandle hFile = open( _pszFileName, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
+  // REVIEW:<dbien>: By default it looks like Linux files are shared for read at least. Need to decide if we need to change this and honor the _fs flags.
+  vtyFileHandle hFile = open( _pszFileName, O_WRONLY | O_CREAT | O_TRUNC, 0666 );
 #endif
-    return hFile;
+  return hFile;
 }
 // This will create or truncate an existing the file specified by _pszFileName.
 inline vtyFileHandle CreateReadWriteFile( const char * _pszFileName )

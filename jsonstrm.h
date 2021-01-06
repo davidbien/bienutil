@@ -1414,10 +1414,10 @@ public:
     return m_foFile.FIsOpen();
   }
   // Throws on open failure. This object owns the lifetime of the file descriptor.
-  void Open(const char *_szFilename)
+  void Open(const char *_szFilename, FileSharing _fs = FileSharing::NoSharing)
   {
     m_szExceptionString.clear();
-    m_foFile.SetHFile( CreateWriteOnlyFile( _szFilename ) );
+    m_foFile.SetHFile( CreateWriteOnlyFile( _szFilename, _fs) );
     if (!FOpened())
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to CreateWriteOnlyFile() file [%s]", _szFilename);
     m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.

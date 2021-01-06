@@ -363,7 +363,7 @@ public:
       {
         *pEl = ~*pEl;
       }
-      t_TyEl  eMask = ~(0x0u) << ( ms_kiElSizeBits - ( m_kstSize * ms_kiElSizeBits - m_kstBits ) );
+      t_TyEl  eMask = ~t_TyEl(0) << ( ms_kiElSizeBits - ( m_kstSize * ms_kiElSizeBits - m_kstBits ) );
       *pEl = ~( *pEl | eMask );
     }
   }
