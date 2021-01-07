@@ -83,6 +83,25 @@ struct TIsStringView< std::basic_string_view< t_tyChar, t_tyCharTraits > >
 template < class t_ty >
 inline constexpr bool TIsStringView_v = TIsStringView< t_ty >::value;
 
+// StringTransparentHash:
+// Allows lookup within an unordered_set by a string_view or char*. I like.
+template < class t_TyChar, class t_TyCharTraits = std::char_traits< t_TyChar >, class t_TyAllocator = std::allocator< t_TyChar > >
+struct StringTransparentHash
+{
+	typedef t_TyChar _TyChar;
+	typedef t_TyCharTraits _TyCharTraits;
+	typedef t_TyAllocator _TyAllocator;
+	using _TyStringView = basic_string_view< _TyChar, _TyCharTraits >;
+	using _TyString = basic_string< _TyChar, _TyCharTraits >;
+  using hash_type = std::hash<_TyStringView>;
+  using is_transparent = void;
+
+  size_t operator()(const _TyChar * _psz) const { return hash_type{}(_psz); }
+  size_t operator()(_TyStringView _sv) const { return hash_type{}(_sv); }
+  size_t operator()(_TyString const& _str) const { return hash_type{}(_str); }
+};
+
+
 template < class t_tyChar >
 void MemSet( t_tyChar * _rgcBuf, t_tyChar _cFill, size_t _nValues )
 {
