@@ -371,6 +371,7 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 	_rNum = 0;
 	if (!_psz || !*_psz)
 	{
+		::SetLastErrNo( vkerrInvalidArgument );
 		if (_fThrowOnError)
 			THROWNAMEDEXCEPTION("Null or empty string passed.");
 		return -1;
@@ -384,6 +385,7 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 		int iCur = int(*pszCur) - int('0'); // using the fact that '0' is same in all character types.
 		if ((iCur < 0) || (iCur > 9))
 		{
+			::SetLastErrNo( vkerrInvalidArgument );
 			if (_fThrowOnError)
 				THROWNAMEDEXCEPTION("Non-digit passed.");
 			return -2;
@@ -393,9 +395,60 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 		_rNum += iCur;
 		if (_rNum < numBefore) // overflow.
 		{
+			::SetLastErrNo( vkerrOverflow );
 			if (_fThrowOnError)
 				THROWNAMEDEXCEPTION("Overflow.");
-			return -3;
+			return -1;
+		}
+	}
+	return 0;
+}
+
+// This one accepts a radix and a maximum.
+template <class t_tyChar, class t_tyNum>
+int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, const t_tyNum _kNumMax, bool _fThrowOnError)
+{
+	Assert( _stRadix <= 36 ); // We employ 0->9,A->Z(a->z).
+	typedef t_tyChar _tyChar;
+	_rNum = 0;
+	if (!_psz || !*_psz || ( _stRadix > 36 ) )
+	{
+		::SetLastErrNo( vkerrInvalidArgument );
+		if (_fThrowOnError)
+			THROWNAMEDEXCEPTION( ( _stRadix > 36 ) ? "Radix > 36." : "Null or empty string passed." );
+		return -1;
+	}
+	if (_sstLen <= 0)
+		_sstLen = StrNLen(_psz);
+	const int kiRadix = (int)_stRadix;
+	const _tyChar *pszCur = _psz;
+	const _tyChar *const pszEnd = pszCur + _sstLen;
+	for (; pszEnd != pszCur; ++pszCur)
+	{
+		int iCur;
+		if ( int(*pszCur) > int('a') )
+			iCur = int(*pszCur) - int('a') + 10;
+		else
+		if ( int(*pszCur) > int('A') )
+			iCur = int(*pszCur) - int('A') + 10;
+		else
+			iCur = int(*pszCur) - int('0');
+		if ((iCur < 0) || (iCur > kiRadix))
+		{
+			::SetLastErrNo( vkerrInvalidArgument );
+			if (_fThrowOnError)
+				THROWNAMEDEXCEPTION("Invalid character passed.");			
+			return -1;
+		}
+		t_tyNum numBefore = _rNum;
+		_rNum *= _stRadix;
+		_rNum += iCur;
+		if ( ( _rNum < numBefore ) || ( _rNum > _kNumMax ) ) // overflow.
+		{
+			::SetLastErrNo( vkerrOverflow );
+			if (_fThrowOnError)
+				THROWNAMEDEXCEPTION("Overflow.");
+			return -1;
 		}
 	}
 	return 0;
