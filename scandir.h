@@ -33,9 +33,9 @@ class ScanDirectory
 {
     typedef ScanDirectory _tyThis;
 public:
-    ScanDirectory( const char * _pszDir, t_tySelector const & _selector = t_tySelector() )
+    ScanDirectory( const char * _pszDir, t_tySelector && _selector = t_tySelector() )
         :   m_strDir( _pszDir ),
-            m_selector( _selector )
+            m_selector( std::forward<t_tySelector>( _selector ) )
     {
       if (m_strDir.back() == TChGetFileSeparator<char>() && m_strDir.length() > 1)
       {

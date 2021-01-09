@@ -665,21 +665,24 @@ public:
   }
   // String methods for the current character type.
   template <class t_tyStr>
-  void SetStringValue(t_tyStr const &_rstr) requires ( std::is_same_v< typename t_tyStr::value_type, t_tyChar > )
+  void SetStringValue(t_tyStr const &_rstr) 
+    requires ( sizeof( typename t_tyStr::value_type ) == sizeof( t_tyChar ) )
   {
-    SetStringValue( &_rstr[0], _rstr.length()) ;
+    SetStringValue( (const t_tyChar *)&_rstr[0], _rstr.length()) ;
   }
   template <class t_tyStr>
-  void SetStringValue(t_tyStr &&_rrstr) requires ( std::is_same_v< typename t_tyStr::value_type, t_tyChar > )
+  void SetStringValue(t_tyStr &&_rrstr) 
+    requires ( sizeof( typename t_tyStr::value_type ) == sizeof( t_tyChar ) )
   {
     SetValueType(ejvtString);
-    StrGet() = std::move(_rrstr);
+    StrGet() = std::move( _rrstr );
   }
   // String methods requiring conversion. No reason for the move method since we must convert anyway.
   template <class t_tyStr>
-  void SetStringValue(t_tyStr const &_rstr) requires ( !std::is_same_v< typename t_tyStr::value_type, t_tyChar > )
+  void SetStringValue(t_tyStr const &_rstr) 
+    requires ( sizeof( typename t_tyStr::value_type ) != sizeof( t_tyChar ) )
   {
-    _tyStdStr strConverted;
+    _tyStrWRsv strConverted;
     ConvertString( strConverted, _rstr );
     SetStringValue( std::move( strConverted ) );
   }

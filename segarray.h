@@ -230,21 +230,21 @@ public:
 
   template < class t_tyStringView, class t_tyDataRange >
   bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
-    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
+    requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
     Assert( _rsv.empty() );
     if ( _posBegin == _posEnd )
       return true; // empty result.
     if ( _posBegin / NElsPerSegment() == ( _posEnd - 1 ) / NElsPerSegment() )
     {
-      _rsv = t_tyStringView( &ElGet( _posBegin ), _posEnd - _posBegin );
+      _rsv = t_tyStringView( (const typename t_tyStringView::value_type*)&ElGet( _posBegin ), _posEnd - _posBegin );
       return true;
     }
     return false;
   }
   template < class t_tyStringView, class t_tyDataRange >
   bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
-    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
+    requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
     return FGetStringView( _rdr.begin(), _rdr.end() );
   }
@@ -262,19 +262,19 @@ public:
   }
   template < class t_tyString, class t_tyDataRange >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
-    requires ( std::is_same_v< typename t_tyString::value_type, _tyT > ) // non-converting version.
+    requires ( sizeof( typename t_tyString::value_type ) == sizeof( _tyT ) ) // non-converting version.
   {
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
       return; // empty result.
     VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     _rstr.resize( _posEnd - _posBegin );
-    _CopyStringToBuf( _posBegin, _posEnd, &_rstr[0] );
+    _CopyStringToBuf( _posBegin, _posEnd, (_tyT*)&_rstr[0] );
     Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
   }
   template < class t_tyString, class t_tyDataRange >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
-    requires ( !std::is_same_v< typename t_tyString::value_type, _tyT > ) // converting version.
+    requires ( sizeof( typename t_tyString::value_type ) != sizeof( _tyT ) ) // converting version.
   {
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
@@ -939,7 +939,7 @@ public:
 
   template < class t_tyStringView, class t_tyDataRange >
   bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
-    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
+    requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
     Assert( _rsv.empty() );
     if ( _posBegin == _posEnd )
@@ -951,7 +951,7 @@ public:
   }
   template < class t_tyStringView, class t_tyDataRange >
   bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
-    requires ( std::is_same_v< typename t_tyStringView::value_type, _tyT > )
+    requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
     return FGetStringView( _rdr.begin(), _rdr.end() );
   }
@@ -964,7 +964,7 @@ public:
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
       "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
-    return _tyBase::FGetString( _rstr, _posBegin - nOff, _posEnd - nOff );
+    return _tyBase::GetString( _rstr, _posBegin - nOff, _posEnd - nOff );
   }
   template < class t_tyString, class t_tyDataRange >
   void GetString( t_tyString & _rstr, t_tyDataRange const & _rdr ) const
@@ -1167,7 +1167,9 @@ public:
   // Return true if we were able to populate the string_view, false for string.
   template < class t_tyStrView, class t_tyString > bool
   FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr ) const
-    requires( TIsCharType_v< _tyTRemoveCV > && std::is_same_v< typename t_tyStrView::value_type, _tyTRemoveCV > && std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+    requires( TIsCharType_v< _tyTRemoveCV > && 
+              ( sizeof( typename t_tyStrView::value_type ) == sizeof(_tyTRemoveCV ) ) && 
+              ( sizeof( typename t_tyString::value_type ) == sizeof( _tyTRemoveCV ) ) )
   {
     AssertValid();
     Assert( _rStrView.empty() ); // we expect empties.
@@ -1176,13 +1178,13 @@ public:
       return true; // The empty string view is perfect.
     if ( m_sstLen < 0 )
     {
-      _rStrView = t_tyStrView( m_ptBegin, (_tySizeType)-m_sstLen );
+      _rStrView = t_tyStrView( (const typename t_tyStrView::value_type*)m_ptBegin, (_tySizeType)-m_sstLen );
       return true;
     }
     else
     {
       _rStr.resize( (_tySizeType)m_sstLen );
-      _tySizeType nRead = m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+      _tySizeType nRead = m_psaContainer->Read( m_stBegin, (_tyTRemoveCV*)&_rStr[0], (_tySizeType)m_sstLen );
       Assert( (_tySizeType)m_sstLen == nRead );
       _rStr.resize( nRead );
       return false;
@@ -1192,9 +1194,10 @@ public:
   // If there is no data then it returns false and a null string_view.
   template < class t_tyStrView, class t_tyString > bool
   FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr ) const
-    requires( TIsCharType_v< _tyTRemoveCV > && TIsCharType_v< typename t_tyStrView::value_type > &&
-              !std::is_same_v< _tyTRemoveCV, typename t_tyStrView::value_type > && std::is_same_v< typename t_tyString::value_type, t_tyStrView::value_type > )
+    requires( TIsCharType_v< _tyTRemoveCV > && 
+              ( sizeof( typename t_tyStrView::value_type ) != sizeof(_tyTRemoveCV ) ) )
   {
+    static_assert( sizeof( typename t_tyString::value_type ) == sizeof( typename t_tyStrView::value_type ) );
     AssertValid();
     Assert( _rStrView.empty() ); // we expect empties.
     Assert( _rStr.empty() );
@@ -1219,8 +1222,6 @@ public:
         ptContigBuf = (_tyTRemoveCV*)alloca( stLen * sizeof( _tyTRemoveCV ) );
       const _tySizeType kstRead = m_psaContainer->Read( m_stBegin, ptContigBuf, stLen );
       Assert( kstRead == stLen );
-      if ( stLen > knchMaxAllocaSize )
-        strTempBuf.resize( kstRead );
       stLen = kstRead;
     }
     // Do the conversion:
@@ -1232,28 +1233,27 @@ public:
   // This is only relevant for t_tyT's which are character types.
   // Return true if we were able to populate the string_view, false for string.
   template < class t_tyString > void
-  GetString( t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+  GetString( t_tyString & _rStr  ) const
+    requires( TIsCharType_v< _tyTRemoveCV > && ( sizeof( typename t_tyString::value_type ) == sizeof( _tyTRemoveCV ) ) )
   {
     AssertValid();
     Assert( _rStr.empty() );
     if ( !m_psaContainer || !m_sstLen )
       return; // The empty string is perfect.
     if ( m_sstLen < 0 )
-      _rStr.assign( m_ptBegin, (_tySizeType)-m_sstLen );
+      _rStr.assign( (typename t_tyString::value_type const *)m_ptBegin, (_tySizeType)-m_sstLen );
     else
     {
       _rStr.resize( (_tySizeType)m_sstLen );
-      _tySizeType stRead = m_psaContainer->Read( m_stBegin, &_rStr[0], (_tySizeType)m_sstLen );
+      _tySizeType stRead = m_psaContainer->Read( m_stBegin, (_tyTRemoveCV*)&_rStr[0], (_tySizeType)m_sstLen );
       Assert( stRead == (_tySizeType)m_sstLen );
       _rStr.resize( stRead );
     }
   }
-  // This is the converting method. When there is any data it always returns true and returns a string since it converted the character type.
-  // If there is no data then it returns false and a null string_view.
+  // This is the converting method.
   template < class t_tyString > void
-  GetString( t_tyString & _rStr  )
-    requires( TIsCharType_v< _tyTRemoveCV > && !std::is_same_v< typename t_tyString::value_type, _tyTRemoveCV > )
+  GetString( t_tyString & _rStr  ) const
+    requires( TIsCharType_v< _tyTRemoveCV > && ( sizeof( typename t_tyString::value_type ) != sizeof( _tyTRemoveCV ) ) )
   {
     AssertValid();
     Assert( _rStr.empty() );
@@ -1277,10 +1277,9 @@ public:
       else
         ptContigBuf = (_tyTRemoveCV*)alloca( stLen * sizeof( _tyTRemoveCV ) );
       
-      _rStr.resize( stLen );
       _tySizeType stRead = m_psaContainer->Read( m_stBegin, ptContigBuf, stLen );
       Assert( stRead == stLen );
-      _rStr.resize( stRead );
+      stLen = stRead;
     }
     // Do the conversion:
     ConvertString( _rStr, ptContigBuf, stLen );

@@ -697,21 +697,21 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc32Source,
 // This one should work for both strings and string_views.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires(	std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > )
+	requires(	sizeof( typename t_tyStringSrc::value_type ) == sizeof( typename t_tyStringDest::value_type ) )
 {
-	_rstrDest = _rstrSrc;
+	_rstrDest.assign( (const typename t_tyStringDest::value_type *)&_rstrSrc[0], _rstrSrc.length() );
 }
 // The below should work for all kinds of strings and also when the source is a string view.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc && _rrstrSrc ) 
-	requires ( std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
+	requires(	sizeof( typename t_tyStringSrc::value_type ) == sizeof( typename t_tyStringDest::value_type ) )
 {
 	_rstrDest = std::move( _rrstrSrc );
 }
 // The below will work when the source is a string view as well.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires( !std::is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > && !TIsStringView_v< t_tyStringDest > )
+	requires(	sizeof( typename t_tyStringSrc::value_type ) != sizeof( typename t_tyStringDest::value_type ) )
 {
 	ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
 }
