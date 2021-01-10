@@ -146,6 +146,23 @@ struct unique_variant<std::variant<Ts...>> : filter_duplicates<std::variant<>, T
 template <typename T>
 using unique_variant_t = typename unique_variant<T>::type;
 
+// Concatenation of types onto a variadic template:
+// concatenator_list: Takes a parameter pack at the end and produces the new variadic type.
+template <typename t_TyT1, typename ... >
+struct concatenator_list;
+template < template < typename ... > class t_T, typename... Args0, typename... Args1 >
+struct concatenator_list<t_T<Args0...>, Args1...> {
+  using type = t_T<Args0..., Args1...>;
+};
+
+// concatenator_pack: Takes a variadic template and concatenates its types to produce the new variadic type.
+template <typename t_TyT1, typename t_TyT2 >
+struct concatenator_pack;
+template < template < typename ... > class t_T1, typename... Args0, template < typename ... > class t_T2, typename... Args1 >
+struct concatenator_pack<t_T1<Args0...>, t_T2< Args1...> > {
+  using type = t_T1<Args0..., Args1...>;
+};
+
 __BIENUTIL_END_NAMESPACE
 
 #endif //___UTIL_H__BIEN__

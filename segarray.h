@@ -594,7 +594,7 @@ public:
 
   // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
   template < class t_tyApply >
-  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply )
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rapply )
   {
     AssertValid();
     Assert( _posEnd >= _posBegin );
@@ -609,14 +609,14 @@ public:
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       _tyT * pBegin = &ElGet(stCurApply);
-      _apply( pBegin, pBegin + stMin );
+      std::forward<t_tyApply>(_rrapply)( pBegin, pBegin + stMin );
       nElsLeft -= stMin;
       stCurApply += stMin;
     }
   }
   // const version.
   template < class t_tyApply >
-  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply ) const
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply ) const
   {
     AssertValid();
     Assert( _posEnd >= _posBegin );
@@ -631,7 +631,7 @@ public:
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       const _tyT * pBegin = &ElGet(stCurApply);
-      _apply( pBegin, pBegin + stMin );
+      std::forward<t_tyApply>(_rrapply)( pBegin, pBegin + stMin );
       nElsLeft -= stMin;
       stCurApply += stMin;
     }
@@ -641,7 +641,7 @@ public:
   // If the count is less than the full contiguous region supplied then the iteration is aborted.
   // The return value is the total of all calls to _apply() performed.
   template < class t_tyApply >
-  _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply )
+  _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply )
   {
     AssertValid();
     Assert( _posEnd >= _posBegin );
@@ -657,7 +657,7 @@ public:
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       _tyT * pBegin = &ElGet(stCurApply);
-      _tySizeType stNAppl = _apply( pBegin, pBegin + stMin );
+      _tySizeType stNAppl = std::forward<t_tyApply>(_rrapply)( pBegin, pBegin + stMin );
       stNAppls += stNAppl;
       if ( stMin != stNAppl )
         break;
@@ -668,7 +668,7 @@ public:
   }
   // const version.
   template < class t_tyApply >
-  _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply ) const
+  _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply ) const
   {
     AssertValid();
     Assert( _posEnd >= _posBegin );
@@ -684,7 +684,7 @@ public:
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
       const _tyT * pBegin = &ElGet(stCurApply);
-      _tySizeType stNAppl = _apply( pBegin, pBegin + stMin );
+      _tySizeType stNAppl = std::forward<t_tyApply>(_rrapply)( pBegin, pBegin + stMin );
       stNAppls += stNAppl;
       if ( stMin != stNAppl )
         break;
@@ -693,8 +693,6 @@ public:
     }
     return stNAppls;
   }
-
-
 protected:
   uint8_t **_PpbyGetCurSegment() const
   {
@@ -1083,21 +1081,37 @@ public:
   }
   // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
   template < class t_tyApply >
-  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply )
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply )
   {
     AssertValid();
     VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
       "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
-    _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), _apply );
+    _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
   // const version.
   template < class t_tyApply >
-  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply _apply ) const
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply ) const
   {
     AssertValid();
     VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
       "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
-    _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), _apply );
+    _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
+  }
+  template < class t_tyApply >
+  _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply )
+  {
+    AssertValid();
+    VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
+      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+    return _tyBase::NApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
+  }
+  template < class t_tyApply >
+  _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply ) const
+  {
+    AssertValid();
+    VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
+      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+    return _tyBase::NApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
 protected:
   // The current base element. The invariant that is maintained is that m_iBaseEl is always located in the first chunk.
