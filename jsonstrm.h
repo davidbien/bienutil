@@ -4708,7 +4708,6 @@ public:
     m_pjrxCurrent = &*m_pjrxContextStack; // current position is soft reference.
     return true;                          // We did go down.
   }
-
   // Move up in the context - this is significantly easier to implement than FMoveDown().
   bool FMoveUp() const
   {
@@ -4724,7 +4723,6 @@ public:
     }
     return false; // ain't nowhere to go.
   }
-
   void swap(JsonReadCursor &_r)
   {
     AssertValid();
@@ -4734,7 +4732,6 @@ public:
     m_pjrxRootVal.swap(_r.m_pjrxRootVal);
     m_pjrxContextStack.swap(_r.m_pjrxContextStack);
   }
-
 protected:
   _tyJsonInputStream *m_pis{};                            // Soft reference to stream from which we read.
   std::unique_ptr<_tyJsonValue> m_pjrxRootVal;            // Hard reference to the root value of the value tree.
