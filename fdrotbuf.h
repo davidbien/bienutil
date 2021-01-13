@@ -196,6 +196,14 @@ public:
   {
     m_saBuffer.GetString( _rstr,m_saBuffer.IBaseElement(), m_posCur );
   }
+  bool FSpanChars( _tySizeType _posBegin, _tySizeType _posEnd, const _tyChar * _pszCharSet ) const
+  {
+    return m_saBuffer.FSpanChars( _posBegin, _posEnd, _pszCharSet );
+  }
+  bool FMatchString( _tySizeType _posBegin, _tySizeType _posEnd, const _tyChar * _pszMatch ) const
+  {
+    return m_saBuffer.FMatchString( _posBegin, _posEnd, _pszMatch );
+  }
 protected:
   // The current "base" of the SegArrayRotatingBuffer is the beginning of the "view".
   // For non-infinite values of m_stchLenRead:

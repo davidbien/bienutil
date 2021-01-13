@@ -299,7 +299,31 @@ public:
   {
     return GetString( _rstr, _rdr.begin(), _rdr.end() );
   }
-
+  bool FSpanChars( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszCharSet ) const
+  {
+    _TySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
+      [_pszCharSet]( const _tyT * _ptBegin, const _tyT * _ptEnd )
+      {
+        return StrSpn( _ptBegin, _ptEnd - _ptBegin, _pszCharSet );
+      }
+    );
+    return nApplied == (_posEnd - _posBegin);
+  }
+  bool FMatchString( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszMatch ) const
+  {
+    Assert( StrNLen( _pszMatch, _posEnd - _posBegin ) == ( _posEnd - _posBegin ) );
+    const _tyT * pcCur = _pszMatch;
+    _TySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
+      [pcCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
+      {
+        const _tyT * ptCur = _ptBegin;
+        for ( ; ( ptCur != _ptEnd ) && ( *ptCur == *pcCur ); ++ptCur, ++pcCur )
+          ;
+        return ptCur - _ptBegin;
+      }
+    );
+    return nApplied == (_posEnd - _posBegin);
+  }
   template <class... t_tysArgs>
   _tyT &emplaceAtEnd(t_tysArgs &&... _args)
   {
@@ -308,7 +332,6 @@ public:
     ++m_nElements;
     return *pt;
   }
-
   // Set the number of elements in this object.
   // If we manage the lifetime of these object then they must have a default constructor.
   void SetSize(_tySizeType _nElements, bool _fCompact = false, _tySizeType _nNewBlockMin = 16)
@@ -969,6 +992,21 @@ public:
   {
     return GetString( _rstr, _rdr.begin(), _rdr.end() );
   }
+  bool FSpanChars( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszCharSet ) const
+  {
+    VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
+      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+    _tySizeType nOff = _NBaseOffset();
+    return _TyBase::FSpanChars( _posBegin - nOff, _posEnd - nOff, _pszCharSet );
+  }
+  bool FMatchString( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszMatch ) const
+  {
+    VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
+      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+    _tySizeType nOff = _NBaseOffset();
+    return _TyBase::FMatchString( _posBegin - nOff, _posEnd - nOff, _pszMatch );
+  }
+
   using _tyBase::emplaceAtEnd;
 
   // This will destructively transfer data from [_posBegin,_posEnd) from *this to _rsaTo.
@@ -1128,13 +1166,16 @@ template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType >
 class SegArrayView
 {
   typedef SegArrayView _tyThis;
-
 public:
   typedef t_tyT _tyT;
   typedef std::remove_cv_t< _tyT > _tyTRemoveCV;
   typedef t_tySizeType _tySizeType;
   typedef typename std::make_signed<_tySizeType>::type _tySignedSizeType;
   typedef SegArray< std::remove_cv_t< _tyT >, t_tyFOwnLifetime, t_tySizeType > _tySegArray;
+
+  ~SegArrayView() = default;
+  SegArrayView( SegArrayView const & ) = default;
+  SegArrayView& operator=( SegArrayView const & ) = default;  
 
   SegArrayView()
       : m_stBegin((numeric_limits<_tySizeType>::max)())
@@ -1161,7 +1202,15 @@ public:
   {
     AssertValid();
   }
-
+  void swap( _TyThis & _r )
+  {
+    AssertValid();
+    _r.AssertValid();
+    static_assert( offsetof(_TyThis, m_stBegin ) == offsetof(_TyThis, m_ptBegin ) );
+    std::swap( m_stBegin, _r.m_stBegin );
+    std::swap( m_sstLen, _r.m_sstLen );
+    std::swap( m_psaContainer, _r.m_psaContainer );
+  }
   void AssertValid() const
   {
 #if ASSERTSENABLED
@@ -1169,13 +1218,11 @@ public:
     Assert( !!m_sstLen || ( (std::numeric_limits<_tySizeType>::max)() == m_stBegin ) );
 #endif //ASSERTSENABLED
   }
-
   bool FIsNull()
   {
     AssertValid();
     return ( (numeric_limits<_tySizeType>::max)() == m_stBegin );
   }
-
   // Return contiguous memory - either a string_view if possible, or a string if not.
   // This is only relevant for t_tyT's which are character types.
   // Return true if we were able to populate the string_view, false for string.
@@ -1309,5 +1356,24 @@ protected:
   _tySignedSizeType m_sstLen{0};
   _tySegArray *m_psaContainer{nullptr}; // The SegArray container to which we are connected.
 };
+
+namespace std
+{
+  template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType>
+  void swap( SegArray< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rl, SegArray< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rr )
+  {
+    _rl.swap( _rr );
+  }
+  template <class t_tyT, class t_tySizeType>
+  void swap( SegArrayRotatingBuffer< t_tyT,  t_tySizeType > & _rl, SegArrayRotatingBuffer< t_tyT, t_tySizeType > & _rr )
+  {
+    _rl.swap( _rr );
+  }
+  template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType>
+  void swap( SegArrayView< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rl, SegArrayView< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rr )
+  {
+    _rl.swap( _rr );
+  }
+}
 
 __BIENUTIL_END_NAMESPACE

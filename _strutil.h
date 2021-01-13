@@ -110,6 +110,25 @@ void MemSet( t_tyChar * _rgcBuf, t_tyChar _cFill, size_t _nValues )
 		*_rgcBuf = _cFill;
 }
 
+// StrSpn: Return count of characters matching a given character set.
+template <class t_tyChar>
+static size_t StrSpn( const t_tyChar * _psz, size_t _stNChars, const t_tyChar * _pszCharSet )
+{
+	typedef const t_tyChar * _tyLPCSTR;
+	_tyLPCSTR pszCur = _psz;
+	_tyLPCSTR const pszEnd = _psz + _stNChars;
+	for ( ; ( pszEnd != pszCur ); ++pszCur )
+	{
+		Assert( !!*pszCur );
+		_tyLPCSTR pszCharSetCur = _pszCharSet;
+		for (; !!*pszCharSetCur && (*pszCharSetCur != *pszCur); ++pszCharSetCur)
+			;
+		if (!*pszCharSetCur)
+			break;
+	}
+	return pszCur - _psz;
+}
+
 // StrRSpn:
 // Find the count of _pszSet chars that occur at the end of [_pszBegin,_pszEnd).
 template <class t_tyChar>
