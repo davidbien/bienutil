@@ -84,6 +84,20 @@ public:
   typedef _UniquePtrSListEl< _TyT > _TyListEl;
   typedef unique_ptr< _TyListEl > _TyPtr;
 
+  UniquePtrSList() = default;
+  UniquePtrSList( const UniquePtrSList & ) = delete;
+  UniquePtrSList & operator=( const UniquePtrSList & ) = delete;
+  UniquePtrSList( UniquePtrSList && ) = default;
+  UniquePtrSList & operator=( UniquePtrSList && ) = default;
+  void swap( _TyThis & _r )
+  {
+    m_upHead.swap( _r.m_upHead );
+  }
+
+  bool empty() const
+  {
+    return !m_upHead;
+  }
   const t_TyT & front() const
   {
     VerifyThrow( !!m_upHead );
@@ -105,7 +119,7 @@ public:
   void push( _TyPtr & _rpt )
   {
     Assert( !_rpt.PtrNext() );
-    _rpt.PtrNext().swap( _rpt );
+    _rpt.PtrNext().swap( m_upHead );
     m_upHead.swap( _rpt );
   }
   void push( t_TyT && _rrt )
@@ -156,5 +170,13 @@ protected:
   _TyPtr m_upHead; // The head of the list.
 };
 
+namespace std
+{
+  template < class t_TyT >
+  void swap( UniquePtrSList< t_TyT > & _rl, UniquePtrSList< t_TyT > & _rr )
+  {
+    _rl.swap( _rr );
+  }
+}
 
 __BIENUTIL_END_NAMESPACE
