@@ -198,6 +198,15 @@ public:
   }
 };
 
+template < class t_Ty1, class t_Ty2 >
+struct TAreSameSizeTypes
+{
+  using type = typename std::conditional< sizeof(t_Ty1) == sizeof(t_Ty2), true_type, false_type >::type;
+  static constexpr bool value = type::value;
+};
+template < class t_Ty1, class t_Ty2 >
+inline constexpr bool TAreSameSizeTypes_v = TAreSameSizeTypes< t_Ty1, t_Ty2 >::value;
+
 __BIENUTIL_END_NAMESPACE
 
 #endif //___UTIL_H__BIEN__

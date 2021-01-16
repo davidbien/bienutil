@@ -301,7 +301,7 @@ public:
   }
   bool FSpanChars( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszCharSet ) const
   {
-    _TySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
+    _tySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
       [_pszCharSet]( const _tyT * _ptBegin, const _tyT * _ptEnd )
       {
         return StrSpn( _ptBegin, _ptEnd - _ptBegin, _pszCharSet );
@@ -313,7 +313,7 @@ public:
   {
     Assert( StrNLen( _pszMatch, _posEnd - _posBegin ) == ( _posEnd - _posBegin ) );
     const _tyT * pcCur = _pszMatch;
-    _TySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
+    _tySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
       [pcCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
       {
         const _tyT * ptCur = _ptBegin;
@@ -617,7 +617,7 @@ public:
 
   // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
   template < class t_tyApply >
-  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rapply )
+  void ApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply )
   {
     AssertValid();
     Assert( _posEnd >= _posBegin );
@@ -997,14 +997,14 @@ public:
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
       "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
-    return _TyBase::FSpanChars( _posBegin - nOff, _posEnd - nOff, _pszCharSet );
+    return _tyBase::FSpanChars( _posBegin - nOff, _posEnd - nOff, _pszCharSet );
   }
   bool FMatchString( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszMatch ) const
   {
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
       "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
-    return _TyBase::FMatchString( _posBegin - nOff, _posEnd - nOff, _pszMatch );
+    return _tyBase::FMatchString( _posBegin - nOff, _posEnd - nOff, _pszMatch );
   }
 
   using _tyBase::emplaceAtEnd;
@@ -1202,11 +1202,11 @@ public:
   {
     AssertValid();
   }
-  void swap( _TyThis & _r )
+  void swap( _tyThis & _r )
   {
     AssertValid();
     _r.AssertValid();
-    static_assert( offsetof(_TyThis, m_stBegin ) == offsetof(_TyThis, m_ptBegin ) );
+    static_assert( offsetof(_tyThis, m_stBegin ) == offsetof(_tyThis, m_ptBegin ) );
     std::swap( m_stBegin, _r.m_stBegin );
     std::swap( m_sstLen, _r.m_sstLen );
     std::swap( m_psaContainer, _r.m_psaContainer );
@@ -1357,23 +1357,25 @@ protected:
   _tySegArray *m_psaContainer{nullptr}; // The SegArray container to which we are connected.
 };
 
+__BIENUTIL_END_NAMESPACE
+
 namespace std
 {
+__BIENUTIL_USING_NAMESPACE
   template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType>
-  void swap( SegArray< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rl, SegArray< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rr )
+  void swap(SegArray< t_tyT, t_tyFOwnLifetime, t_tySizeType >& _rl, SegArray< t_tyT, t_tyFOwnLifetime, t_tySizeType >& _rr)
   {
-    _rl.swap( _rr );
+    _rl.swap(_rr);
   }
   template <class t_tyT, class t_tySizeType>
-  void swap( SegArrayRotatingBuffer< t_tyT,  t_tySizeType > & _rl, SegArrayRotatingBuffer< t_tyT, t_tySizeType > & _rr )
+  void swap(SegArrayRotatingBuffer< t_tyT, t_tySizeType >& _rl, SegArrayRotatingBuffer< t_tyT, t_tySizeType >& _rr)
   {
-    _rl.swap( _rr );
+    _rl.swap(_rr);
   }
   template <class t_tyT, class t_tyFOwnLifetime, class t_tySizeType>
-  void swap( SegArrayView< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rl, SegArrayView< t_tyT, t_tyFOwnLifetime,  t_tySizeType > & _rr )
+  void swap(SegArrayView< t_tyT, t_tyFOwnLifetime, t_tySizeType >& _rl, SegArrayView< t_tyT, t_tyFOwnLifetime, t_tySizeType >& _rr)
   {
-    _rl.swap( _rr );
+    _rl.swap(_rr);
   }
 }
 
-__BIENUTIL_END_NAMESPACE

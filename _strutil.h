@@ -755,18 +755,18 @@ void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_t
 	*pcdestCur = 0;
 }
 
-template < class t_TyCharConvertTo, t_TyStringOrStringView >
+template < class t_TyCharConvertTo, class t_TyStringOrStringView >
 basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const & _rsvorstr )
 {
-	return StrConvertString< t_TyCharConvertTo > StrConvertString( &_rsvorstr[0], _rsvorstr.length() );
+	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
-template < class t_TyCharConvertTo, t_TyCharConvertFrom >
+template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
 	requires ( sizeof( t_TyCharConvertTo ) == sizeof( t_TyCharConvertFrom ) )
 {
 	return basic_string< t_TyCharConvertTo >( _pc, _len );
 }
-template < class t_TyCharConvertTo, t_TyCharConvertFrom >
+template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
 	requires ( sizeof( t_TyCharConvertTo ) != sizeof( t_TyCharConvertFrom ) )
 {

@@ -36,13 +36,13 @@ public:
   void swap( _TyThis & _r )
     requires( is_member_function_pointer_v<decltype(&t_TyT::swap)> )
   {
-    m_upThis.swap( _r.m_upThis );
+    m_upNext.swap( _r.m_upNext );
     m_t.swap( _r.m_t );
   }
   void swap( _TyThis & _r )
     requires( !is_member_function_pointer_v<decltype(&t_TyT::swap)> )
   {
-    m_upThis.swap( _r.m_upThis );
+    m_upNext.swap( _r.m_upNext );
     std::swap( m_t, _r.m_t );
   }
   const t_TyT & operator *() const
@@ -170,13 +170,14 @@ protected:
   _TyPtr m_upHead; // The head of the list.
 };
 
+__BIENUTIL_END_NAMESPACE
+
 namespace std
 {
+__BIENUTIL_USING_NAMESPACE
   template < class t_TyT >
-  void swap( UniquePtrSList< t_TyT > & _rl, UniquePtrSList< t_TyT > & _rr )
+  void swap(UniquePtrSList< t_TyT >& _rl, UniquePtrSList< t_TyT >& _rr)
   {
-    _rl.swap( _rr );
+    _rl.swap(_rr);
   }
 }
-
-__BIENUTIL_END_NAMESPACE

@@ -1,3 +1,4 @@
+#pragma once 
 
 // fdrotbuf.h
 // A file descriptor read using a rotating buffer.

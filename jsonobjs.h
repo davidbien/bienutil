@@ -294,13 +294,13 @@ public:
   typedef t_tyChar _tyChar;
   typedef JsonCharTraits<_tyChar> _tyCharTraits;
   typedef const _tyChar *_tyLPCSTR;
-  typedef std::basic_string<t_tyChar> _tyStdStr;
+  typedef std::basic_string<_tyChar> _tyStdStr;
   typedef StrWRsv<_tyStdStr> _tyStrWRsv; // string with reserve buffer.
-  typedef _JsoObject<t_tyChar> _tyJsoObject;
-  typedef _JsoArray<t_tyChar> _tyJsoArray;
+  typedef _JsoObject<_tyChar> _tyJsoObject;
+  typedef _JsoArray<_tyChar> _tyJsoArray;
   typedef JsonFormatSpec<_tyCharTraits> _tyJsonFormatSpec;
-  typedef JsoIterator<t_tyChar, false> iterator;
-  typedef JsoIterator<t_tyChar, true> const_iterator;
+  typedef JsoIterator<_tyChar, false> iterator;
+  typedef JsoIterator<_tyChar, true> const_iterator;
 
   ~JsoValue()
   {
@@ -666,25 +666,25 @@ public:
   // String methods for the current character type.
   template <class t_tyStr>
   void SetStringValue(t_tyStr const &_rstr) 
-    requires ( sizeof( typename t_tyStr::value_type ) == sizeof( t_tyChar ) )
+    requires ( TAreSameSizeTypes_v< typename t_tyStr::value_type, _tyChar > )
   {
-    SetStringValue( (const t_tyChar *)&_rstr[0], _rstr.length()) ;
-  }
-  template <class t_tyStr>
-  void SetStringValue(t_tyStr &&_rrstr) 
-    requires ( sizeof( typename t_tyStr::value_type ) == sizeof( t_tyChar ) )
-  {
-    SetValueType(ejvtString);
-    StrGet() = std::move( _rrstr );
+    SetStringValue( (const _tyChar *)&_rstr[0], _rstr.length()) ;
   }
   // String methods requiring conversion. No reason for the move method since we must convert anyway.
   template <class t_tyStr>
-  void SetStringValue(t_tyStr const &_rstr) 
-    requires ( sizeof( typename t_tyStr::value_type ) != sizeof( t_tyChar ) )
+  void SetStringValue(t_tyStr const& _rstr)
+    requires ( !TAreSameSizeTypes_v< typename t_tyStr::value_type, _tyChar > )
   {
     _tyStrWRsv strConverted;
-    ConvertString( strConverted, _rstr );
-    SetStringValue( std::move( strConverted ) );
+    ConvertString(strConverted, _rstr);
+    SetStringValue(std::move(strConverted));
+  }
+  template <class t_tyStr>
+  void SetStringValue(t_tyStr &&_rrstr) 
+    requires ( is_same_v< typename t_tyStr::value_type, _tyChar > )
+  {
+    SetValueType(ejvtString);
+    StrGet() = std::move( _rrstr );
   }
   template < class t_tyStr >
   _tyThis &operator=( const t_tyStr &_rstr ) 

@@ -58,6 +58,11 @@ public:
     Assert(!FHasStringObj());
     assign(_rstr.c_str(), _rstr.length());
   }
+  StrWRsv(t_tyStrBase && _rrstr)
+  {
+    new ((void*)m_rgtcBuffer) t_tyStrBase(std::move(_rrstr));
+    SetHasStringObj();
+  }
   ~StrWRsv()
   {
     _ClearStrObj();
@@ -303,13 +308,14 @@ protected:
                                         // The last byte are the flags which are zero when we are using the buffer, and non-zero (-1) when there is a string lifetime present.
 };
 
+__BIENUTIL_END_NAMESPACE
+
 namespace std
 {
+__BIENUTIL_USING_NAMESPACE
   template <class t_tyStrBase, typename t_tyStrBase::size_type t_kstReserve >
-  void swap( StrWRsv< t_tyStrBase, t_kstReserve > & _rl, _l_value< t_tyStrBase, t_kstReserve > & _rr )
+  void swap(StrWRsv< t_tyStrBase, t_kstReserve >& _rl, StrWRsv< t_tyStrBase, t_kstReserve >& _rr)
   {
-    _rl.swap( _rr );
+    _rl.swap(_rr);
   }
 }
-
-__BIENUTIL_END_NAMESPACE

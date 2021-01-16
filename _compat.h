@@ -89,6 +89,13 @@ typedef int vtyErrNo;
 #endif
 
 static const vtyErrNo vkerrNullErrNo = 0; // This is standard for unix variations and Windows.
+#ifdef WIN32
+static const vtyErrNo vkerrInvalidArgument = ERROR_INVALID_PARAMETER;
+static const vtyErrNo vkerrOverflow = ERROR_ARITHMETIC_OVERFLOW;
+#elif defined( __linux__ ) || defined( __APPLE__ )
+static const vtyErrNo vkerrInvalidArgument = EINVAL;
+static const vtyErrNo vkerrOverflow = EOVERFLOW;
+#endif
 
 // REVIEW:<dbien>: This "preparation" is only necessary for methods that:
 // 1) Don't set an errno on failure. Hence we could have a garbage value in the errno.

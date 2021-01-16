@@ -9,6 +9,10 @@
 // 22FEB2020 David Bien
 // Implement a generic singly-linked list using _alloca().
 
+#include "bienutil.h"
+
+__BIENUTIL_BEGIN_NAMESPACE
+
 template <class t_TyT>
 class _AllocaListEl
 {
@@ -128,8 +132,11 @@ protected:
   _TyAllocaListEl * m_pHead{nullptr};
 };
 
+__BIENUTIL_END_NAMESPACE
+
 namespace std
 {
+__BIENUTIL_USING_NAMESPACE
   template < class t_tyT, bool t_fOwnObjectLifetime >
   void swap( AllocaList< t_tyT, t_fOwnObjectLifetime > & _rl, AllocaList< t_tyT, t_fOwnObjectLifetime > & _rr )
   {
