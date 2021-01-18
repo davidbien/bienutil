@@ -439,20 +439,21 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
 	}
 	if (_sstLen <= 0)
 		_sstLen = StrNLen(_psz);
-	const int kiRadix = (int)_stRadix;
+	const t_tyNum knumRadix = (t_tyNum)_stRadix;
 	const _tyChar *pszCur = _psz;
 	const _tyChar *const pszEnd = pszCur + _sstLen;
 	for (; pszEnd != pszCur; ++pszCur)
 	{
-		int iCur;
-		if ( int(*pszCur) > int('a') )
-			iCur = int(*pszCur) - int('a') + 10;
+    typedef typename std::make_signed<t_tyNum>::type _tyNumSigned;
+		_tyNumSigned numCur;
+		if ( _tyNumSigned(*pszCur) > _tyNumSigned('a') )
+			numCur = _tyNumSigned(*pszCur) - _tyNumSigned('a') + 10;
 		else
-		if ( int(*pszCur) > int('A') )
-			iCur = int(*pszCur) - int('A') + 10;
+		if ( _tyNumSigned(*pszCur) > _tyNumSigned('A') )
+			numCur = _tyNumSigned(*pszCur) - _tyNumSigned('A') + 10;
 		else
-			iCur = int(*pszCur) - int('0');
-		if ((iCur < 0) || (iCur > kiRadix))
+			numCur = _tyNumSigned(*pszCur) - _tyNumSigned('0');
+		if ((numCur < 0) || ((t_tyNum)numCur >= knumRadix))
 		{
 			::SetLastErrNo( vkerrInvalidArgument );
 			if (_fThrowOnError)
@@ -460,8 +461,8 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
 			return -1;
 		}
 		t_tyNum numBefore = _rNum;
-		_rNum *= _stRadix;
-		_rNum += iCur;
+		_rNum *= knumRadix;
+		_rNum += (t_tyNum)numCur;
 		if ( ( _rNum < numBefore ) || ( _rNum > _kNumMax ) ) // overflow.
 		{
 			::SetLastErrNo( vkerrOverflow );
@@ -716,21 +717,21 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc32Source,
 // This one should work for both strings and string_views.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires(	sizeof( typename t_tyStringSrc::value_type ) == sizeof( typename t_tyStringDest::value_type ) )
+	requires TAreSameSizeTypes_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type >
 {
 	_rstrDest.assign( (const typename t_tyStringDest::value_type *)&_rstrSrc[0], _rstrSrc.length() );
 }
 // The below should work for all kinds of strings and also when the source is a string view.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc && _rrstrSrc ) 
-	requires(	sizeof( typename t_tyStringSrc::value_type ) == sizeof( typename t_tyStringDest::value_type ) )
+	requires is_same_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type >
 {
 	_rstrDest = std::move( _rrstrSrc );
 }
 // The below will work when the source is a string view as well.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
-	requires(	sizeof( typename t_tyStringSrc::value_type ) != sizeof( typename t_tyStringDest::value_type ) )
+	requires ( !TAreSameSizeTypes_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > )
 {
 	ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
 }
@@ -755,24 +756,24 @@ void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_t
 	*pcdestCur = 0;
 }
 
-template < class t_TyCharConvertTo, class t_TyStringOrStringView >
-basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const & _rsvorstr )
-{
-	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
-}
 template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
-	requires ( sizeof( t_TyCharConvertTo ) == sizeof( t_TyCharConvertFrom ) )
+	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
 {
 	return basic_string< t_TyCharConvertTo >( _pc, _len );
 }
 template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
-	requires ( sizeof( t_TyCharConvertTo ) != sizeof( t_TyCharConvertFrom ) )
+	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom > )
 {
 	basic_string< t_TyCharConvertTo > strConverted;
 	ConvertString( strConverted, _pc, _len );
 	return strConverted;
+}
+template < class t_TyCharConvertTo, class t_TyStringOrStringView >
+basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const & _rsvorstr )
+{
+	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
 
 namespace n_StrArrayStaticCast

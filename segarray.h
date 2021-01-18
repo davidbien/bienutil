@@ -227,7 +227,16 @@ public:
   {
     return ElGet(_n);
   }
-
+  _tyT & RTail()
+  {
+    Assert( m_nElements );
+    return ElGet(m_nElements-1);
+  }
+  const _tyT & RTail() const
+  {
+    Assert( m_nElements );
+    return ElGet(m_nElements-1);
+  }
   template < class t_tyStringView, class t_tyDataRange >
   bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
     requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
@@ -767,6 +776,7 @@ protected:
       if ( *ppbyCurThis )
         free(*ppbyCurThis);
     }
+    ::free( ppbySegments );
   }
 
 protected:
@@ -1008,6 +1018,7 @@ public:
   }
 
   using _tyBase::emplaceAtEnd;
+  using _tyBase::RTail;
 
   // This will destructively transfer data from [_posBegin,_posEnd) from *this to _rsaTo.
   // It will move the m_iBaseEl to _posEnd.

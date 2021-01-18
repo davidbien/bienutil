@@ -98,6 +98,14 @@ public:
   {
     return !m_upHead;
   }
+  size_t count() const
+  {
+    size_t count = 0;
+    const _TyListEl * pelCur = &*m_upHead;
+    for ( ; !!pelCur; pelCur = &*pelCur->PtrNext() )
+      ++count;
+    return count;
+  }
   const t_TyT & front() const
   {
     VerifyThrow( !!m_upHead );
@@ -148,23 +156,37 @@ public:
   bool FFind( const _TyListEl * _pel )
   {
     const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur && ( pelCur != _pel ); pelCur = *&pelCur->PtrNext() )
+    for ( ; !!pelCur && ( pelCur != _pel ); pelCur = &*pelCur->PtrNext() )
       ;
     return !!pelCur;
   }
   const _TyListEl * PListElFind( const t_TyT & _rt ) const
   {
     const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = *&pelCur->PtrNext() )
+    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = &*pelCur->PtrNext() )
       ;
     return pelCur;
   }
   _TyListEl * PListElFind( const t_TyT & _rt )
   {
     const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = *&pelCur->PtrNext() )
+    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = &*pelCur->PtrNext() )
       ;
     return pelCur;
+  }
+  template < class t_TyFunctor >
+  void Apply( t_TyFunctor&& _rrFtor ) const
+  {
+    _TyListEl * pelCur = &*m_upHead;
+    for ( ; !!pelCur; pelCur = &*pelCur->PtrNext() )
+      std::forward< t_TyFunctor >( _rrFtor )( *pelCur );
+  }
+  template < class t_TyFunctor >
+  void Apply( t_TyFunctor&& _rrFtor )
+  {
+    _TyListEl * pelCur = &*m_upHead;
+    for ( ; !!pelCur; pelCur = &*pelCur->PtrNext() )
+      std::forward< t_TyFunctor >( _rrFtor )( **pelCur );
   }
 protected:
   _TyPtr m_upHead; // The head of the list.
