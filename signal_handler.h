@@ -151,7 +151,7 @@ public:
     static void SetupAlternateSignalStack()
     {
         // Only create the stack if we intend to use it.
-        static std::unique_ptr<uint8_t[]> p( new uint8_t[ SIGSTKSZ ] );
+        static std::unique_ptr<uint8_t[]> p( DBG_NEW uint8_t[ SIGSTKSZ ] );
         stack_t ss = {};
         ss.ss_sp = &p[0];
         ss.ss_size = SIGSTKSZ;

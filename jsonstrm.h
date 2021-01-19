@@ -2339,14 +2339,14 @@ protected:
     switch (m_jvtType)
     {
     case ejvtObject:
-      m_pvValue = new _tyJsonObject(this);
+      m_pvValue = DBG_NEW _tyJsonObject(this);
       break;
     case ejvtArray:
-      m_pvValue = new _tyJsonArray(this);
+      m_pvValue = DBG_NEW _tyJsonArray(this);
       break;
     case ejvtNumber:
     case ejvtString:
-      m_pvValue = new _tyStdStr();
+      m_pvValue = DBG_NEW _tyStdStr();
       break;
     case ejvtTrue:
     case ejvtFalse:
@@ -2367,14 +2367,14 @@ protected:
     switch (m_jvtType)
     {
     case ejvtObject:
-      m_pvValue = new _tyJsonObject(*_r.PGetJsonObject());
+      m_pvValue = DBG_NEW _tyJsonObject(*_r.PGetJsonObject());
       break;
     case ejvtArray:
-      m_pvValue = new _tyJsonArray(*_r.PGetJsonArray());
+      m_pvValue = DBG_NEW _tyJsonArray(*_r.PGetJsonArray());
       break;
     case ejvtNumber:
     case ejvtString:
-      m_pvValue = new _tyStdStr(*_r.PGetStringValue());
+      m_pvValue = DBG_NEW _tyStdStr(*_r.PGetStringValue());
       break;
     case ejvtTrue:
     case ejvtFalse:
@@ -3200,11 +3200,11 @@ public:
   // Construct the same type of JsonValueLife that we are... duh.
   void NewSubValue(EJsonValueType _jvt, std::unique_ptr<_tyAbstractBase> &_rNewSubValue) override
   {
-    _rNewSubValue.reset(new _tyThis(*this, _jvt));
+    _rNewSubValue.reset(DBG_NEW _tyThis(*this, _jvt));
   }
   void NewSubValue(_tyLPCSTR _pszKey, EJsonValueType _jvt, std::unique_ptr<_tyAbstractBase> &_rNewSubValue) override
   {
-    _rNewSubValue.reset(new _tyThis(*this, _pszKey, _jvt));
+    _rNewSubValue.reset(DBG_NEW _tyThis(*this, _pszKey, _jvt));
   }
 
   _tyJsonValue const &RJvGet() const override

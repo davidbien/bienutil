@@ -36,7 +36,8 @@ public:
 	}
 
 	_sdp( t_TyP * _pt, t_TyAllocator const & _rAlloc ) _BIEN_NOTHROW
-		: _TyBase( _rAlloc )
+		: _TyBase( _rAlloc ),
+			m_pt( _pt )
 	{
 	}
 

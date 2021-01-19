@@ -243,25 +243,25 @@ protected:
   {
     Assert(!m_pvIterator);
     Assert(m_fObjectIterator);
-    m_pvIterator = new _tyObjectIterator(_rit);
+    m_pvIterator = DBG_NEW _tyObjectIterator(_rit);
   }
   void _CreateIterator(_tyObjectIterator &&_rrit)
   {
     Assert(!m_pvIterator);
     Assert(m_fObjectIterator);
-    m_pvIterator = new _tyObjectIterator(std::move(_rrit));
+    m_pvIterator = DBG_NEW _tyObjectIterator(std::move(_rrit));
   }
   void _CreateIterator(_tyArrayIterator const &_rit)
   {
     Assert(!m_pvIterator);
     Assert(!m_fObjectIterator);
-    m_pvIterator = new _tyArrayIterator(_rit);
+    m_pvIterator = DBG_NEW _tyArrayIterator(_rit);
   }
   void _CreateIterator(_tyArrayIterator &&_rrit)
   {
     Assert(!m_pvIterator);
     Assert(!m_fObjectIterator);
-    m_pvIterator = new _tyArrayIterator(std::move(_rrit));
+    m_pvIterator = DBG_NEW _tyArrayIterator(std::move(_rrit));
   }
   void _DestroyIterator(void *_pv)
   {
