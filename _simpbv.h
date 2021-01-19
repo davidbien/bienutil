@@ -70,10 +70,20 @@ public:
 
   static const int  ms_kiElSizeBits = CHAR_BIT * sizeof( t_TyEl );
 
-  const size_type m_kstBits;
-  const size_type m_kstSize;
-  t_TyEl *        m_rgEls;
+  const size_type m_kstBits{0};
+  const size_type m_kstSize{0};
+  t_TyEl *        m_rgEls{nullptr};
 
+  _simple_bitvec() = delete;
+  ~_simple_bitvec() _BIEN_NOTHROW
+  {
+    if ( m_rgEls )
+      _TyAllocBase::deallocate_n( m_rgEls, m_kstSize );
+  }
+  _simple_bitvec( const t_TyAllocator & _rA = t_TyAllocator() )
+    : _TyAllocBase( _rA )
+  {
+  }
   explicit _simple_bitvec(  size_type _stBits,
                             const t_TyAllocator & _rA = t_TyAllocator() )
     : m_kstBits( _stBits ),
@@ -98,22 +108,20 @@ public:
       memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
     }
   }
-
   // Only copy the allocator.
   _simple_bitvec( _TyThis const & _r, std::false_type )
-    : m_kstBits( 0 ),
-      m_kstSize( 0 ),
-      _TyAllocBase( (_TyAllocBase const &)_r ),
-      m_rgEls( 0 )
+    : _TyAllocBase( (_TyAllocBase const &)_r )
   {
   }
-
-  ~_simple_bitvec() _BIEN_NOTHROW
+  _simple_bitvec( _TyThis && _rr )
+    : _TyAllocBase( (_TyAllocBase const &)_rr ) // copy the allocator, don't move it - we want to leave _rr empty but usable.
   {
-    if ( m_rgEls )
-    {
-      _TyAllocBase::deallocate_n( m_rgEls, m_kstSize );
-    }
+    swap( _rr );
+  }
+  _simple_bitvec & operator = ( _TyThis && _rr )
+  {
+    _TyThis acquire( std::move( _rr ) );
+    swap( acquire );
   }
 
   using _TyAllocBase::get_allocator;
@@ -259,6 +267,12 @@ public:
     or_equals( _r.m_rgEls );
     return *this;
   }
+  _TyThis operator | ( _TyThis const & _r ) const
+  {
+    _TyThis ret( *this );
+    ret |= _r;
+    return ret;
+  }
   void  or_equals( t_TyEl * pcurThat )
   {
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
@@ -268,16 +282,36 @@ public:
       *pcurThis |= *pcurThat;
     }
   }
-
-  void and_not( _TyThis const & _r )
+  _TyThis & operator &= ( _TyThis const & _r ) _BIEN_NOTHROW
+  {
+    Assert( _r.m_kstBits == m_kstBits );
+    and_equals( _r.m_rgEls );
+    return *this;
+  }
+  _TyThis operator & ( _TyThis const & _r ) const
+  {
+    _TyThis ret( *this );
+    ret &= _r;
+    return ret;
+  }
+  void  and_equals( t_TyEl * pcurThat )
+  {
+    t_TyEl *  pendThis = m_rgEls + m_kstSize;
+    t_TyEl *  pcurThis = m_rgEls;
+    for ( ; pcurThis != pendThis; ++pcurThat, ++pcurThis )
+    {
+      *pcurThis &= *pcurThat;
+    }
+  }
+  _TyThis & and_not_equals( _TyThis const & _r )
   {
     // The invariant is that beyond the last bit is empty.
     // Since both bit vectors should follow that invariant the result should follow it.
     Assert( _r.m_kstBits == m_kstBits );
-    _and_not( _r.m_rgEls );
+    _and_not_equals( _r.m_rgEls );
     return *this;
   }
-  void _and_not( t_TyEl * pcurThat )
+  void _and_not_equals( t_TyEl * pcurThat )
   {
     t_TyEl *  pendThis = m_rgEls + m_kstSize;
     t_TyEl *  pcurThis = m_rgEls;
@@ -447,16 +481,20 @@ __BIENUTIL_END_NAMESPACE
 
 namespace std {
 __BIENUTIL_USING_NAMESPACE
-
   template < class t_TyEl, class t_TyAllocator >
-struct hash< _simple_bitvec< t_TyEl, t_TyAllocator > >
-{
-  typedef _simple_bitvec< t_TyEl, t_TyAllocator > _TyBitVec;
-  size_t operator()(const _TyBitVec & _r) const
+  struct hash< _simple_bitvec< t_TyEl, t_TyAllocator > >
   {
-    return _r.hash();
+    typedef _simple_bitvec< t_TyEl, t_TyAllocator > _TyBitVec;
+    size_t operator()(const _TyBitVec & _r) const
+    {
+      return _r.hash();
+    }
+  };
+  template < class t_TyEl, class t_TyAllocator >
+  void  swap( _simple_bitvec< t_TyEl, t_TyAllocator > & _rl, _simple_bitvec< t_TyEl, t_TyAllocator > & _rr ) _BIEN_NOTHROW
+  {
+    _rl.swap( _rr );
   }
-};
 } // end namespace std
 
 #endif //__SIMPBV_H
