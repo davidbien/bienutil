@@ -215,9 +215,9 @@ public:
       THROWNAMEDEXCEPTION("Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements);
     return ((_tyT *)m_ppbySegments[_nEl / NElsPerSegment()])[_nEl % NElsPerSegment()];
   }
-  _tyT const &ElGet(_tySizeType _nEl) const
+  _tyT const &ElGet(_tySizeType _nEl, bool _fMaybeEnd = false) const
   {
-    return const_cast<SegArray *>(this)->ElGet(_nEl);
+    return const_cast<SegArray *>(this)->ElGet(_nEl,_fMaybeEnd);
   }
   _tyT &operator[](_tySizeType _n)
   {

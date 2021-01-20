@@ -144,5 +144,5 @@ __BIENUTIL_USING_NAMESPACE
   }
 }
 
-#define ALLOCA_LIST_PUSH( LIST, ... ) LIST.push_emplace( alloca( sizeof( decltype(LIST)::_TyAllocaListEl ) ), ##__VA_ARGS__ )
+#define ALLOCA_LIST_PUSH( LIST, ... ) LIST.push_emplace( alloca( (decltype(LIST)::_TyAllocaListEl*)sizeof( decltype(LIST)::_TyAllocaListEl ) ), ##__VA_ARGS__ )
 
