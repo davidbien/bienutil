@@ -458,6 +458,23 @@ bool FDirExists(const char* _pszDir)
     return false;
   return FIsDir_FileAttrs(fa);
 }
+bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
+{
+#ifdef WIN32
+  // May need to modify this:
+  return !!(FILE_ATTRIBUTE_NORMAL & _rfa.dwFileAttributes);
+#elif defined( __APPLE__ ) || defined( __linux__ )
+  return !!S_ISREG(_rfa.st_mode);
+#endif
+}
+bool FFileExists(const char* _pszFile)
+{
+  vtyFileAttr fa;
+  int iRes = GetFileAttrs(_pszFile, fa);
+  if (!!iRes)
+    return false;
+  return FIsFile_FileAttrs(fa);
+}
 
 // Handle attributes and related methods:
 #ifdef WIN32
