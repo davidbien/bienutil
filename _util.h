@@ -173,18 +173,23 @@ constexpr size_t DimensionOf( t_Ty (&)[ t_kN ] )
 // https://en.cppreference.com/w/cpp/container/vector/resize
 // Allocator adaptor that interposes construct() calls to
 // convert value initialization into default initialization.
-template <typename T, typename A=std::allocator<T>>
-class default_init_allocator : public A {
-  typedef std::allocator_traits<A> a_t;
+template < typename T, typename t_TyBaseAllocator = std::allocator< T > >
+class default_init_allocator : public t_TyBaseAllocator 
+{
+  typedef default_init_allocator _TyThis;
+  typedef t_TyBaseAllocator _TyBase;
 public:
+  typedef std::allocator_traits<t_TyBaseAllocator> _TyAllocatorTraits;
+  using _TyBase::value_type;
+
   template <typename U> struct rebind {
     using other =
       default_init_allocator<
-        U, typename a_t::template rebind_alloc<U>
+        U, typename _TyAllocatorTraits::template rebind_alloc<U>
       >;
   };
 
-  using A::A;
+  using t_TyBaseAllocator::t_TyBaseAllocator;
 
   template <typename U>
   void construct(U* ptr)
@@ -193,7 +198,7 @@ public:
   }
   template <typename U, typename...Args>
   void construct(U* ptr, Args&&... args) {
-    a_t::construct(static_cast<A&>(*this),
+    _TyAllocatorTraits::construct(static_cast<t_TyBaseAllocator&>(*this),
                    ptr, std::forward<Args>(args)...);
   }
 };

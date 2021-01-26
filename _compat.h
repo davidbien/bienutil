@@ -461,8 +461,8 @@ bool FDirExists(const char* _pszDir)
 bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
 {
 #ifdef WIN32
-  // May need to modify this:
-  return !!(FILE_ATTRIBUTE_NORMAL & _rfa.dwFileAttributes);
+  // May need to modify this - it's not really clear what you would check for here...
+  return !(FILE_ATTRIBUTE_DIRECTORY & _rfa.dwFileAttributes);
 #elif defined( __APPLE__ ) || defined( __linux__ )
   return !!S_ISREG(_rfa.st_mode);
 #endif

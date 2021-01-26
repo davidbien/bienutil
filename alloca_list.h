@@ -13,10 +13,15 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+template < class t_tyT, bool t_fOwnObjectLifetime >
+class AllocaList;
+
 template <class t_TyT>
 class _AllocaListEl
 {
   typedef _AllocaListEl _TyThis;
+  friend AllocaList< t_TyT, true >;
+  friend AllocaList< t_TyT, false >;
 public:
   typedef t_TyT _TyT;
 

@@ -815,3 +815,16 @@ constexpr n_StrArrayStaticCast::str_array<t_tyCharResult, N - 1> str_array_cast(
 }
 
 __BIENUTIL_END_NAMESPACE
+
+#ifdef _MSC_VER
+namespace std
+{
+	// VC doesn't define basic_string_view::operator <=>():
+	template <class _Elem, class _Traits>
+	_NODISCARD constexpr strong_ordering operator<=>( const basic_string_view<_Elem, _Traits> _Lhs, const basic_string_view<_Elem, _Traits> _Rhs ) noexcept 
+	{
+		int iComp = _Lhs.compare(_Rhs);
+		return ( iComp < 0 ) ? strong_ordering::less : ( ( iComp > 0 ) ? strong_ordering::greater : strong_ordering::equal );
+	}
+}
+#endif // _MSC_VER

@@ -126,8 +126,8 @@ public:
   }
   void push( _TyPtr & _rpt )
   {
-    Assert( !_rpt.PtrNext() );
-    _rpt.PtrNext().swap( m_upHead );
+    Assert( !_rpt->PtrNext() );
+    _rpt->PtrNext().swap( m_upHead );
     m_upHead.swap( _rpt );
   }
   void push( t_TyT && _rrt )
