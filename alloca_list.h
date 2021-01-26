@@ -16,8 +16,7 @@ __BIENUTIL_BEGIN_NAMESPACE
 template <class t_TyT>
 class _AllocaListEl
 {
-  typedef struct _AllocaListEl _TyThis;
-
+  typedef _AllocaListEl _TyThis;
 public:
   typedef t_TyT _TyT;
 
@@ -51,19 +50,19 @@ public:
   }
 	const _TyT * operator ->() const
 	{
-		return &m_el;
+		return &m_t;
 	}
 	_TyT * operator ->()
 	{
-		return &m_el;
+		return &m_t;
 	}
 	const _TyT & operator *() const
 	{
-		return m_el;
+		return m_t;
 	}
 	_TyT & operator *()
 	{
-		return m_el;
+		return m_t;
 	}
 protected : 
   _TyThis *m_pNext{nullptr};
@@ -101,11 +100,11 @@ public:
     std::swap( m_pHead, _r.m_pHead );
   }
   template < class ... t_TysArgs >
-  void push_emplace( _TyAllocaListEl * _pPushAllocaed, t_TysArgs&& ... _args )
+  void push_emplace( void * _pvPushAllocated, t_TysArgs&& ... _args )
   {
-    new( _pPushAllocaed ) _TyAllocaListEl( std::forward< t_TysArgs >( _args ) ...  ); // This may throw and that's ok.
-    _pPushAllocaed->m_pNext = m_pHead; // this shouldn't throw.
-    m_pHead = _pPushAllocaed;
+    _TyAllocaListEl * pale = new( _pvPushAllocated ) _TyAllocaListEl( std::forward< t_TysArgs >( _args ) ...  ); // This may throw and that's ok.
+    pale->m_pNext = m_pHead; // this shouldn't throw.
+    m_pHead = pale;
   }
   bool FFind( _TyT const & _rt )
   {
@@ -144,5 +143,5 @@ __BIENUTIL_USING_NAMESPACE
   }
 }
 
-#define ALLOCA_LIST_PUSH( LIST, ... ) LIST.push_emplace( alloca( (decltype(LIST)::_TyAllocaListEl*)sizeof( decltype(LIST)::_TyAllocaListEl ) ), ##__VA_ARGS__ )
+#define ALLOCA_LIST_PUSH( LIST, ... ) LIST.push_emplace( alloca( sizeof( decltype(LIST)::_TyAllocaListEl ) ), ##__VA_ARGS__ )
 

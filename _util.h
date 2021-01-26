@@ -164,7 +164,7 @@ struct concatenator_pack<t_T1<Args0...>, t_T2< Args1...> > {
 };
 
 template < class t_Ty, size_t t_kN >
-constexpr size_t DimensionOf( t_Ty rgt[ t_kN ] )
+constexpr size_t DimensionOf( t_Ty (&)[ t_kN ] )
 {
   return t_kN;
 }

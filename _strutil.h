@@ -112,7 +112,7 @@ void MemSet( t_tyChar * _rgcBuf, t_tyChar _cFill, size_t _nValues )
 
 // StrSpn: Return count of characters matching a given character set.
 template <class t_tyChar>
-static size_t StrSpn( const t_tyChar * _psz, size_t _stNChars, const t_tyChar * _pszCharSet )
+size_t StrSpn( const t_tyChar * _psz, size_t _stNChars, const t_tyChar * _pszCharSet )
 {
 	typedef const t_tyChar * _tyLPCSTR;
 	_tyLPCSTR pszCur = _psz;
