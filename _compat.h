@@ -565,6 +565,26 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 #endif
 }
 
+// Endian stuff:
+// We don't supply a SwitchEndian for char8_t cuz duh.
+inline void SwitchEndian( char16_t & _tch )
+{
+#ifdef _MSC_VER
+	_tch = _byteswap_ushort( _tch );
+#else //!_MSC_VER
+	_tch = __builtin_bswap16( _tch ); // This this doesn't work then try something else.
+#endif //!_MSC_VER
+}
+inline void SwitchEndian( char32_t & _tch )
+{
+#ifdef _MSC_VER
+	_tch = _byteswap_ulong( _tch );
+#else //!_MSC_VER
+	_tch = __builtin_bswap32( _tch ); // This this doesn't work then try something else.
+#endif //!_MSC_VER
+}
+
+
 // Directory entries:
 // Windows supplies tons more info than Linux but currently we don't need to do any of that multiplatform.
 // I only added accessors below for things I need now of course.

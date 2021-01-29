@@ -10,6 +10,7 @@
 
 #include <type_traits>
 #include <variant>
+#include <stdint.h>
 #include "_booltyp.h"
 
 #if (defined(__GNUC__) && !defined(__clang__))
@@ -30,7 +31,6 @@ __BIENUTIL_BEGIN_NAMESPACE
 // The maximum amount that we will allocate using alloca:
 // Allow 512KB on the stack. I used to allocate like 30MB under Windows. Could allow this to be more but want to see how things go.
 static const size_t vknbyMaxAllocaSize = ( 1ull << 19 );
-
 
 // this is an abstract class that is used to produce an error for the programmer:
 struct ___semantic_error_object
@@ -211,6 +211,14 @@ struct TAreSameSizeTypes
 };
 template < class t_Ty1, class t_Ty2 >
 inline constexpr bool TAreSameSizeTypes_v = TAreSameSizeTypes< t_Ty1, t_Ty2 >::value;
+
+// Argument extraction:
+#define VAARG_EXPAND_(arg) arg
+#define VAARG_GET_FIRST_(first, ...) first
+#define VAARG_GET_SECOND_(first, second, ...) second
+// USAGE:
+// VAARG_EXPAND_(VAARG_GET_FIRST_(__VA_ARGS__, DUMMY_PARAM_))
+
 
 __BIENUTIL_END_NAMESPACE
 

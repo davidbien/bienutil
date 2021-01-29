@@ -776,6 +776,20 @@ basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const
 	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
 
+template < class t_TyCharDest, class t_TyCharSrc >
+basic_string< t_TyCharDest > StrConvertFile( const char * _psz )
+{
+	FileObj fo( OpenReadOnlyFile( _psz ) );
+	VerifyThrowSz( fo.FIsOpen(), "Couldn't open [%s].", _psz );
+	size_t stSize;
+	FileMappingObj fmo( MapReadOnlyHandle( fo.HFileGet(), &stSize ) );
+	VerifyThrowSz( fmo.FIsOpen(), "Couldn't map [%s].", _psz );
+  uint8_t byFirst = *(uint8_t*)fmo.Pv();
+  uint8_t bySecond = ((uint8_t*)fmo.Pv())[1];
+  uint8_t byThird = ((uint8_t*)fmo.Pv())[2];
+	return StrConvertString< t_TyCharDest >( (const t_TyCharSrc *)fmo.Pv() + 3, ( stSize / sizeof( t_TyCharSrc ) ) - 3 );
+}
+
 namespace n_StrArrayStaticCast
 {
 	template <typename t_tyChar, std::size_t t_knLength>
@@ -812,6 +826,60 @@ template <typename t_tyCharResult, typename t_tyCharSource, std::size_t N, typen
 constexpr n_StrArrayStaticCast::str_array<t_tyCharResult, N - 1> str_array_cast(const t_tyCharSource (&a)[N])
 {
 	return n_StrArrayStaticCast::do_str_array_cast<t_tyCharResult>(a, Indices{});
+}
+
+// BOM detection stuff:
+enum EFileCharacterEncoding
+{
+	efceUTF8,
+	efceUTF16BE,
+	efceUTF16LE,
+	efceUTF32BE,
+	efceUTF32LE,
+	efceFileCharacterEncodingCount // This should be last.
+};
+
+static const size_t vknBytesBOM = 4;
+// GetCharacterEncodingFromBOM:
+// Detect if there is a BOM present and if so return it. _rstLen should be at least 4 bytes.
+// Upon return _rstLen is set to the length of the BOM if a valid BOM is found.
+// If no valid BOM is found then efceFileCharacterEncodingCount is returned.
+EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
+{
+	Assert( _rstLen >= vknBytesBOM );
+	if ( _rstLen < vknBytesBOM )
+			return efceFileCharacterEncodingCount;
+	if ( ( 0xEF == _pbyBufFileBegin[0] ) && ( 0xBB == _pbyBufFileBegin[1] ) && ( 0xBF == _pbyBufFileBegin[2] ) )
+			return efceUTF8;
+	if ( ( 0xFE == _pbyBufFileBegin[0] ) && ( 0xFF == _pbyBufFileBegin[1] ) )
+			return efceUTF16BE;
+	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) )
+			return efceUTF16LE;
+	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0xFE == _pbyBufFileBegin[2] ) && ( 0xFF == _pbyBufFileBegin[3] ) )
+			return efceUTF32BE;
+	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
+			return efceUTF32LE;
+	return efceFileCharacterEncodingCount;
+}
+
+// DetectEncodingXmlFile:
+// If the above GetCharacterEncodingFromBOM() fails then we can try to detect the encoding using the fact that the first character in an XML file is an '<'.
+EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
+{
+	Assert( _rstLen >= vknBytesBOM );
+	if ( _rstLen < vknBytesBOM )
+			return efceFileCharacterEncodingCount;
+	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 != _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
+			return efceUTF8;
+	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
+			return efceUTF16BE;
+	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( '<' == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) )
+			return efceUTF16LE;
+	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( '<' == _pbyBufFileBegin[3] ) )
+			return efceUTF32BE;
+	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
+			return efceUTF32LE;
+	return efceFileCharacterEncodingCount;
 }
 
 __BIENUTIL_END_NAMESPACE
