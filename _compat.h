@@ -567,24 +567,49 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 
 // Endian stuff:
 // We don't supply a SwitchEndian for char8_t cuz duh.
-inline void SwitchEndian( char16_t & _tch )
+template < class t_tyT >
+inline void SwitchEndian( t_tyT & _t )
+    requires( sizeof( t_TyT ) == 2 )
 {
 #ifdef _MSC_VER
-	_tch = _byteswap_ushort( _tch );
+	(unsigned short&)_t = _byteswap_ushort( (unsigned short)_t );
 #else //!_MSC_VER
-	_tch = __builtin_bswap16( _tch ); // This this doesn't work then try something else.
+	(uint16_t&)_t = __builtin_bswap16( (uint16_t)_t ); 
 #endif //!_MSC_VER
 }
-inline void SwitchEndian( char32_t & _tch )
+template < class t_tyT >
+inline void SwitchEndian( t_tyT & _t )
+    requires( sizeof( t_TyT ) == 4 )
 {
 #ifdef _MSC_VER
-	_tch = _byteswap_ulong( _tch );
+	(unsigned long&)_t = _byteswap_ulong( (unsigned long)_t );
 #else //!_MSC_VER
-	_tch = __builtin_bswap32( _tch ); // This this doesn't work then try something else.
+	(uint32_t&)_t = __builtin_bswap32( (uint32_t)_t ); 
 #endif //!_MSC_VER
 }
-
-
+template < class t_tyT >
+inline void SwitchEndian( t_tyT & _t )
+    requires( sizeof( t_TyT ) == 8 )
+{
+#ifdef _MSC_VER
+	(unsigned __int64&)_t = _byteswap_uint64( (unsigned __int64)_t );
+#else //!_MSC_VER
+	(uint64_t&)_t = __builtin_bswap64( (uint64_t)_t ); 
+#endif //!_MSC_VER
+}
+template < class t_TyT >
+void SwitchEndian( t_TyT * _ptBeg, t_TyT * _ptEnd )
+{
+    for ( t_TyT * ptCur = _ptBeg; _ptEnd != ptCur; ++ptCur )
+        SwitchEndian( *ptCur );
+}
+template < class t_TyT >
+void SwitchEndian( t_TyT * _ptBeg, size_t _stLen )
+{
+    t_TyT * const ptEnd = _ptBeg + _stLen;
+    for ( t_TyT * ptCur = _ptBeg; ptEnd != ptCur; ++ptCur )
+        SwitchEndian( *ptCur );
+}
 // Directory entries:
 // Windows supplies tons more info than Linux but currently we don't need to do any of that multiplatform.
 // I only added accessors below for things I need now of course.
