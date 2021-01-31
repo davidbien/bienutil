@@ -567,8 +567,8 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 
 // Endian stuff:
 // We don't supply a SwitchEndian for char8_t cuz duh.
-template < class t_tyT >
-inline void SwitchEndian( t_tyT & _t )
+template < class t_TyT >
+inline void SwitchEndian( t_TyT & _t )
     requires( sizeof( t_TyT ) == 2 )
 {
 #ifdef _MSC_VER
@@ -577,8 +577,8 @@ inline void SwitchEndian( t_tyT & _t )
 	(uint16_t&)_t = __builtin_bswap16( (uint16_t)_t ); 
 #endif //!_MSC_VER
 }
-template < class t_tyT >
-inline void SwitchEndian( t_tyT & _t )
+template < class t_TyT >
+inline void SwitchEndian( t_TyT & _t )
     requires( sizeof( t_TyT ) == 4 )
 {
 #ifdef _MSC_VER
@@ -587,8 +587,8 @@ inline void SwitchEndian( t_tyT & _t )
 	(uint32_t&)_t = __builtin_bswap32( (uint32_t)_t ); 
 #endif //!_MSC_VER
 }
-template < class t_tyT >
-inline void SwitchEndian( t_tyT & _t )
+template < class t_TyT >
+inline void SwitchEndian( t_TyT & _t )
     requires( sizeof( t_TyT ) == 8 )
 {
 #ifdef _MSC_VER

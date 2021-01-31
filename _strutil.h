@@ -23,6 +23,7 @@
 #include <cstddef>
 #include "_namdexc.h"
 #include "_smartp.h"
+#include "_fdobjs.h"
 #include "_assert.h"
 #if __APPLE__
 #include <libproc.h>
@@ -665,7 +666,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	else
 		Assert( _stLenSource == StrNLen( _pc8Source, _stLenSource ) );
 	int32_t nLenReq = 0;
-	(void)u_strFromUTF8WithSub( nullptr, 0, &nLenReq, _pc8Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
+	(void)u_strFromUTF8WithSub( nullptr, 0, &nLenReq, (const char*)_pc8Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
@@ -673,7 +674,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
-	(void)u_strFromUTF8WithSub( (UChar*)&_rstrDest[0], nLenReq, nullptr, _pc8Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
+	(void)u_strFromUTF8WithSub( (UChar*)&_rstrDest[0], nLenReq, nullptr, (const char*)_pc8Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );

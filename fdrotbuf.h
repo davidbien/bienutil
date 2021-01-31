@@ -37,12 +37,13 @@ __BIENUTIL_BEGIN_NAMESPACE
 
 // Templatize by character type - which is fine if it is unsigned char for bytes, 
 //  but adds convenience for other character types, and even integer types if desired.
-template < class t_tyChar >
+template < class t_tyChar, bool t_fSwitchEndian = false >
 class FdReadRotating
 {
   typedef FdReadRotating _tyThis;
 public:
   typedef t_tyChar _tyChar;
+  static constexpr bool s_kfSwitchEndian = t_fSwitchEndian;
   typedef SegArrayRotatingBuffer< _tyChar > _tySegArray;
   typedef typename _tySegArray::_tySizeType _tySizeType;
 
@@ -130,6 +131,8 @@ public:
           Assert( !stRead );
           return false; // EOF.
         }
+        if ( s_kfSwitchEndian )
+          SwitchEndian( _rc );
         m_saBuffer.Overwrite( m_posCur++, &_rc, sizeof _rc );
         if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
           --m_stchLenRemaining;
@@ -152,6 +155,8 @@ public:
             int iReadResult = FileRead( m_hFile, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ), &stRead );
             if ( -1 == iReadResult )
               THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): m_hFile[0x%lx] m[%lu]", (uint64_t)m_hFile, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
+            if ( s_kfSwitchEndian )
+              SwitchEndian( _pcBegin, _pcEnd );
             Assert( ( (_tySizeType)stRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
             return (_tySizeType)stRead / sizeof( _tyChar );
           }

@@ -68,13 +68,13 @@ constexpr uint64_t _MSBitSet64( uint64_t _u64Test )
 		if ( _u64Test > 0x0000ffffffffffff )
 		{
 			if ( _u64Test > 0x00ffffffffffffff )
-				nShift = ( _u64Test > 0x0ffffffffffffff ) ? 60 : 56;
+				nShift = ( _u64Test > 0x0fffffffffffffff ) ? 60 : 56;
 			else
-				nShift = ( _u64Test > 0x000ffffffffffff ) ? 52 : 48;
+				nShift = ( _u64Test > 0x000fffffffffffff ) ? 52 : 48;
 		}
 		else
 		{
-			if ( _u64Test > 0x000000ffffffffff )
+			if ( _u64Test >	0x000000ffffffffff )
 				nShift = ( _u64Test > 0x00000fffffffffff ) ? 44 : 40;
 			else
 				nShift = ( _u64Test > 0x0000000fffffffff ) ? 36 : 32;
@@ -84,14 +84,14 @@ constexpr uint64_t _MSBitSet64( uint64_t _u64Test )
 	{
 		if ( _u64Test > 0x000000000000ffff )
 		{
-			if ( _u64Test > 0x0000000000ffffff )
+			if ( _u64Test >	0x0000000000ffffff )
 				nShift = ( _u64Test > 0x000000000fffffff ) ? 28 : 24;
 			else
 				nShift = ( _u64Test > 0x00000000000fffff ) ? 20 : 16;
 		}
 		else
 		{
-			if ( _u64Test > 0x00000000000000ff )
+			if ( _u64Test >	0x00000000000000ff )
 				nShift = ( _u64Test > 0x0000000000000fff ) ? 12 : 8;
 			else
 				nShift = ( _u64Test > 0x000000000000000f ) ? 4 : 0;
