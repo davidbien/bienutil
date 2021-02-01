@@ -761,7 +761,7 @@ template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
 	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
 {
-	return basic_string< t_TyCharConvertTo >( _pc, _len );
+	return basic_string< t_TyCharConvertTo >( (const t_TyCharConvertTo*)_pc, _len );
 }
 template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )

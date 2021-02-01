@@ -17,29 +17,69 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+#ifdef _MSC_VER
+#pragma intrinsic(_BitScanReverse)
+#endif //_MSC_VER
+
+// Unless a constexpr is needed then these methods use intrinsics for speed:
+template < class t_tyT >
+size_t MSBitSet( t_tyT _tTest )
+	requires( 8 == sizeof( t_tyT ) )
+{
+	Assert( _tTest );
+#ifdef _MSC_VER
+	unsigned long ulIndex;
+	unsigned char ucRes = _BitScanReverse64( &ulIndex, (unsigned __int64)_tTest );
+	return !ucRes ? (numeric_limits< size_t >::max)() : size_t(ulIndex);
+#else // clang, gcc:
+	if ( !_tTest )
+		return (numeric_limits< size_t >::max)();
+	int clz = __builtin_clzll( (unsigned long long)_tTest );
+	return size_t( 63 - clz );
+#endif 
+}
+template < class t_tyT >
+size_t MSBitSet( t_tyT _tTest )
+	requires( ( 4 == sizeof( t_tyT ) ) || ( 2 == sizeof( t_tyT ) ) || ( 1 == sizeof( t_tyT ) ) )
+{
+	Assert( _tTest );
+#ifdef _MSC_VER
+	static_assert( 4 == sizeof( unsigned long ) );
+	unsigned long ulIndex;
+	unsigned char ucRes = _BitScanReverse( &ulIndex, (unsigned long)_tTest );
+	return !ucRes ? (numeric_limits< size_t >::max)() : size_t(ulIndex);
+#else // clang, gcc:
+	static_assert( 4 == sizeof( unsigned int ) );
+	if ( !_tTest )
+		return (numeric_limits< size_t >::max)();
+	int clz = __builtin_clz( (unsigned int)_tTest );
+	return size_t( 31 - clz );
+#endif 
+}
+
 // Lookup table for MSB of a nibble:
 static constexpr int v_rgiBit[16] = { 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 };
 
 inline
-constexpr unsigned int _MSBitSet8( uint8_t _u8Test )
+constexpr size_t _KMSBitSet8( uint8_t _u8Test )
 {
-	uint8_t nShift = ( _u8Test > 0x0f ) ? 4 : 0;
-	_u8Test = v_rgiBit[ ( _u8Test >> nShift ) & 0x0f ] + nShift;
-	return _u8Test;
+	size_t nShift = ( _u8Test > 0x0f ) ? 4 : 0;
+	size_t nRet = v_rgiBit[ ( _u8Test >> nShift ) & 0x0f ] + nShift;
+	return nRet;
 }
 inline
-constexpr unsigned int _MSBitSet16( uint16_t _u16Test )
+constexpr size_t _KMSBitSet16( uint16_t _u16Test )
 {
-	uint16_t nShift;
+	size_t nShift;
 	if ( _u16Test > 0x00ff )
 		nShift = ( _u16Test > 0x0fff ) ? 12 : 8;
 	else
 		nShift = ( _u16Test > 0x000f ) ? 4 : 0;
-	_u16Test = v_rgiBit[ ( _u16Test >> nShift ) & 0x000f ] + nShift;
-	return _u16Test;
+	size_t nRet = v_rgiBit[ ( _u16Test >> nShift ) & 0x000f ] + nShift;
+	return nRet;
 }
 inline
-constexpr unsigned int _MSBitSet32( uint32_t _u32Test )
+constexpr size_t _KMSBitSet32( uint32_t _u32Test )
 {
 	uint32_t nShift;
 	if ( _u32Test > 0x0000ffff )
@@ -56,11 +96,11 @@ constexpr unsigned int _MSBitSet32( uint32_t _u32Test )
 		else
 			nShift = ( _u32Test > 0x0000000f ) ? 4 : 0;
 	}
-	_u32Test = v_rgiBit[ ( _u32Test >> nShift ) & 0x0000000f ] + nShift;
-	return _u32Test;
+	size_t nRet = v_rgiBit[ ( _u32Test >> nShift ) & 0x0000000f ] + nShift;
+	return nRet;
 }
 inline
-constexpr uint64_t _MSBitSet64( uint64_t _u64Test )
+constexpr size_t _KMSBitSet64( uint64_t _u64Test )
 {
 	uint64_t nShift;
 	if ( _u64Test > 0x00000000ffffffff )
@@ -97,33 +137,35 @@ constexpr uint64_t _MSBitSet64( uint64_t _u64Test )
 				nShift = ( _u64Test > 0x000000000000000f ) ? 4 : 0;
 		}
 	}
-	_u64Test = v_rgiBit[ ( _u64Test >> nShift ) & 0x000000000000000f ] + nShift;
-	return _u64Test;
+	size_t nRet = v_rgiBit[ ( _u64Test >> nShift ) & 0x000000000000000f ] + nShift;
+	return nRet;
 }
 
-// This methods finds the finds the most significant bit set in <tTest>.
+// These methods finds the finds the most significant bit set in <tTest>.
+// The "K" signifies constexpr - if you don't need constexpr then the non-K methods use intrinsics.
 template < class t_tyT >
-constexpr t_tyT UMSBitSet( t_tyT tTest );
-
-template <>
-constexpr uint64_t UMSBitSet< uint64_t >( uint64_t _tTest )
+constexpr size_t KMSBitSet( t_tyT _tTest )
+	requires( 8 == sizeof( t_tyT ) )
 {
-	return _MSBitSet64( _tTest );		
+	return _KMSBitSet64( (uint64_t)_tTest );
 }
-template <>
-constexpr uint32_t UMSBitSet< uint32_t >( uint32_t _tTest )
+template < class t_tyT >
+constexpr size_t KMSBitSet( t_tyT _tTest )
+	requires( 4 == sizeof( t_tyT ) )
 {
-	return _MSBitSet32( _tTest );		
+	return _KMSBitSet32( (uint32_t)_tTest );		
 }
-template <>
-constexpr uint16_t UMSBitSet< uint16_t >( uint16_t _tTest )
+template < class t_tyT >
+constexpr size_t KMSBitSet( t_tyT _tTest )
+	requires( 2 == sizeof( t_tyT ) )
 {
-	return _MSBitSet16( _tTest );		
+	return _KMSBitSet16( (uint16_t)_tTest );		
 }
-template <>
-constexpr uint8_t UMSBitSet< uint8_t >( uint8_t _tTest )
+template < class t_tyT >
+constexpr size_t KMSBitSet( t_tyT _tTest )
+	requires( 1 == sizeof( t_tyT ) )
 {
-	return _MSBitSet8( _tTest );		
+	return _KMSBitSet8( (uint8_t)_tTest );		
 }
 
 __BIENUTIL_END_NAMESPACE

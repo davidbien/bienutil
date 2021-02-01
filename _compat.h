@@ -6,6 +6,7 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
+#include <assert.h>
 
 #if !defined(WIN32) && !defined(__APPLE__) && !defined(__linux__)
 #error We don't have any compatibility platforms we are familiar with.
@@ -566,7 +567,13 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 }
 
 // Endian stuff:
-// We don't supply a SwitchEndian for char8_t cuz duh.
+// We supply a SwitchEndian for a byte to allow conditional compilations to compile without having to pull out a base class.
+template < class t_TyT >
+inline void SwitchEndian( t_TyT & _t )
+    requires( sizeof( t_TyT ) == 1 )
+{
+  assert( false );
+}
 template < class t_TyT >
 inline void SwitchEndian( t_TyT & _t )
     requires( sizeof( t_TyT ) == 2 )

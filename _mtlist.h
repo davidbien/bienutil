@@ -337,7 +337,7 @@ public:
 		static int	s_iTiers = 0;
 		int		iTiers = ( s_iTiers++ % ( 2 << _kiGenTiers ) );
 		iTiers &= ~( iTiers & ( iTiers - 1 ) );
-		iTiers = UMSBitSet( iTiers ) + 1;
+		iTiers = MSBitSet( iTiers ) + 1;
 		return iTiers;
 	}
 

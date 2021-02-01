@@ -40,7 +40,7 @@ _bv_get_clear_first_set( t_Ty & _rt )
 {
   Assert( _rt );  // We assume that there is such a bit to get.
   t_Ty tBit = _bv_clear_first_set( _rt, _rt );
-  return UMSBitSet( tBit );
+  return MSBitSet( tBit );
 }
 
 template < class t_Ty >
@@ -49,7 +49,7 @@ _bv_get_first_set( t_Ty const & _rt )
 {
   Assert( _rt );  // We assume that there is such a bit to get.
   t_Ty tBit = _bv_first_set( _rt );
-  return UMSBitSet( tBit );
+  return MSBitSet( tBit );
 }
 
 // Note: Should be able to use intel integer vectors as elements. Will have
@@ -68,7 +68,7 @@ public:
   typedef t_TyAllocator _TyAllocator;
   typedef t_TyEl        _TyEl;
 
-  static const size_type  ms_knElSizeBits = CHAR_BIT * sizeof( t_TyEl );
+  static const size_type  ms_kstElSizeBits = CHAR_BIT * sizeof( t_TyEl );
 
   const size_type m_kstBits{0};
   const size_type m_kstSize{0};
@@ -88,7 +88,7 @@ public:
   explicit _simple_bitvec(  size_type _stBits,
                             const t_TyAllocator & _rA = t_TyAllocator() )
     : m_kstBits( _stBits ),
-      m_kstSize( !m_kstBits ? 0 : ( (_stBits-1)/ms_knElSizeBits + 1 ) ),
+      m_kstSize( !m_kstBits ? 0 : ( (_stBits-1)/ms_kstElSizeBits + 1 ) ),
       _TyAllocBase( _rA ),
       m_rgEls( nullptr )
   {
@@ -139,10 +139,10 @@ public:
     Assert( !m_rgEls == !m_kstSize );
     if ( m_kstBits )
     {
-      Assert( m_kstSize == ( (m_kstBits-1ull)/ms_knElSizeBits + 1ull ) );
-      const size_type kstLastFill = m_kstBits % ms_knElSizeBits;
+      Assert( m_kstSize == ( (m_kstBits-1ull)/ms_kstElSizeBits + 1ull ) );
+      const size_type kstLastFill = m_kstBits % ms_kstElSizeBits;
       Assert( !kstLastFill || !( m_rgEls[m_kstSize-1] & ~( ( 1ull << kstLastFill ) - 1ull ) ) );
-      const size_type kstLastFillBP = m_kstBits % ms_knElSizeBits;
+      const size_type kstLastFillBP = m_kstBits % ms_kstElSizeBits;
     }
 #endif //ASSERTSENABLED
   }
@@ -203,16 +203,16 @@ public:
   void  setbit( size_type _rstBit ) _BIEN_NOTHROW
   {
     Assert( _rstBit < size() );
-    m_rgEls[ _rstBit / ms_knElSizeBits ] |= 
-      ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_knElSizeBits ) );
+    m_rgEls[ _rstBit / ms_kstElSizeBits ] |= 
+      ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kstElSizeBits ) );
     AssertValid();
   }
 
   void  clearbit( size_type _rstBit ) _BIEN_NOTHROW
   {
     Assert( _rstBit < size() );
-    m_rgEls[ _rstBit / ms_knElSizeBits ] &= 
-      ~( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_knElSizeBits ) );
+    m_rgEls[ _rstBit / ms_kstElSizeBits ] &= 
+      ~( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kstElSizeBits ) );
     AssertValid();
   }
 
@@ -220,8 +220,8 @@ public:
   {
     AssertValid();
     Assert( _rstBit < size() );
-    return m_rgEls[ _rstBit / ms_knElSizeBits ] &
-      ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_knElSizeBits ) );
+    return m_rgEls[ _rstBit / ms_kstElSizeBits ] &
+      ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kstElSizeBits ) );
   }
 
   // Clear the first set least significant bit - if none found then return
@@ -235,7 +235,7 @@ public:
   size_type getclearfirstset( size_type _stLast )
   {
     AssertValid();
-    return _getclearfirstset( m_rgEls + ( (_stLast+1) / ms_knElSizeBits ) );
+    return _getclearfirstset( m_rgEls + ( (_stLast+1) / ms_kstElSizeBits ) );
   }
 
   // Obtain the index first least significant bit set.
@@ -250,14 +250,14 @@ public:
     AssertValid();
     Assert( _stLast < size() );
     // First process any partial elements:
-    t_TyEl * pElNext = m_rgEls + ( ++_stLast / ms_knElSizeBits );
-    if ( _stLast %= ms_knElSizeBits )
+    t_TyEl * pElNext = m_rgEls + ( ++_stLast / ms_kstElSizeBits );
+    if ( _stLast %= ms_kstElSizeBits )
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
       if ( !!( el = ( *pElNext & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
       {
-        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_knElSizeBits;
+        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_kstElSizeBits;
         Assert( _stLast < size() );
         return _stLast;
       }
@@ -408,15 +408,15 @@ public:
     AssertValid();
     Assert( _stLast < size() );
     // First process any partial elements:
-    t_TyEl * pElNextThis = m_rgEls + ( ++_stLast / ms_knElSizeBits );
+    t_TyEl * pElNextThis = m_rgEls + ( ++_stLast / ms_kstElSizeBits );
     t_TyEl * pElNextThat = _r.m_rgEls + ( pElNextThis - m_rgEls );
-    if ( _stLast %= ms_knElSizeBits )
+    if ( _stLast %= ms_kstElSizeBits )
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
       if ( !!( el = ( *pElNextThis & *pElNextThat & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
       {
-        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNextThis - m_rgEls ) * ms_knElSizeBits;
+        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNextThis - m_rgEls ) * ms_kstElSizeBits;
         Assert( _stLast < size() );
         return _stLast;
       }
@@ -434,15 +434,15 @@ public:
     //  maintain null bits above bit limit on last element:
     if ( m_kstSize )
     {
-      t_TyEl * pElBeforeEnd = m_rgEls + m_kstSize - 1;
+      t_TyEl * pElEnd = m_rgEls + m_kstSize;
 			t_TyEl * pEl;
-      for ( pEl = m_rgEls; pEl != pElBeforeEnd; ++pEl )
-      {
+      for ( pEl = m_rgEls; pEl != pElEnd; ++pEl )
         *pEl = ~*pEl;
-      }
-      t_TyEl  eMask = ~t_TyEl(0) << ( ms_knElSizeBits - ( m_kstSize * ms_knElSizeBits - m_kstBits ) );
-      *pEl = ~( *pEl | eMask );
+      const size_t kstLastFill = m_kstBits % ms_kstElSizeBits;
+      if ( !!kstLastFill ) // update the last element?
+        pEl[-1] &= ( ( 1ull << kstLastFill ) - 1ull );
     }
+    AssertValid();
   }
 
   size_t  hash() const _BIEN_NOTHROW
@@ -490,7 +490,7 @@ protected:
         size_type nBitEl = (size_type)_bv_get_clear_first_set( *pEl );
         Assert( dbg_elBefore & ( t_TyEl( 1 ) << nBitEl ) );
         Assert( !( *pEl & ( t_TyEl( 1 ) << nBitEl ) ) );
-        size_type stFound = size_type(pEl - m_rgEls) * ms_knElSizeBits + nBitEl;
+        size_type stFound = size_type(pEl - m_rgEls) * ms_kstElSizeBits + nBitEl;
         Assert( stFound < m_kstBits );
         return stFound;
       }
@@ -505,7 +505,7 @@ protected:
     {
       if ( *pEl )
       {
-        size_type stFound = size_type(pEl - m_rgEls) * ms_knElSizeBits + size_type(_bv_get_first_set( *pEl ));
+        size_type stFound = size_type(pEl - m_rgEls) * ms_kstElSizeBits + size_type(_bv_get_first_set( *pEl ));
         Assert( stFound < m_kstBits );
         return stFound;
       }
@@ -521,7 +521,7 @@ protected:
       t_TyEl  el;
       if ( !!( el = ( *pcurThis & *pcurThat ) ) )
       {
-        return size_type(pcurThis - m_rgEls) * ms_knElSizeBits + size_type(_bv_get_first_set( el ));
+        return size_type(pcurThis - m_rgEls) * ms_kstElSizeBits + size_type(_bv_get_first_set( el ));
       }
     }
     return m_kstBits;

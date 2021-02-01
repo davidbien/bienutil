@@ -66,7 +66,7 @@ namespace n_VanEmdeBoasTreeImpl
     template < class t_tyUint >
     constexpr t_tyUint Log2( t_tyUint _ui )
     {
-        return UMSBitSet( _ui );
+        return KMSBitSet( _ui );
     }
 
     // The "lower square root" is just the normal square root as truncation occurs normally.
@@ -101,13 +101,12 @@ namespace n_VanEmdeBoasTreeImpl
     uint64_t Clz< uint64_t >( uint64_t _n )
     {
         static_assert( sizeof(_n) == sizeof( uint64_t ) );
-        return __builtin_clzl( _n );
+        return __builtin_clzll( _n );
     }
     template <>
     int64_t Clz< int64_t >( int64_t _n )
     {
-        static_assert( sizeof(_n) == sizeof( int64_t ) );
-        return __builtin_clzl( (int64_t)_n );
+        return __builtin_clzll( (uint64_t)_n );
     }
     template < class t_tyInt >
     t_tyInt Ctz( t_tyInt _n )
@@ -120,13 +119,12 @@ namespace n_VanEmdeBoasTreeImpl
     uint64_t Ctz< uint64_t >( uint64_t _n )
     {
         static_assert( sizeof(_n) == sizeof( uint64_t ) );
-        return __builtin_ctzl( _n );
+        return __builtin_ctzll( _n );
     }
     template <>
     int64_t Ctz< int64_t >( int64_t _n )
     {
-        static_assert( sizeof(_n) == sizeof( int64_t ) );
-        return __builtin_ctzl( (int64_t)_n );
+        return __builtin_ctzll( (unt64_t)_n );
     }
 }
 
