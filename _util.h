@@ -164,20 +164,36 @@ struct concatenator_pack<t_T1<Args0...>, t_T2< Args1...> > {
 };
 
 // Multiplex templates with tuples and contain them in some type of variant container.
-template< template<class... > class t_TemplateMultiplex, class t_TyTpTuplePack, template < class ... > class t_TemplateVariadicHolder >
+template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder >
 struct _MultiplexTuplePackHelper;
-template< template<class... > class t_TemplateMultiplex, class ... ExtractTuplePack, template < class ... > class t_TemplateVariadicHolder >
-struct _MultiplexTuplePackHelper<t_TemplateMultiplex, tuple< ExtractTuplePack ... >, t_TemplateVariadicHolder >
+template< template<class... > class t_tempMultiplex, class ... ExtractTuplePack, template < class ... > class t_tempVariadicHolder >
+struct _MultiplexTuplePackHelper<t_tempMultiplex, tuple< ExtractTuplePack ... >, t_tempVariadicHolder >
 {
-  using type = t_TemplateVariadicHolder< t_TemplateMultiplex< ExtractTuplePack > ... >;
+  using type = t_tempVariadicHolder< t_tempMultiplex< ExtractTuplePack > ... >;
 };
-template< template<class... > class t_TemplateMultiplex, class t_TyTpTuplePack, template < class ... > class t_TemplateVariadicHolder = tuple >
+template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder = tuple >
 struct MultiplexTuplePack
 {
-    using type = typename _MultiplexTuplePackHelper< t_TemplateMultiplex, t_TyTpTuplePack, t_TemplateVariadicHolder >::type;
+    using type = typename _MultiplexTuplePackHelper< t_tempMultiplex, t_TyTpTuplePack, t_tempVariadicHolder >::type;
 };
-template< template<class... > class t_TemplateMultiplex, class t_TyTpTuplePack, template < class ... > class t_TemplateVariadicHolder = tuple >
-using MultiplexTuplePack_t = MultiplexTuplePack< t_TemplateMultiplex, t_TyTpTuplePack, t_TemplateVariadicHolder >::type;
+template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder = tuple >
+using MultiplexTuplePack_t = MultiplexTuplePack< t_tempMultiplex, t_TyTpTuplePack, t_tempVariadicHolder >::type;
+
+// Multiplex templates with tuples and contain them in some type of variant container. This one also adds a monostate.
+template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder >
+struct _MultiplexMonostateTuplePackHelper;
+template< template<class... > class t_tempMultiplex, class ... ExtractTuplePack, template < class ... > class t_tempVariadicHolder >
+struct _MultiplexMonostateTuplePackHelper<t_tempMultiplex, tuple< ExtractTuplePack ... >, t_tempVariadicHolder >
+{
+  using type = t_tempVariadicHolder< monostate, t_tempMultiplex< ExtractTuplePack > ... >;
+};
+template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder = tuple >
+struct MultiplexMonostateTuplePack
+{
+    using type = typename _MultiplexMonostateTuplePackHelper< t_tempMultiplex, t_TyTpTuplePack, t_tempVariadicHolder >::type;
+};
+template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder = variant >
+using MultiplexMonostateTuplePack_t = MultiplexMonostateTuplePack< t_tempMultiplex, t_TyTpTuplePack, t_tempVariadicHolder >::type;
 
 // DimensionOf:
 template < class t_Ty, size_t t_kN >
