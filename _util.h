@@ -1,5 +1,4 @@
-#ifndef ___UTIL_H__BIEN__
-#define ___UTIL_H__BIEN__
+#pragma once
 
 //          Copyright David Lawrence Bien 1997 - 2020.
 // Distributed under the Boost Software License, Version 1.0.
@@ -195,6 +194,17 @@ struct MultiplexMonostateTuplePack
 template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder = variant >
 using MultiplexMonostateTuplePack_t = MultiplexMonostateTuplePack< t_tempMultiplex, t_TyTpTuplePack, t_tempVariadicHolder >::type;
 
+// has_type: Test a tuple or a variant to see if it contains (not necessarily currently mind you) the type you care about.
+// From: https://stackoverflow.com/questions/25958259/how-do-i-find-out-if-a-tuple-contains-a-type
+template <typename T, typename TupleOrVariant>
+struct has_type;
+template <typename T, typename... Us>
+struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
+template <typename T, typename... Us>
+struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
+template <typename T, typename TupleOrVariant>
+inline constexpr bool has_type_v = has_type<T,TupleOrVariant>::value;
+
 // DimensionOf:
 template < class t_Ty, size_t t_kN >
 constexpr size_t DimensionOf( t_Ty (&)[ t_kN ] )
@@ -252,7 +262,36 @@ inline constexpr bool TAreSameSizeTypes_v = TAreSameSizeTypes< t_Ty1, t_Ty2 >::v
 // USAGE:
 // VAARG_EXPAND_(VAARG_GET_FIRST_(__VA_ARGS__, DUMMY_PARAM_))
 
+// forward_capture: Correct forwarding inside lambda capture:
+// https://isocpp.org/blog/2016/12/capturing-perfectly-forwarded-objects-in-lambdas-vittorio-romeo
+
+#define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
+namespace impl
+{
+  template <typename... Ts>
+  auto fwd_capture(Ts&&... xs)
+  {
+      return std::tuple<Ts...>(FWD(xs)...); 
+  }
+} // namespace impl
+template <typename T>
+decltype(auto) access_fwd(T&& x) { return std::get<0>(FWD(x)); }
+#define FWD_CAPTURE(...) impl::fwd_capture(FWD(__VA_ARGS__))
+// Usage:
+#if 0
+  struct A
+  {
+      int _value{0};
+  };
+
+  auto foo = [](auto&& a)
+  {
+      return [a = FWD_CAPTURE(a)]() mutable 
+      { 
+          ++access(a)._value;
+          std::cout << access(a)._value << "\n";
+      };
+  };
+#endif //0
 
 __BIENUTIL_END_NAMESPACE
-
-#endif //___UTIL_H__BIEN__
