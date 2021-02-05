@@ -843,32 +843,48 @@ enum EFileCharacterEncoding
 static const size_t vknBytesBOM = 4;
 // GetCharacterEncodingFromBOM:
 // Detect if there is a BOM present and if so return it. _rstLen should be at least 4 bytes.
-// Upon return _rstLen is set to the length of the BOM if a valid BOM is found.
+// Upon return _rstLen is set to the length of the BOM if a valid BOM is found or zero is no BOM is found.
 // If no valid BOM is found then efceFileCharacterEncodingCount is returned.
 EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
 {
 	Assert( _rstLen >= vknBytesBOM );
-	if ( _rstLen < vknBytesBOM )
-			return efceFileCharacterEncodingCount;
+	VerifyThrowSz( _rstLen >= vknBytesBOM, "Requires vknBytesBOM(%lu) of file to determine BOM.", vknBytesBOM );
+
 	if ( ( 0xEF == _pbyBufFileBegin[0] ) && ( 0xBB == _pbyBufFileBegin[1] ) && ( 0xBF == _pbyBufFileBegin[2] ) )
-			return efceUTF8;
+	{
+		_rstLen = 3;
+		return efceUTF8;
+	}
 	if ( ( 0xFE == _pbyBufFileBegin[0] ) && ( 0xFF == _pbyBufFileBegin[1] ) )
-			return efceUTF16BE;
+	{
+		_rstLen = 2;
+		return efceUTF16BE;
+	}
 	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) )
-			return efceUTF16LE;
+	{
+		_rstLen = 2;
+		return efceUTF16LE;
+	}
 	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0xFE == _pbyBufFileBegin[2] ) && ( 0xFF == _pbyBufFileBegin[3] ) )
-			return efceUTF32BE;
+	{
+		_rstLen = 4;
+		return efceUTF32BE;
+	}
 	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
-			return efceUTF32LE;
+	{
+		_rstLen = 4;
+		return efceUTF32LE;
+	}
+	_rstLen = 0;
 	return efceFileCharacterEncodingCount;
 }
 
 // DetectEncodingXmlFile:
 // If the above GetCharacterEncodingFromBOM() fails then we can try to detect the encoding using the fact that the first character in an XML file is an '<'.
-EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
+EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t _stLen )
 {
-	Assert( _rstLen >= vknBytesBOM );
-	if ( _rstLen < vknBytesBOM )
+	Assert( _stLen >= vknBytesBOM );
+	if ( _stLen < vknBytesBOM )
 			return efceFileCharacterEncodingCount;
 	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 != _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
 			return efceUTF8;
