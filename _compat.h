@@ -312,27 +312,32 @@ public:
 };
 typedef MappedMemoryHandle vtyMappedMemoryHandle;
 
-inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0 ) noexcept(true)
+// Map the file readonly. Return the size of the mapping in _pstSizeMapping. Map at position _stAtPosition.
+inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0, size_t _stAtPosition = 0 ) noexcept(true)
 {
 #ifdef WIN32
     static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
     BOOL fGetFileSize;
-    if ( !!_pstSizeMapping && ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || !*_pstSizeMapping ) )
+    if ( !!_pstSizeMapping )
     {
-        if ( !fGetFileSize )
+        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( _stAtPosition >= *_pstSizeMapping ) ) )
         {
-            if ( !!_pstSizeMapping )
-                *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+            if ( !fGetFileSize )
+            {
+                if ( !!_pstSizeMapping )
+                    *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+            }
+            else
+                SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file or a file at a posiion beyond or equal to the end.
+            return vtyMappedMemoryHandle(); 
         }
-        else
-            SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file.
-        return vtyMappedMemoryHandle(); 
+        *_pstSizeMapping -= _stAtPosition;
     }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READONLY, 0, 0, NULL );
     if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
         return vtyMappedMemoryHandle();
-    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0);
+    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_READ, DWORD(_stAtPosition >> 32), (DWORD)_stAtPosition, 0);
     ::CloseHandle( hMapping ); // Close the mapping because MapViewOfFile maintains an internal handle on it.
     if ( !pvFile )
         return vtyMappedMemoryHandle();
@@ -350,15 +355,15 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
     }
     if ( !!_pstSizeMapping )
         *_pstSizeMapping = bufStat.st_size;
-    if ( !bufStat.st_size )
+    if ( _stAtPosition >= bufStat.st_size )
     {
         SetLastErrNo( EINVAL );
         return vtyMappedMemoryHandle();
     }
-    void * pvFile = ::mmap( 0, bufStat.st_size, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, 0 );
+    void * pvFile = ::mmap( 0, bufStat.st_size - _stAtPosition, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, _stAtPosition );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
-    return vtyMappedMemoryHandle( pvFile, bufStat.st_size );
+    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - _stAtPosition );
 #endif
 }
 // To map writeable you must map read/write - it seems on both Linux and Windows.
@@ -535,6 +540,8 @@ NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whenc
 // Reading and writing files:
 int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 );
 int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 );
+// This method always throws on failure or not writing the number of bytes requested.
+void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite );
 
 // Set the size of the file bigger or smaller. I avoid using truncate to set the file larger in linux due to performance concerns.
 // There is no expectation that this results in zeros in the new portion of a larger file.
@@ -567,6 +574,10 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 }
 
 // Endian stuff:
+// Supply a constexpr bool for endianness so that we can use it in templatization, etc.
+static constexpr bool vkfIsBigEndian = ( std::endian::little != std::endian::big ) && ( std::endian::native == std::endian::big );
+static constexpr bool vkfIsLittleEndian = ( std::endian::little == std::endian::big ) || ( std::endian::native == std::endian::little );
+
 // We supply a SwitchEndian for a byte to allow conditional compilations to compile without having to pull out a base class.
 template < class t_TyT >
 inline void SwitchEndian( t_TyT & _t )

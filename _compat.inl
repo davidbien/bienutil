@@ -112,6 +112,16 @@ inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNB
     return 0;
 #endif
 }
+inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite )
+{
+  size_t nbyWritten;
+  int iResult = FileWrite( _hFile,  _pvBuffer, _stNBytesToWrite, &nbyWritten );
+  if ( !!iResult )
+    THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "FileWrite() failed." );
+  Assert( nbyWritten == stSizeSrc );
+  VerifyThrowSz( nbyWritten == stSizeSrc, "Only wrote [%lu] bytes of [%lu].", nbyWritten, stSizeSrc );
+}
+
 
 // Time methods:
 inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest)

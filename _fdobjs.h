@@ -27,7 +27,7 @@ public:
   FileObj( FileObj const & ) = delete;
   FileObj & operator=( FileObj const & ) = delete;
   FileObj() = default;
-  FileObj( vtyFileHandle _hFile, bool _fOwnFile = true )
+  explicit FileObj( vtyFileHandle _hFile, bool _fOwnFile = true )
     : m_hFile( _hFile ),
       m_fOwnFile( _fOwnFile )
   {
@@ -103,7 +103,7 @@ public:
   FileMappingObj( FileMappingObj const & ) = delete;
   FileMappingObj & operator=( FileMappingObj const & ) = delete;
   FileMappingObj() = default;
-  FileMappingObj( vtyMappedMemoryHandle const & _hmmFile, bool _fOwnFile = true )
+  explicit FileMappingObj( vtyMappedMemoryHandle const & _hmmFile, bool _fOwnFile = true )
     : m_hmmFile( _hmmFile ),
       m_fOwnFile( _fOwnFile )
   {
