@@ -135,7 +135,7 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
 
 #if !ASSERTSENABLED
 #define Assert(expr)		(static_cast<void>(0))
-#define AssertSz(expr, sz...)		(static_cast<void>(0))
+#define AssertSz(expr, sz, ...)		(static_cast<void>(0))
 #else // #if !ASSERTSENABLED
 #define Assert(expr)							          \
      ( static_cast <bool> (expr)						\

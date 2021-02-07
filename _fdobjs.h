@@ -132,6 +132,11 @@ public:
     Assert( FIsOpen() );
     return m_hmmFile.Pv();
   }
+  uint8_t * Pby( size_t _stAtBytePosition )
+  {
+    Assert( FIsOpen() );
+    return (uint8_t*)m_hmmFile.Pv() + _stAtBytePosition;
+  }
   bool FIsOpen() const
   {
     return !m_hmmFile.FIsNull();

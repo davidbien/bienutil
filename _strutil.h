@@ -391,7 +391,7 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 	_rNum = 0;
 	if (!_psz || !*_psz)
 	{
-		::SetLastErrNo( vkerrInvalidArgument );
+		SetLastErrNo( vkerrInvalidArgument );
 		if (_fThrowOnError)
 			THROWNAMEDEXCEPTION("Null or empty string passed.");
 		return -1;
@@ -405,7 +405,7 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 		int iCur = int(*pszCur) - int('0'); // using the fact that '0' is same in all character types.
 		if ((iCur < 0) || (iCur > 9))
 		{
-			::SetLastErrNo( vkerrInvalidArgument );
+			SetLastErrNo( vkerrInvalidArgument );
 			if (_fThrowOnError)
 				THROWNAMEDEXCEPTION("Non-digit passed.");
 			return -2;
@@ -415,7 +415,7 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 		_rNum += iCur;
 		if (_rNum < numBefore) // overflow.
 		{
-			::SetLastErrNo( vkerrOverflow );
+			SetLastErrNo( vkerrOverflow );
 			if (_fThrowOnError)
 				THROWNAMEDEXCEPTION("Overflow.");
 			return -1;
@@ -433,7 +433,7 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
 	_rNum = 0;
 	if (!_psz || !*_psz || ( _stRadix > 36 ) )
 	{
-		::SetLastErrNo( vkerrInvalidArgument );
+		SetLastErrNo( vkerrInvalidArgument );
 		if (_fThrowOnError)
 			THROWNAMEDEXCEPTION( ( _stRadix > 36 ) ? "Radix > 36." : "Null or empty string passed." );
 		return -1;
@@ -456,7 +456,7 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
 			numCur = _tyNumSigned(*pszCur) - _tyNumSigned('0');
 		if ((numCur < 0) || ((t_tyNum)numCur >= knumRadix))
 		{
-			::SetLastErrNo( vkerrInvalidArgument );
+			SetLastErrNo( vkerrInvalidArgument );
 			if (_fThrowOnError)
 				THROWNAMEDEXCEPTION("Invalid character passed.");			
 			return -1;
@@ -466,7 +466,7 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
 		_rNum += (t_tyNum)numCur;
 		if ( ( _rNum < numBefore ) || ( _rNum > _kNumMax ) ) // overflow.
 		{
-			::SetLastErrNo( vkerrOverflow );
+			SetLastErrNo( vkerrOverflow );
 			if (_fThrowOnError)
 				THROWNAMEDEXCEPTION("Overflow.");
 			return -1;
@@ -777,134 +777,6 @@ basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const
 	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
 
-// ConvertFileMapped:
-// Take a file handle, map it at its current position, then convert to the character type given and write it to _pszFileOutput, potentially switching endian and adding a BOM.
-// There shouldn't be a BOM in the file handle passed - i.e. something else should have read that BOM if it was present and then called this method.
-inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _efceSrc, const char * _pszFileNameDest, EFileCharacterEncoding _efceDst, bool _fAddBOM )
-{
-	// Map the source at its current seek point - this might be just past the BOM or somewhere in the middle of the file.
-	size_t stSizeSrc;
-	FileMappingObj fmoSrc( MapReadOnlyHandle( _hFileSrc, &stSizeSrc, (size_t)NFileSeekAndThrow(_hFileSrc, 0, vkSeekCur) ) );
-	VerifyThrowSz( fmoSrc.FIsOpen(), "Couldn't map source file." );
-	FileObj foDst( CreateWriteOnlyFile( _pszFileNameDest ) );
-	VerifyThrowSz( foDst.FIsOpen(), "Couldn't create file[%s].", _pszFileNameDest );
-	// If we are to write the BOM then write it now:
-	if ( _fAddBOM )
-	{
-		string strBOM = StrGetBOMForEncoding( _efceDst );
-		FileWriteOrThrow( foDst.HFileGet(), &strBOM[0], strBOM.length() );
-	}
-	// If there is no change in encoding:
-	if ( _efceSrc == _efceDst )
-	{
-		// Then just write the source to the dest:
-		return FileWriteOrThrow( foDst.HFileGet(), fmoSrc.Pv(), stSizeSrc );
-	}
-
-	if ( ( efceUTF16BE == _efceSrc ) || ( efceUTF16LE == _efceSrc ) )
-	{
-		VerifyThrowSz( !( stSizeSrc % sizeof(char16_t) ), "Source file is not a integral number of char16_t characters - something is fishy." );
-		// We're just gonna use a string to convert the file. It could be huge and we might run out of memory but I ain't solving that problem in this method.
-		basic_string< char16_t > strSrcData( (char16_t*)fmoSrc.Pv(), stSizeSrc / sizeof(char16_t) );
-		if ( _efceSrc != GetEncodingThisMachine( _efceSrc ) )
-		{
-			// Then we must switch the endian before doing anything with it.
-			SwitchEndian( &strSrcData[0], &strSrcData[0] + strSrcData.length() );
-			_efceSrc = GetEncodingThisMachine( _efceSrc );
-		}
-		if ( _efceSrc == _efceDst )
-		{
-			// Then just write the source to the dest:
-			return FileWriteOrThrow( foDst.HFileGet(), &strSrcData[0], strSrcData.length() * sizeof( char16_t ) );
-		}
-		// Conversion must occur:
-		if ( efceUTF8 == _efceDst )
-		{
-			basic_string< char8_t > strConverted;
-			ConvertString( strConverted, srcSrcData );
-			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char8_t ) );
-		}
-		else
-		{
-			// Then UTF32BE or LE. First must convert to UTF32 anyway.
-			basic_string< char32_t > strConverted;
-			ConvertString( strConverted, srcSrcData );
-			if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
-				SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
-			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char32_t ) );
-		}
-	}
-	if ( ( efceUTF32BE == _efceSrc ) || ( efceUTF32LE == _efceSrc ) )
-	{
-		VerifyThrowSz( !( stSizeSrc % sizeof(char32_t) ), "Source file is not a integral number of char32_t characters - something is fishy." );
-		// We're just gonna use a string to convert the file. It could be huge and we might run out of memory but I ain't solving that problem in this method.
-		basic_string< char32_t > strSrcData( (char32_t*)fmoSrc.Pv(), stSizeSrc / sizeof(char32_t) );
-		if ( _efceSrc != GetEncodingThisMachine( _efceSrc ) )
-		{
-			// Then we must switch the endian before doing anything with it.
-			SwitchEndian( &strSrcData[0], &strSrcData[0] + strSrcData.length() );
-			_efceSrc = GetEncodingThisMachine( _efceSrc );
-		}
-		if ( _efceSrc == _efceDst )
-		{
-			// Then just write the source to the dest:
-			return FileWriteOrThrow( foDst.HFileGet(), &strSrcData[0], strSrcData.length() * sizeof( char32_t ) );
-		}
-		// Conversion must occur:
-		if ( efceUTF8 == _efceDst )
-		{
-			basic_string< char8_t > strConverted;
-			ConvertString( strConverted, srcSrcData );
-			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char8_t ) );
-		}
-		else
-		{
-			// Then UTF16BE or LE. First must convert to UTF16 anyway.
-			basic_string< char16_t > strConverted;
-			ConvertString( strConverted, srcSrcData );
-			if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
-				SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
-			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char16_t ) );
-		}
-	}
-	Assert( efceUTF8 == _efceSrc );
-	VerifyThrowSz( efceUTF8 == _efceSrc, "Unknown encoding _efceSrc[%u].", _efceSrc );
-	basic_string_view< char8_t > svSrcData( (char8_t*)fmoSrc.Pv(), stSizeSrc );
-	if ( ( efceUTF16BE == _efceDst ) || ( efceUTF16LE == _efceDst ) )
-	{
-		basic_string< char16_t > strConverted;
-		ConvertString( strConverted, svSrcData );
-		if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
-			SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
-		return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char16_t ) );
-	}
-	else
-	{
-		basic_string< char32_t > strConverted;
-		ConvertString( strConverted, svSrcData );
-		if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
-			SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
-		return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char32_t ) );
-	}
-	// listo.
-}
-
-#if 0 // This is too special case...
-template < class t_TyCharDest, class t_TyCharSrc >
-basic_string< t_TyCharDest > StrConvertFile( const char * _psz )
-{
-	FileObj fo( OpenReadOnlyFile( _psz ) );
-	VerifyThrowSz( fo.FIsOpen(), "Couldn't open [%s].", _psz );
-	size_t stSize;
-	FileMappingObj fmo( MapReadOnlyHandle( fo.HFileGet(), &stSize ) );
-	VerifyThrowSz( fmo.FIsOpen(), "Couldn't map [%s].", _psz );
-  uint8_t byFirst = *(uint8_t*)fmo.Pv();
-  uint8_t bySecond = ((uint8_t*)fmo.Pv())[1];
-  uint8_t byThird = ((uint8_t*)fmo.Pv())[2];
-	return StrConvertString< t_TyCharDest >( (const t_TyCharSrc *)fmo.Pv() + 3, ( stSize / sizeof( t_TyCharSrc ) ) - 3 );
-}
-#endif //0
-
 namespace n_StrArrayStaticCast
 {
 	template <typename t_tyChar, std::size_t t_knLength>
@@ -980,6 +852,7 @@ EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEncoding _efce )
 			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
 		break;
 	}
+	return efceFileCharacterEncodingCount;
 }
 
 static const size_t vknBytesBOM = 4;
@@ -997,25 +870,28 @@ EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, 
 		_rstLen = 3;
 		return efceUTF8;
 	}
+	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) )
+	{
+		if ( ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
+		{
+			_rstLen = 4;
+			return efceUTF32LE;
+		}
+		else
+		{
+			_rstLen = 2;
+			return efceUTF16LE;
+		}
+	}
 	if ( ( 0xFE == _pbyBufFileBegin[0] ) && ( 0xFF == _pbyBufFileBegin[1] ) )
 	{
 		_rstLen = 2;
 		return efceUTF16BE;
 	}
-	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) )
-	{
-		_rstLen = 2;
-		return efceUTF16LE;
-	}
 	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0xFE == _pbyBufFileBegin[2] ) && ( 0xFF == _pbyBufFileBegin[3] ) )
 	{
 		_rstLen = 4;
 		return efceUTF32BE;
-	}
-	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
-	{
-		_rstLen = 4;
-		return efceUTF32LE;
 	}
 	_rstLen = 0;
 	return efceFileCharacterEncodingCount;
@@ -1030,9 +906,9 @@ EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t
 			return efceFileCharacterEncodingCount;
 	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 != _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
 			return efceUTF8;
-	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
-			return efceUTF16BE;
 	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( '<' == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) )
+			return efceUTF16BE;
+	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
 			return efceUTF16LE;
 	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( '<' == _pbyBufFileBegin[3] ) )
 			return efceUTF32BE;
@@ -1065,6 +941,150 @@ string StrGetBOMForEncoding( EFileCharacterEncoding _efce )
 			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
 		break;
 	}
+	return string();
+}
+
+const char *
+PszCharacterEncodingShort( EFileCharacterEncoding _efce )
+{
+	switch( _efce )
+	{
+		case efceUTF8:
+			return "UTF8";
+		break;
+		case efceUTF16BE:
+			return "UTF16BE";
+		break;
+		case efceUTF16LE:
+			return "UTF16LE";
+		break;
+		case efceUTF32BE:
+			return "UTF32BE";
+		break;
+		case efceUTF32LE:
+			return "UTF32LE";
+		break;
+		default:
+			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
+		break;
+	}
+	return "wont get here"; // lol - compiler thinks so.
+}
+
+// ConvertFileMapped:
+// Take a file handle, map it at its current position, then convert to the character type given and write it to _pszFileOutput, potentially switching endian and adding a BOM.
+// There shouldn't be a BOM in the file handle passed - i.e. something else should have read that BOM if it was present and then called this method.
+inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _efceSrc, const char * _pszFileNameDest, EFileCharacterEncoding _efceDst, bool _fAddBOM )
+{
+	// Map the source at its current seek point - this might be just past the BOM or somewhere in the middle of the file.
+	size_t nbySizeSrc;
+	size_t stMapAtPostion = (size_t)NFileSeekAndThrow(_hFileSrc, 0, vkSeekCur);
+	FileMappingObj fmoSrc( MapReadOnlyHandle( _hFileSrc, &nbySizeSrc, &stMapAtPostion ) );
+	VerifyThrowSz( fmoSrc.FIsOpen(), "Couldn't map source file." );
+	void * pvMapped = fmoSrc.Pby( stMapAtPostion );
+	nbySizeSrc -= stMapAtPostion;
+
+	FileObj foDst( CreateWriteOnlyFile( _pszFileNameDest ) );
+	VerifyThrowSz( foDst.FIsOpen(), "Couldn't create file[%s].", _pszFileNameDest );
+	// If we are to write the BOM then write it now:
+	if ( _fAddBOM )
+	{
+		string strBOM = StrGetBOMForEncoding( _efceDst );
+		FileWriteOrThrow( foDst.HFileGet(), &strBOM[0], strBOM.length() );
+	}
+	// If there is no change in encoding:
+	if ( _efceSrc == _efceDst )
+	{
+		// Then just write the source to the dest:
+		return FileWriteOrThrow( foDst.HFileGet(), pvMapped, nbySizeSrc );
+	}
+
+	if ( ( efceUTF16BE == _efceSrc ) || ( efceUTF16LE == _efceSrc ) )
+	{
+		VerifyThrowSz( !( nbySizeSrc % sizeof(char16_t) ), "Source file is not a integral number of char16_t characters - something is fishy." );
+		// We're just gonna use a string to convert the file. It could be huge and we might run out of memory but I ain't solving that problem in this method.
+		basic_string< char16_t > strSrcData( (char16_t*)pvMapped, nbySizeSrc / sizeof(char16_t) );
+		if ( _efceSrc != GetEncodingThisMachine( _efceSrc ) )
+		{
+			// Then we must switch the endian before doing anything with it.
+			SwitchEndian( &strSrcData[0], &strSrcData[0] + strSrcData.length() );
+			_efceSrc = GetEncodingThisMachine( _efceSrc );
+		}
+		if ( _efceSrc == _efceDst )
+		{
+			// Then just write the source to the dest:
+			return FileWriteOrThrow( foDst.HFileGet(), &strSrcData[0], strSrcData.length() * sizeof( char16_t ) );
+		}
+		// Conversion must occur:
+		if ( efceUTF8 == _efceDst )
+		{
+			basic_string< char8_t > strConverted;
+			ConvertString( strConverted, strSrcData );
+			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char8_t ) );
+		}
+		else
+		{
+			// Then UTF32BE or LE. First must convert to UTF32 anyway.
+			basic_string< char32_t > strConverted;
+			ConvertString( strConverted, strSrcData );
+			if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
+				SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
+			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char32_t ) );
+		}
+	}
+	if ( ( efceUTF32BE == _efceSrc ) || ( efceUTF32LE == _efceSrc ) )
+	{
+		VerifyThrowSz( !( nbySizeSrc % sizeof(char32_t) ), "Source file is not a integral number of char32_t characters - something is fishy." );
+		// We're just gonna use a string to convert the file. It could be huge and we might run out of memory but I ain't solving that problem in this method.
+		basic_string< char32_t > strSrcData( (char32_t*)pvMapped, nbySizeSrc / sizeof(char32_t) );
+		if ( _efceSrc != GetEncodingThisMachine( _efceSrc ) )
+		{
+			// Then we must switch the endian before doing anything with it.
+			SwitchEndian( &strSrcData[0], &strSrcData[0] + strSrcData.length() );
+			_efceSrc = GetEncodingThisMachine( _efceSrc );
+		}
+		if ( _efceSrc == _efceDst )
+		{
+			// Then just write the source to the dest:
+			return FileWriteOrThrow( foDst.HFileGet(), &strSrcData[0], strSrcData.length() * sizeof( char32_t ) );
+		}
+		// Conversion must occur:
+		if ( efceUTF8 == _efceDst )
+		{
+			basic_string< char8_t > strConverted;
+			ConvertString( strConverted, strSrcData );
+			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char8_t ) );
+		}
+		else
+		{
+			// Then UTF16BE or LE. First must convert to UTF16 anyway.
+			basic_string< char16_t > strConverted;
+			ConvertString( strConverted, strSrcData );
+			if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
+				SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
+			return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char16_t ) );
+		}
+	}
+	Assert( efceUTF8 == _efceSrc );
+	VerifyThrowSz( efceUTF8 == _efceSrc, "Unknown encoding _efceSrc[%u].", _efceSrc );
+	basic_string_view< char8_t > svSrcData( (char8_t*)pvMapped, nbySizeSrc );
+	if ( ( efceUTF16BE == _efceDst ) || ( efceUTF16LE == _efceDst ) )
+	{
+		basic_string< char16_t > strConverted;
+		ConvertString( strConverted, svSrcData );
+		if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
+			SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
+		return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char16_t ) );
+	}
+	else
+	{
+		basic_string< char32_t > strConverted;
+		ConvertString( strConverted, svSrcData );
+		if ( _efceDst != GetEncodingThisMachine( _efceDst ) )
+			SwitchEndian( &strConverted[0], &strConverted[0] + strConverted.length() );
+		return FileWriteOrThrow( foDst.HFileGet(), &strConverted[0], strConverted.length() * sizeof( char32_t ) );
+	}
+	// listo.
 }
 
 __BIENUTIL_END_NAMESPACE

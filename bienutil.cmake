@@ -16,6 +16,7 @@ set(CompilerFlags
         )
 foreach(CompilerFlag ${CompilerFlags})
     string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+    string(REPLACE "/bigobj" "" ${CompilerFlag} "${${CompilerFlag}}")
     set(${CompilerFlag} "${${CompilerFlag}} /bigobj" CACHE STRING "msvc compiler flags" FORCE)
     message("MSVC flags: ${CompilerFlag}:${${CompilerFlag}}")
 endforeach()

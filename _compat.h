@@ -12,6 +12,7 @@
 #error We don't have any compatibility platforms we are familiar with.
 #endif
 
+#include <bit>
 #include <utility>
 #include <filesystem>
 #ifndef WIN32
@@ -236,6 +237,23 @@ inline vtyFileHandle CreateReadWriteFile( const char * _pszFileName )
     return hFile;
 }
 
+// Get the page size. We cache it locally as well so that once we call the system call once that's the only time we will need to.
+inline size_t GetPageSize()
+{
+  static size_t stPageSize = 0;
+  if ( !stPageSize )
+  {
+#ifdef WIN32
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    stPageSize = si.dwPageSize;
+#elif defined( __APPLE__ ) || defined( __linux__ )
+    stPageSize = getpagesize();
+#endif
+  }
+  return stPageSize;
+}
+
 // Define a "mapped memory handle" which contains all that we need to perform the unmapping. Under Windows this is just a pv, under Linux this is a (pv,size).
 class MappedMemoryHandle
 {
@@ -312,15 +330,22 @@ public:
 };
 typedef MappedMemoryHandle vtyMappedMemoryHandle;
 
-// Map the file readonly. Return the size of the mapping in _pstSizeMapping. Map at position _stAtPosition.
-inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0, size_t _stAtPosition = 0 ) noexcept(true)
+// Map the file readonly. Return the size of the mapping in _pstSizeMapping. Map at position *_pstAtPosition if _pstAtPosition.
+// If _pstAtPosition is specified then it is updated correctly by the page size - i.e. upon return *_pstAtPosition will be equal to *_pstAtPosition % dwPageSize.
+// It's up to the caller to offset the returned void pointer appropriately.
+inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = nullptr, size_t * _pstAtPosition = nullptr ) noexcept(true)
 {
 #ifdef WIN32
     static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
     BOOL fGetFileSize;
+    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
+    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
+    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
+    if ( _pstAtPosition )
+       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
     if ( !!_pstSizeMapping )
     {
-        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( _stAtPosition >= *_pstSizeMapping ) ) )
+        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( stAtPosition >= *_pstSizeMapping ) )
         {
             if ( !fGetFileSize )
             {
@@ -331,13 +356,13 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
                 SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file or a file at a posiion beyond or equal to the end.
             return vtyMappedMemoryHandle(); 
         }
-        *_pstSizeMapping -= _stAtPosition;
+        *_pstSizeMapping -= stAtPositionAligned;
     }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READONLY, 0, 0, NULL );
     if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
         return vtyMappedMemoryHandle();
-    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_READ, DWORD(_stAtPosition >> 32), (DWORD)_stAtPosition, 0);
+    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_READ, DWORD(stAtPositionAligned >> 32), (DWORD)stAtPositionAligned, 0 );
     ::CloseHandle( hMapping ); // Close the mapping because MapViewOfFile maintains an internal handle on it.
     if ( !pvFile )
         return vtyMappedMemoryHandle();
@@ -355,15 +380,20 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
     }
     if ( !!_pstSizeMapping )
         *_pstSizeMapping = bufStat.st_size;
-    if ( _stAtPosition >= bufStat.st_size )
+    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
+    if ( stAtPosition >= bufStat.st_size )
     {
         SetLastErrNo( EINVAL );
         return vtyMappedMemoryHandle();
     }
-    void * pvFile = ::mmap( 0, bufStat.st_size - _stAtPosition, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, _stAtPosition );
+    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
+    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
+    if ( _pstAtPosition )
+       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
+    void * pvFile = ::mmap( 0, bufStat.st_size - stAtPositionAligned, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, stAtPositionAligned );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
-    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - _stAtPosition );
+    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - stAtPositionAligned );
 #endif
 }
 // To map writeable you must map read/write - it seems on both Linux and Windows.
@@ -447,7 +477,7 @@ int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
     return ::stat( _pszFileName, &_rfa );
 #endif
 }
-bool FIsDir_FileAttrs(vtyFileAttr const& _rfa)
+bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa)
 {
 #ifdef WIN32
   // May need to modify this:
@@ -456,13 +486,13 @@ bool FIsDir_FileAttrs(vtyFileAttr const& _rfa)
   return !!S_ISDIR(_rfa.st_mode);
 #endif
 }
-bool FDirExists(const char* _pszDir)
+bool FDirectoryExists(const char* _pszDir)
 {
   vtyFileAttr fa;
   int iRes = GetFileAttrs(_pszDir, fa);
   if (!!iRes)
     return false;
-  return FIsDir_FileAttrs(fa);
+  return FIsDirectory_FileAttrs(fa);
 }
 bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
 {
@@ -628,6 +658,7 @@ void SwitchEndian( t_TyT * _ptBeg, size_t _stLen )
     for ( t_TyT * ptCur = _ptBeg; ptEnd != ptCur; ++ptCur )
         SwitchEndian( *ptCur );
 }
+
 // Directory entries:
 // Windows supplies tons more info than Linux but currently we don't need to do any of that multiplatform.
 // I only added accessors below for things I need now of course.

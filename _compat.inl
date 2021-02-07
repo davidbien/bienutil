@@ -118,8 +118,8 @@ inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size
   int iResult = FileWrite( _hFile,  _pvBuffer, _stNBytesToWrite, &nbyWritten );
   if ( !!iResult )
     THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "FileWrite() failed." );
-  Assert( nbyWritten == stSizeSrc );
-  VerifyThrowSz( nbyWritten == stSizeSrc, "Only wrote [%lu] bytes of [%lu].", nbyWritten, stSizeSrc );
+  Assert( nbyWritten == _stNBytesToWrite );
+  VerifyThrowSz( nbyWritten == _stNBytesToWrite, "Only wrote [%lu] bytes of [%lu].", nbyWritten, _stNBytesToWrite );
 }
 
 

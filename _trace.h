@@ -36,10 +36,10 @@ void
 Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, va_list _ap );
 
 #if !TRACESSENABLED
-#define Trace(szMesg...)		(static_cast<void>(0))
-#define TraceAndIgnore(szMesg...) (static_cast<void>(0))
-#define TraceAndBreak(szMesg...) (static_cast<void>(0))
-#define TraceAndAbort(szMesg...)		(static_cast<void>(0))
+#define Trace(szMesg, ...)		(static_cast<void>(0))
+#define TraceAndIgnore(szMesg, ...) (static_cast<void>(0))
+#define TraceAndBreak(szMesg, ...) (static_cast<void>(0))
+#define TraceAndAbort(szMesg, ...)		(static_cast<void>(0))
 #else // #if !TRACESSENABLED
 #define Trace(szMesg, ...) Trace_LogMessage( ACTIONONTRACE, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, nullptr, szMesg, ##__VA_ARGS__ )
 #define TraceJson(JSONVAL,szMesg, ...) Trace_LogMessage( ACTIONONTRACE, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, &JSONVAL, szMesg, ##__VA_ARGS__ )
