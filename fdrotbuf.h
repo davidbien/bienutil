@@ -50,7 +50,7 @@ public:
   FdReadRotating( FdReadRotating const & ) = delete;
   FdReadRotating & operator = ( FdReadRotating const & ) = delete;
   FdReadRotating() = default; // produces an FdReadRotating that FIsNull(). 
-  FdReadRotating( _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
+  FdReadRotating( _tySizeType _nbySizeSegment = 8/*4096*/ / sizeof( t_tyChar ) )
     : m_saBuffer( _nbySizeSegment )
   {
   }
@@ -62,7 +62,6 @@ public:
   {
     m_saBuffer.swap( _r.m_saBuffer );
     std::swap( m_stchLenRead, _r.m_stchLenRead );
-    std::swap( m_stchLenRemaining, _r.m_stchLenRemaining );
     std::swap( m_posCur, _r.m_posCur );
     std::swap( m_hFile, _r.m_hFile );
     std::swap( m_fReadAhead, _r.m_fReadAhead );
@@ -70,25 +69,28 @@ public:
 
   // Initialize - we should be empty.
   void Init( vtyFileHandle _hFile, size_t _posCur = 0, bool _fReadAhead = false, 
-    size_t _stchLenRead = (std::numeric_limits<size_t>::max)(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
+    size_t _stchLenRead = (std::numeric_limits<size_t>::max)(), _tySizeType _nbySizeSegment = 8/*4096*/ / sizeof( t_tyChar ) )
   {
     Assert( !m_saBuffer.FHasAnyCapacity() );
     m_hFile = _hFile;
     m_posCur = _posCur;
     m_stchLenRead = _stchLenRead;
-    m_stchLenRemaining = _stchLenRead;
     m_fReadAhead = _fReadAhead;
     m_saBuffer.InitSegmentSize( _nbySizeSegment );
+    AssertValid();
   }
-
+  size_t _NLenRemaining() const
+  {
+    return m_stchLenRead - ( ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) ? 0 : m_posCur );
+  }
   void AssertValid() const
   {
 #if ASSERTSENABLED
     m_saBuffer.AssertValid();
     Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) );
-    Assert( ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) || ( ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements() ) );
+    Assert( m_stchLenRead >= m_posCur );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
-    Assert( !m_fReadAhead || !( !( m_saBuffer.NElements() % m_saBuffer.NElsPerSegment() ) ) );
+    Assert( !m_fReadAhead || ( m_saBuffer.NElements() < m_saBuffer.NElsPerSegment() ) || !( m_saBuffer.NElements() % m_saBuffer.NElsPerSegment() ) );
 #endif //ASSERTSENABLED  
   }
   void AssertValidRange( size_t _posBegin, size_t _posEnd ) const
@@ -96,7 +98,8 @@ public:
 #if ASSERTSENABLED
     Assert( _posEnd >= _posBegin );
     Assert( _posEnd <= m_posCur );
-    Assert( _posBegin >= m_saBuffer.IBaseElement() );
+    Assert( m_saBuffer.IBaseElement() >= 0 );
+    Assert( _posBegin >= (_tySizeType)m_saBuffer.IBaseElement() );
 #endif //ASSERTSENABLED  
   }
   bool FIsNull() const
@@ -112,11 +115,15 @@ public:
   {
     return m_saBuffer.IBaseElement();
   }
+  void ResetPositionToBase()
+  {
+    m_posCur = PosBase();
+  }
   // Return a character and true, or false for EOF. Throws on read error.
   bool FGetChar( _tyChar & _rc )
   {
     AssertValid();
-    if ( !m_stchLenRemaining )
+    if ( !_NLenRemaining() )
       return false;
     if ( m_posCur == m_saBuffer.NElements() )
     {
@@ -134,8 +141,6 @@ public:
         if ( s_kfSwitchEndian )
           SwitchEndian( _rc );
         m_saBuffer.Overwrite( m_posCur++, &_rc, sizeof _rc );
-        if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
-          --m_stchLenRemaining;
         AssertValid();
         return true;
       }
@@ -144,11 +149,11 @@ public:
         static constexpr size_t s_knSegmentsReadAhead = 4;
         // Then we should read ahead by the amount we like to read ahead by - which is s_knSegmentsReadAhead segments.
         Assert( !( m_posCur % m_saBuffer.NElsPerSegment() ) ); // Should always be at a tile boundary when we are reading ahead.
-        _tySizeType sizeAdd = min( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, m_stchLenRemaining );
+        _tySizeType sizeAdd = min( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, _NLenRemaining() );
         if ( !sizeAdd )
           return false;
         m_saBuffer.SetSize( m_posCur + sizeAdd );
-        _tySizeType nRead = m_saBuffer.NApplyContiguous( m_posCur, m_posCur + ( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead ),
+        _tySizeType nRead = m_saBuffer.NApplyContiguous( m_posCur, m_posCur + sizeAdd,
           [this]( _tyChar * _pcBegin, _tyChar * _pcEnd ) -> _tySizeType
           {
             size_t stRead;
@@ -162,10 +167,8 @@ public:
           }
         );
         Assert( nRead == sizeAdd );
-        nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
+        nRead = m_saBuffer.Read( m_posCur++, &_rc, 1 );
         Assert( nRead ); // Should always get something here since we would have failed above.
-        if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
-          --m_stchLenRemaining;
         AssertValid();
         return true;
       }
@@ -173,10 +176,8 @@ public:
     else
     {
       Assert( m_fReadAhead ); // Should always get into the above loop when not reading ahead.
-      _tySizeType nRead = m_saBuffer.Read( m_posCur++, &_rc, sizeof _rc );
+      _tySizeType nRead = m_saBuffer.Read( m_posCur++, &_rc, 1 );
       Assert( nRead ); // Should always get something here since we would have failed above.
-      if ( (numeric_limits< size_t >::max)() != m_stchLenRemaining )
-        --m_stchLenRemaining;
       AssertValid();
       return true;
     }
@@ -188,35 +189,39 @@ public:
   // The resultant SegArrayRotatingBuffer is based at m_saBuffer.IBaseElement() and is (_posEnd - m_saBuffer.IBaseElement()) characters long.
   void ConsumeData( _tyChar * _pcBuf, _tySizeType _lenBuf )
   {
+    AssertValid();
     m_saBuffer.CopyDataAndAdvanceBuffer( m_saBuffer.IBaseElement(), _pcBuf, _lenBuf ); // this consumes data residing in the rotating buffer.
     m_posCur = m_saBuffer.IBaseElement(); // Advance the current position to the end of what was consumed.
+    AssertValid();
   }
   // Discard the data until _posEnd.
   void DiscardData( _tySizeType _posEnd )
   {
+    AssertValid();
     m_saBuffer.SetIBaseEl( _posEnd );
+    AssertValid();
   }
   // Return the data in the buffer between the base of the buffer and m_posCur.
   template < class t_tyString >
-  void GetCurrentString( t_tyString & _rstr )
+  void GetCurrentString( t_tyString & _rstr ) const
   {
-    m_saBuffer.GetString( _rstr,m_saBuffer.IBaseElement(), m_posCur );
+    AssertValid();
+    m_saBuffer.GetString( _rstr, (_tySizeType)m_saBuffer.IBaseElement(), m_posCur );
   }
   bool FSpanChars( _tySizeType _posBegin, _tySizeType _posEnd, const _tyChar * _pszCharSet ) const
   {
+    AssertValid();
     return m_saBuffer.FSpanChars( _posBegin, _posEnd, _pszCharSet );
   }
   bool FMatchString( _tySizeType _posBegin, _tySizeType _posEnd, const _tyChar * _pszMatch ) const
   {
+    AssertValid();
     return m_saBuffer.FMatchString( _posBegin, _posEnd, _pszMatch );
   }
 protected:
   // The current "base" of the SegArrayRotatingBuffer is the beginning of the "view".
-  // For non-infinite values of m_stchLenRead:
-  //  ( m_stchLenRead - m_stchLenRemaining ) == m_saBuffer.NElements()
   _tySegArray m_saBuffer;
   size_t m_stchLenRead{(std::numeric_limits<size_t>::max)()};
-  size_t m_stchLenRemaining{(std::numeric_limits<size_t>::max)()};
   size_t m_posCur{0};
   vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fReadAhead{false};

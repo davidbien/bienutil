@@ -173,6 +173,16 @@ constexpr t_tyChar TChGetFileSeparator()
   return t_tyChar('/');
 #endif
 }
+// Get the file separator not matching this OS.
+template < class t_tyChar >
+constexpr t_tyChar TChGetOtherFileSeparator()
+{
+#ifdef WIN32
+  return t_tyChar('/');
+#else // Assume all other OS use /.
+  return t_tyChar('\\');
+#endif
+}
 
 inline vtyFileHandle FileGetStdInHandle()
 {

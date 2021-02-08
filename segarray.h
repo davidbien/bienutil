@@ -162,6 +162,11 @@ public:
     Assert( _posEnd <= m_nElements );
 #endif //!ASSERTSENABLED
   }
+  void InitSegmentSize( _tySizeType _nbySizeSegment )
+  {
+    Clear();
+    m_nbySizeSegment = _nbySizeSegment;
+  }
   void Clear()
   {
     AssertValid();
@@ -237,7 +242,7 @@ public:
     Assert( m_nElements );
     return ElGet(m_nElements-1);
   }
-  template < class t_tyStringView, class t_tyDataRange >
+  template < class t_tyStringView >
   bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
     requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
@@ -257,7 +262,7 @@ public:
   {
     return FGetStringView( _rdr.begin(), _rdr.end() );
   }
-  void _CopyStringToBuf( _tySizeType _posBegin, _tySizeType _posEnd, _tyT * _ptBuf )
+  void _CopyStringToBuf( _tySizeType _posBegin, _tySizeType _posEnd, _tyT * _ptBuf ) const
   {
     _tyT * ptCur = _ptBuf;
     ApplyContiguous( _posBegin, _posEnd, 
@@ -269,7 +274,7 @@ public:
     );
     Assert( ptCur == _ptBuf + ( _posEnd - _posBegin ) );
   }
-  template < class t_tyString, class t_tyDataRange >
+  template < class t_tyString >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
     requires ( sizeof( typename t_tyString::value_type ) == sizeof( _tyT ) ) // non-converting version.
   {
@@ -281,7 +286,7 @@ public:
     _CopyStringToBuf( _posBegin, _posEnd, (_tyT*)&_rstr[0] );
     Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
   }
-  template < class t_tyString, class t_tyDataRange >
+  template < class t_tyString >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
     requires ( sizeof( typename t_tyString::value_type ) != sizeof( _tyT ) ) // converting version.
   {
@@ -379,7 +384,7 @@ public:
               THROWNAMEDEXCEPTION("OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT));
           }
         }
-        Assert(!(_nElements % NElsPerSegment()) == !*_PpbyGetCurSegment());
+        //Assert(!(_nElements % NElsPerSegment()) == !*_PpbyGetCurSegment());
         m_ppbyEndSegments = m_ppbySegments + nBlocksNeeded;
         m_nElements = _nElements;
       }
@@ -677,8 +682,11 @@ public:
   {
     AssertValid();
     Assert( _posEnd >= _posBegin );
+    Assert( _posEnd <= NElements() );
     if ( _posEnd <= _posBegin )
       return 0; // no-op.
+    if ( _posEnd > NElements() )
+      _posEnd = NElements();
     _tySizeType nElsLeft = _posEnd - _posBegin;
     _tySizeType stCurApply = _posBegin;
     _tySizeType stSegRemainWrite = NElsPerSegment() - (stCurApply % NElsPerSegment());
@@ -808,14 +816,16 @@ class SegArrayRotatingBuffer : protected SegArray< t_tyT, std::false_type, t_tyS
 {
   typedef SegArrayRotatingBuffer _tyThis;
   typedef SegArray< t_tyT, std::false_type, t_tySizeType > _tyBase;
+protected:
+  using _tyBase::m_nElements;
 public:
   using typename _tyBase::_tyT;
   using typename _tyBase::_tySizeType;
   using typename _tyBase::_tySignedSizeType;
   using _tyBase::s_knbySizeSegment;
 
-  SegArrayRotatingBuffer() = delete;
-  SegArrayRotatingBuffer( _tySizeType _nbySizeSegment = s_knbySizeSegment )
+  SegArrayRotatingBuffer() = default;
+  SegArrayRotatingBuffer( _tySizeType _nbySizeSegment )
     : _tyBase( _nbySizeSegment )
   {
   }
@@ -831,17 +841,17 @@ public:
   void AssertValid() const
 #if ASSERTSENABLED
   {
-    using _tyBase::m_nElements;
     _tyBase::AssertValid();
     // Assert we aren't overflowing when computing the number of elements.
     // Since we are using a signed m_iBaseEl we have limited the size of the file we can process to 2^63-1 in size
     //  from 2^64-1 in size had we used an unsigned m_iBaseEl. Thats fine with me.
-    Assert( ( NBaseElMagnitude() + m_nElements ) < (numeric_limits<_tySignedSizeType>::max)() );
+    Assert( ( NBaseElMagnitude() + m_nElements ) < (_tySizeType)(numeric_limits<_tySignedSizeType>::max)() );
   }
 #else  //!ASSERTSENABLED
   {
   }
 #endif //!ASSERTSENABLED
+  using _tyBase::InitSegmentSize;
   void Clear()
   {
     _tyBase::Clear();
@@ -904,8 +914,6 @@ public:
   //  2) m_iBaseEl is >= 0 and _iBasaEl >= 0: This activates rotation when m_iBaseEl goes over a segment boundary.
   void SetIBaseEl( _tySignedSizeType _iBaseEl )
   {
-    using _tyBase::m_ppbyEndSegments;
-    using _tyBase::m_ppbySegments;
     if ( _iBaseEl < 0 )
     {
       VerifyThrowSz( m_iBaseEl <= 0, "Trying to switch signs on the base element index which is not permitted.");
@@ -919,12 +927,12 @@ public:
     //  2) Move all blocks before the block containing the base el to the end of the block pointer array - in any order. Just need to memmove,etc.
     // If the new base el is beyond the current number of elements then:
     //  1) Just set the number of elements to ( m_iBaseEl % NElsPerSegment() ).
-    if ( m_iBaseEl != _iBaseEl )
+    if ( (_tySizeType)m_iBaseEl != _iBaseEl )
     {
-      if ( _iBaseEl >= NElements() )
+      if ( (_tySizeType)_iBaseEl >= NElements() )
       {
         m_iBaseEl = _iBaseEl;
-        _tyBase::SetSize( m_iBaseEl % NElsPerSegment() );
+        _tyBase::SetSize( (_tySizeType)m_iBaseEl % NElsPerSegment() );
       }
       else
       {
@@ -968,7 +976,7 @@ public:
     return ElGet(_n);
   }
 
-  template < class t_tyStringView, class t_tyDataRange >
+  template < class t_tyStringView >
   bool FGetStringView( t_tyStringView & _rsv, _tySizeType _posBegin, _tySizeType _posEnd ) const
     requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
@@ -986,7 +994,7 @@ public:
   {
     return FGetStringView( _rdr.begin(), _rdr.end() );
   }
-  template < class t_tyString, class t_tyDataRange >
+  template < class t_tyString >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
   {
     Assert( _rstr.empty() );
@@ -1163,6 +1171,8 @@ public:
     return _tyBase::NApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
 protected:
+    using _tyBase::m_ppbyEndSegments;
+    using _tyBase::m_ppbySegments;
   // The current base element. The invariant that is maintained is that m_iBaseEl is always located in the first chunk.
   //  When m_iBaseEl is moved into the next chunk (or beyond) those chunk(s) are rotated around to the end.
   _tySignedSizeType m_iBaseEl{0}; 

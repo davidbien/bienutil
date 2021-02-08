@@ -688,10 +688,15 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
             (void)FPrintfStdStrNoThrow( strMesg, "AssertVerify_LogMessage(): 2nd call to vsnprintf() returned nRequired[%d].", nRequired );
         }
       }
+      
+      // We must check if there are any % signs in _szAssertion and substitute %% for each - otherwise these can cause the program to ABORT - which we do not prefer.
+      string strAssertion( _szAssertion );
+      for ( size_t posPercent = strAssertion.find('%'); posPercent != string::npos; posPercent = strAssertion.find( '%', posPercent + 2 ) )
+        strAssertion.insert( strAssertion.begin() + posPercent, '%' );
 
       // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
       std::string strFmt;
-      (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s: %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, _szAssertion, strMesg.c_str() );
+      (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s: %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, strAssertion.c_str(), strMesg.c_str() );
 
       n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
       jvLog("szAssertion").SetStringValue( _szAssertion );
@@ -735,6 +740,8 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
 inline void 
 Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, va_list _ap )
 {
+  if ( _HEAPOK != _heapchk() )
+    DEBUG_BREAK;
   try
   {
     std::string strMesg;
