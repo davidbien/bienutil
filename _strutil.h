@@ -826,6 +826,70 @@ enum EFileCharacterEncoding
 	efceFileCharacterEncodingCount // This should be last.
 };
 
+// Return the encoding implemented by a set of types:
+template < class t_TyChar, class t_TyFSwitchEndian >
+EFileCharacterEncoding GetCharacterEncoding();
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char8_t, false_type >()
+{
+	return efceUTF8;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char8_t, true_type >()
+{
+	Assert( false ); // weird that we should be here...
+	return efceUTF8;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char, false_type >()
+{
+	return efceUTF8;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char, true_type >()
+{
+	Assert( false ); // weird that we should be here...
+	return efceUTF8;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsLittleEndian >()
+{
+	return efceUTF16BE;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsBigEndian >()
+{
+	return efceUTF16LE;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsLittleEndian >()
+{
+	return efceUTF32BE;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsBigEndian >()
+{
+	return efceUTF32LE;
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian >()
+{
+#ifdef BIEN_WCHAR_16BIT
+	return efceUTF16BE;
+#else //!BIEN_WCHAR_16BIT
+	return efceUTF32BE;
+#endif //!BIEN_WCHAR_16BIT
+}
+template <>
+EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
+{
+#ifdef BIEN_WCHAR_16BIT
+	return efceUTF16LE;
+#else //!BIEN_WCHAR_16BIT
+	return efceUTF32LE;
+#endif //!BIEN_WCHAR_16BIT
+}
+
 // Get the corresponding encoding for this machine:
 EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEncoding _efce )
 {

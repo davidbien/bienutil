@@ -617,6 +617,8 @@ inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
 // Supply a constexpr bool for endianness so that we can use it in templatization, etc.
 static constexpr bool vkfIsBigEndian = ( std::endian::little != std::endian::big ) && ( std::endian::native == std::endian::big );
 static constexpr bool vkfIsLittleEndian = ( std::endian::little == std::endian::big ) || ( std::endian::native == std::endian::little );
+typedef integral_constant< bool, vkfIsBigEndian > vTyFIsBigEndian;
+typedef integral_constant< bool, vkfIsLittleEndian > vTyFIsLittleEndian;
 
 // We supply a SwitchEndian for a byte to allow conditional compilations to compile without having to pull out a base class.
 template < class t_TyT >

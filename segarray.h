@@ -947,7 +947,7 @@ public:
           uint8_t ** ppbyBuffer = (uint8_t **)alloca( sstShifted * sizeof( uint8_t * ) );
           memcpy( ppbyBuffer, m_ppbySegments, sstShifted * sizeof( uint8_t * ) );
           memmove( m_ppbySegments, m_ppbySegments + sstShifted, ( ( m_ppbyEndSegments - m_ppbySegments ) - sstShifted ) * sizeof(uint8_t *) );
-          memcpy( m_ppbySegments + ( ( m_ppbyEndSegments - m_ppbySegments ) - sstShifted ) * sizeof(uint8_t *), ppbyBuffer, sstShifted * sizeof( uint8_t * ) );
+          memcpy( m_ppbySegments + ( ( m_ppbyEndSegments - m_ppbySegments ) - sstShifted ), ppbyBuffer, sstShifted * sizeof( uint8_t * ) );
           _tyBase::m_nElements -= sstShifted * NElsPerSegment();
         }
         Assert( NElements() == ast_nElsBefore );

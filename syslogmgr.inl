@@ -12,6 +12,7 @@
 #include "syslogmgr.h"
 #include "_strutil.h"
 #include "jsonobjs.h"
+#include "_heapchk.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -740,8 +741,6 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
 inline void 
 Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned int _nLine, const char * _szFunction, const n_SysLog::vtyJsoValueSysLog * _pjvTrace, const char * _szMesg, va_list _ap )
 {
-  if ( _HEAPOK != _heapchk() )
-    DEBUG_BREAK;
   try
   {
     std::string strMesg;

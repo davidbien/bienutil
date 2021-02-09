@@ -50,7 +50,7 @@ public:
   FdReadRotating( FdReadRotating const & ) = delete;
   FdReadRotating & operator = ( FdReadRotating const & ) = delete;
   FdReadRotating() = default; // produces an FdReadRotating that FIsNull(). 
-  FdReadRotating( _tySizeType _nbySizeSegment = 8/*4096*/ / sizeof( t_tyChar ) )
+  FdReadRotating( _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
     : m_saBuffer( _nbySizeSegment )
   {
   }
@@ -69,7 +69,7 @@ public:
 
   // Initialize - we should be empty.
   void Init( vtyFileHandle _hFile, size_t _posCur = 0, bool _fReadAhead = false, 
-    size_t _stchLenRead = (std::numeric_limits<size_t>::max)(), _tySizeType _nbySizeSegment = 8/*4096*/ / sizeof( t_tyChar ) )
+    size_t _stchLenRead = (std::numeric_limits<size_t>::max)(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
   {
     Assert( !m_saBuffer.FHasAnyCapacity() );
     m_hFile = _hFile;
@@ -90,7 +90,6 @@ public:
     Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) );
     Assert( m_stchLenRead >= m_posCur );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
-    Assert( !m_fReadAhead || ( m_saBuffer.NElements() < m_saBuffer.NElsPerSegment() ) || !( m_saBuffer.NElements() % m_saBuffer.NElsPerSegment() ) );
 #endif //ASSERTSENABLED  
   }
   void AssertValidRange( size_t _posBegin, size_t _posEnd ) const
