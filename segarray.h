@@ -14,6 +14,10 @@
 #include <unicode/urename.h>
 #include "_strutil.h"
 
+#ifndef NDEBUG
+#define SEGARRAY_STRICT
+#endif //!NDEBUG
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 template <class t_tyT, class t_tyFOwnLifetime = std::false_type, class t_tySizeType = size_t>
