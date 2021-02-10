@@ -133,11 +133,11 @@ public:
   FreeVoid() = default;
   FreeVoid(FreeVoid const&) = delete;
   FreeVoid& operator = (FreeVoid const&) = delete;
-  FreeVoid(FreeVoid && _rr)
+  FreeVoid(FreeVoid && _rr) noexcept
   {
     swap(_rr);
   }
-  FreeVoid& operator = (FreeVoid && _rr)
+  FreeVoid& operator = (FreeVoid && _rr) noexcept
   {
     FreeVoid acquire(std::move(_rr));
     swap(acquire);

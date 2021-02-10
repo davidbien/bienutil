@@ -365,6 +365,7 @@ public:
         break;
       default:
         Assert(0); // random value...
+        [[fallthrough]];
       case ejvtJsonValueTypeCount:
         break; // assigned to an empty object.
       }
@@ -1126,6 +1127,7 @@ protected:
       break;
     default:
       Assert(0); // random value...
+      [[fallthrough]];
     case ejvtNull:
     case ejvtTrue:
     case ejvtFalse:
@@ -1150,6 +1152,7 @@ protected:
       break;
     default:
       Assert(0); // random value...
+      [[fallthrough]];
     case ejvtNull:
     case ejvtTrue:
     case ejvtFalse:

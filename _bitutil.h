@@ -58,7 +58,7 @@ size_t MSBitSet( t_tyT _tTest )
 }
 
 // Lookup table for MSB of a nibble:
-static constexpr int v_rgiBit[16] = { 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 };
+static constexpr size_t v_rgiBit[16] = { 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 };
 
 inline
 constexpr size_t _KMSBitSet8( uint8_t _u8Test )

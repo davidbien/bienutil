@@ -73,7 +73,7 @@ protected:
   {
     s_stBufSize = NAMEDEXC_BUFSIZE
   };
-  char m_rgcExceptionName[s_stBufSize];
+  char m_rgcExceptionName[s_stBufSize]{0};
 };
 
 #define THROWNAMEDEXCEPTION( MESG, ... ) ExceptionUsage< _t__Named_exception<> >::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )

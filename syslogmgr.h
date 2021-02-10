@@ -134,7 +134,7 @@ struct _SysLogThreadHeader
 // This breaks out all info from a log message so we can put it into a JSON file where it can then be put in a DB, etc.
 struct _SysLogContext
 {
-  size_t m_nmsSinceProgramStart;           // easiest way to do this.
+  size_t m_nmsSinceProgramStart{0};           // easiest way to do this.
   const JsoValue<char> *m_pjvLog{nullptr}; // additional JSON to log to the entry.
   time_t m_time{0};
   std::string m_szFullMesg; // The full annotated message.

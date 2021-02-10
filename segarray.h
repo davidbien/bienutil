@@ -213,11 +213,16 @@ public:
   }
 
   _tyT &ElGet(_tySizeType _nEl, bool _fMaybeEnd = false)
+#ifndef SEGARRAY_STRICT
+    noexcept
+#endif //!SEGARRAY_STRICT
   {
     AssertValid();
     Assert( !((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements))) );
+#ifdef SEGARRAY_STRICT
     if ((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements)))
       THROWNAMEDEXCEPTION("Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements);
+#endif //SEGARRAY_STRICT
     return ((_tyT *)m_ppbySegments[_nEl / NElsPerSegment()])[_nEl % NElsPerSegment()];
   }
   _tyT const &ElGet(_tySizeType _nEl, bool _fMaybeEnd = false) const

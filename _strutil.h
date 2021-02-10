@@ -527,7 +527,7 @@ GetCurrentExecutablePath(std::string &_rstrPath)
 	if (!dwWritten)
 		_rstrPath.clear();
 	else
-		_rstrPath.assign(rgcBuf, kdwBuf);
+		_rstrPath.assign(rgcBuf, dwWritten);
 #else
 #error What to do in this sichiation.
 #endif

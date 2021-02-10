@@ -32,11 +32,11 @@ public:
       m_fOwnFile( _fOwnFile )
   {
   }
-  FileObj( FileObj && _rr )
+  FileObj( FileObj && _rr ) noexcept
   {
     swap( _rr );
   }
-  FileObj & operator = ( FileObj && _rr )
+  FileObj & operator = ( FileObj && _rr ) noexcept
   {
     FileObj fdo( std::move( _rr ) );
     swap( fdo );
@@ -108,11 +108,11 @@ public:
       m_fOwnFile( _fOwnFile )
   {
   }
-  FileMappingObj( FileMappingObj && _rr )
+  FileMappingObj( FileMappingObj && _rr ) noexcept
   {
     swap( _rr );
   }
-  FileMappingObj & operator = ( FileMappingObj && _rr )
+  FileMappingObj & operator = ( FileMappingObj && _rr ) noexcept
   {
     FileMappingObj fmo( std::move( _rr ) );
     swap( fmo );
