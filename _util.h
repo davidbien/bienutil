@@ -162,6 +162,7 @@ struct concatenator_pack<t_T1<Args0...>, t_T2< Args1...> > {
   using type = t_T1<Args0..., Args1...>;
 };
 
+// REVIEW:<dbien>: use type_indentity_t to just transform a tuple into a variant (for instance).
 // Multiplex templates with tuples and contain them in some type of variant/tuple/etc container.
 template< template<class... > class t_tempMultiplex, class t_TyTpTuplePack, template < class ... > class t_tempVariadicHolder >
 struct _MultiplexTuplePackHelper;
@@ -217,16 +218,35 @@ struct MultiplexTuplePack2D
 template< template<class... > class t_tempMultiplex, class t_TyTp2DTuplePack, template < class ... > class t_tempVariadicHolder = tuple >
 using MultiplexTuplePack2D_t = typename MultiplexTuplePack2D< t_tempMultiplex, t_TyTp2DTuplePack, t_tempVariadicHolder >::type;
 
-// has_type: Test a tuple or a variant to see if it contains (not necessarily currently mind you) the type you care about.
-// From: https://stackoverflow.com/questions/25958259/how-do-i-find-out-if-a-tuple-contains-a-type
-template <typename T, typename TupleOrVariant>
+// has_type: Test a tuple or a variant (or any other variadic type container) to see if it contains (not necessarily currently mind you) the type you care about.
+// From: https://stackoverflow.com/questions/25958259/how-do-i-find-out-if-a-tuple-contains-a-type but I made it completely generic.
+template <typename t_TyT, typename t_TyVariadicCont>
 struct has_type;
-template <typename T, typename... Us>
-struct has_type<T, std::tuple<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
-template <typename T, typename... Us>
-struct has_type<T, std::variant<Us...>> : std::disjunction<std::is_same<T, Us>...> {};
-template <typename T, typename TupleOrVariant>
-inline constexpr bool has_type_v = has_type<T,TupleOrVariant>::value;
+template <typename t_TyT, template < class ... > class t_tempTest, typename... t_Tys >
+struct has_type<t_TyT, t_tempTest<t_Tys...>> : std::disjunction<std::is_same<t_TyT, t_Tys>...> 
+{
+  typedef t_tempTest<t_Tys...> container; // This supports find_container<>.
+};
+template <typename t_TyT, typename t_TyVariadicCont>
+inline constexpr bool has_type_v = has_type<t_TyT,t_TyVariadicCont>::value;
+
+template <typename t_TyContainer>
+struct _default_find_container : std::true_type 
+{
+  using container = t_TyContainer;
+};
+// find_container: Searches for the variadic container, inside the 2D variadic container t_Ty2DVariadicCont, that contains the type t_TyT.
+template <typename t_TyT, typename t_Ty2DVariadicCont, typename t_TyDefaultType = void>
+struct find_container;
+template <typename t_TyT, template < class ... > class t_tempTest, typename... t_Tys, typename t_TyDefaultType >
+struct find_container<t_TyT, t_tempTest<t_Tys...>, t_TyDefaultType>
+{
+  typedef typename std::disjunction<has_type<t_TyT, t_Tys>..., _default_find_container<t_TyDefaultType>>::container type;
+};
+template <typename t_TyT, typename t_Ty2DVariadicCont, typename t_TyDefaultType = void>
+using find_container_t = typename find_container<t_TyT,t_Ty2DVariadicCont,t_TyDefaultType>::type;
+template <typename t_TyT, typename t_Ty2DVariadicCont>
+inline constexpr bool find_container_v = !is_same_v< find_container_t<t_TyT,t_Ty2DVariadicCont>, void >;
 
 // DimensionOf:
 template < class t_Ty, size_t t_kN >
