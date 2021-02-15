@@ -181,34 +181,34 @@ public:
         return m_spmfMemFile->GetEndPos();
     }
 
-    // Reuse existing constant SEEK_SET, SEEK_CUR and SEEK_END.
+    // Reuse existing constants vkSeekBegin, vkSeekCur and vkSeekEnd.
     // Return the resultant position. We do allow the caller to seek beyond the end of the file.
     // We don't allow the position to be set to a negative position and we will throw when that happens.
-    _tySignedFilePos Seek( _tySignedFilePos _off, int _iWhence )
+    _tySignedFilePos Seek( _tySignedFilePos _off, vtySeekWhence _swWhence )
     {
         _tyFilePos posNew;
         switch( _iWhence )
         {
-            case SEEK_SET:
+            case vkSeekBegin:
                 if ( _off < 0 )
-                    THROWNAMEDEXCEPTION( "Attempt to SEEK_SET to a negative position." );
+                    THROWNAMEDEXCEPTION( "Attempt to vkSeekBegin to a negative position." );
                 posNew = _off;
                 break;
-            case SEEK_CUR:
+            case vkSeekCur:
             {
                 _tySignedFilePos sPos = m_posCur;
                 sPos += _off;
                 if ( sPos < 0 )
-                    THROWNAMEDEXCEPTION( "Attempt to SEEK_CUR to a negative position." );
+                    THROWNAMEDEXCEPTION( "Attempt to vkSeekCur to a negative position." );
                 posNew = sPos;
                 break;
             }
-            case SEEK_END:
+            case vkSeekEnd:
             {
                 _tySignedFilePos sPos = m_spmfMemFile->GetEndPos();
                 sPos += _off;
                 if ( sPos < 0 )
-                    THROWNAMEDEXCEPTION( "Attempt to SEEK_END to a negative position." );
+                    THROWNAMEDEXCEPTION( "Attempt to vkSeekEnd to a negative position." );
                 posNew = sPos;
                 break;
             }
