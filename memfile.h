@@ -187,7 +187,7 @@ public:
     _tySignedFilePos Seek( _tySignedFilePos _off, vtySeekWhence _swWhence )
     {
         _tyFilePos posNew;
-        switch( _iWhence )
+        switch( _swWhence )
         {
             case vkSeekBegin:
                 if ( _off < 0 )
@@ -213,7 +213,7 @@ public:
                 break;
             }
             default:
-                THROWNAMEDEXCEPTION( "Bogus _iWhence value [%d].", _iWhence );
+                THROWNAMEDEXCEPTION( "Bogus _swWhence value [%d].", _swWhence );
         }
         return m_posCur = posNew;
     }
