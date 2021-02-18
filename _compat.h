@@ -347,7 +347,6 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 {
 #ifdef WIN32
     static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
-    BOOL fGetFileSize;
     size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
     size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
     size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
@@ -355,6 +354,7 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
        *_pstAtPosition = stAtPositionRemainder; // update for the caller.
     if ( !!_pstSizeMapping )
     {
+        BOOL fGetFileSize;
         if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( stAtPosition >= *_pstSizeMapping ) )
         {
             if ( !fGetFileSize )
@@ -388,8 +388,6 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
             *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
         return vtyMappedMemoryHandle();
     }
-    if ( !!_pstSizeMapping )
-        *_pstSizeMapping = bufStat.st_size;
     size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
     if ( stAtPosition >= bufStat.st_size )
     {
@@ -400,6 +398,8 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
     size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
     if ( _pstAtPosition )
        *_pstAtPosition = stAtPositionRemainder; // update for the caller.
+    if ( !!_pstSizeMapping )
+        *_pstSizeMapping = bufStat.st_size - stAtPositionAligned;
     void * pvFile = ::mmap( 0, bufStat.st_size - stAtPositionAligned, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, stAtPositionAligned );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
@@ -407,16 +407,35 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 #endif
 }
 // To map writeable you must map read/write - it seems on both Linux and Windows.
-inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0 ) noexcept(true)
+inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0, size_t * _pstAtPosition = nullptr ) noexcept(true)
 {
 #ifdef WIN32
-    if ( !!_pstSizeMapping && ( !GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) || !*_pstSizeMapping ) )
-        return vtyMappedMemoryHandle(); // Can't map a zero size file.
+    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
+    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
+    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
+    if ( _pstAtPosition )
+       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
+    if ( !!_pstSizeMapping )
+    {
+        BOOL fGetFileSize;
+        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( stAtPosition >= *_pstSizeMapping ) )
+        {
+            if ( !fGetFileSize )
+            {
+                if ( !!_pstSizeMapping )
+                    *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+            }
+            else
+                SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file or a file at a posiion beyond or equal to the end.
+            return vtyMappedMemoryHandle(); 
+        }
+        *_pstSizeMapping -= stAtPositionAligned;
+    }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READWRITE, 0, 0, NULL );
     if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
         return vtyMappedMemoryHandle();
-    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_WRITE, 0, 0, 0); // FILE_MAP_WRITE means read/write according to docs.
+    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_WRITE, DWORD(stAtPositionAligned >> 32), (DWORD)stAtPositionAligned, 0); // FILE_MAP_WRITE means read/write according to docs.
     ::CloseHandle( hMapping ); // Close the mapping because MapViewOfFile maintains an internal handle on it.
     if ( !pvFile )
         return vtyMappedMemoryHandle();
@@ -427,13 +446,27 @@ inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * 
     static_assert( sizeof(bufStat.st_size) == sizeof(*_pstSizeMapping) );
     int iStat = ::fstat( _hFile, &bufStat );
     if ( -1 == iStat )
+    {
+        if ( !!_pstSizeMapping )
+            *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
         return vtyMappedMemoryHandle();
+    }
+    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
+    if ( stAtPosition >= bufStat.st_size )
+    {
+        SetLastErrNo( EINVAL );
+        return vtyMappedMemoryHandle();
+    }
+    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
+    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
+    if ( _pstAtPosition )
+       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
     if ( !!_pstSizeMapping )
-        *_pstSizeMapping = bufStat.st_size;
-    void * pvFile = ::mmap( 0, bufStat.st_size,  PROT_READ | PROT_WRITE, MAP_NORESERVE | MAP_SHARED, _hFile, 0 );
+        *_pstSizeMapping = bufStat.st_size - stAtPositionAligned;
+    void * pvFile = ::mmap( 0, bufStat.st_size - stAtPositionAligned,  PROT_READ | PROT_WRITE, MAP_NORESERVE | MAP_SHARED, _hFile, stAtPositionAligned );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
-    return vtyMappedMemoryHandle( pvFile, bufStat.st_size );
+    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - stAtPositionAligned );
 #endif
 }
 

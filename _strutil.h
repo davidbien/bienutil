@@ -1008,6 +1008,16 @@ string StrGetBOMForEncoding( EFileCharacterEncoding _efce )
 	return string();
 }
 
+template < class t_TyChar, class t_TyFSwitchEndian >
+void WriteBOM( vtyFileHandle _hFile )
+{
+	EFileCharacterEncoding efce = GetCharacterEncoding< t_TyChar, t_TyFSwitchEndian >();
+	Assert( efceFileCharacterEncodingCount != efce );
+	VerifyThrowSz( efceFileCharacterEncodingCount != efce, "Unknown char/switch endian encoding." );
+	string strBOM = StrGetBOMForEncoding( efce );
+	FileWriteOrThrow( _hFile, strBOM.c_str(), strBOM.length() );
+}
+
 const char *
 PszCharacterEncodingShort( EFileCharacterEncoding _efce )
 {

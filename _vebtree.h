@@ -8,6 +8,7 @@
 // _vebtree.h
 // Van Emde Boas tree implementation.
 // dbien : 06JUN2020
+// Meant to be a usable and memory efficient VEB tree implementation.
 // To minimize space we allow a "fixed size" impl to be grafted on to a "variable size" impl
 //  at some point in the tree hierarchy.
 // This also keeps memory access local.
