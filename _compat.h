@@ -72,7 +72,7 @@ typedef pid_t vtyProcThreadId;
 typedef __uint64_t vtyProcThreadId;
 #endif
 
-void ThreadGetId(vtyProcThreadId& _rtid)
+inline void ThreadGetId(vtyProcThreadId& _rtid)
 {
 #ifdef WIN32
   _rtid = GetCurrentThreadId();
@@ -151,11 +151,11 @@ enum class FileSharing : uint8_t
   ShareWrite = 0x02,
   ShareReadWrite = 0x03
 };
-FileSharing operator & (FileSharing _l, FileSharing _r)
+inline FileSharing operator & (FileSharing _l, FileSharing _r)
 {
   return (FileSharing)(uint8_t(_l) & uint8_t(_r));
 }
-FileSharing operator | (FileSharing _l, FileSharing _r)
+inline FileSharing operator | (FileSharing _l, FileSharing _r)
 {
   return (FileSharing)(uint8_t(_l) | uint8_t(_r));
 }
@@ -511,7 +511,7 @@ typedef WIN32_FILE_ATTRIBUTE_DATA vtyFileAttr;
 typedef struct stat vtyFileAttr;
 #endif
 
-int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
+inline int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
 {
 #ifdef WIN32
     return GetFileAttributesEx( _pszFileName, GetFileExInfoStandard, &_rfa ) ? 0 : -1;
@@ -520,7 +520,7 @@ int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
     return ::stat( _pszFileName, &_rfa );
 #endif
 }
-bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa)
+inline bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa)
 {
 #ifdef WIN32
   // May need to modify this:
@@ -529,7 +529,7 @@ bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa)
   return !!S_ISDIR(_rfa.st_mode);
 #endif
 }
-bool FDirectoryExists(const char* _pszDir)
+inline bool FDirectoryExists(const char* _pszDir)
 {
   vtyFileAttr fa;
   int iRes = GetFileAttrs(_pszDir, fa);
@@ -537,7 +537,7 @@ bool FDirectoryExists(const char* _pszDir)
     return false;
   return FIsDirectory_FileAttrs(fa);
 }
-bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
+inline bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
 {
 #ifdef WIN32
   // May need to modify this - it's not really clear what you would check for here...
@@ -546,7 +546,7 @@ bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
   return !!S_ISREG(_rfa.st_mode);
 #endif
 }
-bool FFileExists(const char* _pszFile)
+inline bool FFileExists(const char* _pszFile)
 {
   vtyFileAttr fa;
   int iRes = GetFileAttrs(_pszFile, fa);
@@ -562,7 +562,7 @@ typedef BY_HANDLE_FILE_INFORMATION vtyHandleAttr;
 typedef struct stat vtyHandleAttr;
 #endif
 
-int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha )
+inline int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha )
 {
 #ifdef WIN32
     return GetFileInformationByHandle(_hFile, &_rha ) ? 0 : -1;
@@ -571,7 +571,7 @@ int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha )
     return ::fstat( _hFile, &_rha );
 #endif
 }
-uint64_t GetSize_HandleAttr( vtyHandleAttr const & _rha )
+inline uint64_t GetSize_HandleAttr( vtyHandleAttr const & _rha )
 {
 #ifdef WIN32
     return ( uint64_t( _rha.nFileSizeHigh ) << 32ull ) + uint64_t( _rha.nFileSizeLow );
@@ -579,7 +579,7 @@ uint64_t GetSize_HandleAttr( vtyHandleAttr const & _rha )
     return _rha.st_size;
 #endif
 }
-bool FIsRegularFile_HandleAttr( vtyHandleAttr const & _rha )
+inline bool FIsRegularFile_HandleAttr( vtyHandleAttr const & _rha )
 {
 #ifdef WIN32
     // May need to modify this:
@@ -713,7 +713,7 @@ typedef WIN32_FIND_DATAA vtyDirectoryEntry;
 typedef struct dirent vtyDirectoryEntry;
 #endif
 
-const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde)
+inline const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde)
 {
 #ifdef WIN32
   return _rde.cFileName;
@@ -721,7 +721,7 @@ const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde)
   return _rde.d_name;
 #endif
 }
-bool FIsDir_DirectoryEntry(vtyDirectoryEntry const& _rde)
+inline bool FIsDir_DirectoryEntry(vtyDirectoryEntry const& _rde)
 {
 #ifdef WIN32
   return !!( FILE_ATTRIBUTE_DIRECTORY & _rde.dwFileAttributes );

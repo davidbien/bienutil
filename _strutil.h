@@ -830,49 +830,49 @@ enum EFileCharacterEncoding
 template < class t_TyChar, class t_TyFSwitchEndian >
 EFileCharacterEncoding GetCharacterEncoding();
 template <>
-EFileCharacterEncoding GetCharacterEncoding< char8_t, false_type >()
+inline EFileCharacterEncoding GetCharacterEncoding< char8_t, false_type >()
 {
 	return efceUTF8;
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< char8_t, true_type >()
-{
-	Assert( false ); // weird that we should be here...
-	return efceUTF8;
-}
-template <>
-EFileCharacterEncoding GetCharacterEncoding< char, false_type >()
-{
-	return efceUTF8;
-}
-template <>
-EFileCharacterEncoding GetCharacterEncoding< char, true_type >()
+inline EFileCharacterEncoding GetCharacterEncoding< char8_t, true_type >()
 {
 	Assert( false ); // weird that we should be here...
 	return efceUTF8;
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsLittleEndian >()
+inline EFileCharacterEncoding GetCharacterEncoding< char, false_type >()
+{
+	return efceUTF8;
+}
+template <>
+inline EFileCharacterEncoding GetCharacterEncoding< char, true_type >()
+{
+	Assert( false ); // weird that we should be here...
+	return efceUTF8;
+}
+template <>
+inline EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsLittleEndian >()
 {
 	return efceUTF16BE;
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsBigEndian >()
+inline EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsBigEndian >()
 {
 	return efceUTF16LE;
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsLittleEndian >()
+inline EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsLittleEndian >()
 {
 	return efceUTF32BE;
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsBigEndian >()
+inline EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsBigEndian >()
 {
 	return efceUTF32LE;
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian >()
+inline EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian >()
 {
 #ifdef BIEN_WCHAR_16BIT
 	return efceUTF16BE;
@@ -881,7 +881,7 @@ EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian >()
 #endif //!BIEN_WCHAR_16BIT
 }
 template <>
-EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
+inline EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
 {
 #ifdef BIEN_WCHAR_16BIT
 	return efceUTF16LE;
@@ -891,7 +891,7 @@ EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
 }
 
 // Get the corresponding encoding for this machine:
-EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEncoding _efce )
+inline EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEncoding _efce )
 {
 	switch( _efce )
 	{
@@ -924,7 +924,7 @@ static const size_t vknBytesBOM = 4;
 // Detect if there is a BOM present and if so return it. _rstLen should be at least 4 bytes.
 // Upon return _rstLen is set to the length of the BOM if a valid BOM is found or zero is no BOM is found.
 // If no valid BOM is found then efceFileCharacterEncodingCount is returned.
-EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
+inline EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
 {
 	Assert( _rstLen >= vknBytesBOM );
 	VerifyThrowSz( _rstLen >= vknBytesBOM, "Requires vknBytesBOM(%lu) of file to determine BOM.", vknBytesBOM );
@@ -963,7 +963,7 @@ EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, 
 
 // DetectEncodingXmlFile:
 // If the above GetCharacterEncodingFromBOM() fails then we can try to detect the encoding using the fact that the first character in an XML file is an '<'.
-EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t _stLen )
+inline EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t _stLen )
 {
 	Assert( _stLen >= vknBytesBOM );
 	if ( _stLen < vknBytesBOM )
@@ -980,7 +980,7 @@ EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t
 			return efceUTF32LE;
 	return efceFileCharacterEncodingCount;
 }
-string StrGetBOMForEncoding( EFileCharacterEncoding _efce )
+inline string StrGetBOMForEncoding( EFileCharacterEncoding _efce )
 {
 	switch( _efce )
 	{
@@ -1018,7 +1018,7 @@ void WriteBOM( vtyFileHandle _hFile )
 	FileWriteOrThrow( _hFile, strBOM.c_str(), strBOM.length() );
 }
 
-const char *
+inline const char *
 PszCharacterEncodingShort( EFileCharacterEncoding _efce )
 {
 	switch( _efce )
