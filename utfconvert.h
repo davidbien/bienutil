@@ -1,0 +1,346 @@
+#pragma once
+
+// utfconvert.h
+// An attempt at providing an efficient piecewise UTFN->UTFM set of methods.
+// dbien
+// 20FEB2021
+
+// dbien: 21FEB2021: I got some of the below converion code from this source so I am 
+//  including the below notice as required.
+
+
+__BIENUTIL_BEGIN_NAMESPACE
+
+static constexpr char32_t vkutf32Max = (char32_t)0x10ffff;
+static constexpr char32_t vkutf32MaxUTF16 = (char32_t)0xffff;
+static constexpr char32_t vkutf32SurrogateStart = (char32_t)0xD800;
+static constexpr char32_t vkutf32SurrogateEnd = (char32_t)0xDFFF;
+static constexpr char32_t vkutf32SurrogateHighStart = (char32_t)0xD800;
+static constexpr char32_t vkutf32SurrogateHighEnd = (char32_t)0xDBFF;
+static constexpr char32_t vkutf32SurrogateLowStart = (char32_t)0xDC00;
+static constexpr char32_t vkutf32SurrogateLowEnd = (char32_t)0xDFFF;
+static constexpr char32_t vkutf32ReplacementCharDefault = U'\UFFFD';
+// Use vkutf32ReplacementCharError to indicate to the API to fail when it would otherwise use the replacement character.
+static constexpr char32_t vkutf32ReplacementCharError = 0;
+
+static constexpr char32_t vkutf32HalfBase = (char32_t)0x0010000;
+static constexpr char32_t vkutf32HalfMask = (char32_t)0x3FF;
+
+inline bool FIsSurrogate( char32_t _utf32 ) noexcept
+{
+  return _utf32 >= vkutf32SurrogateStart && _utf32 <= vkutf32SurrogateEnd;
+}
+inline bool FIsHighSurrogate( char32_t _utf32 ) noexcept
+{
+  return _utf32 >= vkutf32SurrogateHighStart && _utf32 <= vkutf32SurrogateHighEnd;
+}
+inline bool FIsLowSurrogate( char32_t _utf32 ) noexcept
+{
+  return _utf32 >= vkutf32SurrogateHighStart && _utf32 <= vkutf32SurrogateHighEnd;
+}
+inline bool FInvalidUTF32( char32_t _utf32 ) noexcept
+{
+  return _utf32 > vkutf32Max || FIsSurrogate( _utf32 );
+}
+
+// traits: These determine input and output buffer sizes so that we don't have to call a method back
+template < class t_TyChar >
+struct utf_traits;
+
+template <>
+struct utf_traits< char >
+{
+  static const size_t max_length = 4ull;
+  static const size_t max = 0xffull; 
+};
+template <>
+struct utf_traits< char8_t >
+{
+  static const size_t max_length = 4ull;
+  static const size_t max = 0xffull; 
+};
+template <>
+struct utf_traits< char16_t >
+{
+  static const size_t max_length = 2ull;
+  static const size_t max = 0xffffull; 
+};
+template <>
+struct utf_traits< char32_t >
+{
+  static const size_t max_length = 1ull;
+  static const size_t max = 0x10ffffull; 
+};
+template <>
+struct utf_traits< wchar_t >
+{
+#ifdef BIEN_WCHAR_16BIT
+  static const size_t max_length = 2ull;
+  static const size_t max = 0xffffull; 
+#else //!BIEN_WCHAR_16BIT
+  static const size_t max_length = 4ull;
+  static const size_t max = 0x10ffffull; 
+#endif //!BIEN_WCHAR_16BIT
+};
+
+template < class t_TyCharType >
+struct TGetNormalUTFCharType
+{
+  typedef t_TyCharType type; // default to the same type.
+};
+template <>
+TGetNormalUTFCharType< char >
+{
+  typedef char8_t type;
+};
+template <>
+TGetNormalUTFCharType< wchar_t >
+{
+#ifdef BIEN_WCHAR_16BIT
+  typedef char16_t type;
+#else //!BIEN_WCHAR_16BIT
+  typedef char32_t type;
+#endif //!BIEN_WCHAR_16BIT
+};
+
+template < class t_TyCharType >
+using TGetNormalUTFCharType_t = typename TGetNormalUTFCharType< t_TyCharType >::type;
+
+static inline constexpr char8_t vrgFirstByteMark[7] = { 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC };
+
+// This one does no error checking - for internal use.
+inline void char8_t * _PCConvertUTF32ToUTF8( char32_t _utf32Source, char8_t _rgu8Buffer[ utf_traits< char8_t >::max_length ] ) noexcept
+{
+  Assert( FIsValidUTF32( _utf32Source ) ); // Should never call this with an invalid char.
+  size_t nbyWrite;
+  if ( _utf32Source < U'\U80' )
+    nbyWrite1;
+  else 
+  if ( _utf32Source < U'\U800' )
+    nbyWrite = 2;
+  else
+  if ( _utf32Source < U'\U10000' )
+    nbyWrite = 3;
+  else 
+    nbyWrite = 4;
+  const char32_t utf32Mask = 0xBF;
+  const char32_t utf32Mark = 0x80; 
+  char8_t * pu8End = _rgu8Buffer + nbyWrite;
+  switch (nbyWrite) 
+  {
+    case 4:
+      *--pu8End = static_cast< char8_t >( ( ch | utf32Mark ) & utf32Mask );
+      _utf32Source >>= 6;
+      [[fallthrough]]
+    case 3:
+      *--pu8End = static_cast< char8_t >( ( ch | utf32Mark ) & utf32Mask );
+      _utf32Source >>= 6;
+      [[fallthrough]]
+    case 2:
+      *--pu8End = static_cast< char8_t >( ( ch | utf32Mark ) & utf32Mask );
+      _utf32Source >>= 6;
+      [[fallthrough]]
+    case 1: 
+      *--pu8End = (static_cast< char8_t >( ch | vrgFirstByteMark[nbyWrite] );
+      [[fallthrough]]
+  }
+  return _rgu8Buffer + nbyWrite;
+}
+
+// FConvertUTF. Do these all noexcept and just use old school per-thread error number that are available on most systems.
+// We set the global error number to vkerrInvalidArgument when we encounter a bogus source codepoint.
+// Return the end of the conversion wrt _rgu8Buffer, or nullptr on error.
+// If the replacement 
+// UTF32->UTF8
+inline char8_t * PCConvertUTF(  const char32_t *& _rputf32Source, char8_t _rgu8Buffer[ utf_traits< char8_t >::max_length ], const char32_t * const _putf32SourceEnd, 
+                                const char32_t _utf32ReplacementChar = vkutf32ReplacementCharDefault ) noexcept
+{
+  Assert( _rputf32Source < _putf32SourceEnd );
+  if ( _rputf32Source >= _putf32SourceEnd )
+    return nullptr; // We must return nullptr if we don't advance the buffer.
+  char32_t utf32Source = *_rputf32Source;
+  if ( FInvalidUTF32( utf32Source ) )
+  {
+    if ( vkutf32ReplacementCharError == _utf32ReplacementChar )
+    {
+      // We use invalid argument for this:
+      SetLastErrNo( vkerrInvalidArgument );
+      return nullptr;
+    }
+    utf32Source = _utf32ReplacementChar;
+  }
+  ++_rputf32Source; // We will succeed from here on out.
+  return _PCConvertUTF32ToUTF8( utf32Source, _rgu8Buffer );
+}
+// UTF32->UTF16.
+char16_t * PCConvertUTF( const char32_t *& _rputf32Source, char16_t _rgu16Buffer[ utf_traits< char16_t >::max_length ], const char32_t * const _putf32SourceEnd, 
+                        const char32_t _utf32ReplacementChar = vkutf32ReplacementCharDefault ) noexcept
+{
+  Assert( _rputf32Source < _putf32SourceEnd );
+  if ( _rputf32Source >= _putf32SourceEnd )
+    return nullptr; // We must return nullptr if we don't advance the source buffer.
+  char32_t utf32Source = *_rputf32Source;
+  if ( FInvalidUTF32( utf32Source ) )
+  {
+    if ( vkutf32ReplacementCharError == _utf32ReplacementChar )
+    {
+      // We use invalid argument for this:
+      SetLastErrNo( vkerrInvalidArgument );
+      return nullptr;
+    }
+    utf32Source = _utf32ReplacementChar;
+  }
+  ++_rputf32Source; // We will succeed from here on out.
+  if ( utf32Source <= vkutf32MaxUTF16 )
+  {
+    *_rgu16Buffer = static_cast<char16_t>( utf32Source )
+    return _rgu16Buffer + 1;
+  }
+  static const char32_t knHalfShift = 10u;
+  utf32Source -= vkutf32HalfBase;
+  *_rgu16Buffer = static_cast< char16_t >( ( utf32Source >> knHalfShift ) + vkutf32SurrogateHighStart );
+  _rgu16Buffer[1] = static_cast< char16_t >( ( utf32Source & knHalfMask ) + vkutf32SurrogateLowStart );
+  return _rgu16Buffer + 2;
+}
+// UTF16->UTF8
+char8_t * PCConvertUTF( const char16_t *& _rputf16Source, char8_t _rgu8Buffer[ utf_traits< char8_t >::max_length ], const char16_t * const _putf16SourceEnd, 
+                        const char32_t _utf32ReplacementChar = vkutf32ReplacementCharDefault ) noexcept
+{
+  Assert( _rputf16Source < _putf16SourceEnd );
+  if ( _rputf16Source >= _putf16SourceEnd )
+    return nullptr; // We must return nullptr if we don't advance the source buffer.
+  char32_t utf32Source = *_rputf16Source;
+  if ( FIsHighSurrogate( utf32Source ) )
+  {
+    if ( ( _putf16SourceEnd == _rputf16Source + 1 ) || !FIsLowSurrogate( _rputf16Source[1] ) )
+    {
+      // No room for low surrogate or no low surrogate present - error or replace:
+      if ( vkutf32ReplacementCharError == _utf32ReplacementChar )
+      {
+        // We use invalid argument for this:
+        SetLastErrNo( vkerrInvalidArgument );
+        return nullptr;
+      }
+      utf32Source = _utf32ReplacementChar;
+      // don't increment in this case.
+    }
+    else
+    {
+      // We have a high and low surrogate - convert to UTF32:
+      char32_t utf32Source2 = _rputf16Source[1];
+      static const char32_t knHalfShift = 10u;
+      utf32Source = ( ( utf32Source - vkutf32SurrogateHighStart ) << knHalfShift ) +
+                    ( utf32Source2 - vkutf32SurrogateLowStart ) + vkutf32HalfBase;
+      Assert( FIsValidUTF32( utf32Source ) ); // not sure if we can get invalids out of this...
+      ++_rputf16Source; // We got both a high and low surrogate - and we will increment below.
+    }
+  }
+  ++_rputf16Source;
+  return _PCConvertUTF32ToUTF8( utf32Source, _rgu8Buffer );
+}
+// UTF16->UTF32: Easy peasy.
+char32_t * PCConvertUTF( const char16_t *& _rputf16Source, char32_t _rgu32Buffer[ utf_traits< char32_t >::max_length ], const char16_t * const _putf16SourceEnd, 
+                        const char32_t _utf32ReplacementChar = vkutf32ReplacementCharDefault ) noexcept
+{
+  Assert( _rputf16Source < _putf16SourceEnd );
+  if ( _rputf16Source >= _putf16SourceEnd )
+    return nullptr; // We must return nullptr if we don't advance the source buffer.
+  *_rgu32Buffer = *_rputf16Source;
+  if ( FIsHighSurrogate( *_rgu32Buffer ) )
+  {
+    if ( ( _putf16SourceEnd == _rputf16Source + 1 ) || !FIsLowSurrogate( _rputf16Source[1] ) )
+    {
+      // No room for low surrogate or no low surrogate present - error or replace:
+      if ( vkutf32ReplacementCharError == _utf32ReplacementChar )
+      {
+        // We use invalid argument for this:
+        SetLastErrNo( vkerrInvalidArgument );
+        return nullptr;
+      }
+      *_rgu32Buffer = _utf32ReplacementChar;
+    }
+    else
+    {
+      // We have a high and low surrogate - convert to UTF32:
+      char32_t utf32Source2 = _rputf16Source[1];
+      static const char32_t knHalfShift = 10u;
+      *_rgu32Buffer = ( ( *_rgu32Buffer - vkutf32SurrogateHighStart ) << knHalfShift ) +
+                      ( utf32Source2 - vkutf32SurrogateLowStart ) + vkutf32HalfBase;
+      Assert( FIsValidUTF32( *_rgu32Buffer ) ); // not sure if we can get invalids out of this...
+      ++_rputf16Source; // We got both a high and low surrogate - and we will increment below.
+    }
+  }
+  ++_rputf16Source;
+  return _rgu32Buffer + 1;
+}
+// Now for the reamaing UTF8 conversions - a bit more involved.
+
+
+
+
+// We choose not to throw here and just use a bool return to allow the caller to perhaps throw the last error, etc,
+//  which would depend on stream impl.
+template < class t_TyCharDest, class t_TyCharSource, class t_TyStream >
+bool FWriteUTFStream( const t_TyCharSource * _pcSource, size_t _stWrite, t_TyStream & _rstrm )
+  requires ( TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // non-converting.
+{
+  if ( !_stWrite )
+    return true; // no-op.
+  return _rstrm.FWrite( _pcSource, _stWrite );
+}
+template < class t_TyCharDest, class t_TyCharSource, class t_TyStream >
+bool FWriteUTFStream( const t_TyCharSource * _pcSource, size_t _stWrite, t_TyStream & _rstrm )
+  requires ( !TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // converting.
+{
+  if ( !_stWrite )
+    return true; // no-op.
+  typedef TGetNormalUTFCharType_t< t_TyCharSource > _TyCharSource;
+  typedef TGetNormalUTFCharType_t< t_TyCharDest > _TyCharDest;
+  typedef utf_traits< _TyCharDest > _TyUTFTraitsDest;
+  _TyCharDest rgBufDest[ _TyUTFTraitsDest::max_length ];
+  const _TyCharSource * pcSourceCur = (const _TyCharSource *)_pcSource;
+  for ( const _TyCharSource * pcSourceEnd = pcSourceCur + _stWrite; pcSourceEnd != pcSourceCur;  )
+  {
+    _TyCharDest * pcDestEnd = PCConvertUTF( pcSourceCur, rgBufDest, pcSourceEnd ); // This advances pcSourceCur or it returns an error.
+    if ( !pcDestEnd ) // error encountered - SetLastErrNo() should have already been called.
+      return false;
+    if ( !_rstrm.FWrite( rgBufDest, pcDestEnd - rgBufDest ) )
+      return false;
+  }
+  return true;
+}
+// Write through a functor which takes the destination character type.
+// The prototype of the functor is:
+// bool operator()( const t_tyCharDest * _pcBuf, size_t _stLen )
+template < class t_TyCharDest, class t_TyCharSource, class t_TyFunctor >
+bool FWriteUTFFunctor( const t_TyCharSource * _pcSource, size_t _stWrite, t_TyFunctor && _rrftor )
+  requires ( TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // non-converting.
+{
+  if ( !_stWrite )
+    return true; // no-op.
+  return std::forward< t_TyFunctor >( _rrftor )( _pcSource, _stWrite );
+}
+template < class t_TyCharDest, class t_TyCharSource, class t_TyFunctor >
+bool FWriteUTFFunctor( const t_TyCharSource * _pcSource, size_t _stWrite, t_TyFunctor && _rrftor )
+  requires ( !TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // converting.
+{
+  if ( !_stWrite )
+    return true; // no-op.
+  typedef t_TyCharSource _TyCharSource;
+  typedef t_TyCharDest _TyCharDest;
+  typedef utf_traits< _TyCharDest > _TyUTFTraitsDest;
+  _TyCharDest rgBufDest[ _TyUTFTraitsDest::max_length ];
+  const _TyCharSource * pcSourceCur = _pcSource;
+  for ( const _TyCharSource * pcSourceEnd = _pcSource + _stWrite; pcSourceEnd != pcSourceCur;  )
+  {
+    _TyCharDest * pcDestEnd = PCConvertUTF( pcSourceCur, rgBufDest, pcSourceEnd ); // This advances pcSourceCur or it returns an error.
+    if ( !pcDestEnd ) // error encountered - SetLastErrNo() should have already been called.
+      return false;
+    if ( !std::forward< t_TyFunctor >( _rrftor )( rgBufDest, pcDestEnd - rgBufDest ) )
+      return false;
+  }
+  return true;
+}
+
+__BIENUTIL_END_NAMESPACE
+
