@@ -1619,9 +1619,9 @@ public:
       // We need to truncate the file to m_cpxMappedCur - m_pvMapped bytes.
       size_t stSizeTruncate = (m_cpxMappedCur - (_tyPersistAsChar *)pvMappedSave) * sizeof(_tyPersistAsChar);
       int iTruncate = FileSetSize(m_foFile.HFileGet(), stSizeTruncate);
-      vtyErrNo errTruncate = !iTruncate ? vkerrNullErrNo : GetLastErrNo();
+      errTruncate = !iTruncate ? vkerrNullErrNo : GetLastErrNo();
       int iClose = m_foFile.Close();
-      vtyErrNo errCloseFile = !iClose ? vkerrNullErrNo : GetLastErrNo();
+      errCloseFile = !iClose ? vkerrNullErrNo : GetLastErrNo();
     }
     vtyErrNo errFirst;
     unsigned nError;
