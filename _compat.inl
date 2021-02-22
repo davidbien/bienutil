@@ -11,7 +11,7 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-inline int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen )
+inline int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen ) noexcept
 {
 #ifdef WIN32
     DWORD dwLen = ::FormatMessageA( FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, _errno, 0, _rgchBuffer, (DWORD)_stLen, NULL );
@@ -24,7 +24,7 @@ inline int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen )
 }
 
 // Unmap the mapping given the handle and set the handle to a null handle.
-inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
+inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept
 {
     if ( !_rhmm.FFailedMapping() )
     {
@@ -42,7 +42,7 @@ inline int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true)
 }
 
 inline int
-FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult )
+FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult ) noexcept
 {
 #ifdef WIN32
     return SetFilePointerEx( _hFile, *((LARGE_INTEGER*)&_off), (PLARGE_INTEGER)_poffResult, _whence ) ? 0 : -1;
@@ -71,45 +71,53 @@ NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whenc
   return offResult;
 }
 
-inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead )
+inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead ) noexcept
 {
 #ifdef WIN32
-    VerifyThrowSz( _stNBytesToRead <= (std::numeric_limits<DWORD>::max)(), "Windows is limited to 4GB reads. This read was for [%lu] bytes.", _stNBytesToRead );
-    DWORD nBytesRead;
-    if ( !::ReadFile( _hFile, _pvBuffer, (DWORD)_stNBytesToRead, &nBytesRead, NULL ) )
-        return -1;
-    if ( _pstNBytesRead )
-        *_pstNBytesRead = nBytesRead;
-    return 0;
+  if ( _stNBytesToRead > (std::numeric_limits<DWORD>::max)() )
+  {
+    SetLastErrNo( vkerrOverflow );
+    return -1;
+  }
+  DWORD nBytesRead;
+  if ( !::ReadFile( _hFile, _pvBuffer, (DWORD)_stNBytesToRead, &nBytesRead, NULL ) )
+      return -1;
+  if ( _pstNBytesRead )
+      *_pstNBytesRead = nBytesRead;
+  return 0;
 #elif defined( __APPLE__ ) || defined( __linux__ )
-    PrepareErrNo();
-    ssize_t sstRead = ::read( _hFile, _pvBuffer, _stNBytesToRead );
-    if ( -1 == sstRead )
-        return -1;
-    if ( _pstNBytesRead )
-        *_pstNBytesRead = sstRead;
-    return 0;
+  PrepareErrNo();
+  ssize_t sstRead = ::read( _hFile, _pvBuffer, _stNBytesToRead );
+  if ( -1 == sstRead )
+      return -1;
+  if ( _pstNBytesRead )
+      *_pstNBytesRead = sstRead;
+  return 0;
 #endif
 }
 
-inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten )
+inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten ) noexcept
 {
-#ifdef WIN32
-    VerifyThrowSz( _stNBytesToWrite <= (std::numeric_limits<DWORD>::max)(), "Windows is limited to 4GB writes. This write was for [%lu] bytes.", _stNBytesToWrite );
-    DWORD nBytesWritten;
-    if ( !WriteFile( _hFile, _pvBuffer, (DWORD)_stNBytesToWrite, &nBytesWritten, NULL ) )
-        return -1;
-    if ( _pstNBytesWritten )
-        *_pstNBytesWritten = nBytesWritten;
-    return 0;
+#ifdef WIN32  
+  if ( _stNBytesToWrite > (std::numeric_limits<DWORD>::max)() )
+  {
+    SetLastErrNo( vkerrOverflow );
+    return -1;
+  }
+  DWORD nBytesWritten;
+  if ( !WriteFile( _hFile, _pvBuffer, (DWORD)_stNBytesToWrite, &nBytesWritten, NULL ) )
+      return -1;
+  if ( _pstNBytesWritten )
+      *_pstNBytesWritten = nBytesWritten;
+  return 0;
 #elif defined( __APPLE__ ) || defined( __linux__ )
-    PrepareErrNo();
-    ssize_t sstWritten = ::write( _hFile, _pvBuffer, _stNBytesToWrite );
-    if ( -1 == sstWritten )
-        return -1;
-    if ( _pstNBytesWritten )
-        *_pstNBytesWritten = sstWritten;
-    return 0;
+  PrepareErrNo();
+  ssize_t sstWritten = ::write( _hFile, _pvBuffer, _stNBytesToWrite );
+  if ( -1 == sstWritten )
+      return -1;
+  if ( _pstNBytesWritten )
+      *_pstNBytesWritten = sstWritten;
+  return 0;
 #endif
 }
 inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite )
@@ -124,7 +132,7 @@ inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size
 
 
 // Time methods:
-inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest)
+inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest) noexcept
 {
 #ifdef WIN32
   errno_t e = localtime_s(_ptmDest, _ptt);
@@ -135,7 +143,7 @@ inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest)
 #endif
 }
 
-inline void UUIDCreate(vtyUUID& _ruuid)
+inline void UUIDCreate(vtyUUID& _ruuid) noexcept
 {
 #ifdef WIN32
   (void)UuidCreate(&_ruuid); // Not much to do on failure...
@@ -144,7 +152,7 @@ inline void UUIDCreate(vtyUUID& _ruuid)
 #endif
 }
 
-inline int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf)
+inline int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf) noexcept
 {
   Assert(_knBuf >= vkstUUIDNCharsWithNull);
 #ifdef WIN32
@@ -177,7 +185,7 @@ inline int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _k
 #endif
 }
 
-inline int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid)
+inline int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid) noexcept
 {
   size_t nLenBuf = StrNLen(_rgcBuffer, vkstUUIDNChars);
   Assert(nLenBuf == vkstUUIDNChars);

@@ -72,7 +72,7 @@ typedef pid_t vtyProcThreadId;
 typedef __uint64_t vtyProcThreadId;
 #endif
 
-inline void ThreadGetId(vtyProcThreadId& _rtid)
+inline void ThreadGetId(vtyProcThreadId& _rtid) noexcept
 {
 #ifdef WIN32
   _rtid = GetCurrentThreadId();
@@ -103,13 +103,13 @@ static const vtyErrNo vkerrOverflow = EOVERFLOW;
 // 1) Don't set an errno on failure. Hence we could have a garbage value in the errno.
 // 2) Might set an errno on success.
 // Also I don't think it is necessary for Windows for those scenarios where they use errno on success - and there are a few.
-inline void PrepareErrNo()
+inline void PrepareErrNo() noexcept
 {
 #if defined( __linux__ ) || defined( __APPLE__ )
     errno = vkerrNullErrNo;
 #endif // Nothing to do under Windows.
 }
-inline vtyErrNo GetLastErrNo()
+inline vtyErrNo GetLastErrNo() noexcept
 {
 #ifdef WIN32
     return ::GetLastError();
@@ -117,7 +117,7 @@ inline vtyErrNo GetLastErrNo()
     return errno;
 #endif
 }
-inline void SetLastErrNo( vtyErrNo _errno )
+inline void SetLastErrNo( vtyErrNo _errno ) noexcept
 {
 #ifdef WIN32
     ::SetLastError( _errno );
@@ -125,7 +125,7 @@ inline void SetLastErrNo( vtyErrNo _errno )
     errno = _errno;
 #endif
 }
-inline void SetGenericFileError()
+inline void SetGenericFileError() noexcept
 {
 #ifdef WIN32
     ::SetLastError( ERROR_INVALID_HANDLE );
@@ -133,7 +133,7 @@ inline void SetGenericFileError()
     errno = EBADF;
 #endif
 }
-int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen );
+int GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen ) noexcept;
 
 #ifdef WIN32
 typedef HANDLE vtyFileHandle;
@@ -151,11 +151,11 @@ enum class FileSharing : uint8_t
   ShareWrite = 0x02,
   ShareReadWrite = 0x03
 };
-inline FileSharing operator & (FileSharing _l, FileSharing _r)
+inline FileSharing operator & (FileSharing _l, FileSharing _r) noexcept
 {
   return (FileSharing)(uint8_t(_l) & uint8_t(_r));
 }
-inline FileSharing operator | (FileSharing _l, FileSharing _r)
+inline FileSharing operator | (FileSharing _l, FileSharing _r) noexcept
 {
   return (FileSharing)(uint8_t(_l) | uint8_t(_r));
 }
@@ -165,7 +165,7 @@ static void * vkpvNullMapping = (void*)-1;
 
 // File separator in any character type:
 template < class t_tyChar >
-constexpr t_tyChar TChGetFileSeparator()
+constexpr t_tyChar TChGetFileSeparator() noexcept
 {
 #ifdef WIN32
   return t_tyChar('\\');
@@ -175,7 +175,7 @@ constexpr t_tyChar TChGetFileSeparator()
 }
 // Get the file separator not matching this OS.
 template < class t_tyChar >
-constexpr t_tyChar TChGetOtherFileSeparator()
+constexpr t_tyChar TChGetOtherFileSeparator() noexcept
 {
 #ifdef WIN32
   return t_tyChar('/');
@@ -184,7 +184,7 @@ constexpr t_tyChar TChGetOtherFileSeparator()
 #endif
 }
 
-inline vtyFileHandle FileGetStdInHandle()
+inline vtyFileHandle FileGetStdInHandle() noexcept
 {
 #ifdef WIN32
   return GetStdHandle(STD_INPUT_HANDLE);
@@ -192,7 +192,7 @@ inline vtyFileHandle FileGetStdInHandle()
   return STDIN_FILENO;
 #endif
 }
-inline vtyFileHandle FileGetStdOutHandle()
+inline vtyFileHandle FileGetStdOutHandle() noexcept
 {
 #ifdef WIN32
   return GetStdHandle(STD_OUTPUT_HANDLE);
@@ -202,7 +202,7 @@ inline vtyFileHandle FileGetStdOutHandle()
 }
 
 // Close the file and set the handle to vkhInvalidFileHandle.
-inline int FileClose( vtyFileHandle & _rhFile )
+inline int FileClose( vtyFileHandle & _rhFile ) noexcept
 {
 #ifdef WIN32
     int iResult = ::CloseHandle( _rhFile ) ? 0 : -1;
@@ -213,7 +213,7 @@ inline int FileClose( vtyFileHandle & _rhFile )
     return iResult;
 }
 
-inline vtyFileHandle OpenReadOnlyFile( const char * _pszFileName )
+inline vtyFileHandle OpenReadOnlyFile( const char * _pszFileName ) noexcept
 {
 #ifdef WIN32
     vtyFileHandle hFile = ::CreateFile( _pszFileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
@@ -223,7 +223,7 @@ inline vtyFileHandle OpenReadOnlyFile( const char * _pszFileName )
     return hFile;
 }
 // This will create or truncate an existing the file specified by _pszFileName.
-inline vtyFileHandle CreateWriteOnlyFile( const char * _pszFileName, FileSharing _fs = FileSharing::NoSharing)
+inline vtyFileHandle CreateWriteOnlyFile( const char * _pszFileName, FileSharing _fs = FileSharing::NoSharing) noexcept
 {
 #ifdef WIN32
   DWORD dwShare = (FileSharing::ShareRead == (FileSharing::ShareRead & _fs) ? FILE_SHARE_READ : 0) | 
@@ -237,7 +237,7 @@ inline vtyFileHandle CreateWriteOnlyFile( const char * _pszFileName, FileSharing
   return hFile;
 }
 // This will create or truncate an existing the file specified by _pszFileName.
-inline vtyFileHandle CreateReadWriteFile( const char * _pszFileName )
+inline vtyFileHandle CreateReadWriteFile( const char * _pszFileName ) noexcept
 {
 #ifdef WIN32
     vtyFileHandle hFile = ::CreateFile( _pszFileName, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL );
@@ -248,7 +248,7 @@ inline vtyFileHandle CreateReadWriteFile( const char * _pszFileName )
 }
 
 // Get the page size. We cache it locally as well so that once we call the system call once that's the only time we will need to.
-inline size_t GetPageSize()
+inline size_t GetPageSize() noexcept
 {
   static size_t stPageSize = 0;
   if ( !stPageSize )
@@ -273,51 +273,51 @@ public:
     MappedMemoryHandle( MappedMemoryHandle const & ) = default;
     MappedMemoryHandle & operator=(MappedMemoryHandle const &) = default;
 #ifdef WIN32
-    MappedMemoryHandle( void * _pv )
+    MappedMemoryHandle( void * _pv ) noexcept
         : m_pv( _pv )
     {
     }
-    void * Pv() const
+    void * Pv() const noexcept
     {
         return m_pv;
     }
-    void Clear()
+    void Clear() noexcept
     {
         m_pv = vkpvNullMapping;
     }
-    void swap( MappedMemoryHandle & _r )
+    void swap( MappedMemoryHandle & _r ) noexcept
     {
         std::swap( m_pv, _r.m_pv );
     }
-    bool operator == ( _tyThis const & _r ) const
+    bool operator == ( _tyThis const & _r ) const noexcept
     {
         return m_pv == _r.m_pv;
     }
 protected:
     void * m_pv{vkpvNullMapping};
 #elif defined( __APPLE__ ) || defined( __linux__ )
-    MappedMemoryHandle( void * _pv, size_t _st )
+    MappedMemoryHandle( void * _pv, size_t _st ) noexcept
         : m_prpv( _pv, _st )
     {
     }
-    void Clear()
+    void Clear() noexcept
     {
         m_prpv.first = vkpvNullMapping;
         m_prpv.second = 0;
     }
-    void * Pv() const
+    void * Pv() const noexcept
     {
         return m_prpv.first;
     }
-    size_t length() const
+    size_t length() const noexcept
     {
         return m_prpv.second;
     }
-    void swap( MappedMemoryHandle & _r )
+    void swap( MappedMemoryHandle & _r ) noexcept
     {
         m_prpv.swap( _r.m_prpv );
     }
-    bool operator == ( _tyThis const & _r ) const
+    bool operator == ( _tyThis const & _r ) const noexcept
     {
         return m_prpv == _r.m_prpv;
     }
@@ -325,15 +325,15 @@ protected:
     std::pair< void *, size_t > m_prpv{vkpvNullMapping,0};
 #endif
 public:
-    operator void *() const
+    operator void *() const noexcept
     {
         return Pv();
     }
-    bool FFailedMapping() const
+    bool FFailedMapping() const noexcept
     {
         return Pv() == vkpvNullMapping;
     }
-    bool FIsNull() const
+    bool FIsNull() const noexcept
     {
         return FFailedMapping();
     }
@@ -343,7 +343,7 @@ typedef MappedMemoryHandle vtyMappedMemoryHandle;
 // Map the file readonly. Return the size of the mapping in _pstSizeMapping. Map at position *_pstAtPosition if _pstAtPosition.
 // If _pstAtPosition is specified then it is updated correctly by the page size - i.e. upon return *_pstAtPosition will be equal to *_pstAtPosition % dwPageSize.
 // It's up to the caller to offset the returned void pointer appropriately.
-inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = nullptr, size_t * _pstAtPosition = nullptr ) noexcept(true)
+inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = nullptr, size_t * _pstAtPosition = nullptr ) noexcept
 {
 #ifdef WIN32
     static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
@@ -407,7 +407,7 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 #endif
 }
 // To map writeable you must map read/write - it seems on both Linux and Windows.
-inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0, size_t * _pstAtPosition = nullptr ) noexcept(true)
+inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0, size_t * _pstAtPosition = nullptr ) noexcept
 {
 #ifdef WIN32
     size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
@@ -471,12 +471,12 @@ inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * 
 }
 
 // Unmap the mapping given the handle and set the handle to a null handle.
-int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept(true);
+int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept;
 
 // This provides a general usage method that returns a void* and closes all other files and handles, etc. Clean and is a major usage scenario.
 // Return the size of the mapping in _rstSizeMapping.
 // We don't throw here and we don't log - this is meant as a utility method and a black box.
-inline vtyMappedMemoryHandle MapReadOnlyFilename( const char * _pszFileName, size_t * _pstSizeMapping = 0 ) noexcept(true)
+inline vtyMappedMemoryHandle MapReadOnlyFilename( const char * _pszFileName, size_t * _pstSizeMapping = 0 ) noexcept
 {
 #ifdef WIN32
     vtyFileHandle hFile = ::CreateFile( _pszFileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
@@ -495,7 +495,7 @@ inline vtyMappedMemoryHandle MapReadOnlyFilename( const char * _pszFileName, siz
 #endif
 }
 
-inline bool FIsConsoleFileHandle( vtyFileHandle _hFile )
+inline bool FIsConsoleFileHandle( vtyFileHandle _hFile ) noexcept
 {
 #ifdef WIN32
     return FILE_TYPE_CHAR == GetFileType( _hFile );
@@ -511,7 +511,7 @@ typedef WIN32_FILE_ATTRIBUTE_DATA vtyFileAttr;
 typedef struct stat vtyFileAttr;
 #endif
 
-inline int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
+inline int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa ) noexcept
 {
 #ifdef WIN32
     return GetFileAttributesEx( _pszFileName, GetFileExInfoStandard, &_rfa ) ? 0 : -1;
@@ -520,7 +520,7 @@ inline int GetFileAttrs( const char * _pszFileName, vtyFileAttr & _rfa )
     return ::stat( _pszFileName, &_rfa );
 #endif
 }
-inline bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa)
+inline bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa) noexcept
 {
 #ifdef WIN32
   // May need to modify this:
@@ -529,7 +529,7 @@ inline bool FIsDirectory_FileAttrs(vtyFileAttr const& _rfa)
   return !!S_ISDIR(_rfa.st_mode);
 #endif
 }
-inline bool FDirectoryExists(const char* _pszDir)
+inline bool FDirectoryExists(const char* _pszDir) noexcept
 {
   vtyFileAttr fa;
   int iRes = GetFileAttrs(_pszDir, fa);
@@ -537,7 +537,7 @@ inline bool FDirectoryExists(const char* _pszDir)
     return false;
   return FIsDirectory_FileAttrs(fa);
 }
-inline bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
+inline bool FIsFile_FileAttrs(vtyFileAttr const& _rfa) noexcept
 {
 #ifdef WIN32
   // May need to modify this - it's not really clear what you would check for here...
@@ -546,7 +546,7 @@ inline bool FIsFile_FileAttrs(vtyFileAttr const& _rfa)
   return !!S_ISREG(_rfa.st_mode);
 #endif
 }
-inline bool FFileExists(const char* _pszFile)
+inline bool FFileExists(const char* _pszFile) noexcept
 {
   vtyFileAttr fa;
   int iRes = GetFileAttrs(_pszFile, fa);
@@ -562,7 +562,7 @@ typedef BY_HANDLE_FILE_INFORMATION vtyHandleAttr;
 typedef struct stat vtyHandleAttr;
 #endif
 
-inline int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha )
+inline int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha ) noexcept
 {
 #ifdef WIN32
     return GetFileInformationByHandle(_hFile, &_rha ) ? 0 : -1;
@@ -571,7 +571,7 @@ inline int GetHandleAttrs( vtyFileHandle _hFile, vtyHandleAttr & _rha )
     return ::fstat( _hFile, &_rha );
 #endif
 }
-inline uint64_t GetSize_HandleAttr( vtyHandleAttr const & _rha )
+inline uint64_t GetSize_HandleAttr( vtyHandleAttr const & _rha ) noexcept
 {
 #ifdef WIN32
     return ( uint64_t( _rha.nFileSizeHigh ) << 32ull ) + uint64_t( _rha.nFileSizeLow );
@@ -579,7 +579,7 @@ inline uint64_t GetSize_HandleAttr( vtyHandleAttr const & _rha )
     return _rha.st_size;
 #endif
 }
-inline bool FIsRegularFile_HandleAttr( vtyHandleAttr const & _rha )
+inline bool FIsRegularFile_HandleAttr( vtyHandleAttr const & _rha ) noexcept
 {
 #ifdef WIN32
     // May need to modify this:
@@ -604,21 +604,21 @@ static const vtySeekWhence vkSeekCur = SEEK_CUR;
 static const vtySeekWhence vkSeekEnd = SEEK_END;
 #endif
 inline int
-FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult = 0 );
+FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySeekOffset * _poffResult = 0 ) noexcept;
 
 // Seek and return the offset, throw on seek failure.
 inline vtySeekOffset
 NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence);
 
 // Reading and writing files:
-int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 );
-int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 );
+int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 ) noexcept;
+int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 ) noexcept;
 // This method always throws on failure or not writing the number of bytes requested.
 void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite );
 
 // Set the size of the file bigger or smaller. I avoid using truncate to set the file larger in linux due to performance concerns.
 // There is no expectation that this results in zeros in the new portion of a larger file.
-inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize )
+inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize ) noexcept
 {
 #ifdef WIN32
   LARGE_INTEGER li;
@@ -655,13 +655,13 @@ typedef integral_constant< bool, vkfIsLittleEndian > vTyFIsLittleEndian;
 
 // We supply a SwitchEndian for a byte to allow conditional compilations to compile without having to pull out a base class.
 template < class t_TyT >
-inline void SwitchEndian( t_TyT & _t )
+inline void SwitchEndian( t_TyT & _t ) noexcept
     requires( sizeof( t_TyT ) == 1 )
 {
   assert( false );
 }
 template < class t_TyT >
-inline void SwitchEndian( t_TyT & _t )
+inline void SwitchEndian( t_TyT & _t ) noexcept
     requires( sizeof( t_TyT ) == 2 )
 {
 #ifdef _MSC_VER
@@ -671,7 +671,7 @@ inline void SwitchEndian( t_TyT & _t )
 #endif //!_MSC_VER
 }
 template < class t_TyT >
-inline void SwitchEndian( t_TyT & _t )
+inline void SwitchEndian( t_TyT & _t ) noexcept
     requires( sizeof( t_TyT ) == 4 )
 {
 #ifdef _MSC_VER
@@ -681,7 +681,7 @@ inline void SwitchEndian( t_TyT & _t )
 #endif //!_MSC_VER
 }
 template < class t_TyT >
-inline void SwitchEndian( t_TyT & _t )
+inline void SwitchEndian( t_TyT & _t ) noexcept
     requires( sizeof( t_TyT ) == 8 )
 {
 #ifdef _MSC_VER
@@ -691,13 +691,13 @@ inline void SwitchEndian( t_TyT & _t )
 #endif //!_MSC_VER
 }
 template < class t_TyT >
-void SwitchEndian( t_TyT * _ptBeg, t_TyT * _ptEnd )
+void SwitchEndian( t_TyT * _ptBeg, t_TyT * _ptEnd ) noexcept
 {
     for ( t_TyT * ptCur = _ptBeg; _ptEnd != ptCur; ++ptCur )
         SwitchEndian( *ptCur );
 }
 template < class t_TyT >
-void SwitchEndian( t_TyT * _ptBeg, size_t _stLen )
+void SwitchEndian( t_TyT * _ptBeg, size_t _stLen ) noexcept
 {
     t_TyT * const ptEnd = _ptBeg + _stLen;
     for ( t_TyT * ptCur = _ptBeg; ptEnd != ptCur; ++ptCur )
@@ -713,7 +713,7 @@ typedef WIN32_FIND_DATAA vtyDirectoryEntry;
 typedef struct dirent vtyDirectoryEntry;
 #endif
 
-inline const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde)
+inline const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde) noexcept
 {
 #ifdef WIN32
   return _rde.cFileName;
@@ -721,7 +721,7 @@ inline const char* PszGetName_DirectoryEntry(vtyDirectoryEntry const& _rde)
   return _rde.d_name;
 #endif
 }
-inline bool FIsDir_DirectoryEntry(vtyDirectoryEntry const& _rde)
+inline bool FIsDir_DirectoryEntry(vtyDirectoryEntry const& _rde) noexcept
 {
 #ifdef WIN32
   return !!( FILE_ATTRIBUTE_DIRECTORY & _rde.dwFileAttributes );
@@ -731,7 +731,7 @@ inline bool FIsDir_DirectoryEntry(vtyDirectoryEntry const& _rde)
 }
 
 // Time methods:
-int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest);
+int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest) noexcept;
 
 #ifdef WIN32
 typedef UUID vtyUUID;
@@ -744,8 +744,8 @@ static const size_t vkstUUIDNChars = 36;
 static const size_t vkstUUIDNCharsWithNull = vkstUUIDNChars + 1;
 typedef char vtyUUIDString[vkstUUIDNCharsWithNull];
 
-void UUIDCreate(vtyUUID& _ruuid);
-int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf);
-int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid);
+void UUIDCreate(vtyUUID& _ruuid noexcept);
+int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf) noexcept;
+int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid) noexcept;
 
 __BIENUTIL_END_NAMESPACE
