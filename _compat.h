@@ -744,7 +744,7 @@ static const size_t vkstUUIDNChars = 36;
 static const size_t vkstUUIDNCharsWithNull = vkstUUIDNChars + 1;
 typedef char vtyUUIDString[vkstUUIDNCharsWithNull];
 
-void UUIDCreate(vtyUUID& _ruuid noexcept);
+void UUIDCreate(vtyUUID& _ruuid ) noexcept;
 int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _knBuf) noexcept;
 int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid) noexcept;
 
