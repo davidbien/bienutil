@@ -248,11 +248,18 @@ using find_container_t = typename find_container<t_TyT,t_Ty2DVariadicCont,t_TyDe
 template <typename t_TyT, typename t_Ty2DVariadicCont>
 inline constexpr bool find_container_v = !is_same_v< find_container_t<t_TyT,t_Ty2DVariadicCont>, void >;
 
-// DimensionOf:
+// DimensionOf: Length of a static array.
 template < class t_Ty, size_t t_kN >
 constexpr size_t DimensionOf( t_Ty (&)[ t_kN ] )
 {
   return t_kN;
+}
+// StaticStringLen: Length of a static null terminated string.
+template < class t_Ty, size_t t_kN >
+constexpr size_t StaticStringLen( t_Ty (&)[ t_kN ] )
+{
+  static_assert( t_kN );
+  return t_kN-1;
 }
 
 // https://stackoverflow.com/questions/21028299/is-this-behavior-of-vectorresizesize-type-n-under-c11-and-boost-container/21028912#21028912
