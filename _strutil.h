@@ -830,49 +830,49 @@ enum EFileCharacterEncoding
 template < class t_TyChar, class t_TyFSwitchEndian >
 EFileCharacterEncoding GetCharacterEncoding();
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char8_t, false_type >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char8_t, false_type >()
 {
 	return efceUTF8;
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char8_t, true_type >()
-{
-	Assert( false ); // weird that we should be here...
-	return efceUTF8;
-}
-template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char, false_type >()
-{
-	return efceUTF8;
-}
-template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char, true_type >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char8_t, true_type >()
 {
 	Assert( false ); // weird that we should be here...
 	return efceUTF8;
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsLittleEndian >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char, false_type >()
+{
+	return efceUTF8;
+}
+template <>
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char, true_type >()
+{
+	Assert( false ); // weird that we should be here...
+	return efceUTF8;
+}
+template <>
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsLittleEndian >()
 {
 	return efceUTF16BE;
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsBigEndian >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char16_t, vTyFIsBigEndian >()
 {
 	return efceUTF16LE;
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsLittleEndian >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsLittleEndian >()
 {
 	return efceUTF32BE;
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsBigEndian >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< char32_t, vTyFIsBigEndian >()
 {
 	return efceUTF32LE;
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian >()
 {
 #ifdef BIEN_WCHAR_16BIT
 	return efceUTF16BE;
@@ -881,7 +881,7 @@ inline EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsLittleEndian 
 #endif //!BIEN_WCHAR_16BIT
 }
 template <>
-inline EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
+inline constexpr EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
 {
 #ifdef BIEN_WCHAR_16BIT
 	return efceUTF16LE;
@@ -891,7 +891,7 @@ inline EFileCharacterEncoding GetCharacterEncoding< wchar_t, vTyFIsBigEndian >()
 }
 
 // Get the corresponding encoding for this machine:
-inline EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEncoding _efce )
+inline constexpr EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEncoding _efce )
 {
 	switch( _efce )
 	{
@@ -1037,6 +1037,32 @@ PszCharacterEncodingShort( EFileCharacterEncoding _efce )
 		break;
 		case efceUTF32LE:
 			return "UTF32LE";
+		break;
+		default:
+			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
+		break;
+	}
+	return "wont get here"; // lol - compiler thinks so.
+}
+
+// PszCharacterEncodingName() can't distiguish between small and big endian.
+// The byte order mark of a file manages that for encodings in XML.
+template < class t_TyChar >
+inline constexpr t_TyChar *
+PszCharacterEncodingName( EFileCharacterEncoding _efce )
+{
+	switch( _efce )
+	{
+		case efceUTF8:
+			return str_array_cast< _TyChar >( "UTF-8" ).c_str();
+		break;
+		case efceUTF16BE:
+		case efceUTF16LE:
+			return str_array_cast< _TyChar >( "UTF-16" ).c_str();
+		break;
+		case efceUTF32BE:
+		case efceUTF32LE:
+			return str_array_cast< _TyChar >( "UTF-32" ).c_str();
 		break;
 		default:
 			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
