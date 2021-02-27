@@ -93,7 +93,6 @@ public:
   {
     m_upHead.swap( _r.m_upHead );
   }
-
   bool empty() const
   {
     return !m_upHead;

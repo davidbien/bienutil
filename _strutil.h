@@ -757,6 +757,7 @@ void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_t
 	*pcdestCur = 0;
 }
 
+// StrConvertString:
 template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
 	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
@@ -775,6 +776,26 @@ template < class t_TyCharConvertTo, class t_TyStringOrStringView >
 basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const & _rsvorstr )
 {
 	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
+}
+
+// StrViewConvertString: Return a string view on a perhaps converted string (or not). Must pass a string buffer that may not be used.
+template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
+basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, basic_string< t_TyCharConvertTo > & /* _strConvertBuf */ )
+	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
+{
+	return basic_string_view< t_TyCharConvertTo >( (const t_TyCharConvertTo*)_pc, _len );
+}
+template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
+basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, basic_string< t_TyCharConvertTo > & _strConvertBuf )
+	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom > )
+{
+	ConvertString( _strConvertBuf, _pc, _len );
+	return basic_string_view< t_TyCharConvertTo >( _strConvertBuf );
+}
+template < class t_TyCharConvertTo, class t_TyStringOrStringView >
+basic_string_view< t_TyCharConvertTo > StrViewConvertString( t_TyStringOrStringView const & _rsvorstr, basic_string< t_TyCharConvertTo > & _strConvertBuf )
+{
+	return StrViewConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
 }
 
 namespace n_StrArrayStaticCast
