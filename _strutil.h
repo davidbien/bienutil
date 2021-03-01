@@ -789,6 +789,9 @@ template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
 basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, basic_string< t_TyCharConvertTo > & _strConvertBuf )
 	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom > )
 {
+	Assert( !!_pc || !_len );
+	if ( !_pc || !_len )
+		return basic_string_view< t_TyCharConvertTo >();
 	ConvertString( _strConvertBuf, _pc, _len );
 	return basic_string_view< t_TyCharConvertTo >( _strConvertBuf );
 }
