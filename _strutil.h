@@ -778,9 +778,24 @@ basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const
 	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
 
+// trivial type for conversion buffer when no conversion necessary.
+template < class t_TyCharConvertTo >
+struct FakeConversionBuffer
+{
+};
+template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
+struct TGetConversionBuffer
+{
+	typedef FakeConversionBuffer< t_TyCharConvertTo > _TyFakeBuffer;
+	typedef basic_string< t_TyCharConvertTo > _TyRealBuffer;
+	typedef conditional_t< TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >, _TyFakeBuffer, _TyRealBuffer > _TyBufferType;
+};
+template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
+using TGetConversionBuffer_t = typename TGetConversionBuffer< t_TyCharConvertTo, t_TyCharConvertFrom >::_TyBufferType;
+
 // StrViewConvertString: Return a string view on a perhaps converted string (or not). Must pass a string buffer that may not be used.
 template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
-basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, basic_string< t_TyCharConvertTo > & /* _strConvertBuf */ )
+basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, FakeConversionBuffer< t_TyCharConvertTo > &  )
 	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
 {
 	return basic_string_view< t_TyCharConvertTo >( (const t_TyCharConvertTo*)_pc, _len );
@@ -796,7 +811,14 @@ basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConve
 	return basic_string_view< t_TyCharConvertTo >( _strConvertBuf );
 }
 template < class t_TyCharConvertTo, class t_TyStringOrStringView >
+basic_string_view< t_TyCharConvertTo > StrViewConvertString( t_TyStringOrStringView const & _rsvorstr, FakeConversionBuffer< t_TyCharConvertTo > & _strConvertBuf )
+	requires ( TAreSameSizeTypes_v< t_TyCharConvertTo, typename t_TyStringOrStringView::value_type > )
+{
+	return StrViewConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+}
+template < class t_TyCharConvertTo, class t_TyStringOrStringView >
 basic_string_view< t_TyCharConvertTo > StrViewConvertString( t_TyStringOrStringView const & _rsvorstr, basic_string< t_TyCharConvertTo > & _strConvertBuf )
+	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, typename t_TyStringOrStringView::value_type > )
 {
 	return StrViewConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
 }
