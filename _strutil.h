@@ -328,6 +328,34 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 #endif //!WIN32
 }
 
+// Versions of the above that take a buffer size for the format string.
+// (numeric_limits<size_t>::max)() may be passed if the string is null terminated.
+template < class t_tyString >
+void VPrintfStdStr( t_tyString &_rstr, size_t _nLenFmt, const typename t_tyString::value_type *_pcFmt, va_list _ap ) noexcept(false) 
+			requires( TAreSameSizeTypes_v< typename t_tyString::value_type, char > ||
+								TAreSameSizeTypes_v< typename t_tyString::value_type, wchar_t > )
+{
+	typedef conditional_t< TAreSameSizeTypes_v< typename t_tyString::value_type, char >, char, wchar_t > _TyChar;
+	if ( (numeric_limits<size_t>::max)() == _nLenFmt )
+		VPrintfStdStr( _rstr,  pcFmt, _ap ); // null terminated.
+	else
+	{
+		basic_string< _TyChar > strTempBuf;
+		_TyChar * pcBuf;
+		if ( ( _nLenFmt * sizeof( __TyChar ) ) < vknbyMaxAllocaSize )
+		{
+			pcBuf = (_TyChar*)alloca( ( _nLenFmt + 1 ) * sizeof( _TyChar ) );
+			pcBuf[_nLenFmt] = 0;
+		}
+		else
+		{
+      strTempBuf.resize( _nLenFmt );
+      pcBuf = &strTempBuf[0];
+		}
+		memcpy( pcBuf, _pcFmt, _nLenFmt * sizeof( _TyChar ) );
+		VPrintfStdStr( _rstr,  pcBuf, _ap ); // null terminated.
+	}
+}
 // Return a string formatted like printf. Doesn't throw.
 template < class t_tyString >
 bool FPrintfStdStrNoThrow( t_tyString &_rstr, const typename t_tyString::value_type *_pcFmt, ...)  
