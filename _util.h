@@ -315,18 +315,18 @@ inline constexpr bool TAreSameSizeTypes_v = TAreSameSizeTypes< t_Ty1, t_Ty2 >::v
 // forward_capture: Correct forwarding inside lambda capture:
 // https://isocpp.org/blog/2016/12/capturing-perfectly-forwarded-objects-in-lambdas-vittorio-romeo
 
-#define FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
+#define __FWD(...) std::forward<decltype(__VA_ARGS__)>(__VA_ARGS__)
 namespace impl
 {
   template <typename... Ts>
   auto fwd_capture(Ts&&... xs)
   {
-      return std::tuple<Ts...>(FWD(xs)...); 
+      return std::tuple<Ts...>(__FWD(xs)...); 
   }
 } // namespace impl
 template <typename T>
-decltype(auto) access_fwd(T&& x) { return std::get<0>(FWD(x)); }
-#define FWD_CAPTURE(...) impl::fwd_capture(FWD(__VA_ARGS__))
+decltype(auto) access_fwd(T&& x) { return std::get<0>(__FWD(x)); }
+#define FWD_CAPTURE(...) impl::fwd_capture(__FWD(__VA_ARGS__))
 // Usage:
 #if 0
   struct A
@@ -339,7 +339,7 @@ decltype(auto) access_fwd(T&& x) { return std::get<0>(FWD(x)); }
       return [a = FWD_CAPTURE(a)]() mutable 
       { 
           ++access(a)._value;
-          std::cout << access(a)._value << "\n";
+          std::cout << access_fwd(a)._value << "\n";
       };
   };
 #endif //0
