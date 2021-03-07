@@ -7,6 +7,7 @@
 // A simple list that use unique_ptr<> to maintain a reference to the next element.
 
 #include "bienutil.h"
+#include "_util.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -34,13 +35,13 @@ public:
   {
   }
   void swap( _TyThis & _r )
-    requires( is_member_function_pointer_v<decltype(&t_TyT::swap)> )
+    requires( has_swap_c<t_TyT> )
   {
     m_upNext.swap( _r.m_upNext );
     m_t.swap( _r.m_t );
   }
   void swap( _TyThis & _r )
-    requires( !is_member_function_pointer_v<decltype(&t_TyT::swap)> )
+    requires( !has_swap_c<t_TyT> )
   {
     m_upNext.swap( _r.m_upNext );
     std::swap( m_t, _r.m_t );

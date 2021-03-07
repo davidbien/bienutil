@@ -337,12 +337,12 @@ void VPrintfStdStr( t_tyString &_rstr, size_t _nLenFmt, const typename t_tyStrin
 {
 	typedef conditional_t< TAreSameSizeTypes_v< typename t_tyString::value_type, char >, char, wchar_t > _TyChar;
 	if ( (numeric_limits<size_t>::max)() == _nLenFmt )
-		VPrintfStdStr( _rstr,  pcFmt, _ap ); // null terminated.
+		VPrintfStdStr( _rstr,  _pcFmt, _ap ); // null terminated.
 	else
 	{
 		basic_string< _TyChar > strTempBuf;
 		_TyChar * pcBuf;
-		if ( ( _nLenFmt * sizeof( __TyChar ) ) < vknbyMaxAllocaSize )
+		if ( ( _nLenFmt * sizeof( _TyChar ) ) < vknbyMaxAllocaSize )
 		{
 			pcBuf = (_TyChar*)alloca( ( _nLenFmt + 1 ) * sizeof( _TyChar ) );
 			pcBuf[_nLenFmt] = 0;
@@ -1125,6 +1125,7 @@ template < class t_TyChar >
 inline constexpr t_TyChar *
 PszCharacterEncodingName( EFileCharacterEncoding _efce )
 {
+	typedef t_TyChar _TyChar;
 	switch( _efce )
 	{
 		case efceUTF8:

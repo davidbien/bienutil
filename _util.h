@@ -256,7 +256,7 @@ constexpr size_t DimensionOf( t_Ty (&)[ t_kN ] )
 }
 // StaticStringLen: Length of a static null terminated string.
 template < class t_Ty, size_t t_kN >
-constexpr size_t StaticStringLen( t_Ty (&)[ t_kN ] )
+constexpr size_t StaticStringLen( const t_Ty (&)[ t_kN ] )
 {
   static_assert( t_kN );
   return t_kN-1;
@@ -343,5 +343,17 @@ decltype(auto) access_fwd(T&& x) { return std::get<0>(__FWD(x)); }
       };
   };
 #endif //0
+
+// A couple of ways to test whether the contained t_TyT has a swap method.
+template <typename T, typename = void> struct has_swap_sfinae : std::false_type {};
+template <typename T> struct has_swap_sfinae<T,
+    decltype(void(std::declval<T &>().swap(std::declval<T &>())))
+> : std::true_type {};
+template <typename T> inline constexpr bool has_swap_v = has_swap_sfinae<T>::value;
+template <typename T>
+concept c_has_swap = requires (T& t1, T& t2) 
+{
+    { t1.swap(t2) };
+};
 
 __BIENUTIL_END_NAMESPACE
