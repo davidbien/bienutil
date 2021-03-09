@@ -21,6 +21,7 @@
 #include <compare>
 #include <utility>
 #include <cstddef>
+#include "bientypes.h"
 #include "_namdexc.h"
 #include "_smartp.h"
 #include "_fdobjs.h"
@@ -33,6 +34,7 @@
 #include <sys/stat.h>
 #else
 #endif
+#include "utfconvert.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -182,7 +184,7 @@ static size_t StrCSpn(const t_tyChar * _psz, t_tyChar _tcBegin, t_tyChar _tcEnd,
 }
 
 template <class t_tyChar>
-size_t StrNLen(const t_tyChar *_psz, size_t _stMaxLen = (std::numeric_limits<size_t>::max)())
+size_t StrNLen( const t_tyChar *_psz, size_t _stMaxLen )
 {
 	if (!_psz || !_stMaxLen)
 		return 0;
@@ -564,6 +566,10 @@ GetCurrentExecutablePath(std::string &_rstrPath)
 		_rstrPath.resize(stLastSlash + 1);
 }
 
+// namespace for conversion using ICU's library/
+namespace ns_CONVICU
+{
+
 static const UChar32 vkc32RelacementChar = 0xFFFD;
 
 // String conversion:
@@ -607,14 +613,6 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
-#if 0
-template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest, const wchar_t * _pc32Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
-	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) && ( sizeof( wchar_t ) == 4 ) )
-{
-	ConvertString( _rstrDest, (char32_t*)_pc32Source, _stLenSource );
-}
-#endif //0
 
 // UTF16->UTF32
 template < class t_tyString32, class t_tyCharSource >
@@ -671,15 +669,6 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );
 }
-#if 0
-// This handles casting for the Windows' case of wchar_t being 2 bytes long for the above two functions.
-template < class t_tyString8 >
-void ConvertString( t_tyString8 & _rstrDest, const wchar_t * _pwc16Source, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
-	requires( ( ( sizeof( typename t_tyString8::value_type ) == 4 ) || ( sizeof( typename t_tyString8::value_type ) == 1 ) ) && ( sizeof( wchar_t ) == 2 ) )
-{
-	ConvertString( _rstrDest, (char16_t*)_pwc16Source, _stLenSource );
-}
-#endif //0
 
 // UTF8->UTF16:
 template < class t_tyString16, class t_tyCharSource >
@@ -710,15 +699,6 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	}
 	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
-#if 0
-// casting char->char8_t.
-template < class t_tyString16 >
-void ConvertString( t_tyString16 & _rstrDest, const char * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)() )
-	requires ( ( sizeof( typename t_tyString16::value_type ) == 2 ) )
-{
-	ConvertString( _rstrDest, (char8_t*)_pcSource, _stLenSource );
-}
-#endif //0
 
 // UTF8 <-> UTF32 require double conversion:
 // UTF8->UTF32:
@@ -741,6 +721,11 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc32Source,
 	ConvertString( str16, _pc32Source, _stLenSource );
 	ConvertString( _rstrDest, &str16[0], str16.length() );
 }
+
+} //namespace ns_CONVICU
+
+// Use the new namespace globally.
+using namespace ns_CONVBIEN;
 
 // wrappers for the above methods.
 // This one should work for both strings and string_views.

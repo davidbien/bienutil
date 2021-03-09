@@ -16,28 +16,32 @@ static constexpr char32_t vkutf32SurrogateHighEnd = (char32_t)0xDBFF;
 static constexpr char32_t vkutf32SurrogateLowStart = (char32_t)0xDC00;
 static constexpr char32_t vkutf32SurrogateLowEnd = (char32_t)0xDFFF;
 // We don't want to support anything above vkutf32MaxUTF16 for this so we explicitly limit it to UTF16.
-static constexpr char16_t vkutf16ReplacementCharDefault = u'\UFFFD';
+static constexpr char16_t vkutf16ReplacementCharDefault = (char16_t)0xFFFD;
 // Use vkutf16ReplacementCharError to indicate to the API to fail when it would otherwise use the replacement character.
 static constexpr char16_t vkutf16ReplacementCharError = 0;
 
 static constexpr char32_t vkutf32HalfBase = (char32_t)0x0010000;
 static constexpr char32_t vkutf32HalfMask = (char32_t)0x3FF;
 
-inline bool FIsSurrogate( char32_t _utf32 ) noexcept
+inline constexpr bool FIsSurrogate( char32_t _utf32 ) noexcept
 {
   return _utf32 >= vkutf32SurrogateStart && _utf32 <= vkutf32SurrogateEnd;
 }
-inline bool FIsHighSurrogate( char32_t _utf32 ) noexcept
+inline constexpr bool FIsHighSurrogate( char32_t _utf32 ) noexcept
 {
   return _utf32 >= vkutf32SurrogateHighStart && _utf32 <= vkutf32SurrogateHighEnd;
 }
-inline bool FIsLowSurrogate( char32_t _utf32 ) noexcept
+inline constexpr bool FIsLowSurrogate( char32_t _utf32 ) noexcept
 {
   return _utf32 >= vkutf32SurrogateHighStart && _utf32 <= vkutf32SurrogateHighEnd;
 }
-inline bool FInvalidUTF32( char32_t _utf32 ) noexcept
+inline constexpr bool FInvalidUTF32( char32_t _utf32 ) noexcept
 {
   return _utf32 > vkutf32Max || FIsSurrogate( _utf32 );
+}
+inline constexpr bool FIsValidUTF32( char32_t _utf32 ) noexcept
+{
+  return !FInvalidUTF32( _utf32 );
 }
 
 // traits: These determine input and output buffer sizes so that we don't have to call a method back
@@ -86,12 +90,12 @@ struct TGetNormalUTFCharType
   typedef t_TyCharType type; // default to the same type.
 };
 template <>
-TGetNormalUTFCharType< char >
+struct TGetNormalUTFCharType< char >
 {
   typedef char8_t type;
 };
 template <>
-TGetNormalUTFCharType< wchar_t >
+struct TGetNormalUTFCharType< wchar_t >
 {
 #ifdef BIEN_WCHAR_16BIT
   typedef char16_t type;
@@ -106,17 +110,17 @@ using TGetNormalUTFCharType_t = typename TGetNormalUTFCharType< t_TyCharType >::
 static inline constexpr char8_t vrgFirstByteMark[7] = { 0x00, 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC };
 
 // This one does no error checking - for internal use.
-inline void char8_t * _PCConvertUTF32ToUTF8( char32_t _utf32Source, char8_t _rgu8Buffer[ utf_traits< char8_t >::max_length ] ) noexcept
+inline char8_t * _PCConvertUTF32ToUTF8( char32_t _utf32Source, char8_t _rgu8Buffer[ utf_traits< char8_t >::max_length ] ) noexcept
 {
   Assert( FIsValidUTF32( _utf32Source ) ); // Should never call this with an invalid char.
   size_t nbyWrite;
-  if ( _utf32Source < U'\U80' )
-    nbyWrite1;
+  if ( _utf32Source < U'\U00000080' )
+    nbyWrite = 1;
   else 
-  if ( _utf32Source < U'\U800' )
+  if ( _utf32Source < U'\U00000800' )
     nbyWrite = 2;
   else
-  if ( _utf32Source < U'\U10000' )
+  if ( _utf32Source < U'\U00010000' )
     nbyWrite = 3;
   else 
     nbyWrite = 4;
@@ -126,20 +130,19 @@ inline void char8_t * _PCConvertUTF32ToUTF8( char32_t _utf32Source, char8_t _rgu
   switch (nbyWrite) 
   {
     case 4:
-      *--pu8End = static_cast< char8_t >( ( ch | utf32Mark ) & utf32Mask );
+      *--pu8End = static_cast< char8_t >( ( _utf32Source | utf32Mark ) & utf32Mask );
       _utf32Source >>= 6;
-      [[fallthrough]]
+      [[fallthrough]];
     case 3:
-      *--pu8End = static_cast< char8_t >( ( ch | utf32Mark ) & utf32Mask );
+      *--pu8End = static_cast< char8_t >( ( _utf32Source | utf32Mark ) & utf32Mask );
       _utf32Source >>= 6;
-      [[fallthrough]]
+      [[fallthrough]];
     case 2:
-      *--pu8End = static_cast< char8_t >( ( ch | utf32Mark ) & utf32Mask );
+      *--pu8End = static_cast< char8_t >( ( _utf32Source | utf32Mark ) & utf32Mask );
       _utf32Source >>= 6;
-      [[fallthrough]]
+      [[fallthrough]];
     case 1: 
-      *--pu8End = (static_cast< char8_t >( ch | vrgFirstByteMark[nbyWrite] );
-      [[fallthrough]]
+      *--pu8End = static_cast< char8_t >( _utf32Source | vrgFirstByteMark[nbyWrite] );
   }
   return _rgu8Buffer + nbyWrite;
 }
@@ -196,13 +199,13 @@ inline char16_t * PCConvertUTF( const char32_t *& _rputf32Source, char16_t _rgu1
   ++_rputf32Source; // We will succeed from here on out.
   if ( utf32Source <= vkutf32MaxUTF16 )
   {
-    *_rgu16Buffer = static_cast<char16_t>( utf32Source )
+    *_rgu16Buffer = static_cast<char16_t>( utf32Source );
     return _rgu16Buffer + 1;
   }
   static const char32_t knHalfShift = 10u;
   utf32Source -= vkutf32HalfBase;
   *_rgu16Buffer = static_cast< char16_t >( ( utf32Source >> knHalfShift ) + vkutf32SurrogateHighStart );
-  _rgu16Buffer[1] = static_cast< char16_t >( ( utf32Source & knHalfMask ) + vkutf32SurrogateLowStart );
+  _rgu16Buffer[1] = static_cast< char16_t >( ( utf32Source & vkutf32HalfMask ) + vkutf32SurrogateLowStart );
   return _rgu16Buffer + 2;
 }
 // UTF16->UTF8
@@ -307,8 +310,8 @@ inline bool FIsTrailByteUTF8( char8_t _u8 ) noexcept
 // This just searches for the last trail byte which might be as far as _nchLen.
 static const char8_t * PcLastTrailByte( const char8_t * _pu8, size_t _nchLen ) noexcept
 {
-  const char8_t * pu8End =  _pu8 + _nchLen;
-  for ( const char8_t * pu8Cur+1; ( pu8End != pu8Cur ) && FIsTrailByteUTF8( *pu8Cur ); ++pu8Cur )
+  const char8_t * pu8Cur = _pu8 + 1;
+  for ( const char8_t * pu8End =  _pu8 + _nchLen; ( pu8End != pu8Cur ) && FIsTrailByteUTF8( *pu8Cur ); ++pu8Cur )
     ;
   return pu8Cur;
 }
@@ -324,15 +327,14 @@ static const char8_t * PcValidUTF8Sequence( const char8_t * _pu8, size_t _nchLen
     case 4:
       if ( !FIsTrailByteUTF8(*--pu8End) )
         return PcLastTrailByte( _pu8, _nchLen );
-    [[fallthrough]]
+    [[fallthrough]];
     case 3:
       if ( !FIsTrailByteUTF8(*--pu8End) )
         return PcLastTrailByte( _pu8, _nchLen );
-    [[fallthrough]]
+    [[fallthrough]];
     case 2:
       if ( !FIsTrailByteUTF8(*--pu8End) )
         return PcLastTrailByte( _pu8, _nchLen );
-    [[fallthrough]]
       switch (*_pu8) 
       {
           case 0xE0u: 
@@ -356,11 +358,10 @@ static const char8_t * PcValidUTF8Sequence( const char8_t * _pu8, size_t _nchLen
               return _pu8 + _nchLen;
           break;
       }
-    [[fallthrough]]
+    [[fallthrough]];
     case 1:
       if ( ( *_pu8 >= 0x80u ) && ( *_pu8 < 0xC2u ) ) 
         return _pu8 + _nchLen;
-    break;
   }
   return *_pu8 <= 0xF4u ? nullptr : _pu8 + _nchLen;
 }
@@ -390,7 +391,7 @@ inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t
   //  check the validity of the sequence and find the end of an invalid sequence at the same time.
   size_t nbyRemaining = vkrgu8TrailBytesUTF8[*_rputf8Source];
   const char8_t * pucEndTrailBytesOnError = nullptr;
-  if ( ( nbyRemaining >= ( _putf8SourceEnd - _rputf8Source ) ) ||
+  if ( ( nbyRemaining >= size_t( _putf8SourceEnd - _rputf8Source ) ) ||
        !!( pucEndTrailBytesOnError = PcValidUTF8Sequence( _rputf8Source, nbyRemaining+1 ) ) )
   {
     if ( vkutf16ReplacementCharError == _utf16ReplacementChar )
@@ -400,8 +401,7 @@ inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t
       return 0u;
     }
     _rputf8Source = !pucEndTrailBytesOnError ? _putf8SourceEnd : pucEndTrailBytesOnError; // Set end appropriately.
-    *_rgu16Buffer = _utf16ReplacementChar;
-    return _rgu16Buffer + 1;
+    return _utf16ReplacementChar;
   }
   // Valid sequence.
   Assert( nbyRemaining < 4 ); // valid UTF only after this point - if 5 or 6 bytes become valid here is the place to fix it.
@@ -411,18 +411,17 @@ inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t
     case 3: 
       utf32Result += *_rputf8Source++; 
       utf32Result <<= 6u;
-    [[fallthrough]]
+    [[fallthrough]];
     case 2: 
       utf32Result += *_rputf8Source++; 
       utf32Result <<= 6u;
-    [[fallthrough]]
+    [[fallthrough]];
     case 1: 
       utf32Result += *_rputf8Source++; 
       utf32Result <<= 6u;
-    [[fallthrough]]
+    [[fallthrough]];
     case 0: 
       utf32Result += *_rputf8Source++;
-    break;
   }
   utf32Result -= vkrgutf32OffsetsFromUTF8[ nbyRemaining ];
   return utf32Result;
@@ -450,13 +449,13 @@ inline char16_t * PCConvertUTF(  const char8_t *& _rputf8Source, char16_t _rgu16
   // Valid UTF32, might have to split into two UTF16s.
   if ( utf32Result <= vkutf32MaxUTF16 )
   {
-    *_rgu16Buffer = static_cast<char16_t>( utf32Result )
+    *_rgu16Buffer = static_cast<char16_t>( utf32Result );
     return _rgu16Buffer + 1;
   }
   static const char32_t knHalfShift = 10u;
   utf32Result -= vkutf32HalfBase;
   *_rgu16Buffer = static_cast< char16_t >( ( utf32Result >> knHalfShift ) + vkutf32SurrogateHighStart );
-  _rgu16Buffer[1] = static_cast< char16_t >( ( utf32Result & knHalfMask ) + vkutf32SurrogateLowStart );
+  _rgu16Buffer[1] = static_cast< char16_t >( ( utf32Result & vkutf32HalfMask ) + vkutf32SurrogateLowStart );
   return _rgu16Buffer + 2;
 }
 // UTF8->UTF32:
@@ -554,6 +553,95 @@ bool FWriteUTFFunctor(  const t_TyCharSource * _pcSource, size_t _stWrite, t_TyF
   }
   return true;
 }
+// Convert as much of the passed string as possible given the destination buffer that has been passed.
+// Return the end of the set of characters that has been converted. _rpcDest is left at the end of the converted buffer.
+template < class t_TyCharSource, class t_TyCharDest >
+const t_TyCharSource * PCConvertString( const t_TyCharSource * _pcSource, size_t _nchSource, t_TyCharDest *& _rpcDest, size_t _nchDest,
+                                        const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
+  requires ( TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // non-converting.
+{
+  if ( !_nchSource )
+    return true; // no-op.
+  size_t nchCopy = (min)( _nchSource, _nchDest );
+  memcpy( _rpcDest, _pcSource, nchCopy * sizeof( t_TyCharDest ) );
+  _rpcDest += nchCopy;
+  return _pcSource + nchCopy;
+}
+template < class t_TyCharSource, class t_TyCharDest >
+const t_TyCharSource * PCConvertString( const t_TyCharSource * _pcSource, size_t _nchSource, t_TyCharDest *& _rpcDest, size_t _nchDest,
+                                        const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
+  requires ( !TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // converting.
+{
+  if ( !_nchSource )
+    return _pcSource; // no-op.    
+  typedef TGetNormalUTFCharType_t< t_TyCharSource > _TyCharSource;
+  typedef TGetNormalUTFCharType_t< t_TyCharDest > _TyCharDest;
+  typedef utf_traits< _TyCharDest > _TyUTFTraitsDest;
+  if ( _nchDest < _TyUTFTraitsDest::max_length )
+  {
+    SetLastErrNo( vkerrInvalidArgument );
+    return nullptr;
+  }
+  const _TyCharSource * pcSourceCur = (const _TyCharSource *)_pcSource;
+  for ( const _TyCharSource * const pcSourceEnd = pcSourceCur + _nchSource; ( pcSourceEnd != pcSourceCur ) && ( _nchDest >= _TyUTFTraitsDest::max_length );  )
+  {
+    _TyCharDest * pcDestEnd = PCConvertUTF( pcSourceCur, _rpcDest, pcSourceEnd, _utf16ReplacementChar ); // This advances pcSourceCur or it returns an error.
+    if ( !pcDestEnd ) // error encountered - SetLastErrNo() should have already been called.
+      return nullptr;
+    _nchDest -= ( pcDestEnd - _rpcDest );
+    _rpcDest = pcDestEnd;
+  }
+  return reinterpret_cast< const t_TyCharSource * >( pcSourceCur ); // We may not have finished converting the string.
+}
+
+// namespace for conversion using my utfconvert.h conversion methods that correspond to ICU conversion methods in _strutil.h.
+namespace ns_CONVBIEN
+{
+
+// Note that this methods may throw unlike the above methods.
+template < class t_TyStringDest, class t_TyCharSource >
+void ConvertString( t_TyStringDest & _rstrDest, const t_TyCharSource * _pcSource, size_t _nchSource = (std::numeric_limits<size_t>::max)(), 
+                    const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault )
+  requires( TAreSameSizeTypes_v< typename t_TyStringDest::value_type, t_TyCharSource > ) // non-converting.
+{
+  // We assume worst case scenario because the important thing is to just get the string converted.
+  if ( _nchSource == (std::numeric_limits<size_t>::max)() )
+    _nchSource = StrNLen( _pcSource );
+  _rstrDest.assign( _pcSource, _nchSource );
+}
+template < class t_TyStringDest, class t_TyCharSource >
+void ConvertString( t_TyStringDest & _rstrDest, const t_TyCharSource * _pcSource, size_t _nchSource = (std::numeric_limits<size_t>::max)(), 
+                    const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault )
+  requires( !TAreSameSizeTypes_v< typename t_TyStringDest::value_type, t_TyCharSource > ) // non-converting.
+{
+  typedef TGetNormalUTFCharType_t< t_TyCharSource > _TyCharSource;
+  typedef TGetNormalUTFCharType_t< typename t_TyStringDest::value_type > _TyCharDest;
+  typedef utf_traits< _TyCharDest > _TyUTFTraitsDest;
+  if ( _nchSource == (std::numeric_limits<size_t>::max)() )
+    _nchSource = StrNLen( _pcSource );
+  // Allocate assuming that every source character is a single code that generates the maximum count of destination characters:
+  size_t nchDest = _TyUTFTraitsDest::max_length * _nchSource;
+  size_t nbyDest = nchDest * sizeof( _TyCharDest );
+  _TyCharDest * pcBufDest;
+  if ( nbyDest > vknbyMaxAllocaSize )
+  {
+    _rstrDest.resize( nchDest );
+    pcBufDest = reinterpret_cast< _TyCharDest *>( &_rstrDest[0] );
+  }
+  else
+    pcBufDest = (_TyCharDest*)alloca( nbyDest );
+  _TyCharDest * pcEndDest = pcBufDest;
+  const t_TyCharSource * pcSrcEnd = PCConvertString( _pcSource, _nchSource, pcEndDest, nchDest, _utf16ReplacementChar );
+  Assert( !pcSrcEnd || ( pcSrcEnd == ( _pcSource + _nchSource ) ) ); // We always should have allocated enough space up front.
+  if ( !pcSrcEnd )
+    THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error converting string.");
+  if ( nbyDest > vknbyMaxAllocaSize )
+    _rstrDest.resize( pcEndDest - pcBufDest );
+  else
+    _rstrDest.assign( reinterpret_cast< typename t_TyStringDest::value_type * >( pcBufDest ), pcEndDest - pcBufDest );
+}
+
+} // namespace ns_CONVBIEN
 
 __BIENUTIL_END_NAMESPACE
 
