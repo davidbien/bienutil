@@ -588,6 +588,15 @@ inline bool FIsRegularFile_HandleAttr( vtyHandleAttr const & _rha ) noexcept
     return !!S_ISREG( _rha.st_mode );
 #endif
 }
+// return the file size from the handle of uint64_t(-1) if an error is encountered.
+inline uint64_t GetFileSizeFromHandle( vtyFileHandle _hFile )
+{
+    vtyHandleAttr ha;
+    int iRes = GetHandleAttrs( _hFile, ha );
+    if ( !!iRes )
+        return uint64_t(-1);
+    return GetSize_HandleAttr( ha );
+}
 
 // Seeking files:
 #ifdef WIN32

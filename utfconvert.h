@@ -33,7 +33,7 @@ inline constexpr bool FIsHighSurrogate( char32_t _utf32 ) noexcept
 }
 inline constexpr bool FIsLowSurrogate( char32_t _utf32 ) noexcept
 {
-  return _utf32 >= vkutf32SurrogateHighStart && _utf32 <= vkutf32SurrogateHighEnd;
+  return _utf32 >= vkutf32SurrogateLowStart && _utf32 <= vkutf32SurrogateLowEnd;
 }
 inline constexpr bool FInvalidUTF32( char32_t _utf32 ) noexcept
 {
@@ -150,7 +150,6 @@ inline char8_t * _PCConvertUTF32ToUTF8( char32_t _utf32Source, char8_t _rgu8Buff
 // FConvertUTF. Do these all noexcept and just use old school per-thread error number that are available on most systems.
 // We set the global error number to vkerrInvalidArgument when we encounter a bogus source codepoint.
 // Return the end of the conversion wrt _rgu8Buffer, or nullptr on error.
-// If the replacement 
 // UTF32->UTF8
 inline char8_t * PCConvertUTF(  const char32_t *& _rputf32Source, char8_t _rgu8Buffer[ utf_traits< char8_t >::max_length ], const char32_t * const _putf32SourceEnd, 
                                 const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
@@ -339,41 +338,38 @@ static const char8_t * PcValidUTF8Sequence( const char8_t * _pu8, size_t _nchLen
       {
           case 0xE0u: 
             if ( *pu8End < 0xA0u ) 
-              return _pu8 + _nchLen; // We have found trail bytees the entire way to here.
+              return pu8End; // We have found trail bytees the entire way to here.
           break;
           case 0xEDu: 
             if ( *pu8End > 0x9Fu )
-              return _pu8 + _nchLen;
+              return pu8End;
           break;
           case 0xF0u:
             if ( *pu8End < 0x90u ) 
-              return _pu8 + _nchLen;
+              return pu8End;
           break;
           case 0xF4u:
             if ( *pu8End > 0x8Fu )
-              return _pu8 + _nchLen;
+              return pu8End;
           break;
           default:   
             if ( *pu8End < 0x80u ) 
-              return _pu8 + _nchLen;
+              return pu8End;
           break;
       }
     [[fallthrough]];
     case 1:
       if ( ( *_pu8 >= 0x80u ) && ( *_pu8 < 0xC2u ) ) 
-        return _pu8 + _nchLen;
+        return pu8End;
   }
-  return *_pu8 <= 0xF4u ? nullptr : _pu8 + _nchLen;
+  return *_pu8 <= 0xF4u ? nullptr : pu8End;
 }
 
-/*
- * Magic values subtracted from a buffer value during UTF8 conversion.
- * This table contains as many values as there might be trailing bytes
- * in a UTF-8 sequence.
- */
+// Magic values subtracted from a buffer value during UTF8 conversion.
+// This table contains as many values as there might be trailing bytes
+// in a UTF-8 sequence.
 static inline const char32_t vkrgutf32OffsetsFromUTF8[6] = { 0x00000000u, 0x00003080u, 0x000E2080u, 
                                                              0x03C82080u, 0xFA082080u, 0x82082080u };
-
 
 // For all UTF8->UTFN conversions we first produce single UTF32 value.
 // Return 0 on failure, return a valid UTF32 codepoint upon success.
@@ -481,7 +477,6 @@ inline char32_t * PCConvertUTF(  const char8_t *& _rputf8Source, char32_t _rgu32
   return _rgu32Buffer + 1;
 }
 
-
 // We choose not to throw here and just use a bool return to allow the caller to perhaps throw the last error, etc,
 //  which would depend on stream impl.
 template < class t_TyCharDest, class t_TyCharSource, class t_TyStream >
@@ -519,7 +514,7 @@ bool FWriteUTFStream( const t_TyCharSource * _pcSource, size_t _stWrite, t_TyStr
 }
 // Write through a functor which takes the destination character type.
 // The prototype of the functor is:
-// bool operator()( const t_tyCharDest * _pcBuf, size_t _stLen )
+// bool operator()( const t_TyCharDest * _pcBuf, size_t _stLen )
 template < class t_TyCharDest, class t_TyCharSource, class t_TyFunctor >
 bool FWriteUTFFunctor(  const t_TyCharSource * _pcSource, size_t _stWrite, t_TyFunctor && _rrftor,
                         const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
@@ -597,6 +592,8 @@ const t_TyCharSource * PCConvertString( const t_TyCharSource * _pcSource, size_t
 // namespace for conversion using my utfconvert.h conversion methods that correspond to ICU conversion methods in _strutil.h.
 namespace ns_CONVBIEN
 {
+  // REVIEW:<dbien>: Considered adding endian switching here and it could be done relatively easily, but decided that at least for now,
+  //  endian switches are on transport I/O, internally we are always on the endianness of our native machine. May be nice to have later, however.
 
 // Note that this methods may throw unlike the above methods.
 template < class t_TyStringDest, class t_TyCharSource >
@@ -607,7 +604,7 @@ void ConvertString( t_TyStringDest & _rstrDest, const t_TyCharSource * _pcSource
   // We assume worst case scenario because the important thing is to just get the string converted.
   if ( _nchSource == (std::numeric_limits<size_t>::max)() )
     _nchSource = StrNLen( _pcSource );
-  _rstrDest.assign( _pcSource, _nchSource );
+  _rstrDest.assign( reinterpret_cast< const typename t_TyStringDest::value_type * >( _pcSource ), _nchSource );
 }
 template < class t_TyStringDest, class t_TyCharSource >
 void ConvertString( t_TyStringDest & _rstrDest, const t_TyCharSource * _pcSource, size_t _nchSource = (std::numeric_limits<size_t>::max)(), 

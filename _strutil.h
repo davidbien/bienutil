@@ -88,12 +88,12 @@ inline constexpr bool TIsStringView_v = TIsStringView< t_ty >::value;
 
 // StringTransparentHash:
 // Allows lookup within an unordered_set by a string_view or char*. I like.
-template < class t_TyChar, class t_TyCharTraits = std::char_traits< t_TyChar >, class t_TyAllocator = std::allocator< t_TyChar > >
+template < class t_tyChar, class t_tyCharTraits = std::char_traits< t_tyChar >, class t_tyAllocator = std::allocator< t_tyChar > >
 struct StringTransparentHash
 {
-	typedef t_TyChar _TyChar;
-	typedef t_TyCharTraits _TyCharTraits;
-	typedef t_TyAllocator _TyAllocator;
+	typedef t_tyChar _TyChar;
+	typedef t_tyCharTraits _TyCharTraits;
+	typedef t_tyAllocator _TyAllocator;
 	using _TyStringView = basic_string_view< _TyChar, _TyCharTraits >;
 	using _TyString = basic_string< _TyChar, _TyCharTraits >;
   using hash_type = std::hash<_TyStringView>;
@@ -574,14 +574,15 @@ static const UChar32 vkc32RelacementChar = 0xFFFD;
 
 // String conversion:
 // The non-converting copier.
-template < class t_tyString >
-void ConvertString( t_tyString & _rstrDest, const typename t_tyString::value_type * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)())
+template < class t_tyStringDest, class t_tyCharSource >
+void ConvertString( t_tyStringDest & _rstrDest, const typename t_tyCharSource * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)())
+	requires TAreSameSizeTypes_v< typename t_tyStringDest::value_type, t_tyCharSource >
 {
 	if ( (std::numeric_limits<size_t>::max)() == _stLenSource )
 		_stLenSource = StrNLen( _pcSource );
 	else
-		Assert( _stLenSource == StrNLen( _pcSource ) ); // Not sure how these u_*() methods react to embedded nulls.
-	_rstrDest.assign( _pcSource, _stLenSource );
+		Assert( _stLenSource == StrNLen( _pcSource, _stLenSource ) ); // Not sure how these u_*() methods react to embedded nulls.
+	_rstrDest.assign( reinterpret_cast< const typename t_tyStringDest::value_type * >( _pcSource ), _stLenSource );
 }
 
 // UTF32->UTF16:
@@ -771,69 +772,69 @@ void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_t
 }
 
 // StrConvertString:
-template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
-basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
-	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+basic_string< t_tyCharConvertTo > StrConvertString( const t_tyCharConvertFrom * _pc, size_t _len )
+	requires TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom >
 {
-	return basic_string< t_TyCharConvertTo >( (const t_TyCharConvertTo*)_pc, _len );
+	return basic_string< t_tyCharConvertTo >( (const t_tyCharConvertTo*)_pc, _len );
 }
-template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
-basic_string< t_TyCharConvertTo > StrConvertString( const t_TyCharConvertFrom * _pc, size_t _len )
-	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom > )
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+basic_string< t_tyCharConvertTo > StrConvertString( const t_tyCharConvertFrom * _pc, size_t _len )
+	requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom > )
 {
-	basic_string< t_TyCharConvertTo > strConverted;
+	basic_string< t_tyCharConvertTo > strConverted;
 	ConvertString( strConverted, _pc, _len );
 	return strConverted;
 }
-template < class t_TyCharConvertTo, class t_TyStringOrStringView >
-basic_string< t_TyCharConvertTo > StrConvertString( t_TyStringOrStringView const & _rsvorstr )
+template < class t_tyCharConvertTo, class t_tyStringOrStringView >
+basic_string< t_tyCharConvertTo > StrConvertString( t_tyStringOrStringView const & _rsvorstr )
 {
-	return StrConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
+	return StrConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
 
 // trivial type for conversion buffer when no conversion necessary.
-template < class t_TyCharConvertTo >
+template < class t_tyCharConvertTo >
 struct FakeConversionBuffer
 {
 };
-template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
 struct TGetConversionBuffer
 {
-	typedef FakeConversionBuffer< t_TyCharConvertTo > _TyFakeBuffer;
-	typedef basic_string< t_TyCharConvertTo > _TyRealBuffer;
-	typedef conditional_t< TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >, _TyFakeBuffer, _TyRealBuffer > _TyBufferType;
+	typedef FakeConversionBuffer< t_tyCharConvertTo > _TyFakeBuffer;
+	typedef basic_string< t_tyCharConvertTo > _TyRealBuffer;
+	typedef conditional_t< TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom >, _TyFakeBuffer, _TyRealBuffer > _TyBufferType;
 };
-template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
-using TGetConversionBuffer_t = typename TGetConversionBuffer< t_TyCharConvertTo, t_TyCharConvertFrom >::_TyBufferType;
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+using TGetConversionBuffer_t = typename TGetConversionBuffer< t_tyCharConvertTo, t_tyCharConvertFrom >::_TyBufferType;
 
 // StrViewConvertString: Return a string view on a perhaps converted string (or not). Must pass a string buffer that may not be used.
-template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
-basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, FakeConversionBuffer< t_TyCharConvertTo > &  )
-	requires TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom >
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+basic_string_view< t_tyCharConvertTo > StrViewConvertString( const t_tyCharConvertFrom * _pc, size_t _len, FakeConversionBuffer< t_tyCharConvertTo > &  )
+	requires TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom >
 {
-	return basic_string_view< t_TyCharConvertTo >( (const t_TyCharConvertTo*)_pc, _len );
+	return basic_string_view< t_tyCharConvertTo >( (const t_tyCharConvertTo*)_pc, _len );
 }
-template < class t_TyCharConvertTo, class t_TyCharConvertFrom >
-basic_string_view< t_TyCharConvertTo > StrViewConvertString( const t_TyCharConvertFrom * _pc, size_t _len, basic_string< t_TyCharConvertTo > & _strConvertBuf )
-	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, t_TyCharConvertFrom > )
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+basic_string_view< t_tyCharConvertTo > StrViewConvertString( const t_tyCharConvertFrom * _pc, size_t _len, basic_string< t_tyCharConvertTo > & _strConvertBuf )
+	requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom > )
 {
 	Assert( !!_pc || !_len );
 	if ( !_pc || !_len )
-		return basic_string_view< t_TyCharConvertTo >();
+		return basic_string_view< t_tyCharConvertTo >();
 	ConvertString( _strConvertBuf, _pc, _len );
-	return basic_string_view< t_TyCharConvertTo >( _strConvertBuf );
+	return basic_string_view< t_tyCharConvertTo >( _strConvertBuf );
 }
-template < class t_TyCharConvertTo, class t_TyStringOrStringView >
-basic_string_view< t_TyCharConvertTo > StrViewConvertString( t_TyStringOrStringView const & _rsvorstr, FakeConversionBuffer< t_TyCharConvertTo > & _strConvertBuf )
-	requires ( TAreSameSizeTypes_v< t_TyCharConvertTo, typename t_TyStringOrStringView::value_type > )
+template < class t_tyCharConvertTo, class t_tyStringOrStringView >
+basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringView const & _rsvorstr, FakeConversionBuffer< t_tyCharConvertTo > & _strConvertBuf )
+	requires ( TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringView::value_type > )
 {
-	return StrViewConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+	return StrViewConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
 }
-template < class t_TyCharConvertTo, class t_TyStringOrStringView >
-basic_string_view< t_TyCharConvertTo > StrViewConvertString( t_TyStringOrStringView const & _rsvorstr, basic_string< t_TyCharConvertTo > & _strConvertBuf )
-	requires ( !TAreSameSizeTypes_v< t_TyCharConvertTo, typename t_TyStringOrStringView::value_type > )
+template < class t_tyCharConvertTo, class t_tyStringOrStringView >
+basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringView const & _rsvorstr, basic_string< t_tyCharConvertTo > & _strConvertBuf )
+	requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringView::value_type > )
 {
-	return StrViewConvertString< t_TyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+	return StrViewConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
 }
 
 namespace n_StrArrayStaticCast
@@ -886,7 +887,7 @@ enum EFileCharacterEncoding
 };
 
 // Return the encoding implemented by a set of types:
-template < class t_TyChar, class t_TyFSwitchEndian >
+template < class t_tyChar, class t_tyFSwitchEndian >
 EFileCharacterEncoding GetCharacterEncoding();
 template <>
 inline constexpr EFileCharacterEncoding GetCharacterEncoding< char8_t, false_type >()
@@ -1067,10 +1068,10 @@ inline string StrGetBOMForEncoding( EFileCharacterEncoding _efce )
 	return string();
 }
 
-template < class t_TyChar, class t_TyFSwitchEndian >
+template < class t_tyChar, class t_tyFSwitchEndian >
 void WriteBOM( vtyFileHandle _hFile )
 {
-	EFileCharacterEncoding efce = GetCharacterEncoding< t_TyChar, t_TyFSwitchEndian >();
+	EFileCharacterEncoding efce = GetCharacterEncoding< t_tyChar, t_tyFSwitchEndian >();
 	Assert( efceFileCharacterEncodingCount != efce );
 	VerifyThrowSz( efceFileCharacterEncodingCount != efce, "Unknown char/switch endian encoding." );
 	string strBOM = StrGetBOMForEncoding( efce );
@@ -1106,11 +1107,11 @@ PszCharacterEncodingShort( EFileCharacterEncoding _efce )
 
 // PszCharacterEncodingName() can't distiguish between small and big endian.
 // The byte order mark of a file manages that for encodings in XML.
-template < class t_TyChar >
-inline constexpr t_TyChar *
+template < class t_tyChar >
+inline constexpr t_tyChar *
 PszCharacterEncodingName( EFileCharacterEncoding _efce )
 {
-	typedef t_TyChar _TyChar;
+	typedef t_tyChar _TyChar;
 	switch( _efce )
 	{
 		case efceUTF8:
