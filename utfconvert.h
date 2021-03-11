@@ -8,6 +8,7 @@
 __BIENUTIL_BEGIN_NAMESPACE
 
 static constexpr char32_t vkutf32Max = (char32_t)0x10ffff;
+static constexpr char32_t vkutf32Error = (char32_t)0xffffffff; // Used for error returns.
 static constexpr char32_t vkutf32MaxUTF16 = (char32_t)0xffff;
 static constexpr char32_t vkutf32SurrogateStart = (char32_t)0xD800;
 static constexpr char32_t vkutf32SurrogateEnd = (char32_t)0xDFFF;
@@ -218,9 +219,9 @@ inline char8_t * PCConvertUTF(  const char16_t *& _rputf16Source, char8_t _rgu8B
     return nullptr; // We must return nullptr if we don't advance the source buffer.
   }
   char32_t utf32Source = *_rputf16Source;
-  if ( FIsHighSurrogate( utf32Source ) )
+  if ( FIsSurrogate( utf32Source ) )
   {
-    if ( ( _putf16SourceEnd == _rputf16Source + 1 ) || !FIsLowSurrogate( _rputf16Source[1] ) )
+    if ( !FIsHighSurrogate( utf32Source ) || ( _putf16SourceEnd == _rputf16Source + 1 ) || !FIsLowSurrogate( _rputf16Source[1] ) )
     {
       // No room for low surrogate or no low surrogate present - error or replace:
       if ( vkutf16ReplacementCharError == _utf16ReplacementChar )
@@ -303,7 +304,7 @@ static inline const char8_t vkrgu8TrailBytesUTF8[256] =
 inline bool FIsTrailByteUTF8( char8_t _u8 ) noexcept
 {
   static constexpr char8_t ku8Mask = 0x80;
-  return ku8Mask == ( ku8Mask & _u8 );
+  return !vkrgu8TrailBytesUTF8[_u8] && ( ku8Mask == ( ku8Mask & _u8 ) );
 }
 
 // This just searches for the last trail byte which might be as far as _nchLen.
@@ -372,7 +373,7 @@ static inline const char32_t vkrgutf32OffsetsFromUTF8[6] = { 0x00000000u, 0x0000
                                                              0x03C82080u, 0xFA082080u, 0x82082080u };
 
 // For all UTF8->UTFN conversions we first produce single UTF32 value.
-// Return 0 on failure, return a valid UTF32 codepoint upon success.
+// Return vkutf32Error on failure, return a valid UTF32 codepoint upon success.
 // Note that we might return a surrogate value here. The caller needs to check for that.
 inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t * const _putf8SourceEnd, 
                                    const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
@@ -381,7 +382,7 @@ inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t
   if ( _rputf8Source >= _putf8SourceEnd )
   {
     SetLastErrNo( vkerrInvalidArgument );
-    return 0u; // We must return error if we don't advance the source buffer.
+    return vkutf32Error; // We must return error if we don't advance the source buffer.
   }
   // See how many trail bytes we should have, check for room for such a sequence and if so then
   //  check the validity of the sequence and find the end of an invalid sequence at the same time.
@@ -394,7 +395,7 @@ inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t
     {
       // We use overflow for this:
       SetLastErrNo( vkerrOverflow );
-      return 0u;
+      return vkutf32Error;
     }
     _rputf8Source = !pucEndTrailBytesOnError ? _putf8SourceEnd : pucEndTrailBytesOnError; // Set end appropriately.
     return _utf16ReplacementChar;
@@ -428,7 +429,7 @@ inline char16_t * PCConvertUTF(  const char8_t *& _rputf8Source, char16_t _rgu16
                                  const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
 {
   char32_t utf32Result = UTF32ConvertUTF8( _rputf8Source, _putf8SourceEnd, _utf16ReplacementChar );
-  if ( !utf32Result )
+  if ( vkutf32Error == utf32Result )
     return nullptr; // SetLastErrNo() already called.
   if ( FIsSurrogate( utf32Result ) )
   {
@@ -459,7 +460,7 @@ inline char32_t * PCConvertUTF(  const char8_t *& _rputf8Source, char32_t _rgu32
                                  const char16_t _utf16ReplacementChar = vkutf16ReplacementCharDefault ) noexcept
 {
   char32_t utf32Result = UTF32ConvertUTF8( _rputf8Source, _putf8SourceEnd, _utf16ReplacementChar );
-  if ( !utf32Result )
+  if ( vkutf32Error == utf32Result )
     return nullptr; // SetLastErrNo() already called.
   if ( FIsSurrogate( utf32Result ) )
   {

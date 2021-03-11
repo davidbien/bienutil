@@ -430,16 +430,23 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
 		_sstLen = StrNLen(_psz);
 	const _tyChar *pszCur = _psz;
 	const _tyChar *const pszEnd = pszCur + _sstLen;
+	bool fGotDigit = false; // If we got a digit we will ignore non-numeric characters beyond it.
 	for (; pszEnd != pszCur; ++pszCur)
 	{
 		int iCur = int(*pszCur) - int('0'); // using the fact that '0' is same in all character types.
 		if ((iCur < 0) || (iCur > 9))
 		{
-			SetLastErrNo( vkerrInvalidArgument );
-			if (_fThrowOnError)
-				THROWNAMEDEXCEPTION("Non-digit passed.");
-			return -2;
+			if ( !fGotDigit )
+			{
+				SetLastErrNo( vkerrInvalidArgument );
+				if (_fThrowOnError)
+					THROWNAMEDEXCEPTION("Non-digit passed.");
+				return -2;
+			}
+			else
+				return 0; // We got our number.
 		}
+		fGotDigit = true;
 		t_tyNum numBefore = _rNum;
 		_rNum *= 10;
 		_rNum += iCur;
@@ -595,8 +602,6 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source
 	UErrorCode ec = U_ZERO_ERROR;
 	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc32Source );
-	else
-		Assert( _stLenSource == StrNLen( _pc32Source, _stLenSource ) );
 	int32_t nLenReq = 0;
 	(void)u_strFromUTF32WithSub( nullptr, 0, &nLenReq, (const UChar32 *)_pc32Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
@@ -612,7 +617,6 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source
 		const char * cpErrorCode = u_errorName( ec );
 		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
-	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
 
 // UTF16->UTF32
@@ -623,8 +627,6 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 	UErrorCode ec = U_ZERO_ERROR;
 	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc16Source );
-	else
-		Assert( _stLenSource == StrNLen( _pc16Source, _stLenSource ) );
 	int32_t nLenReq = 0;
 	(void)u_strToUTF32WithSub( nullptr, 0, &nLenReq, (const UChar*)_pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
@@ -640,7 +642,6 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 		const char * cpErrorCode = u_errorName( ec );
 		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
-	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );
 }
 
 // UTF16->UTF8
@@ -651,8 +652,6 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 	UErrorCode ec = U_ZERO_ERROR;
 	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc16Source );
-	else
-		Assert( _stLenSource == StrNLen( _pc16Source, _stLenSource ) );
 	int32_t nLenReq = 0;
 	(void)u_strToUTF8WithSub( nullptr, 0, &nLenReq, (const UChar*)_pc16Source, (int32_t)_stLenSource, vkc32RelacementChar, nullptr, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
@@ -668,7 +667,6 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 		const char * cpErrorCode = u_errorName( ec );
 		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
-	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );
 }
 
 // UTF8->UTF16:
@@ -681,8 +679,6 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	UErrorCode ec = U_ZERO_ERROR;
 	if ( _stLenSource == (std::numeric_limits<size_t>::max)() )
 		_stLenSource = StrNLen( _pc8Source );
-	else
-		Assert( _stLenSource == StrNLen( _pc8Source, _stLenSource ) );
 	int32_t nLenReq = 0;
 	(void)u_strFromUTF8WithSub( nullptr, 0, &nLenReq, (const char*)_pc8Source, (int32_t)_stLenSource, vkc32RelacementChar, 0, &ec );
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
@@ -698,7 +694,6 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 		const char * cpErrorCode = u_errorName( ec );
 		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
-	Assert( StrNLen( &_rstrDest[0], nLenReq ) == nLenReq );// get what we paid for.
 }
 
 // UTF8 <-> UTF32 require double conversion:
