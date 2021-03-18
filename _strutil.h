@@ -1103,7 +1103,7 @@ PszCharacterEncodingShort( EFileCharacterEncoding _efce )
 // PszCharacterEncodingName() can't distiguish between small and big endian.
 // The byte order mark of a file manages that for encodings in XML.
 template < class t_tyChar >
-inline constexpr t_tyChar *
+inline constexpr const t_tyChar *
 PszCharacterEncodingName( EFileCharacterEncoding _efce )
 {
 	typedef t_tyChar _TyChar;
@@ -1124,7 +1124,7 @@ PszCharacterEncodingName( EFileCharacterEncoding _efce )
 			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
 		break;
 	}
-	return "wont get here"; // lol - compiler thinks so.
+	return nullptr; // lol - compiler thinks so.
 }
 
 // ConvertFileMapped:

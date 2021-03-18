@@ -1255,7 +1255,8 @@ public:
   }
   // Return contiguous memory - either a string_view if possible, or a string if not.
   // This is only relevant for t_tyT's which are character types.
-  // Return true if we were able to populate the string_view, false for string.
+  // Return true if we were able to populate the string_view directly, false for string.
+  // We always populate the string view - it just may correspond to the string as backing.
   template < class t_tyStrView, class t_tyString > bool
   FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr ) const
     requires( TIsCharType_v< _tyTRemoveCV > && 
@@ -1278,11 +1279,12 @@ public:
       _tySizeType nRead = m_psaContainer->Read( m_stBegin, (_tyTRemoveCV*)&_rStr[0], (_tySizeType)m_sstLen );
       Assert( (_tySizeType)m_sstLen == nRead );
       _rStr.resize( nRead );
+      _rStrView = t_tyStrView( ( const typename t_tyStrView::value_type *)&_rStr[0], _rStr.length() );
       return false;
     }
   }
-  // This is the converting method. When there is any data it always returns true and returns a string since it converted the character type.
-  // If there is no data then it returns false and a null string_view.
+  
+  // Converting method always returns false unless the data is empty. The string view is populated from the string.
   template < class t_tyStrView, class t_tyString > bool
   FGetStringViewOrString( t_tyStrView & _rStrView, t_tyString & _rStr ) const
     requires( TIsCharType_v< _tyTRemoveCV > && 
@@ -1317,6 +1319,7 @@ public:
     }
     // Do the conversion:
     ConvertString( _rStr, ptContigBuf, stLen );
+    _rStrView = t_tyStrView( ( const typename t_tyStrView::value_type *)&_rStr[0], _rStr.length() );
     return false;
   }
 
