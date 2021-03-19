@@ -72,6 +72,20 @@ struct TIsCharType< char32_t >
 template < class t_ty >
 inline constexpr bool TIsCharType_v = TIsCharType< t_ty >::value;
 
+// TIsString, TIsString_v: Is this a std::basic_string type?
+template < class t_ty >
+struct TIsString
+{
+	static constexpr bool value = false;
+};
+template < class t_tyChar, class t_tyCharTraits >
+struct TIsString< std::basic_string< t_tyChar, t_tyCharTraits > >
+{
+	static constexpr bool value = true;
+};
+template < class t_ty >
+inline constexpr bool TIsString_v = TIsString< t_ty >::value;
+
 // TIsStringView, TIsStringView_v: Is this a std::basic_string_view type?
 template < class t_ty >
 struct TIsStringView
@@ -85,6 +99,10 @@ struct TIsStringView< std::basic_string_view< t_tyChar, t_tyCharTraits > >
 };
 template < class t_ty >
 inline constexpr bool TIsStringView_v = TIsStringView< t_ty >::value;
+
+// Concept for a class that is either a string or string view:
+template < class t_TyStrViewOrString >
+concept CIsStringViewOrString = TIsStringView_v< t_TyStrViewOrString > || TIsString_v< t_TyStrViewOrString >;
 
 // StringTransparentHash:
 // Allows lookup within an unordered_set by a string_view or char*. I like.
@@ -103,7 +121,6 @@ struct StringTransparentHash
   size_t operator()(_TyStringView _sv) const { return hash_type{}(_sv); }
   size_t operator()(_TyString const& _str) const { return hash_type{}(_str); }
 };
-
 
 template < class t_tyChar >
 void MemSet( t_tyChar * _rgcBuf, t_tyChar _cFill, size_t _nValues )
@@ -792,24 +809,31 @@ template < class t_tyCharConvertTo >
 struct FakeConversionBuffer
 {
 };
-template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+template < class t_tyCharConvertFrom, class t_tyCharConvertTo >
 struct TGetConversionBuffer
 {
 	typedef FakeConversionBuffer< t_tyCharConvertTo > _TyFakeBuffer;
 	typedef basic_string< t_tyCharConvertTo > _TyRealBuffer;
 	typedef conditional_t< TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom >, _TyFakeBuffer, _TyRealBuffer > _TyBufferType;
 };
-template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
-using TGetConversionBuffer_t = typename TGetConversionBuffer< t_tyCharConvertTo, t_tyCharConvertFrom >::_TyBufferType;
+template < CIsStringViewOrString t_TyStrViewOrStringConvertFrom, CIsStringViewOrString t_TyStrViewOrStringConvertTo >
+struct TGetConversionBuffer< t_TyStrViewOrStringConvertFrom, t_TyStrViewOrStringConvertTo >
+{
+	typedef FakeConversionBuffer< typename t_TyStrViewOrStringConvertTo::value_type > _TyFakeBuffer;
+	typedef basic_string< typename t_TyStrViewOrStringConvertTo::value_type > _TyRealBuffer;
+	typedef conditional_t< TAreSameSizeTypes_v< typename t_TyStrViewOrStringConvertTo::value_type, typename t_TyStrViewOrStringConvertFrom::value_type >, _TyFakeBuffer, _TyRealBuffer > _TyBufferType;
+};
+template < class t_tyCharConvertFrom, class t_tyCharConvertTo >
+using TGetConversionBuffer_t = typename TGetConversionBuffer< t_tyCharConvertFrom, t_tyCharConvertTo >::_TyBufferType;
 
 // StrViewConvertString: Return a string view on a perhaps converted string (or not). Must pass a string buffer that may not be used.
-template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+template < class t_tyCharConvertFrom, class t_tyCharConvertTo >
 basic_string_view< t_tyCharConvertTo > StrViewConvertString( const t_tyCharConvertFrom * _pc, size_t _len, FakeConversionBuffer< t_tyCharConvertTo > &  )
 	requires TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom >
 {
 	return basic_string_view< t_tyCharConvertTo >( (const t_tyCharConvertTo*)_pc, _len );
 }
-template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+template < class t_tyCharConvertFrom, class t_tyCharConvertTo >
 basic_string_view< t_tyCharConvertTo > StrViewConvertString( const t_tyCharConvertFrom * _pc, size_t _len, basic_string< t_tyCharConvertTo > & _strConvertBuf )
 	requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom > )
 {
@@ -819,17 +843,17 @@ basic_string_view< t_tyCharConvertTo > StrViewConvertString( const t_tyCharConve
 	ConvertString( _strConvertBuf, _pc, _len );
 	return basic_string_view< t_tyCharConvertTo >( _strConvertBuf );
 }
-template < class t_tyCharConvertTo, class t_tyStringOrStringView >
-basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringView const & _rsvorstr, FakeConversionBuffer< t_tyCharConvertTo > & _strConvertBuf )
-	requires ( TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringView::value_type > )
+template < class t_tyStringOrStringViewFrom, class t_tyCharConvertTo >
+basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringViewFrom const & _rsvorstr, FakeConversionBuffer< t_tyCharConvertTo > & _strConvertBuf )
+	requires ( TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringViewFrom::value_type > )
 {
-	return StrViewConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+	return StrViewConvertString( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
 }
-template < class t_tyCharConvertTo, class t_tyStringOrStringView >
-basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringView const & _rsvorstr, basic_string< t_tyCharConvertTo > & _strConvertBuf )
-	requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringView::value_type > )
+template < class t_tyStringOrStringViewFrom, class t_tyCharConvertTo >
+basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringViewFrom const & _rsvorstr, basic_string< t_tyCharConvertTo > & _strConvertBuf )
+	requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringViewFrom::value_type > )
 {
-	return StrViewConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+	return StrViewConvertString( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
 }
 
 namespace n_StrArrayStaticCast
