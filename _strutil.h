@@ -1127,28 +1127,36 @@ PszCharacterEncodingShort( EFileCharacterEncoding _efce )
 // PszCharacterEncodingName() can't distiguish between small and big endian.
 // The byte order mark of a file manages that for encodings in XML.
 template < class t_tyChar >
-inline constexpr const t_tyChar *
-PszCharacterEncodingName( EFileCharacterEncoding _efce )
+auto SvCharacterEncodingName( EFileCharacterEncoding _efce ) -> basic_string_view< t_tyChar >
 {
 	typedef t_tyChar _TyChar;
 	switch( _efce )
 	{
 		case efceUTF8:
-			return str_array_cast< _TyChar >( "UTF-8" ).c_str();
+		{
+			static basic_string< t_tyChar > strEN( str_array_cast< _TyChar >( "UTF-8" ).c_str() );
+			return strEN;
+		}
 		break;
 		case efceUTF16BE:
 		case efceUTF16LE:
-			return str_array_cast< _TyChar >( "UTF-16" ).c_str();
+		{
+			static basic_string< t_tyChar > strEN( str_array_cast< _TyChar >( "UTF-16" ).c_str() );
+			return strEN;
+		}
 		break;
 		case efceUTF32BE:
 		case efceUTF32LE:
-			return str_array_cast< _TyChar >( "UTF-32" ).c_str();
+		{
+			static basic_string< t_tyChar > strEN( str_array_cast< _TyChar >( "UTF-32" ).c_str() );
+			return strEN;
+		}
 		break;
 		default:
 			VerifyThrowSz( false, "Invalid EFileCharacterEncoding[%d]", (int)_efce );
 		break;
 	}
-	return nullptr; // lol - compiler thinks so.
+	return basic_string_view< t_tyChar >();
 }
 
 // ConvertFileMapped:
