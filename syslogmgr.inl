@@ -529,7 +529,9 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   // Move _pszProgramName past any directory:
   const char *pszProgNameNoPath = strrchr(_pszProgramName, TChGetFileSeparator<char>() );
   if (!!pszProgNameNoPath)
+  {
     _pszProgramName = pszProgNameNoPath + 1;
+  }
   // Now get the executable path:
   std::string strExePath;
   GetCurrentExecutablePath(strExePath);
@@ -612,7 +614,12 @@ void _SysLogMgr<t_kiInstance>::Log(ESysLogMessageType _eslmt, std::string &&_rrS
   // First log.
   syslog(iPriority, _rrStrLog.c_str());
 #pragma GCC diagnostic pop
-#endif //!WIN32
+#else //WIN32
+  if ( m_grfOption & LOG_PERROR )
+  {
+    fprintf( stderr, "%s\n", _rrStrLog.c_str() );
+  }
+#endif //WIN32
 
   // Then log the context to thread logging file.
   if (!!_pslc && !!m_pjosThreadLog && m_pjosThreadLog->FOpened() && !!m_pjvlRootThreadLog && !!m_pjvlSysLogArray)

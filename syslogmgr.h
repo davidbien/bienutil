@@ -37,6 +37,12 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+#ifdef WIN32
+// Define these constants that aren't used in WINDOWS to standardize between windows and linux.
+#define LOG_USER 0
+#define LOG_PERROR 1
+#endif //WIN32
+
 template <class t_tyChar>
 struct JsonCharTraits;
 template <class t_tyJsonInputStream>
@@ -186,6 +192,9 @@ protected: // These methods aren't for general consumption. Use the s_SysLog nam
     }
     catch (std::exception const &exc)
     {
+#ifdef WIN32
+      fprintf( stderr, "Exception creating JSON log file [%s].\n", exc.what() );
+#endif // WIN32
       LOGSYSLOG(eslmtWarning, exc.what());
       return false;
     }
@@ -215,6 +224,7 @@ public:
     if (s_fGenerateUniqueJSONLogFile)
     {
       _SysLogMgr &rslm = _SysLogMgr::RGetThreadSysLogMgr();
+      rslm._SetOptionFacility( _grfOption, _grfFacility );
       if (!rslm.FCreateUniqueJSONLogFile(_pszProgramName, _pjvThreadSpecificJson))
       {
         fprintf(stderr, "InitSysLog(): FCreateUniqueJSONLogFile() failed.\n");
@@ -277,11 +287,18 @@ public:
     return s_psProgramStart.NMillisecondsSinceStart();
   }
 protected:
+  void _SetOptionFacility( int _grfOption, int _grfFacility )
+  {
+    m_grfOption = _grfOption;
+    m_grfFacility = _grfFacility;
+  }
   // non-static members:
   _SysLogMgr *m_pslmOverlord; // If this is zero then we are the overlord or there is no overlord.
   std::unique_ptr<_tyJsonOutputStream> m_pjosThreadLog;
   std::unique_ptr<_tyJsonValueLife> m_pjvlRootThreadLog;        // The root of the thread log - we may add a footer at end of execution.
   std::unique_ptr<_tyJsonValueLife> m_pjvlSysLogArray;          // The current position within the SysLog diagnostic log message array.
+  int m_grfOption{0};                                           // Save these here for Windows.
+  int m_grfFacility{0};
   bool m_fInAssertOrVerify{false};                              // We don't want to re-enter Assert() code while processing an assert. As assertions are intimately tied to the SysLogMgr we implement that here.
   // static members:
   static _SysLogMgr *s_pslmOverlord;                            // A pointer to the "overlord" _SysLogMgr that is running on its own thread. The lifetime for this is managed by s_tls_pThis for the overlord thread.

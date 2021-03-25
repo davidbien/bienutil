@@ -393,8 +393,8 @@ public:
               THROWNAMEDEXCEPTION("OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT));
           }
         }
-        //Assert(!(_nElements % NElsPerSegment()) == !*_PpbyGetCurSegment());
-        m_ppbyEndSegments = m_ppbySegments + nBlocksNeeded;
+        if ( m_ppbySegments + nBlocksNeeded > m_ppbyEndSegments )
+          m_ppbyEndSegments = m_ppbySegments + nBlocksNeeded;
         m_nElements = _nElements;
       }
     }
@@ -931,6 +931,9 @@ public:
     }
     VerifyThrowSz( _iBaseEl >= m_iBaseEl, 
       "Trying to set the base element to something less than the current base or switch signs which is not possible. _iBaseEl[%ld], m_iBaseEl[%ld].", int64_t(_iBaseEl), int64_t(m_iBaseEl) );
+#if ASSERTSENABLED
+    size_t ast_nBlocksStart = _tySizeType(_tyBase::m_ppbyEndSegments - _tyBase::m_ppbySegments);
+#endif // ASSERTSENABLED
     // If the new base el is less than the current number of elements then:
     //  1) Set the new base el.
     //  2) Move all blocks before the block containing the base el to the end of the block pointer array - in any order. Just need to memmove,etc.
@@ -962,6 +965,10 @@ public:
         Assert( NElements() == ast_nElsBefore );
       }
     }
+#if ASSERTSENABLED
+    size_t ast_nBlocksEnd = _tySizeType(_tyBase::m_ppbyEndSegments - _tyBase::m_ppbySegments);
+    Assert( ast_nBlocksEnd == ast_nBlocksStart );
+#endif // ASSERTSENABLED
   }
 
   _tyT &ElGet(_tySizeType _nEl, bool _fMaybeEnd = false)

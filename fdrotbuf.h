@@ -47,6 +47,9 @@ public:
   typedef SegArrayRotatingBuffer< _tyChar > _tySegArray;
   typedef typename _tySegArray::_tySizeType _tySizeType;
 
+  ~FdReadRotating()
+  {
+  }
   FdReadRotating( FdReadRotating const & ) = delete;
   FdReadRotating & operator = ( FdReadRotating const & ) = delete;
   FdReadRotating() = default; // produces an FdReadRotating that FIsNull(). 
