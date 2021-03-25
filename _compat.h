@@ -247,6 +247,17 @@ inline vtyFileHandle CreateReadWriteFile( const char * _pszFileName ) noexcept
     return hFile;
 }
 
+template < class t_TyFOpenReadWrite >
+inline vtyFileHandle CreateFileMaybeReadWrite( const char * _pszFileName )
+{
+  return CreateWriteOnlyFile( _pszFileName );
+}
+template <>
+inline vtyFileHandle CreateFileMaybeReadWrite< true_type >( const char * _pszFileName )
+{
+  return CreateReadWriteFile( _pszFileName );
+}
+
 // Get the page size. We cache it locally as well so that once we call the system call once that's the only time we will need to.
 inline size_t GetPageSize() noexcept
 {
