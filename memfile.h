@@ -16,6 +16,8 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+typedef uint8_t vtyMemStreamByteType;
+
 template < class t_tyFilePos = size_t, bool t_kfMultithreaded = false >
 class MemFile;
 template < class t_tyFilePos = size_t, bool t_kfMultithreaded = false >
@@ -24,7 +26,7 @@ template< class t_tyFilePos = size_t, bool t_kfMultithreaded = false >
 class MemStream;
 
 // _MemFileBase:
-// This will contains synchronization or not depending on whether we care about multithreading.
+// This will contain synchronization or not depending on whether we care about multithreading.
 template < bool t_kfMultithreaded >
 class _MemFileBase
 {
@@ -34,7 +36,6 @@ protected:
     typedef FakeLock _tyLock;
     void LockMutex( _tyLock &) const { }
 };
-
 // The multithreaded base.
 template <>
 class _MemFileBase< true >
@@ -69,6 +70,7 @@ public:
     typedef typename std::make_signed<_tyFilePos>::type _tySignedFilePos;
     using typename _tyBase::_tyLock;
     typedef MemStream< t_tyFilePos, t_kfMultithreaded > _tyMemStream;
+    typedef SegArray< vtyMemStreamByteType, std::false_type, _tyFilePos > _tySegArrayImpl;
 
     MemFile( _tyFilePos _sizeBlock = 65536 )
         : m_rgsImpl( _sizeBlock )
@@ -78,31 +80,43 @@ public:
         : m_rgsImpl( _r.m_rgsImpl )
     {
     }
-
     _tyFilePos GetEndPos() const
     {
         _tyLock lock;
         LockMutex( lock );
         return m_rgsImpl.NElements();
     }
-
     // As with a file-system file this will not insert data, it will overwrite data. (note that Insert is provide below)
     _tySignedFilePos Write( _tyFilePos _posWrite, const void * _pbyWrite, _tyFilePos _nBytes )
     {
         // If we run out of memory we should throw. There shouldn't be any other reason we should fail - barring A/V.
         _tyLock lock;
         LockMutex( lock );
-        m_rgsImpl.Overwrite( _posWrite, (const uint8_t*)_pbyWrite, _nBytes );
+        m_rgsImpl.Overwrite( _posWrite, (const vtyMemStreamByteType*)_pbyWrite, _nBytes );
         return _nBytes;
+    }
+    // As with a file-system file this will not insert data, it will overwrite data. (note that Insert is provide below)
+    _tySignedFilePos WriteNoExcept( _tyFilePos _posWrite, const void * _pbyWrite, _tyFilePos _nBytes ) noexcept
+    {
+        try
+        {
+            return Write( _posWrite, _pbyWrite, _nBytes );
+        }
+        catch( std::exception const & _rexc )
+        {
+            // Log the exception so that we know something happened:
+            LOGEXCEPTION( _rexc, "" );
+            SetLastErrNo( vkerrOOM ); // most likely culprit - though not rather likely.
+            return -1;
+        }
     }
     _tySignedFilePos Read( _tyFilePos _posRead, void * _pbyRead, _tyFilePos _nBytes )
     {
         _tyLock lock;
         LockMutex( lock );
-        _tySignedFilePos nbyRead = m_rgsImpl.Read( _posRead, (uint8_t*)_pbyRead, _nBytes );
+        _tySignedFilePos nbyRead = m_rgsImpl.Read( _posRead, (vtyMemStreamByteType*)_pbyRead, _nBytes );
         return nbyRead;
     }
-
     // Insert data into the data stream. Note that since the underlying impl is a segmented array this can be expensive.
     _tySignedFilePos Insert( _tyFilePos _posInsert, const void * _pbyInsert, _tyFilePos _nBytes )
     {
@@ -119,8 +133,15 @@ public:
         m_rgsImpl.WriteToFile( _hFile, _nPos, _nElsWrite );
     }
 protected:
+    _tySegArrayImpl & _GetSegArrayImpl()
+    {
+        return m_rgsImpl;
+    }
+    const _tySegArrayImpl & _GetSegArrayImpl() const
+    {
+        return m_rgsImpl;
+    }
     using _tyBase::LockMutex;
-    typedef SegArray< uint8_t, std::false_type, _tyFilePos > _tySegArrayImpl;
     _tySegArrayImpl m_rgsImpl; // segmented array of bytes is impl.
 };
 
@@ -163,24 +184,30 @@ public:
     typedef typename std::make_signed<_tyFilePos>::type _tySignedFilePos;
     typedef MemFile< t_tyFilePos, t_kfMultithreaded > _tyMemFile;
 
+    ~MemStream() = default;
     MemStream() = default;
-
+    MemStream( MemStream const & ) = default;
+    MemStream & operator =( MemStream const & ) = default;
+    MemStream( MemStream && ) = default;
+    MemStream & operator =( MemStream && ) = default;
     void swap( MemStream & _r )
     {
         _r.m_spmfMemFile.swap( m_spmfMemFile ); // This file to which this MemStream is connected.
         std::swap( _r.m_posCur, m_posCur );
     }
-
     std::shared_ptr< _tyMemFile > const & GetMemFileSharedPtr() const
     {
         return m_spmfMemFile;
     }
-
     _tyFilePos GetEndPos() const
     {
         return m_spmfMemFile->GetEndPos();
     }
-
+    // Shortcut so that Seek() needn't be called.
+    _tyFilePos GetCurPos() const
+    {
+        return m_posCur;
+    }
     // Reuse existing constants vkSeekBegin, vkSeekCur and vkSeekEnd.
     // Return the resultant position. We do allow the caller to seek beyond the end of the file.
     // We don't allow the position to be set to a negative position and we will throw when that happens.
@@ -231,6 +258,20 @@ public:
         m_posCur += posRet;
         return posRet;
     }
+    _tySignedFilePos WriteNoExcept( const void * _pbyWrite, _tyFilePos _nBytes ) noexcept
+    {
+        if ( !m_spmfMemFile )
+        {
+            SetGenericFileError();
+            return -1;
+        }
+        _tySignedFilePos posRet = m_spmfMemFile->WriteNoExcept( m_posCur, _pbyWrite, _nBytes );
+        if ( -1 == posRet )
+            return -1;
+        Assert( posRet == _nBytes ); // otherwise we should have throw due to allocation issues.
+        m_posCur += posRet;
+        return posRet;
+    }
     _tySignedFilePos Read( void * _pbyRead, _tyFilePos _nBytes )
     {
         if ( !m_spmfMemFile )
@@ -268,7 +309,13 @@ public:
             _nPos = m_posCur;
         m_spmfMemFile->WriteToFile( _hFile, _nPos, _nElsWrite );
     }
-    
+    // This calls the functor with contiguous ranges of memfile data.
+    template < class t_TyFunctor >
+    void Apply( _tySizeType _posBegin, _tySizeType _posEnd, t_TyFunctor && _rrftor )
+    {
+        VerifyThrow( !!m_spmfMemFile );
+        m_spmfMemFile->_GetSegArrayImpl().ApplyContiguous( _posBegin, _posEnd, forward< t_TyFunctor >( _rrftor ) );
+    }
 protected:
     void _OpenStream( std::shared_ptr< _tyMemFile > const & _spmfMemFile )
     {

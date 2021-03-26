@@ -104,6 +104,7 @@ namespace n_SysLog
 #define LOGSYSLOGERRNO(TYPE, ERRNO, MESG, ...) n_SysLog::Log(TYPE, ERRNO, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
 #define LOGSYSLOG_JSON(TYPE, JSONVALUE, MESG, ...) n_SysLog::Log(TYPE, JSONVALUE, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
 #define LOGSYSLOGERRNO_JSON(TYPE, JSONVALUE, ERRNO, MESG, ...) n_SysLog::Log(TYPE, JSONVALUE, ERRNO, __FILE__, __LINE__, MESG, ##__VA_ARGS__)
+#define LOGEXCEPTION( EXC, MESG, ...)  n_SysLog::LogException( EXC, __FILE__, __LINE__, MESG, ##__VA_ARGS__ )
 
 // _SysLogThreadHeader:
 // This contains thread level info about syslog messages that is constant for all contained messages.
@@ -356,6 +357,8 @@ namespace n_SysLog
   // Methods including errno:
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFmt, ...);
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...);
+  // Exception logging with catch point:
+  void LogException( exception const & _rexc, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ... );
 } // namespace n_SysLog
 
 __BIENUTIL_END_NAMESPACE

@@ -94,9 +94,11 @@ static const vtyErrNo vkerrNullErrNo = 0; // This is standard for unix variation
 #ifdef WIN32
 static const vtyErrNo vkerrInvalidArgument = ERROR_INVALID_PARAMETER;
 static const vtyErrNo vkerrOverflow = ERROR_ARITHMETIC_OVERFLOW;
+static const vtyErrNo vkerrOOM = ERROR_NOT_ENOUGH_MEMORY;
 #elif defined( __linux__ ) || defined( __APPLE__ )
 static const vtyErrNo vkerrInvalidArgument = EINVAL;
 static const vtyErrNo vkerrOverflow = EOVERFLOW;
+static const vtyErrNo vkerrOOM = ENOMEM;
 #endif
 
 // REVIEW:<dbien>: This "preparation" is only necessary for methods that:
