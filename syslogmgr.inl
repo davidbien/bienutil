@@ -353,13 +353,12 @@ namespace n_SysLog
     bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
     if (fHasLogFile)
     {
-      slx.m_eslmtType = _eslmtType;
+      slx.m_eslmtType = eslmtError;
       slx.m_szFullMesg = strLog;
       slx.m_time = time(0);
       slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
       slx.m_szFile = _pcFile;
       slx.m_nLine = _nLine;
-      slx.m_errno = _errno;
     }
     SysLogMgr::StaticLog(eslmtError, std::move(strLog), fHasLogFile ? &slx : 0);
   }

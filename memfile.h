@@ -71,6 +71,7 @@ public:
     using typename _tyBase::_tyLock;
     typedef MemStream< t_tyFilePos, t_kfMultithreaded > _tyMemStream;
     typedef SegArray< vtyMemStreamByteType, std::false_type, _tyFilePos > _tySegArrayImpl;
+    typedef typename _tySegArrayImpl::_tySizeType _tySizeType;
 
     MemFile( _tyFilePos _sizeBlock = 65536 )
         : m_rgsImpl( _sizeBlock )
@@ -183,6 +184,7 @@ public:
     typedef t_tyFilePos _tyFilePos;
     typedef typename std::make_signed<_tyFilePos>::type _tySignedFilePos;
     typedef MemFile< t_tyFilePos, t_kfMultithreaded > _tyMemFile;
+    typedef typename _tyMemFile::_tySizeType _tySizeType;
 
     ~MemStream() = default;
     MemStream() = default;
