@@ -76,24 +76,29 @@ inline constexpr uint64_t KUPow( uint64_t _u64Base, uint8_t _u8Exp )
 }
 
 // Range of block size are [2^t_knPow2Min, 2^t_knPow2Max].
-// If t_TyFOwnLifetime is false_type then the contained object's lifetimes are not managed - i.e. they are assumed to have
-//  no side effects upon destruction and are not destructed.
-template < class t_TyT, class t_TyFOwnLifetime, size_t t_knPow2Min, size_t t_knPow2Max >
+// Always manages the lifetimes of the elements.
+template < class t_TyT, size_t t_knPow2Min, size_t t_knPow2Max >
 class LogArray
 {
   typedef LogArray _TyThis;
 public:
   static_assert( t_knPow2Max >= t_knPow2Min );
   typedef t_TyT _TyT;
-  typedef t_TyFOwnLifetime _TyFOwnLifetime;
-  static constexpr bool s_kfOwnObjectLifetime = _TyFOwnLifetime::value;
   static constexpr size_t s_knPow2Min = t_knPow2Min;
   static constexpr size_t s_knPow2Max = t_knPow2Max;
-  static constexpr size_t s_knElementsFixedBoundary = ( t_knPow2Min == t_knPow2Max ) ? 0 : ( ( 1 << t_knPow2Max ) - ( 1 << t_knPow2Min ) );
+  static constexpr size_t s_knElementsFixedBoundary = ( ( 1 << t_knPow2Max ) - ( 1 << t_knPow2Min ) );
+  static constexpr size_t s_knBlockFixedBoundary = t_knPow2Max - t_knPow2Min;
   static constexpr size_t s_knSingleBlockSizeLimit = ( 1 << t_knPow2Min );
   static constexpr size_t s_knAllocateBlockPtrsInBlocksOf = 4; // We allocate block pointers in blocks so that we don't have to reallocate every time - unless we decide to set this to one...
 
-
+  ~LogArray()
+  {
+    AssertValid();
+    if ( m_nElements )
+      _Clear();
+  }
+  // If the destructor of _TyT cannot throw (or that's what it at least claims) then we can be cavalier about
+  //  our approach here:
   LogArray() = default;
   LogArray( size_t _nElements )
   {
@@ -101,12 +106,29 @@ public:
   }
   LogArray( LogArray const & _r )
   {
-    // todo.
+    // Piecewise copy construct.
+    _r.ApplyContiguous( 0, _r.NElements(), 
+      [this]( const _TyT * _ptBegin, const _tyT * _ptEnd )
+      {
+        for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
+          emplaceAtEnd( *ptCur );
+      }
+    );
   }
   LogArray & operator =( LogArray const & _r )
   {
     _TyThis copy( _r )
     swap( copy );
+    return *this;
+  }
+  LogArray( LogArray && _rr )
+  {
+    swap( _rr );
+  }
+  LogArray & operator = ( LogArray && _rr )
+  {
+    _TyThis acquire( std::move( _rr ) );
+    swap( acquire );
     return *this;
   }
   void swap( _TyThis & _r )
@@ -117,11 +139,7 @@ public:
   void AssertValid() const
   {
 #if ASSERTSENABLED
-    if ( ! m_ptSingleBlock )
-    {
-      Assert( !m_nElements ); // We can have a block without elements because insertion of the first object might fail after call to _PvAllocEnd().
-    }
-    else
+    Assert( !m_nElements == !m_ptSingleBlock );
     if ( m_nElements > s_knSingleBlockSizeLimit ) // nothing we can really assert about a single block element.
     {
       // We should have a block in every position up until the end:
@@ -137,7 +155,26 @@ public:
     Assert( _posEnd <= m_nElements );
 #endif //!ASSERTSENABLED
   }
-
+  size_t NElements() const
+  {
+    AssertValid();
+    return m_nElements < 0 ? ( -m_nElements - 1 ) : m_nElements;
+  }
+  size_t NElementsAllocated() const
+  {
+    AssertValid();
+    return m_nElements < 0 ? -m_nElements : m_nElements;
+  }
+  void Clear() noexcept
+  {
+    if ( m_ptSingleBlock )
+    {
+      _Clear();
+      m_ptSingleBlock = nullptr;
+      m_nElements = 0;
+    }
+    AssertValid();
+  }
   template <class... t_tysArgs>
   _tyT &emplaceAtEnd(t_tysArgs &&... _args)
   {
@@ -147,9 +184,57 @@ public:
     m_nElements = -m_nElements; // element successfully constructed.
     return *pt;
   }
+  template <class... t_tysArgs>
+  void SetSize( size_t _nElements, t_tysArgs &&... _args )
+  {
+    AssertValid();
+    size_t nElements = NElements();
+    if ( _nElements < nElements )
+      _SetSizeSmaller( _nElements );
+    else
+    if ( _nElements > nElements )
+      _SetSizeLarger( _nElements, std::forward<t_tysArgs>(_args)... );
+  }
+  template <class... t_tysArgs>
+  void _SetSizeLarger( size_t _nElements, t_tysArgs &&... _args )
+  {
+    size_t nElements = NElements();
+    Assert( nElements < _nElements );
+    size_t nNewElements = nElements - _nElements;
+    while ( nNewElements-- )
+    {
+      new ( _PbyAllocEnd() ) _tyT(std::forward<t_tysArgs>(_args)...);
+      Assert( m_nElements < 0 );
+      m_nElements = -m_nElements;
+    }
+  }
+  void _SetSizeSmaller( size_t _nElements )
+  {
+    // We must move one by one and update 
+  }
+
+protected:
+  // _rnEl returns as the nth element in size block <n>.
+  static size_t _NBlockFromEl( size_t & _rnEl, size_t & _rnBlockSize ) const
+  {
+    if ( _rnEl >= s_knElementsFixedBoundary )
+    {
+      _rnBlockSize = 1 << t_knPow2Max;
+      _rnEl -= s_knElementsFixedBoundary;
+      size_t nBlock = _rnEl / _rnBlockSize;
+      _rnEl %= _rnBlockSize;
+      return nBlock;
+    }
+    size_t nElShifted = _rnEl + ( 1 << t_knPow2Min ); // Must shift for both log2 use and potential non-zero t_knPow2Min. ( _rnEl+1 ) + ( ( 1 << t_knPow2Min ) -1 ).
+    size_t nBlock = Log2( nElShifted );
+    _rnBlockSize = 1 << nBlock;
+    _rnEl -= ( _rnBlockSize - ( 1 << t_knPow2Min ) );
+    nBlock -= t_knPow2Min;
+    return nBlock;
+  }
   // To do this correctly, this method must increment m_nElements - but there are some catch-22s.
   // So we increment and negate m_nElements to indicate that we have a "non-constructed tail" on the array.
-  void *_PvAllocEnd()
+  void * _PvAllocEnd()
   {
     if ( !m_ptSingleBlock )
     {
@@ -158,7 +243,7 @@ public:
       m_ptSingleBlock = (_TyT*)malloc( s_knSingleBlockSizeLimit * sizeof( _TyT ) );
       if ( !m_ptSingleBlock )
         ThrowOOMException();
-      m_nElements = -1; // We have an allocated but non-constructed element at position 0.
+      m_nElements = -1;
       return m_ptSingleBlock;
     }
     size_t nBlockSize;
@@ -225,40 +310,77 @@ public:
     m_nElements = -( m_nElements + 1 );
     return _GetBlockEl( nBlockNextEl, nElInBlock, nBlockSize );
   }
-
-  // _rnEl returns as the nth element in size block <n>.
-  size_t _NBlockFromEl( size_t & _rnEl, size_t & _rnBlockSize ) const
+  void _DestructEl( _TyT * _pt ) noexcept
+    requires( is_nothrow_destructible_v< _TyT > )
   {
-    if ( _rnEl >= s_knElementsFixedBoundary )
-    {
-      _rnBlockSize = 1 << t_knPow2Max;
-      _rnEl -= s_knElementsFixedBoundary;
-      size_t nBlock = _rnEl / _rnBlockSize;
-      _rnEl %= _rnBlockSize;
-      return nBlock;
-    }
-    size_t nElShifted = _rnEl + ( 1 << t_knPow2Min ); // Must shift for both log2 use and potential non-zero t_knPow2Min. ( _rnEl+1 ) + ( ( 1 << t_knPow2Min ) -1 ).
-    size_t nBlock = Log2( nElShifted );
-    _rnBlockSize = 1 << nBlock;
-    _rnEl -= ( _rnBlockSize - ( 1 << t_knPow2Min ) );
-    nBlock -= t_knPow2Min;
-    return nBlock;
+    _pt->~_TyT();
   }
-
-
-  void SetSize( size_t _nElements )
+  void _DestructEl( _TyT * _pt ) noexcept
+    requires( !is_nothrow_destructible_v< _TyT > )
   {
-    if ( s_kfOwnObjectLifetime )
+    try
     {
-      // We do all allocation using _PvAllocEnd() in this case.
+      _pt->~_TyT();
+    }
+    catch ( std::exception const & _rexc )
+    {
+      // We could log this? It could fill up the log pretty quick as well.
+      // For now we log it:
+      LOGEXCEPTION( _rexc, "Element threw an exception in its destructor." );
+    }
+    catch( ... )
+    {
+    }
+  }
+  void _DestructContigRange( _TyT * const , _TyT * const ) noexcept
+    requires( is_trivially_destructible_v< _TyT > )
+  {
+    // no-op.
+  }
+  void _DestructContigRange( _TyT * const _ptBegin, _TyT * const _ptEnd ) noexcept
+    requires( !is_trivially_destructible_v< _TyT > )
+  {
+    // Destruct the range backwards.
+    for ( _TyT * ptCur = _ptEnd; _ptBegin != ptCur--; )
+      _DestructEl( ptCur );
+  }
+  void _Clear() noexcept
+  {
+    AssertValid();
+    Assert( !!m_ptSingleBlock ); // shouldn't be here.
+    // Move through and destroy eacn element. Destruct backwards just for fun.
+    size_t nElementsDestruct = NElements();
+    size_t nElementsAllocated = NElementsAllocated();
+    if ( nElementsAllocated <= s_knSingleBlockSizeLimit )
+    {
+      _DestructContigRange( m_ptSingleBlock, m_ptSingleBlock + nElementsDestruct );
+      // ::free( m_ptSingleBlock ); This is freed below in common code.
     }
     else
     {
-      // We can manage the blocks more roughly.
+      size_t nElementTailInBlock = nElementsAllocated-1;
+      size_t nEndBlockSize;
+      size_t nBlockEnd = _NBlockFromEl( nElementTailInBlock, nEndBlockSize ) + 1;
+      if ( ( m_nElements < 0 ) && !nElementTailInBlock ) // boundary.
+      {
+        // The last block has no constructed elements - just free the block:
+        ::free( m_pptBlocksBegin[ --nBlockEnd ] ); // no reason to zero this.
+        if ( nBlockEnd <= s_knBlockFixedBoundary )
+          nEndBlockSize >>= 1; // we may already be done here but we don't care.
+      }
+      _TyT ** pptBlockPtrCur = m_pptBlocksBegin + nBlockEnd; // This starts pointing at the end of the blocks.
+      for ( ; m_pptBlocksBegin != pptBlockPtrCur--; )
+      {
+        _TyT * ptBlockCur = *pptBlockPtrCur;
+        _DestructContigRange( ptBlockCur, ptBlockCur + nEndBlockSize );
+        ::free( *pptBlockPtrCur );
+        if ( nBlockEnd <= s_knBlockFixedBoundary )
+          nEndBlockSize >>= 1; // we may already be done here but we don't care.
+      }
     }
+    ::free( m_pptBlocksBegin ); // This is either freeing the single block or the block of blocks.
   }
 
-protected:
   ssize_t m_nElements[0]; // If m_nElements < 0 then there is an uninitialized element at the end of the array.
   union
   {
