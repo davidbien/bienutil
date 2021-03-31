@@ -155,6 +155,11 @@ public:
     Assert( _posEnd <= m_nElements );
 #endif //!ASSERTSENABLED
   }
+  void VerifyValidRange( _tySizeType _posBegin, _tySizeType _posEnd ) const
+  {
+    AssertValidRange( _posBegin, _posEnd );
+    VerifyThrow( ( _posEnd >= _posBegin ) && ( _posEnd <= m_nElements ) );
+  }
   size_t NElements() const
   {
     AssertValid();
@@ -195,24 +200,12 @@ public:
     if ( _nElements > nElements )
       _SetSizeLarger( _nElements, std::forward<t_tysArgs>(_args)... );
   }
-  template <class... t_tysArgs>
-  void _SetSizeLarger( size_t _nElements, t_tysArgs &&... _args )
+  template < class t_TyFunctor >
+  void ApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor )
   {
-    size_t nElements = NElements();
-    Assert( nElements < _nElements );
-    size_t nNewElements = nElements - _nElements;
-    while ( nNewElements-- )
-    {
-      new ( _PbyAllocEnd() ) _tyT(std::forward<t_tysArgs>(_args)...);
-      Assert( m_nElements < 0 );
-      m_nElements = -m_nElements;
-    }
-  }
-  void _SetSizeSmaller( size_t _nElements )
-  {
-    // We must move one by one and update 
-  }
+    VerifyValidRange( _nElBegin, _nElEnd );
 
+  }
 protected:
   // _rnEl returns as the nth element in size block <n>.
   static size_t _NBlockFromEl( size_t & _rnEl, size_t & _rnBlockSize ) const
@@ -231,6 +224,20 @@ protected:
     _rnEl -= ( _rnBlockSize - ( 1 << t_knPow2Min ) );
     nBlock -= t_knPow2Min;
     return nBlock;
+  }
+  template <class... t_tysArgs>
+  void _SetSizeLarger( size_t _nElements, t_tysArgs &&... _args )
+  {
+    size_t nElements = NElements();
+    Assert( nElements < _nElements );
+    size_t nNewElements = nElements - _nElements;
+    while ( nNewElements-- )
+    {
+      new ( _PbyAllocEnd() ) _tyT(std::forward<t_tysArgs>(_args)...);
+      Assert( m_nElements < 0 );
+      m_nElements = -m_nElements;
+    }
+    AssertValid();
   }
   // To do this correctly, this method must increment m_nElements - but there are some catch-22s.
   // So we increment and negate m_nElements to indicate that we have a "non-constructed tail" on the array.
@@ -309,6 +316,98 @@ protected:
     }
     m_nElements = -( m_nElements + 1 );
     return _GetBlockEl( nBlockNextEl, nElInBlock, nBlockSize );
+  }
+  void _SetSizeSmaller( size_t _nElements )
+  {
+    Assert( _nElements < NElements() );
+    // We know that the destructors won't throw so we can batch delete for speed.
+    // We want to delete in reverse again.
+    if ( !_nElements ) // boundary.
+    {
+      Clear();
+      return;
+    }
+    // Find the endpoints and then delete all elements in between them+1, backwards:
+    size_t nElInBlockTail = NElementsAllocated()-1;
+    size_t nSizeBlockTail;
+    size_t nBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
+    size_t nElInBlockNew = _nElements; // We want the point beyond the new last element for the beginning endpoint.
+    size_t nSizeBlockNew;
+    size_t nBlockNew = _NBlockFromEl( nElInBlockNew, nSizeBlockNew );
+    
+    // We check now to find the size of the resultant set of required blocks and allocate it now to avoid any possibility of failure from here on out:
+    size_t nBlockPtrsOld = ( nBlockTail+1 ) + ( nBlockTail+1 ) % s_knAllocateBlockPtrsInBlocksOf;
+    size_t nBlocksNew = !nElInBlockNew ? nBlockNew : nBlockNew+1; //boundary.
+    size_t nBlockPtrsNew = nBlocksNew + nBlocksNew % s_knAllocateBlockPtrsInBlocksOf;
+    _TyT ** pptBlockPtrsNew;
+    if ( nBlockPtrsOld == nBlockPtrsNew )
+      pptBlockPtrsNew = m_pptBlocksBegin; // note that this may be the single block - but we don't care.
+    else
+    if ( 1 == nBlocksNew )
+      pptBlockPtrsNew = nullptr; // single block scenario.
+    else
+    {
+      pptBlockPtrsNew = (_TyT**)malloc( nBlockPtrsNew * sizeof(_TyT*) );
+      // memset( pptBlockPtrsNew, 0, nBlockPtrsNew * sizeof(_TyT*) ); - unnecessary - we are copying in the old one 
+      if ( !pptBlockPtrsNew )
+        ThrowOOMException(); // The only reallocation that we have to do in this method and we haven't changed anything yet... good.
+    }
+    // Now we start moving backwards and destructing and removing blocks as we go:
+    if ( nBlockTail != nBlockNew )
+    {
+      for ( ; nBlockTail != nBlockNew; --nBlockTail )
+      {
+        if ( m_nElements < 0 )
+          m_nElements = -m_nElements + 1; // nElInBlockTail is a size due there being an unconstructed tail element.
+        else
+          ++nElInBlockTail; // Turn it into a size.
+        _TyT * ptBlock = m_pptBlocksBegin[nBlockTail];
+        m_pptBlocksBegin[nBlockTail] = nullptr;
+        _DestructContigRange( ptBlock, ptBlock + nElInBlockTail );
+        if ( nBlockTail <= s_knBlockFixedBoundary )
+          nSizeBlockTail >>= 1;
+        nElInBlockTail = nSizeBlockTail-1; // We leave this at an index because we turn it into a size above and below.
+      }
+    }
+    else
+    {
+      // We didn't go through the loop above which means the elements were in the same block to begin with:
+      if ( m_nElements < 0 )
+      {
+        Assert( nElInBlockTail );
+        --nElInBlockTail;
+      }
+      // Check for "single block at start" scenario here and short circuit:
+      if ( !nBlockTail )
+      {
+        // Then we started with a single block (that must be able to contain more than one element):
+        Assert( t_knPow2Min > 0 );
+        Assert( nElInBlockNew < nElInBlockTail+1 ); // we must be destructing something or why would we be in this method?
+        _DestructContigRange( m_ptSingleBlock + nElInBlockNew, m_ptSingleBlock + nElInBlockTail + 1 );
+        Assert( nElInBlockNew == _nElements );
+        m_nElements = _nElements;
+        return;
+      }
+    }
+    // Now we are on the last block:
+    _TyT * ptBlockElNew = m_pptBlocksBegin[nBlockTail];
+    _DestructContigRange( ptBlockElNew + nElInBlockNew, ptBlockElNew + nElInBlockTail + 1 );
+    // Set the count of elements and update the block pointers appropriately:
+    m_nElements = _nElements;
+    if ( !pptBlockPtrsNew )
+    {
+      pptBlockPtrsNew = m_pptBlocksBegin;
+      m_ptSingleBlock = pptBlockPtrsNew[0];
+      ::free( pptBlockPtrsNew );
+    }
+    else
+    if ( pptBlockPtrsNew != m_pptBlocksBegin )
+    {
+      memcpy( pptBlockPtrsNew, m_pptBlocksBegin, nBlockPtrsNew * sizeof(_TyT*) );
+      std::swap( pptBlockPtrsNew, m_pptBlocksBegin );
+      ::free( pptBlockPtrsNew );
+    }
+    AssertValid(); // whew!
   }
   void _DestructEl( _TyT * _pt ) noexcept
     requires( is_nothrow_destructible_v< _TyT > )

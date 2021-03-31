@@ -781,6 +781,7 @@ protected:
     // First, if we own the lifetimes, then end them all:
     if ( s_kfOwnLifetime && !!m_nElements )
     {
+      // REVIEW: ApplyContiguous would be faster. Also should catch on destruct since destructors may throw.
       for ( ; m_nElements; --m_nElements )
         ElGet(m_nElements-1).~_tyT();
     }    
