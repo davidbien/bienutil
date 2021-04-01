@@ -1,7 +1,7 @@
 #pragma once
 
 // _logarray.h
-// Logarithmic array.
+// Logarithmic array. Kinda a misnomer but there ya are.
 // dbien
 // 28MAR2021
 
@@ -9,71 +9,12 @@
 //  which starts at some power of two and ends at another power of two. The final power of two block size is then repeated
 //  as the array grows. This allows constant time calculation of block size and reasonably easy loops to write.
 // My ideas for uses of this are for arrays of object that are generally very small, but you want to allow to be very
-//  large in more rare situations. Ideally then you don't want to (as well) change this thing after it is created.
+//  large in more rare situations. Ideally then you don't want to (as well) change this thing after it is created other than
+//  to add and remove elements from the end.
 // When initially created the object does not have an array of pointers, just a single pointer to a block of size 2^t_knPow2Min.
 // My current plan for usage for this is as the underlying data structure for the lexang _l_data.h, _l_data<> template.
 
 __BIENUTIL_BEGIN_NAMESPACE
-
-inline constexpr bool KMultiplyTestOverflow( uint64_t _u64L, uint64_t _u64R, uint64_t & _ru64Result )
-{
-  _ru64Result = _u64L * _u64R;
-  return ( _ru64Result < _u64L ) || ( _ru64Result < _u64R );
-}
-
-// Can't use intrinsics since we want this to be constexpr. 
-// Also we will throw on overflow so that the compile will fail during constexpr evaluation.
-inline constexpr uint64_t KUPow( uint64_t _u64Base, uint8_t _u8Exp )
-{
-  uint64_t u64Result = 1;
-  switch( KMSBitSet( _u8Exp ) )
-  {
-    default:
-      THROWNAMEDEXCEPTION("Guaranteed overflow _u64Base > 1.");
-    break;
-    case 6:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 5:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 4:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 3:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 2:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 1:
-      if ( ( 1u & _u8Exp ) && 
-           KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-    break;    
-  }
-  return u64Result;
-}
 
 // Range of block size are [2^t_knPow2Min, 2^t_knPow2Max].
 // Always manages the lifetimes of the elements.
@@ -104,7 +45,9 @@ public:
   {
     SetSize( _nElements );
   }
-  LogArray( LogArray const & _r )
+  // The way we construct we can copy any LogArray.
+  template < size_t t_knPow2Min, size_t t_knPow2Max >
+  LogArray( LogArray< _TyT, t_knPow2Min, t_knPow2Max > const & _r )
   {
     // Piecewise copy construct.
     _r.ApplyContiguous( 0, _r.NElements(), 
@@ -115,7 +58,8 @@ public:
       }
     );
   }
-  LogArray & operator =( LogArray const & _r )
+  template < size_t t_knPow2Min, size_t t_knPow2Max >
+  LogArray & operator =( LogArray< _TyT, t_knPow2Min, t_knPow2Max > const & _r )
   {
     _TyThis copy( _r )
     swap( copy );
@@ -165,10 +109,41 @@ public:
     AssertValid();
     return m_nElements < 0 ? ( -m_nElements - 1 ) : m_nElements;
   }
+  size_t GetSize() const
+  {
+    return NElements();
+  }
   size_t NElementsAllocated() const
   {
     AssertValid();
     return m_nElements < 0 ? -m_nElements : m_nElements;
+  }
+  template <class... t_tysArgs>
+  _tyT &emplaceAtEnd(t_tysArgs &&... _args)
+  {
+    AssertValid();
+    _tyT *pt = new (_PvAllocEnd()) _tyT(std::forward<t_tysArgs>(_args)...);
+    Assert( m_nElements < 0 );
+    m_nElements = -m_nElements; // element successfully constructed.
+    return *pt;
+  }
+  bool _FHasSingleBlock() const
+  {
+    return NElementsAllocated() <= s_knSingleBlockSizeLimit;
+  }
+  _TyT & ElGet( size_t _nEl )
+  {
+    VerifyThrow( _nEl < NElements() );
+    if ( _FHasSingleBlock() )
+      return m_ptSingleBlock[_nEl];
+    size_t nElInBlock = _nEl;
+    size_t nSizeBlock;
+    const size_t knBlock = _NBlockFromEl( nElInBlock, nSizeBlock );
+    return m_pptBlocksBegin[knBlock][nSizeBlock];
+  }
+  const _TyT & ElGet( size_t _nEl ) const
+  {
+    return const_cast< _tyThis *>( this )->ElGet(_nEl);
   }
   void Clear() noexcept
   {
@@ -179,15 +154,6 @@ public:
       m_nElements = 0;
     }
     AssertValid();
-  }
-  template <class... t_tysArgs>
-  _tyT &emplaceAtEnd(t_tysArgs &&... _args)
-  {
-    AssertValid();
-    _tyT *pt = new (_PvAllocEnd()) _tyT(std::forward<t_tysArgs>(_args)...);
-    Assert( m_nElements < 0 );
-    m_nElements = -m_nElements; // element successfully constructed.
-    return *pt;
   }
   template <class... t_tysArgs>
   void SetSize( size_t _nElements, t_tysArgs &&... _args )
@@ -207,7 +173,7 @@ public:
     AssertValid();
     VerifyValidRange( _nElBegin, _nElEnd );
     // specially code the single block scenario:
-    if ( NElementsAllocated() <= s_knSingleBlockSizeLimit )
+    if ( _FHasSingleBlock() )
     {
       std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
       return;
@@ -237,7 +203,7 @@ public:
     AssertValid();
     VerifyValidRange( _nElBegin, _nElEnd );
     // specially code the single block scenario:
-    if ( NElementsAllocated() <= s_knSingleBlockSizeLimit )
+    if ( _FHasSingleBlock() )
     {
       std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
       return;
