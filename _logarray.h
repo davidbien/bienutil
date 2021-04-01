@@ -200,12 +200,67 @@ public:
     if ( _nElements > nElements )
       _SetSizeLarger( _nElements, std::forward<t_tysArgs>(_args)... );
   }
+  // call _rrftor with sets of contiguous blocks spanning [_posBegin,_posEnd) in forward order.
   template < class t_TyFunctor >
   void ApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor )
   {
+    AssertValid();
     VerifyValidRange( _nElBegin, _nElEnd );
-
+    // specially code the single block scenario:
+    if ( NElementsAllocated() <= s_knSingleBlockSizeLimit )
+    {
+      std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
+      return;
+    }
+    size_t nElInBlockTail = _posEnd-1;
+    size_t nSizeBlockTail;
+    const size_t knBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
+    size_t nElInBlockBegin = _posBegin;
+    size_t nSizeBlockBegin;
+    size_t nBlockBegin = _NBlockFromEl( nElInBlockBegin, nSizeBlockBegin );
+    // We do the tail element specially:
+    for ( size_t nBlockCur = nBlockBegin; knBlockTail != nBlockCur; ++nBlockCur, ( nElInBlockBegin = 0 ) )
+    {
+      _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
+      std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nSizeBlockBegin );
+      if ( nBlockCur < s_knBlockFixedBoundary )
+        nSizeBlockBegin <<= 1; // double the block size before the boundary.
+    }
+    // Now the tail element:
+    _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
+    std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nElInBlockTail + 1 );
   }
+  // Const version.
+  template < class t_TyFunctor >
+  void ApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor ) const
+  {
+    AssertValid();
+    VerifyValidRange( _nElBegin, _nElEnd );
+    // specially code the single block scenario:
+    if ( NElementsAllocated() <= s_knSingleBlockSizeLimit )
+    {
+      std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
+      return;
+    }
+    size_t nElInBlockTail = _posEnd-1;
+    size_t nSizeBlockTail;
+    const size_t knBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
+    size_t nElInBlockBegin = _posBegin;
+    size_t nSizeBlockBegin;
+    size_t nBlockBegin = _NBlockFromEl( nElInBlockBegin, nSizeBlockBegin );
+    // We do the tail element specially:
+    for ( size_t nBlockCur = nBlockBegin; knBlockTail != nBlockCur; ++nBlockCur, ( nElInBlockBegin = 0 ) )
+    {
+      const _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
+      std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nSizeBlockBegin );
+      if ( nBlockCur < s_knBlockFixedBoundary )
+        nSizeBlockBegin <<= 1; // double the block size before the boundary.
+    }
+    // Now the tail element:
+    const _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
+    std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nElInBlockTail + 1 );
+  }
+
 protected:
   // _rnEl returns as the nth element in size block <n>.
   static size_t _NBlockFromEl( size_t & _rnEl, size_t & _rnBlockSize ) const
