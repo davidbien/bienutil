@@ -291,7 +291,7 @@ protected:
     {
       _rnBlockSize = 1ull << t_knPow2Max;
       _rnEl -= s_knElementsFixedBoundary;
-      size_t nBlock = _rnEl / _rnBlockSize;
+      size_t nBlock = s_knBlockFixedBoundary + _rnEl / _rnBlockSize;
       _rnEl %= _rnBlockSize;
       return nBlock;
     }
@@ -395,7 +395,8 @@ public: // Allow access for testing.
       {
         if ( s_knAllocateBlockPtrsInBlocksOf > 1 )
           memset( pptNewBlockPtrs + nBlockNextEl + 1, 0, ( s_knAllocateBlockPtrsInBlocksOf - 1 ) * sizeof( _TyT * ) );
-        m_pptBlocksBegin = pptNewBlockPtrs;
+        std::swap( m_pptBlocksBegin, pptNewBlockPtrs );
+        ::free( pptNewBlockPtrs ); // free the old pointers - duh.
       }
       m_pptBlocksBegin[nBlockNextEl] = ptNewBlock;
     }
