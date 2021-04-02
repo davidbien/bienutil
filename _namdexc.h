@@ -47,7 +47,10 @@ public:
   {
       RenderVA( _pcFmt, args );
   }
-  virtual const char* what() const _BIEN_NOTHROW { return m_rgcExceptionName; }
+  const char* what() const _BIEN_NOTHROW override
+  { 
+    return m_rgcExceptionName; 
+  }
 
   template < class t__TyTraits, class t__TyAllocator >
   void SetWhat(basic_string<char, t__TyTraits, t__TyAllocator> const & _str)
@@ -184,6 +187,19 @@ public:
 };
 // By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
 #define THROWNAMEDBADVARIANTACCESSEXCEPTION( MESG, ... ) ExceptionUsage<named_bad_variant_access<>>::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )
+
+// Override bad alloc to provide __FILE__, __LINE__ support etc...
+template < class t_TyAllocator = allocator< char > >
+class named_bad_alloc : public _t__Named_exception< t_TyAllocator, std::bad_alloc >
+{
+  typedef named_bad_alloc _TyThis;
+  typedef _t__Named_exception< t_TyAllocator, std::bad_alloc > _TyBase;
+public:
+  using typename _TyBase::string_type;
+  using _TyBase::_TyBase;
+};
+// By default we will always add the __FILE__, __LINE__ even in retail for debugging purposes.
+#define THROWNAMEDBADALLOC( MESG, ... ) ExceptionUsage<named_bad_alloc<>>::ThrowFileLineFunc( __FILE__, __LINE__, FUNCTION_PRETTY_NAME, MESG, ##__VA_ARGS__ )
 
 // ExceptionUsage: Provide some useful template methods for throw exception with variable number of arguments.
 template < class t_tyException >

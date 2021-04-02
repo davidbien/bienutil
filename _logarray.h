@@ -14,6 +14,8 @@
 // When initially created the object does not have an array of pointers, just a single pointer to a block of size 2^t_knPow2Min.
 // My current plan for usage for this is as the underlying data structure for the lexang _l_data.h, _l_data<> template.
 
+#include "_bitutil.h"
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 // Range of block size are [2^t_knPow2Min, 2^t_knPow2Max].
@@ -27,9 +29,9 @@ public:
   typedef t_TyT _TyT;
   static constexpr size_t s_knPow2Min = t_knPow2Min;
   static constexpr size_t s_knPow2Max = t_knPow2Max;
-  static constexpr size_t s_knElementsFixedBoundary = ( ( 1 << t_knPow2Max ) - ( 1 << t_knPow2Min ) );
+  static constexpr size_t s_knElementsFixedBoundary = ( ( 1ull << t_knPow2Max ) - ( 1ull << t_knPow2Min ) );
   static constexpr size_t s_knBlockFixedBoundary = t_knPow2Max - t_knPow2Min;
-  static constexpr size_t s_knSingleBlockSizeLimit = ( 1 << t_knPow2Min );
+  static constexpr size_t s_knSingleBlockSizeLimit = ( 1ull << t_knPow2Min );
   static constexpr size_t s_knAllocateBlockPtrsInBlocksOf = 4; // We allocate block pointers in blocks so that we don't have to reallocate every time - unless we decide to set this to one...
 
   ~LogArray()
@@ -46,12 +48,30 @@ public:
     SetSize( _nElements );
   }
   // The way we construct we can copy any LogArray.
+  LogArray( LogArray const & _r )
+  {
+    // Piecewise copy construct.
+    _r.ApplyContiguous( 0, _r.NElements(), 
+      [this]( const _TyT * _ptBegin, const _TyT * _ptEnd )
+      {
+        for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
+          emplaceAtEnd( *ptCur );
+      }
+    );
+  }
+  LogArray & operator =( LogArray const & _r )
+  {
+    _TyThis copy( _r );
+    swap( copy );
+    return *this;
+  }
+  // The way we construct we can copy any LogArray.
   template < size_t t_knPow2Min, size_t t_knPow2Max >
   LogArray( LogArray< _TyT, t_knPow2Min, t_knPow2Max > const & _r )
   {
     // Piecewise copy construct.
     _r.ApplyContiguous( 0, _r.NElements(), 
-      [this]( const _TyT * _ptBegin, const _tyT * _ptEnd )
+      [this]( const _TyT * _ptBegin, const _TyT * _ptEnd )
       {
         for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
           emplaceAtEnd( *ptCur );
@@ -61,7 +81,7 @@ public:
   template < size_t t_knPow2Min, size_t t_knPow2Max >
   LogArray & operator =( LogArray< _TyT, t_knPow2Min, t_knPow2Max > const & _r )
   {
-    _TyThis copy( _r )
+    _TyThis copy( _r );
     swap( copy );
     return *this;
   }
@@ -83,26 +103,52 @@ public:
   void AssertValid() const
   {
 #if ASSERTSENABLED
-    Assert( !m_nElements == !m_ptSingleBlock );
-    if ( m_nElements > s_knSingleBlockSizeLimit ) // nothing we can really assert about a single block element.
+    static bool s_fInAssertValid = false;
+    if ( !s_fInAssertValid )
     {
-      // We should have a block in every position up until the end:
-      size_t nBlockEnd = _NBlockFromEl( m_nElements-1 ) + 1;
-      
+      s_fInAssertValid = true;
+      try
+      {
+        Assert( !m_nElements == !m_ptSingleBlock );
+        if ( !_FHasSingleBlock() ) // nothing we can really assert about a single block element.
+        {
+          // Test that:
+          // 1) We have a non-null block ptr everywhere one should be.
+          // 2) We have a null block ptr everywhere one should be.
+          size_t nElInBlock = NElementsAllocated() - 1;
+          size_t nSizeBlock;
+          const size_t knBlock = _NBlockFromEl( nElInBlock, nSizeBlock );
+          size_t nBlockPtrs = (knBlock+1) + ( s_knAllocateBlockPtrsInBlocksOf - (knBlock+1) ) % s_knAllocateBlockPtrsInBlocksOf;
+          size_t nBlockCur = 0;
+          for ( ; nBlockCur <= knBlock; ++nBlockCur )
+            Assert( !!m_pptBlocksBegin[nBlockCur] );
+          for ( ; nBlockCur < nBlockPtrs; ++nBlockCur )
+            Assert( !m_pptBlocksBegin[nBlockCur] );
+          // That's about all we can do.
+        }
+      }
+      catch( exception const & )
+      {
+        s_fInAssertValid = false;
+        throw;
+      }
+      s_fInAssertValid = false;
     }
 #endif //!ASSERTSENABLED
   }
-  void AssertValidRange( _tySizeType _posBegin, _tySizeType _posEnd ) const
+  bool FIsValidRange( size_t _posBegin, size_t _posEnd ) const
+  {
+    return ( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ) );
+  }
+  void AssertValidRange( size_t _posBegin, size_t _posEnd ) const
   {
 #if ASSERTSENABLED
-    Assert( _posEnd >= _posBegin );
-    Assert( _posEnd <= m_nElements );
+    Assert( FIsValidRange( _posBegin, _posEnd ) );
 #endif //!ASSERTSENABLED
   }
-  void VerifyValidRange( _tySizeType _posBegin, _tySizeType _posEnd ) const
+  void VerifyValidRange( size_t _posBegin, size_t _posEnd ) const
   {
-    AssertValidRange( _posBegin, _posEnd );
-    VerifyThrow( ( _posEnd >= _posBegin ) && ( _posEnd <= m_nElements ) );
+    VerifyThrow( FIsValidRange( _posBegin, _posEnd ) );
   }
   size_t NElements() const
   {
@@ -118,11 +164,11 @@ public:
     AssertValid();
     return m_nElements < 0 ? -m_nElements : m_nElements;
   }
-  template <class... t_tysArgs>
-  _tyT &emplaceAtEnd(t_tysArgs &&... _args)
+  template <class... t_TysArgs>
+  _TyT &emplaceAtEnd(t_TysArgs &&... _args)
   {
     AssertValid();
-    _tyT *pt = new (_PvAllocEnd()) _tyT(std::forward<t_tysArgs>(_args)...);
+    _TyT *pt = new (_PvAllocEnd()) _TyT(std::forward<t_TysArgs>(_args)...);
     Assert( m_nElements < 0 );
     m_nElements = -m_nElements; // element successfully constructed.
     return *pt;
@@ -139,11 +185,11 @@ public:
     size_t nElInBlock = _nEl;
     size_t nSizeBlock;
     const size_t knBlock = _NBlockFromEl( nElInBlock, nSizeBlock );
-    return m_pptBlocksBegin[knBlock][nSizeBlock];
+    return m_pptBlocksBegin[knBlock][nElInBlock];
   }
   const _TyT & ElGet( size_t _nEl ) const
   {
-    return const_cast< _tyThis *>( this )->ElGet(_nEl);
+    return const_cast< _TyThis *>( this )->ElGet(_nEl);
   }
   void Clear() noexcept
   {
@@ -155,8 +201,8 @@ public:
     }
     AssertValid();
   }
-  template <class... t_tysArgs>
-  void SetSize( size_t _nElements, t_tysArgs &&... _args )
+  template <class... t_TysArgs>
+  void SetSize( size_t _nElements, t_TysArgs &&... _args )
   {
     AssertValid();
     size_t nElements = NElements();
@@ -164,18 +210,21 @@ public:
       _SetSizeSmaller( _nElements );
     else
     if ( _nElements > nElements )
-      _SetSizeLarger( _nElements, std::forward<t_tysArgs>(_args)... );
+      _SetSizeLarger( _nElements, std::forward<t_TysArgs>(_args)... );
   }
   // call _rrftor with sets of contiguous blocks spanning [_posBegin,_posEnd) in forward order.
   template < class t_TyFunctor >
   void ApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor )
   {
     AssertValid();
-    VerifyValidRange( _nElBegin, _nElEnd );
+    if ( _posEnd == _posBegin )
+      return;
+    VerifyValidRange( _posBegin, _posEnd );
     // specially code the single block scenario:
     if ( _FHasSingleBlock() )
     {
-      std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
+      if ( _posEnd - _posBegin )
+        std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
       return;
     }
     size_t nElInBlockTail = _posEnd-1;
@@ -190,22 +239,25 @@ public:
       _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
       std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nSizeBlockBegin );
       if ( nBlockCur < s_knBlockFixedBoundary )
-        nSizeBlockBegin <<= 1; // double the block size before the boundary.
+        nSizeBlockBegin <<= 1ull; // double the block size before the boundary.
     }
     // Now the tail element:
-    _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
-    std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nElInBlockTail + 1 );
+    _TyT * ptBlockTail = m_pptBlocksBegin[knBlockTail];
+    std::forward< t_TyFunctor >( _rrftor )( ptBlockTail + nElInBlockBegin, ptBlockTail + nElInBlockTail + 1 );
   }
   // Const version.
   template < class t_TyFunctor >
   void ApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor ) const
   {
     AssertValid();
-    VerifyValidRange( _nElBegin, _nElEnd );
+    if ( _posEnd == _posBegin )
+      return;
+    VerifyValidRange( _posBegin, _posEnd );
     // specially code the single block scenario:
     if ( _FHasSingleBlock() )
     {
-      std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
+      if ( _posEnd - _posBegin )
+        std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
       return;
     }
     size_t nElInBlockTail = _posEnd-1;
@@ -220,46 +272,58 @@ public:
       const _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
       std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nSizeBlockBegin );
       if ( nBlockCur < s_knBlockFixedBoundary )
-        nSizeBlockBegin <<= 1; // double the block size before the boundary.
+        nSizeBlockBegin <<= 1ull; // double the block size before the boundary.
     }
     // Now the tail element:
-    const _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
-    std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nElInBlockTail + 1 );
+    const _TyT * ptBlockTail = m_pptBlocksBegin[knBlockTail];
+    std::forward< t_TyFunctor >( _rrftor )( ptBlockTail + nElInBlockBegin, ptBlockTail + nElInBlockTail + 1 );
   }
 
 protected:
+  static size_t _Log2( size_t _n )
+  {
+    return MSBitSet( _n );
+  }
   // _rnEl returns as the nth element in size block <n>.
-  static size_t _NBlockFromEl( size_t & _rnEl, size_t & _rnBlockSize ) const
+  static size_t _NBlockFromEl( size_t & _rnEl, size_t & _rnBlockSize )
   {
     if ( _rnEl >= s_knElementsFixedBoundary )
     {
-      _rnBlockSize = 1 << t_knPow2Max;
+      _rnBlockSize = 1ull << t_knPow2Max;
       _rnEl -= s_knElementsFixedBoundary;
       size_t nBlock = _rnEl / _rnBlockSize;
       _rnEl %= _rnBlockSize;
       return nBlock;
     }
-    size_t nElShifted = _rnEl + ( 1 << t_knPow2Min ); // Must shift for both log2 use and potential non-zero t_knPow2Min. ( _rnEl+1 ) + ( ( 1 << t_knPow2Min ) -1 ).
-    size_t nBlock = Log2( nElShifted );
-    _rnBlockSize = 1 << nBlock;
-    _rnEl -= ( _rnBlockSize - ( 1 << t_knPow2Min ) );
+    size_t nElShifted = _rnEl + ( 1ull << t_knPow2Min ); // Must shift for both log2 use and potential non-zero t_knPow2Min. ( _rnEl+1 ) + ( ( 1ull << t_knPow2Min ) -1 ).
+    size_t nBlock = _Log2( nElShifted );
+    _rnBlockSize = 1ull << nBlock;
+    _rnEl -= ( _rnBlockSize - ( 1ull << t_knPow2Min ) );
     nBlock -= t_knPow2Min;
     return nBlock;
   }
-  template <class... t_tysArgs>
-  void _SetSizeLarger( size_t _nElements, t_tysArgs &&... _args )
+  template <class... t_TysArgs>
+  void _SetSizeLarger( size_t _nElements, t_TysArgs &&... _args )
   {
     size_t nElements = NElements();
     Assert( nElements < _nElements );
-    size_t nNewElements = nElements - _nElements;
+    size_t nNewElements = _nElements - nElements;
     while ( nNewElements-- )
     {
-      new ( _PbyAllocEnd() ) _tyT(std::forward<t_tysArgs>(_args)...);
+      new ( _PvAllocEnd() ) _TyT(std::forward<t_TysArgs>(_args)...);
       Assert( m_nElements < 0 );
       m_nElements = -m_nElements;
     }
     AssertValid();
   }
+  _TyT * _GetBlockEl( size_t _nBlock, size_t _nElInBlock )
+  {
+    if ( _FHasSingleBlock() )
+      return m_ptSingleBlock + _nElInBlock;
+    else
+      return m_pptBlocksBegin[_nBlock] + _nElInBlock;
+  }
+public: // Allow access for testing.
   // To do this correctly, this method must increment m_nElements - but there are some catch-22s.
   // So we increment and negate m_nElements to indicate that we have a "non-constructed tail" on the array.
   void * _PvAllocEnd()
@@ -270,7 +334,7 @@ protected:
       // Then we are always allocating just the first block:
       m_ptSingleBlock = (_TyT*)malloc( s_knSingleBlockSizeLimit * sizeof( _TyT ) );
       if ( !m_ptSingleBlock )
-        ThrowOOMException();
+        THROWNAMEDBADALLOC( "" );
       m_nElements = -1;
       return m_ptSingleBlock;
     }
@@ -280,7 +344,7 @@ protected:
       // Then there is an allocated element at the end which threw during construction. Just use it:
       size_t nElInBlock = -m_nElements - 1;
       size_t nBlockNextEl = _NBlockFromEl( nElInBlock, nBlockSize );
-      return _GetBlockEl( nBlockNextEl, nElInBlock, nBlockSize );
+      return _GetBlockEl( nBlockNextEl, nElInBlock );
     }
     size_t nElInBlock = m_nElements;
     size_t nBlockNextEl = _NBlockFromEl( nElInBlock, nBlockSize );
@@ -292,19 +356,19 @@ protected:
     if ( ( 1 == nBlockNextEl ) && !nElInBlock )
     {
       // Transition from single block to multiple blocks:
-      size_t nBlockPtrs = (max)( 2, s_knAllocateBlockPtrsInBlocksOf );
+      size_t nBlockPtrs = (max)( 2ull, s_knAllocateBlockPtrsInBlocksOf );
       _TyT ** pptBlockPtrs = (_TyT **)malloc( nBlockPtrs * sizeof( _TyT * ) );
       _TyT * ptNewBlock = (_TyT*)malloc( nBlockSize * sizeof( _TyT ) );
       if ( !pptBlockPtrs || !ptNewBlock )
       {
-        free( pptBlockPtrs ); // calling free() on null has null effect.
-        free( ptNewBlock );  // avoid leaks.
-        ThrowOOMException();
+        ::free( pptBlockPtrs ); // calling free() on null has null effect.
+        ::free( ptNewBlock );  // avoid leaks.
+        THROWNAMEDBADALLOC( "" );
       }
       *pptBlockPtrs = m_ptSingleBlock;
       pptBlockPtrs[1] = ptNewBlock;
       if ( s_knAllocateBlockPtrsInBlocksOf > 2 )
-        memset( pptBlockPtrs + 2, 0, nBlockPtrs - 2 * sizeof( _TyT * ) );
+        memset( pptBlockPtrs + 2, 0, ( s_knAllocateBlockPtrsInBlocksOf - 2 ) * sizeof( _TyT * ) );
       m_nElements = -( m_nElements + 1 );
       m_pptBlocksBegin = pptBlockPtrs; // We now own the malloc()'d memory.
       return ptNewBlock;
@@ -320,12 +384,12 @@ protected:
         size_t nNewBlocks = nBlockNextEl + s_knAllocateBlockPtrsInBlocksOf;
         pptNewBlockPtrs = (_TyT**)malloc( nNewBlocks * sizeof( _TyT * ) );
         if ( !pptNewBlockPtrs )
-          ThrowOOMException();
+          THROWNAMEDBADALLOC( "" );
         memcpy( pptNewBlockPtrs, m_pptBlocksBegin, nBlockNextEl * sizeof( _TyT * ) ); // copy in old data.
       }
       _TyT * ptNewBlock = (_TyT*)malloc( nBlockSize * sizeof( _TyT ) );
       if ( !ptNewBlock )
-        ThrowOOMException();
+        THROWNAMEDBADALLOC( "" );
       // Everything is allocated now - we won't throw for the rest of this method.
       if ( pptNewBlockPtrs )
       {
@@ -336,8 +400,9 @@ protected:
       m_pptBlocksBegin[nBlockNextEl] = ptNewBlock;
     }
     m_nElements = -( m_nElements + 1 );
-    return _GetBlockEl( nBlockNextEl, nElInBlock, nBlockSize );
+    return _GetBlockEl( nBlockNextEl, nElInBlock );
   }
+  protected:
   void _SetSizeSmaller( size_t _nElements )
   {
     Assert( _nElements < NElements() );
@@ -355,23 +420,26 @@ protected:
     size_t nElInBlockNew = _nElements; // We want the point beyond the new last element for the beginning endpoint.
     size_t nSizeBlockNew;
     size_t nBlockNew = _NBlockFromEl( nElInBlockNew, nSizeBlockNew );
-    
-    // We check now to find the size of the resultant set of required blocks and allocate it now to avoid any possibility of failure from here on out:
-    size_t nBlockPtrsOld = ( nBlockTail+1 ) + ( nBlockTail+1 ) % s_knAllocateBlockPtrsInBlocksOf;
     size_t nBlocksNew = !nElInBlockNew ? nBlockNew : nBlockNew+1; //boundary.
-    size_t nBlockPtrsNew = nBlocksNew + nBlocksNew % s_knAllocateBlockPtrsInBlocksOf;
+    
     _TyT ** pptBlockPtrsNew;
-    if ( nBlockPtrsOld == nBlockPtrsNew )
-      pptBlockPtrsNew = m_pptBlocksBegin; // note that this may be the single block - but we don't care.
-    else
+    size_t nBlockPtrsOld, nBlockPtrsNew; // only valid when pptBlockPtrsNew != nullptr.
     if ( 1 == nBlocksNew )
       pptBlockPtrsNew = nullptr; // single block scenario.
     else
     {
-      pptBlockPtrsNew = (_TyT**)malloc( nBlockPtrsNew * sizeof(_TyT*) );
-      // memset( pptBlockPtrsNew, 0, nBlockPtrsNew * sizeof(_TyT*) ); - unnecessary - we are copying in the old one 
-      if ( !pptBlockPtrsNew )
-        ThrowOOMException(); // The only reallocation that we have to do in this method and we haven't changed anything yet... good.
+      // We check now to find the size of the resultant set of required blocks and allocate it now to avoid any possibility of failure from here on out:
+      nBlockPtrsOld = ( nBlockTail+1 ) + ( s_knAllocateBlockPtrsInBlocksOf - ( nBlockTail+1 ) ) % s_knAllocateBlockPtrsInBlocksOf;
+      nBlockPtrsNew = nBlocksNew + ( s_knAllocateBlockPtrsInBlocksOf - nBlocksNew ) % s_knAllocateBlockPtrsInBlocksOf;
+      if ( nBlockPtrsOld == nBlockPtrsNew )
+        pptBlockPtrsNew = m_pptBlocksBegin; // note that this may be the single block - but we don't care.
+      else
+      {
+        pptBlockPtrsNew = (_TyT**)malloc( nBlockPtrsNew * sizeof(_TyT*) );
+        // memset( pptBlockPtrsNew, 0, nBlockPtrsNew * sizeof(_TyT*) ); - unnecessary - we are copying in the old one 
+        if ( !pptBlockPtrsNew )
+          THROWNAMEDBADALLOC( "" ); // The only reallocation that we have to do in this method and we haven't changed anything yet... good.
+      }
     }
     // Now we start moving backwards and destructing and removing blocks as we go:
     if ( nBlockTail != nBlockNew )
@@ -384,9 +452,10 @@ protected:
           ++nElInBlockTail; // Turn it into a size.
         _TyT * ptBlock = m_pptBlocksBegin[nBlockTail];
         m_pptBlocksBegin[nBlockTail] = nullptr;
-        _DestructContigRange( ptBlock, ptBlock + nElInBlockTail );
+        _DestructContigRange( ptBlock, ptBlock + nElInBlockTail ); // nElInBlockTail may be 0 here if there was an unconstructed tail at the start of a block.
+        ::free( ptBlock );
         if ( nBlockTail <= s_knBlockFixedBoundary )
-          nSizeBlockTail >>= 1;
+          nSizeBlockTail >>= 1ull;
         nElInBlockTail = nSizeBlockTail-1; // We leave this at an index because we turn it into a size above and below.
       }
     }
@@ -413,6 +482,11 @@ protected:
     // Now we are on the last block:
     _TyT * ptBlockElNew = m_pptBlocksBegin[nBlockTail];
     _DestructContigRange( ptBlockElNew + nElInBlockNew, ptBlockElNew + nElInBlockTail + 1 );
+    if ( !nElInBlockNew )
+    {
+      ::free( ptBlockElNew );
+      m_pptBlocksBegin[nBlockTail] = nullptr;
+    }
     // Set the count of elements and update the block pointers appropriately:
     m_nElements = _nElements;
     if ( !pptBlockPtrsNew )
@@ -486,7 +560,7 @@ protected:
         // The last block has no constructed elements - just free the block:
         ::free( m_pptBlocksBegin[ --nBlockEnd ] ); // no reason to zero this.
         if ( nBlockEnd <= s_knBlockFixedBoundary )
-          nEndBlockSize >>= 1; // we may already be done here but we don't care.
+          nEndBlockSize >>= 1ull; // we may already be done here but we don't care.
       }
       _TyT ** pptBlockPtrCur = m_pptBlocksBegin + nBlockEnd; // This starts pointing at the end of the blocks.
       for ( ; m_pptBlocksBegin != pptBlockPtrCur--; )
@@ -495,13 +569,13 @@ protected:
         _DestructContigRange( ptBlockCur, ptBlockCur + nEndBlockSize );
         ::free( *pptBlockPtrCur );
         if ( nBlockEnd <= s_knBlockFixedBoundary )
-          nEndBlockSize >>= 1; // we may already be done here but we don't care.
+          nEndBlockSize >>= 1ull; // we may already be done here but we don't care.
       }
     }
     ::free( m_pptBlocksBegin ); // This is either freeing the single block or the block of blocks.
   }
 
-  ssize_t m_nElements[0]; // If m_nElements < 0 then there is an uninitialized element at the end of the array.
+  ssize_t m_nElements{0}; // If m_nElements < 0 then there is an uninitialized element at the end of the array.
   union
   {
     _TyT * m_ptSingleBlock{nullptr}; // When m_nElements <= 2^t_knPow2Min then we point at only this single block. Note that this requires that we compress when the elements fall below this threshold during removal.
