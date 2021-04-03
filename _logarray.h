@@ -177,6 +177,16 @@ public:
   {
     return NElementsAllocated() <= s_knSingleBlockSizeLimit;
   }
+  _TyT & RTail()
+  {
+    VerifyThrow( NElements() );
+    return ElGet( NElements() - 1 );
+  }
+  const _TyT & RTail() const
+  {
+    VerifyThrow( NElements() );
+    return ElGet( NElements() - 1 );
+  }
   _TyT & ElGet( size_t _nEl )
   {
     VerifyThrow( _nEl < NElements() );
@@ -190,6 +200,14 @@ public:
   const _TyT & ElGet( size_t _nEl ) const
   {
     return const_cast< _TyThis *>( this )->ElGet(_nEl);
+  }
+  _TyT & operator []( size_t _nEl )
+  {
+    return ElGet( _nEl );
+  }
+  const _TyT & operator []( size_t _nEl ) const
+  {
+    return ElGet( _nEl );
   }
   void Clear() noexcept
   {
@@ -212,6 +230,11 @@ public:
     if ( _nElements > nElements )
       _SetSizeLarger( _nElements, std::forward<t_TysArgs>(_args)... );
   }
+  void SetSizeSmaller( size_t _nElements )
+  {
+    VerifyThrowSz( _nElements < NElements(), "Size is not smaller." );
+    _SetSizeSmaller( _nElements );
+  }
   // call _rrftor with sets of contiguous blocks spanning [_posBegin,_posEnd) in forward order.
   template < class t_TyFunctor >
   void ApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor )
@@ -222,11 +245,7 @@ public:
     VerifyValidRange( _posBegin, _posEnd );
     // specially code the single block scenario:
     if ( _FHasSingleBlock() )
-    {
-      if ( _posEnd - _posBegin )
-        std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
-      return;
-    }
+      return std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
     size_t nElInBlockTail = _posEnd-1;
     size_t nSizeBlockTail;
     const size_t knBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
@@ -255,11 +274,7 @@ public:
     VerifyValidRange( _posBegin, _posEnd );
     // specially code the single block scenario:
     if ( _FHasSingleBlock() )
-    {
-      if ( _posEnd - _posBegin )
-        std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
-      return;
-    }
+      return std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
     size_t nElInBlockTail = _posEnd-1;
     size_t nSizeBlockTail;
     const size_t knBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
@@ -278,7 +293,73 @@ public:
     const _TyT * ptBlockTail = m_pptBlocksBegin[knBlockTail];
     std::forward< t_TyFunctor >( _rrftor )( ptBlockTail + nElInBlockBegin, ptBlockTail + nElInBlockTail + 1 );
   }
-
+  // As above but the _apply object's operator() returns the count of applications.
+  // If the count is less than the full contiguous region supplied then the iteration is aborted.
+  // The return value is the total of the return values from all calls to _rrftor() performed.
+  template < class t_TyFunctor >
+  size_t NApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor )
+  {
+    AssertValid();
+    if ( _posEnd == _posBegin )
+      return 0;
+    VerifyValidRange( _posBegin, _posEnd );
+    // specially code the single block scenario:
+    if ( _FHasSingleBlock() )
+      return std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
+    size_t nElInBlockTail = _posEnd-1;
+    size_t nSizeBlockTail;
+    const size_t knBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
+    size_t nElInBlockBegin = _posBegin;
+    size_t nSizeBlockBegin;
+    size_t nBlockBegin = _NBlockFromEl( nElInBlockBegin, nSizeBlockBegin );
+    // We do the tail element specially:
+    size_t nApplied = 0;
+    for ( size_t nBlockCur = nBlockBegin; knBlockTail != nBlockCur; ++nBlockCur, ( nElInBlockBegin = 0 ) )
+    {
+      _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
+      size_t nAppliedCur = std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nSizeBlockBegin );
+      nApplied += nAppliedCur;
+      if ( nAppliedCur != ( nSizeBlockBegin - nElInBlockBegin ) )
+        return nApplied;
+      if ( nBlockCur < s_knBlockFixedBoundary )
+        nSizeBlockBegin <<= 1ull; // double the block size before the boundary.
+    }
+    // Now the tail element:
+    _TyT * ptBlockTail = m_pptBlocksBegin[knBlockTail];
+    return std::forward< t_TyFunctor >( _rrftor )( ptBlockTail + nElInBlockBegin, ptBlockTail + nElInBlockTail + 1 ) + nApplied;
+  }
+  template < class t_TyFunctor >
+  size_t NApplyContiguous( size_t _posBegin, size_t _posEnd, t_TyFunctor && _rrftor ) const
+  {
+    AssertValid();
+    if ( _posEnd == _posBegin )
+      return 0;
+    VerifyValidRange( _posBegin, _posEnd );
+    // specially code the single block scenario:
+    if ( _FHasSingleBlock() )
+      return std::forward< t_TyFunctor >( _rrftor )( m_ptSingleBlock + _posBegin, m_ptSingleBlock + _posEnd );
+    size_t nElInBlockTail = _posEnd-1;
+    size_t nSizeBlockTail;
+    const size_t knBlockTail = _NBlockFromEl( nElInBlockTail, nSizeBlockTail );
+    size_t nElInBlockBegin = _posBegin;
+    size_t nSizeBlockBegin;
+    size_t nBlockBegin = _NBlockFromEl( nElInBlockBegin, nSizeBlockBegin );
+    // We do the tail element specially:
+    size_t nApplied = 0;
+    for ( size_t nBlockCur = nBlockBegin; knBlockTail != nBlockCur; ++nBlockCur, ( nElInBlockBegin = 0 ) )
+    {
+      const _TyT * ptBlockCur = m_pptBlocksBegin[nBlockCur];
+      size_t nAppliedCur = std::forward< t_TyFunctor >( _rrftor )( ptBlockCur + nElInBlockBegin, ptBlockCur + nSizeBlockBegin );
+      nApplied += nAppliedCur;
+      if ( nAppliedCur != ( nSizeBlockBegin - nElInBlockBegin ) )
+        return nApplied;
+      if ( nBlockCur < s_knBlockFixedBoundary )
+        nSizeBlockBegin <<= 1ull; // double the block size before the boundary.
+    }
+    // Now the tail element:
+    const _TyT * ptBlockTail = m_pptBlocksBegin[knBlockTail];
+    return std::forward< t_TyFunctor >( _rrftor )( ptBlockTail + nElInBlockBegin, ptBlockTail + nElInBlockTail + 1 ) + nApplied;
+  }
 protected:
   static size_t _Log2( size_t _n )
   {

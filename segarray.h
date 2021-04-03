@@ -685,7 +685,7 @@ public:
   
   // As above but the _apply object's operator() returns the count of applications.
   // If the count is less than the full contiguous region supplied then the iteration is aborted.
-  // The return value is the total of all calls to _apply() performed.
+  // The return value is the total of the return values from all calls to _rrapply() performed.
   template < class t_tyApply >
   _tySizeType NApplyContiguous( _tySizeType _posBegin, _tySizeType _posEnd, t_tyApply && _rrapply )
   {
