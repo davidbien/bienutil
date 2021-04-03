@@ -445,17 +445,17 @@ public: // Allow access for testing.
     // Now we start moving backwards and destructing and removing blocks as we go:
     if ( nBlockTail != nBlockNew )
     {
-      for ( ; nBlockTail != nBlockNew; --nBlockTail )
+      for ( ; nBlockTail != nBlockNew;  )
       {
         if ( m_nElements < 0 )
-          m_nElements = -m_nElements + 1; // nElInBlockTail is a size due there being an unconstructed tail element.
+          m_nElements = -m_nElements - 1; // nElInBlockTail is a size due there being an unconstructed tail element.
         else
           ++nElInBlockTail; // Turn it into a size.
         _TyT * ptBlock = m_pptBlocksBegin[nBlockTail];
         m_pptBlocksBegin[nBlockTail] = nullptr;
         _DestructContigRange( ptBlock, ptBlock + nElInBlockTail ); // nElInBlockTail may be 0 here if there was an unconstructed tail at the start of a block.
         ::free( ptBlock );
-        if ( nBlockTail <= s_knBlockFixedBoundary )
+        if ( --nBlockTail < s_knBlockFixedBoundary )
           nSizeBlockTail >>= 1ull;
         nElInBlockTail = nSizeBlockTail-1; // We leave this at an index because we turn it into a size above and below.
       }
@@ -554,23 +554,26 @@ public: // Allow access for testing.
     else
     {
       size_t nElementTailInBlock = nElementsAllocated-1;
-      size_t nEndBlockSize;
-      size_t nBlockEnd = _NBlockFromEl( nElementTailInBlock, nEndBlockSize ) + 1;
-      if ( ( m_nElements < 0 ) && !nElementTailInBlock ) // boundary.
+      size_t nTailBlockSize;
+      size_t nBlockTail = _NBlockFromEl( nElementTailInBlock, nTailBlockSize );
+      
+      if ( ( m_nElements < 0 ) && !nElementTailInBlock-- ) // sneaky post decrement for else case...
       {
         // The last block has no constructed elements - just free the block:
-        ::free( m_pptBlocksBegin[ --nBlockEnd ] ); // no reason to zero this.
-        if ( nBlockEnd <= s_knBlockFixedBoundary )
-          nEndBlockSize >>= 1ull; // we may already be done here but we don't care.
+        ::free( m_pptBlocksBegin[ nBlockTail-- ] ); // no reason to zero this.
+        if ( nBlockTail < s_knBlockFixedBoundary )
+          nTailBlockSize >>= 1ull; // we may already be done here but we don't care.
+        nElementTailInBlock = nTailBlockSize-1;
       }
-      _TyT ** pptBlockPtrCur = m_pptBlocksBegin + nBlockEnd; // This starts pointing at the end of the blocks.
+      _TyT ** pptBlockPtrCur = m_pptBlocksBegin + nBlockTail + 1; // This starts pointing at the end of the blocks.
       for ( ; m_pptBlocksBegin != pptBlockPtrCur--; )
       {
         _TyT * ptBlockCur = *pptBlockPtrCur;
-        _DestructContigRange( ptBlockCur, ptBlockCur + nEndBlockSize );
+        _DestructContigRange( ptBlockCur, ptBlockCur + nElementTailInBlock + 1 );
         ::free( *pptBlockPtrCur );
-        if ( nBlockEnd <= s_knBlockFixedBoundary )
-          nEndBlockSize >>= 1ull; // we may already be done here but we don't care.
+        if ( --nBlockTail < s_knBlockFixedBoundary )
+          nTailBlockSize >>= 1ull; // we may already be done here but we don't care.
+        nElementTailInBlock = nTailBlockSize-1;
       }
     }
     ::free( m_pptBlocksBegin ); // This is either freeing the single block or the block of blocks.
