@@ -599,7 +599,7 @@ static const UChar32 vkc32RelacementChar = 0xFFFD;
 // String conversion:
 // The non-converting copier.
 template < class t_tyStringDest, class t_tyCharSource >
-void ConvertString( t_tyStringDest & _rstrDest, const typename t_tyCharSource * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)())
+void ConvertString( t_tyStringDest & _rstrDest, const t_tyCharSource * _pcSource, size_t _stLenSource = (std::numeric_limits<size_t>::max)())
 	requires TAreSameSizeTypes_v< typename t_tyStringDest::value_type, t_tyCharSource >
 {
 	if ( (std::numeric_limits<size_t>::max)() == _stLenSource )
@@ -916,7 +916,6 @@ inline constexpr EFileCharacterEncoding GetCharacterEncoding< char8_t, false_typ
 template <>
 inline constexpr EFileCharacterEncoding GetCharacterEncoding< char8_t, true_type >()
 {
-	Assert( false ); // weird that we should be here...
 	return efceUTF8;
 }
 template <>
@@ -927,7 +926,6 @@ inline constexpr EFileCharacterEncoding GetCharacterEncoding< char, false_type >
 template <>
 inline constexpr EFileCharacterEncoding GetCharacterEncoding< char, true_type >()
 {
-	Assert( false ); // weird that we should be here...
 	return efceUTF8;
 }
 template <>

@@ -66,8 +66,8 @@ public:
     return *this;
   }
   // The way we construct we can copy any LogArray.
-  template < size_t t_knPow2Min, size_t t_knPow2Max >
-  LogArray( LogArray< _TyT, t_knPow2Min, t_knPow2Max > const & _r )
+  template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther >
+  LogArray( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther > const & _r )
   {
     // Piecewise copy construct.
     _r.ApplyContiguous( 0, _r.NElements(), 
@@ -78,8 +78,8 @@ public:
       }
     );
   }
-  template < size_t t_knPow2Min, size_t t_knPow2Max >
-  LogArray & operator =( LogArray< _TyT, t_knPow2Min, t_knPow2Max > const & _r )
+  template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther >
+  LogArray & operator =( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther > const & _r )
   {
     _TyThis copy( _r );
     swap( copy );
@@ -437,7 +437,7 @@ public: // Allow access for testing.
     if ( ( 1 == nBlockNextEl ) && !nElInBlock )
     {
       // Transition from single block to multiple blocks:
-      size_t nBlockPtrs = (max)( 2ull, s_knAllocateBlockPtrsInBlocksOf );
+      size_t nBlockPtrs = (max)( 2ul, s_knAllocateBlockPtrsInBlocksOf );
       _TyT ** pptBlockPtrs = (_TyT **)malloc( nBlockPtrs * sizeof( _TyT * ) );
       _TyT * ptNewBlock = (_TyT*)malloc( nBlockSize * sizeof( _TyT ) );
       if ( !pptBlockPtrs || !ptNewBlock )

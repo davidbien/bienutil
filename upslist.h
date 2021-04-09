@@ -35,13 +35,13 @@ public:
   {
   }
   void swap( _TyThis & _r )
-    requires( has_swap_c<t_TyT> )
+    requires( c_has_swap<t_TyT> )
   {
     m_upNext.swap( _r.m_upNext );
     m_t.swap( _r.m_t );
   }
   void swap( _TyThis & _r )
-    requires( !has_swap_c<t_TyT> )
+    requires( !c_has_swap<t_TyT> )
   {
     m_upNext.swap( _r.m_upNext );
     std::swap( m_t, _r.m_t );
