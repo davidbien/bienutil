@@ -54,9 +54,9 @@ public:
   _TyEl & emplaceAtEnd( t_TysArgs ... _args )
   {
     AssertValid();
-    Assert( m_pelEnd < m_rgEls + m_nElsPool );
-    new( m_pelEnd ) _TyEl( std::forward< t_TysArgs >( _args ) ... );
-    ++m_pelEnd;
+    Assert( m_pElEnd < m_rgEls + m_nElsPool );
+    new( m_pElEnd ) _TyEl( std::forward< t_TysArgs >( _args ) ... );
+    ++m_pElEnd;
   }
   size_t GetSize() const
   {
@@ -112,7 +112,7 @@ public:
     const _TyEl * pelCur = &ElGet( _nFrom );
     const _TyEl * const pelEnd = pelCur + ( _nTo - _nFrom );
     for ( ; pelEnd > pelCur; ++pelCur )
-      std::forward< t_TyFunctor >( rrf )( *pelCur );
+      std::forward< t_TyFunctor >( _rrf )( *pelCur );
   }
   template < class t_TyFunctor >
   void Apply( size_t _nFrom, size_t _nTo, t_TyFunctor && _rrf )
@@ -124,7 +124,7 @@ public:
     _TyEl * pelCur = &ElGet( _nFrom );
     _TyEl * const pelEnd = pelCur + ( _nTo - _nFrom );
     for ( ; pelEnd > pelCur; ++pelCur )
-      std::forward< t_TyFunctor >( rrf )( *pelCur );
+      std::forward< t_TyFunctor >( _rrf )( *pelCur );
   }
 void AssertValid()
 {
@@ -140,7 +140,7 @@ protected:
       return;
     _TyEl * pelBegin = begin();
     _TyEl * pelCur = end();
-    m_pElEnd = m_rgEl;
+    m_pElEnd = m_rgEls;
     for ( ; pelBegin != pelCur; )
       (--pelCur)->~_TyEl();
   }

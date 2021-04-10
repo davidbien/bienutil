@@ -273,7 +273,7 @@ class default_init_allocator : public t_TyBaseAllocator
   typedef t_TyBaseAllocator _TyBase;
 public:
   typedef std::allocator_traits<t_TyBaseAllocator> _TyAllocatorTraits;
-  using _TyBase::value_type;
+  using typename _TyBase::value_type;
 
   template <typename U> struct rebind {
     using other =
