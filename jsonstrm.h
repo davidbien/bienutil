@@ -520,7 +520,7 @@ struct JsonCharTraits<char16_t>
     // We must convert the string to char32_t and then call vswprintf() and then convert back:
     wchar_t * rgwcBuf = (wchar_t*)alloca( _n * sizeof(wchar_t));
     size_t stLenFmt = StrNLen( _pszFmt );
-    wchar_t * rgwcFmtConv = (wchar_t*)alloca( stLenFmt+1 * sizeof(wchar_t));
+    wchar_t * rgwcFmtConv = (wchar_t*)alloca( (stLenFmt+1) * sizeof(wchar_t));
     ConvertAsciiString( rgwcFmtConv, stLenFmt+1, _pszFmt );
     int iRet = ::vswprintf(rgwcBuf, _n, rgwcFmtConv, ap);
     Assert( iRet >= 0 );
@@ -660,7 +660,7 @@ struct JsonCharTraits<char32_t>
     // We must convert the string to char32_t and then call vswprintf() and then convert back:
     wchar_t * rgwcBuf = (wchar_t*)alloca( _n * sizeof(wchar_t));
     size_t stLenFmt = StrNLen( _pszFmt );
-    wchar_t * rgwcFmtConv = (wchar_t*)alloca( stLenFmt * sizeof(wchar_t));
+    wchar_t * rgwcFmtConv = (wchar_t*)alloca( (stLenFmt+1) * sizeof(wchar_t));
     ConvertAsciiString( rgwcFmtConv, stLenFmt+1, _pszFmt );
     int iRet = ::vswprintf(rgwcBuf, _n, rgwcFmtConv, ap);
     Assert( iRet >= 0 );

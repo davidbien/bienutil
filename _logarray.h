@@ -437,7 +437,7 @@ public: // Allow access for testing.
     if ( ( 1 == nBlockNextEl ) && !nElInBlock )
     {
       // Transition from single block to multiple blocks:
-      size_t nBlockPtrs = (max)( 2ul, s_knAllocateBlockPtrsInBlocksOf );
+      size_t nBlockPtrs = (max)( size_t(2), s_knAllocateBlockPtrsInBlocksOf );
       _TyT ** pptBlockPtrs = (_TyT **)malloc( nBlockPtrs * sizeof( _TyT * ) );
       _TyT * ptNewBlock = (_TyT*)malloc( nBlockSize * sizeof( _TyT ) );
       if ( !pptBlockPtrs || !ptNewBlock )
