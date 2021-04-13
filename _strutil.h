@@ -1275,7 +1275,7 @@ inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _
 
 __BIENUTIL_END_NAMESPACE
 
-// #ifdef _MSC_VER
+#ifdef _MSC_VER
 namespace std
 {
 	// neither VC or clang define basic_string_view::operator <=>():
@@ -1286,4 +1286,4 @@ namespace std
 		return ( iComp < 0 ) ? strong_ordering::less : ( ( iComp > 0 ) ? strong_ordering::greater : strong_ordering::equal );
 	}
 } // namespace std
-//#endif // _MSC_VER
+#endif // _MSC_VER
