@@ -12,7 +12,12 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-typedef int	_TyRef;
+#if IS_MULTITHREADED_BUILD
+#include <atomic>
+typedef atomic< int_fast32_t > vytGcoRef; // signed to test for underflow.
+#else // !IS_MULTITHREADED_BUILD
+typedef int_fast32_t	vytGcoRef;
+#endif // !IS_MULTITHREADED_BUILD
 
 // utility template for dispatch of comparison:
 template < class t_TyCompare, class t_TyEl, bool t_fUseElCompare >
@@ -63,9 +68,9 @@ struct _gco_dispatch_compare< t_TyCompare, t_TyEl, false >
 // _gco with instanced allocator, element is member ( note this limits construction ):
 template <	class t_TyEl,
 						class t_TyAllocator = allocator< char >,
-      bool t_fUseElCompare = false,
-      bool t_fElIsInEmbeddedStore = false,
-      bool t_fAllocatorIsStatic = _Alloc_traits< t_TyEl, t_TyAllocator >::_S_instanceless >
+						bool t_fUseElCompare = false,
+						bool t_fElIsInEmbeddedStore = false,
+						bool t_fAllocatorIsStatic = _Alloc_traits< t_TyEl, t_TyAllocator >::_S_instanceless >
 class _gco
 {
 	typedef _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, 
@@ -99,9 +104,9 @@ class _gco
   template < class t_TyGcr, bool t__fCopyOnWrite >
   friend struct _gcp_dispatch_el_access;
 
-  _TyAllocatorThis  m_alloc;
-	_TyRef	          m_ref;
-	t_TyEl	          m_tEl;
+	t_TyEl m_tEl;
+  [[no_unique_address]] _TyAllocatorThis m_alloc; // Allow instanceless allocator to use no memory.
+	vytGcoRef m_ref; // Put this at the end in case out allocator is not empty and has space at the end to store m_ref.
 
 	explicit _gco( t_TyAllocator const & _rAlloc )
 		: m_alloc( _rAlloc ),
@@ -114,7 +119,23 @@ class _gco
       m_tEl( _r.m_tEl )
 	{
 	}
+	// Emplacement constructor:
+	template < class ... t_TysArgs >
+	_gco( t_TysArgs && ... _args )
+		: m_tEl( std::forward< t_TysArgs >( _args ) ... ),
+      m_ref( 1 )
+	{
+	}
+	// Emplacement constructor:
+	template < class ... t_TysArgs >
+	_gco( t_TyAllocator const & _rAlloc, t_TysArgs && ... _args )
+		: m_alloc( _r.m_alloc ),
+			m_tEl( std::forward< t_TysArgs >( _args ) ... ),
+      m_ref( 1 )
+	{
+	}
 
+#if 0 // old-school C++
   // Utility templatized constructors, unfortunately, these
   //  do not allow the passing of reference parameters:
 	template < class t_Ty1 >
@@ -131,13 +152,12 @@ class _gco
       m_tEl( _r1, _r2 )
 	{
 	}
+#endif
 
-#ifndef NDEBUG
 	~_gco()
 	{
 		Assert( !m_ref );	// This should be the case.
 	}
-#endif //!NDEBUG
 
 // access:
 	operator t_TyEl const & () const
@@ -150,11 +170,11 @@ class _gco
 	}
 
 // reference counting:
-	_TyRef	AddRef() _BIEN_NOTHROW
+	vytGcoRef AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _BIEN_NOTHROW
+	vytGcoRef Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -275,7 +295,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
   template < class t_TyGcr, bool t__fCopyOnWrite >
   friend struct _gcp_dispatch_el_access;
 
-	_TyRef	          m_ref;
+	vytGcoRef	          m_ref;
 	t_TyEl	          m_tEl;
 
 	explicit _gco()
@@ -321,11 +341,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true
 	}
 
 // reference counting:
-	_TyRef	AddRef() _BIEN_NOTHROW
+	vytGcoRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _BIEN_NOTHROW
+	vytGcoRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -442,7 +462,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
   friend struct _gcp_dispatch_el_access;
 
   _TyAllocatorThis  m_alloc;
-	_TyRef	          m_ref;
+	vytGcoRef	          m_ref;
   char              m_cpEl[ sizeof( _TyEl ) ];
 
 	explicit _gco( t_TyAllocator const & _rAlloc )
@@ -476,11 +496,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	}
 
 // reference counting:
-	_TyRef	AddRef() _BIEN_NOTHROW
+	vytGcoRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _BIEN_NOTHROW
+	vytGcoRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -605,7 +625,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
   template < class t_TyGcr, bool t__fCopyOnWrite >
   friend struct _gcp_dispatch_el_access;
 
-	_TyRef	          m_ref;
+	vytGcoRef	          m_ref;
   char              m_cpEl[ sizeof( _TyEl ) ];
 
 	_gco()
@@ -638,11 +658,11 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
 	}
 
 // reference counting:
-	_TyRef	AddRef() _BIEN_NOTHROW
+	vytGcoRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _BIEN_NOTHROW
+	vytGcoRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -765,7 +785,7 @@ protected:
   template < class t_TyGcr, bool t__fCopyOnWrite >
   friend struct _gcp_dispatch_el_access;
 
-  _TyRef               m_ref;
+  vytGcoRef               m_ref;
   // To avoid virtuals in this object we store the following:
   typedef void ( _TyThis:: * _TyPMFnDestroy )();
   _TyPMFnDestroy    m_pmfnDestroy;
@@ -784,11 +804,11 @@ protected:
     (this->*m_pmfnDestroy)();
   }
 
-	_TyRef	AddRef() _BIEN_NOTHROW
+	vytGcoRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _BIEN_NOTHROW
+	vytGcoRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -1155,7 +1175,7 @@ protected:
   template < class t_TyGcr, bool t__fCopyOnWrite >
   friend struct _gcp_dispatch_el_access;
 
-  _TyRef      m_ref;
+  vytGcoRef      m_ref;
   t_TyBase *  m_pBase; // Modifiable reference to derived's contained object.
 
   _gcop_basev( t_TyBase * _pBase )
@@ -1173,11 +1193,11 @@ protected:
   virtual _TyThis * copy() const = 0;
   virtual void  destroy() = 0;
 
-	_TyRef	AddRef() _BIEN_NOTHROW
+	vytGcoRef	AddRef() _BIEN_NOTHROW
 	{
 		return ++m_ref;
 	}
-	_TyRef	Release() _BIEN_NOTHROW
+	vytGcoRef	Release() _BIEN_NOTHROW
 	{
 		return --m_ref;
 	}
@@ -1565,7 +1585,6 @@ public:
 		: m_pgco( 0 )
 	{
 	}
-
 	explicit _gcp( _TyThis const & _rgcp )
 		: m_pgco( _rgcp.m_pgco )
 	{
@@ -1574,11 +1593,8 @@ public:
 			m_pgco->AddRef();
 		}
 	}
-
   // Create from a reference to a contained element:
-  // REVIEW: explicit or not.
-  _gcp(  t_TyEl const & _rEl,
-         _TyAllocator const & _rA = _TyAllocator() )
+  explicit _gcp(  t_TyEl const & _rEl, _TyAllocator const & _rA = _TyAllocator() )
 		: m_pgco( t_TyGCO::template PGCOCreate1< t_TyEl const & >( _rEl, _rA ) )
   {
   }

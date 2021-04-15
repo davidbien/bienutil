@@ -30,7 +30,7 @@ public:
 	typedef allocator_type _TyAllocatorType;
 	typedef typename _TyAllocatorTraits::size_type size_type;
 
-	_TyAllocatorType m_alloc;
+	[[no_unique_address]] _TyAllocatorType m_alloc;
 
 	_alloc_base( _alloc_base const & ) = default;
 

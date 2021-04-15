@@ -27,6 +27,25 @@
 #include <uuid/uuid.h>
 #endif //!WIN32
 
+// Test for compilation with multi-threading support under various platforms:
+#ifndef IS_MULTITHREADED_BUILD
+#ifdef _MSC_VER
+#ifdef _MT
+#define IS_MULTITHREADED_BUILD 1
+#else
+#define IS_MULTITHREADED_BUILD 0
+#endif //_MT
+#else //!_MSC_VER
+// Not sure how else to do this except for this - which may not be correct for all compilers/platforms:
+#ifdef _REENTRANT
+#define IS_MULTITHREADED_BUILD 1
+#else 
+#define IS_MULTITHREADED_BUILD 0
+#endif //_REENTRANT
+#endif //!_MSC_VER
+#endif //!IS_MULTITHREADED_BUILD
+
+
 #if ( WCHAR_MAX == 0xffff )
 #define BIEN_WCHAR_16BIT
 #else
