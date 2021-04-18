@@ -1,23 +1,31 @@
 #pragma once
 
-// shared_obj.h
+// shared_obj_failed_impl.h
 // dbien
 // 15APR2021
 // This implements a shared object base class to allow reference counted objects that only cost a single pointer
 //	in the implementation.
+// REVIEW: I tried this but I encountered a catch-22 with "automatic application of conversion operator to
+//  a templated vs. a non-templated application point" which causes this impl (as far as I can tell) to be 
+//  not implementable in a type-safe manner.
+// Back to the drawing board but saving it for later just in case.
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+template < class t_TyT, bool t_fDtorNoExcept, bool t_fDtorAllowThrow >
+class _SharedObjectRef;
+// This allows us to support derived classes flexibly.
+template < bool t_fDtorNoExcept >
+class _SharedObjectUltimateBase;
 // We must specify the value of t_fDtorNoExcept since t_TyT is the derived class we are defining and it is an undefined type at this point.
-template < bool t_fDtorNoExcept, bool t_fDtorAllowThrow = true >
+template < class t_TyT, bool t_fDtorNoExcept, bool t_fDtorAllowThrow = true >
 class SharedObjectBase;
 
 // CHasSharedObjectBase: Enforce no reference, a base class and the base class.
 // Can't enforce is_nothrow_destructible_v< t_TyT > since t_TyT isn't a known class at this point.
 template < class t_TyT >
 concept CHasSharedObjectBase = !is_reference_v< t_TyT > &&  
-                                ( is_base_of_v< SharedObjectBase< is_nothrow_destructible_v< remove_cv_t< t_TyT > >, false >, remove_cv_t< t_TyT > > ||
-                                  is_base_of_v< SharedObjectBase< is_nothrow_destructible_v< remove_cv_t< t_TyT > >, true >, remove_cv_t< t_TyT > > );
+                                is_base_of_v< _SharedObjectUltimateBase< is_nothrow_destructible_v< remove_cv_t< t_TyT > > >, remove_cv_t< t_TyT > >;
 
 // We glean everything from the t_TyT class since it has the appropriate base class.
 // The const version of this object is templatized by "const t_TyT".
@@ -33,10 +41,10 @@ public:
   static constexpr bool s_fIsConstObject = is_const_v< t_TyT >;
   static constexpr bool s_fIsVolatileObject = is_volatile_v< t_TyT >;
   typedef remove_cv_t< _TyT > _TyTNonConstVolatile;
-  static constexpr bool s_fDtorNoExcept = is_nothrow_destructible_v< _TyTNonConstVolatile >;
+  static constexpr bool s_fDtorNoExcept = is_nothrow_destructible_v< _TyT >;
   static constexpr bool s_fDtorAllowThrow = _TyTNonConstVolatile::s_fDtorAllowThrow;
-  static constexpr bool s_fIsNoThrowConstructible = is_nothrow_constructible_v< _TyTNonConstVolatile >;
-  // Get the ultimate shared object base:
+  typedef _SharedObjectRef< _TyTNonConstVolatile, s_fDtorNoExcept, s_fDtorAllowThrow > _TySharedObjectRef;
+  // typedef typename _TyTNonConstVolatile::_TySharedObjectRef _TySharedObjectRef;
   typedef typename _TyTNonConstVolatile::_TySharedObjectBase _TySharedObjectBase;
 
   ~SharedPtr() noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
@@ -139,37 +147,11 @@ public:
   {
     std::swap( m_pt, _r.m_pt );
   }
-// Emplacement: We allow creation of this object and derived objects.
-  // We return the non-cv-qualified object reference - allowing full access to the object for the caller.
-  // This is a design decision and should be considered in the future.
-  // We will clear any existing object first. The side effect of this is that the SharedPtr will be empty if we throw
-  //  in the existing reference's destructor or in the constructor of the created object.
-  template < class ... t_TysArgs >
-  _TyTNonConstVolatile & emplace( t_TysArgs &&... _args ) noexcept( s_fIsNoThrowConstructible && ( s_fDtorNoExcept || !s_fDtorAllowThrow ) )
+// Type conversions:
+	operator _TySharedObjectRef&() 
   {
-    Clear();
-    _TyTNonConstVolatile * pt = DBG_NEW _TyTNonConstVolatile( std::forward< t_TysArgs >( _args ) ... );
-    Assert( 1 == pt->NGetRefCount() );
-    m_pt = pt;
-    return *pt;
+    return reinterpret_cast< _TySharedObjectRef& >( m_pt );
   }
-  // Create a derived class and assign to m_pt.
-  // In this case we enforce that the cv-qualified type given for t_TyDerived is compatible with the
-  //  cv-qualification of _TyT. This ensures that callers "get what they expect". Now it could be useful to
-  //  do it the other way as well - but this is my first idea on this.
-  // We still return a reference to a non-cv-qualified object to allow the caller to further modify as necessary as the
-  //  caller must be the only thread with access to this object at the time of creation.
-  template < class t_TyDerived, class ... t_TysArgs >
-  remove_cv_t< t_TyDerived > & emplaceDerived( t_TysArgs && ... _args ) noexcept( is_nothrow_constructible_v< t_TyDerived > && ( s_fDtorNoExcept || !s_fDtorAllowThrow ) )
-  {
-    typedef remove_cv_t< t_TyDerived > _TyDerivedNoCV;
-    Clear();
-    _TyDerivedNoCV * ptDerivedNoCV = DBG_NEW _TyDerivedNoCV( std::forward< t_TysArgs >( _args ) ... );
-    Assert( 1 == ptDerivedNoCV->NGetRefCount() );
-    m_pt = static_cast< _TyT * >( static_cast< t_TyDerived * >( ptDerivedNoCV ) );
-    return *ptDerivedNoCV;
-  }
-
 // Accessors:
   _TyT * operator ->() const noexcept
   {
@@ -194,16 +176,26 @@ protected:
   _TyT * m_pt{nullptr};
 };
 
+template < bool t_fDtorNoExcept >
+class _SharedObjectUltimateBase
+{
+  typedef _SharedObjectUltimateBase _TyThis;
+protected:
+	virtual ~_SharedObjectUltimateBase() noexcept( t_fDtorNoExcept ) = default;
+};
 // SharedObjectBase:
 // We templatize by whether the destructor of the most derived object can throw.
 // The second template argument is whether we allow a throwing destructor to throw out of _DeleteSelf() or we catch locally.
-template < bool t_fDtorNoExcept, bool t_fDtorAllowThrow >
-class SharedObjectBase
+template < class t_TyT, bool t_fDtorNoExcept, bool t_fDtorAllowThrow >
+class SharedObjectBase : public _SharedObjectUltimateBase< t_fDtorNoExcept >
 {
 	typedef SharedObjectBase _TyThis;
+  typedef _SharedObjectUltimateBase< t_fDtorNoExcept > _TyBase;
 public:
+  typedef t_TyT _TyT;
 	static constexpr bool s_fDtorNoExcept = t_fDtorNoExcept;
 	static constexpr bool s_fDtorAllowThrow = t_fDtorAllowThrow;
+	typedef _SharedObjectRef< _TyT, s_fDtorNoExcept, s_fDtorAllowThrow > _TySharedObjectRef;
   typedef _TyThis _TySharedObjectBase;
 
 	// We'll use the supposed "fastest" integer here - since we know our pointer is 64bit.
@@ -219,12 +211,9 @@ public:
 	{
 	}
 	// Trivial copy constructor allows object to be copy constructible.
-  // We don't copy the ref count - leave it at one.
 	SharedObjectBase( const SharedObjectBase & ) noexcept
 	{
 	}
-  // We can't support swapping the reference count since there would be smart objects bound to those references on this object.
-  // We can't support move operations for the same reason - though the derived class support those.
 	_TyRefValueType	NGetRefCount() const volatile noexcept
 	{
 		return m_nRefCount;
@@ -250,8 +239,70 @@ public:
 			_DeleteSelf();
 		return nRef;
 	}
+
+// To do this correctly we must override new and delete. Note that we do not support array new[].
+	static void * operator new( size_t _nbySize, _TySharedObjectRef & _sor ) noexcept(false)
+	{
+		void * pvMem = ::operator new( _nbySize
+	#if TRACK_SHARED_OBJECT_ALLOCATIONS
+		// We are tracking shared object memory allocation but the caller didn't use SO_NEW().
+		,__FILE__, __LINE__ 
+	#endif //TRACK_SHARED_OBJECT_ALLOCATIONS
+		);
+		// Note that we are setting in a uninitialized object - just memory. However SharedObjectRef has no effective lifetime and is a trivial object so that doesn't matter.
+		_sor.ResetSharedObjectBase( (SharedObjectBase*)pvMem );
+		return pvMem;
+	}
+  template < class t_TyOther >
+	static void * operator new( size_t _nbySize, _SharedObjectRef< t_TyOther, s_fDtorAllowThrow, s_fDtorNoExcept > & _sor ) noexcept(false)
+	{
+		void * pvMem = ::operator new( _nbySize
+	#if TRACK_SHARED_OBJECT_ALLOCATIONS
+		// We are tracking shared object memory allocation but the caller didn't use SO_NEW().
+		,__FILE__, __LINE__ 
+	#endif //TRACK_SHARED_OBJECT_ALLOCATIONS
+		);
+		// Note that we are setting in a uninitialized object - just memory. However SharedObjectRef has no effective lifetime and is a trivial object so that doesn't matter.
+		_sor.ResetSharedObjectBase( (SharedObjectBase*)pvMem );
+		return pvMem;
+	}
+#if TRACK_SHARED_OBJECT_ALLOCATIONS
+	// This allows us to associate the creating file/line with the allocation - by passing it to the eventual call to new().
+	void* operator new( size_t _nbySize, _TySharedObjectRef & _sor, const char * _szFilename, int _nSourceLine ) noexcept(false)
+	{
+		void * pvMem = ::operator new( _nbySize, _szFilename, _nSourceLine );
+		_sor.ResetSharedObjectBase( (SharedObjectBase*)pvMem );
+		return pvMem;
+	}
+#endif //TRACK_SHARED_OBJECT_ALLOCATIONS
+	// We can only enter this delete operator if we fail inside of the corresonding new operator.
+	//static void operator delete( void * _pv, _TySharedObjectRef & _sor ) noexcept
+	//{
+	//	_sor._ClearSharedObjectBase( (SharedObjectBase*)_pv ); // Clear any partially constructed object but only if it equals _pv;
+	//	::operator delete( _pv );
+	//}
+  template < class t_TyOther >
+	static void operator delete( void * _pv, _SharedObjectRef< t_TyOther, s_fDtorAllowThrow, s_fDtorNoExcept > & _sor ) noexcept
+	{
+		_sor._ClearSharedObjectBase( (SharedObjectBase*)_pv ); // Clear any partially constructed object but only if it equals _pv;
+		::operator delete( _pv );
+	}
+#if TRACK_SHARED_OBJECT_ALLOCATIONS
+	// If we throw inside of the corresponding new operator then this will be called:
+	void operator delete( void * _pv, _SharedObjectRef & _sor, const char * _szFilename, int _nSourceLine ) noexcept
+	{
+		_sor._ClearSharedObjectBase( (SharedObjectBase*)_pv ); // Clear any partially constructed object but only if it equals _pv;
+		::delete( _pv );
+	}
+#endif //TRACK_SHARED_OBJECT_ALLOCATIONS
+	// The normal way an obect's memory is deleted...
+	static void operator delete( void* _pv ) noexcept
+	{	
+		::operator delete( _pv );
+	}
 protected:
-	virtual ~SharedObjectBase() noexcept( s_fDtorNoExcept ) = default;
+	mutable _TyRefMemberType m_nRefCount{1}; // We make this mutable allowing AddRef() and Release() to be "const" methods.
+	~SharedObjectBase() noexcept( s_fDtorNoExcept ) override = default;
   // Need to declare const volatile since might get called by Release().
   // If we are the last reference to an object then we are the only thread accessing that object.
 	void _DeleteSelf() const volatile noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
@@ -274,7 +325,53 @@ protected:
 				// else just eat the exception silently - mmmm yummy!
     }
 	}
-	mutable _TyRefMemberType m_nRefCount{1}; // We make this mutable allowing AddRef() and Release() to be "const" methods.
+};
+
+template < class t_TyT, bool t_fDtorNoExcept, bool t_fDtorAllowThrow >
+class _SharedObjectRef
+{
+	typedef _SharedObjectRef _TyThis;
+public:
+  typedef t_TyT _TyT;
+	static constexpr bool s_fDtorNoExcept = t_fDtorNoExcept;
+	static constexpr bool s_fDtorAllowThrow = t_fDtorAllowThrow;
+	typedef SharedObjectBase< _TyT, s_fDtorNoExcept, s_fDtorAllowThrow > _TySharedObjectBase;
+  friend _TySharedObjectBase;
+	_SharedObjectRef() = delete; // We only ever cast to this object - we never create it.
+	_SharedObjectRef( _SharedObjectRef const & ) noexcept = default; // we are copyable.
+protected:
+	_TySharedObjectBase * PGetSharedObjectBase() const noexcept
+	{
+		return m_psob;
+	}
+	// This merely clears the *value* of m_psob. This is called when an exception is encountered during construction.
+	// The indication is that we have an object here that is unowned - it is owned by C++ construction not have completed.
+	void _ClearSharedObjectBase( _TySharedObjectBase * _psob ) noexcept
+	{
+		if ( _psob == m_psob )
+			m_psob = nullptr;
+	}
+	void ResetSharedObjectBase( _TySharedObjectBase * _psob ) noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+		requires( s_fDtorNoExcept || !s_fDtorAllowThrow )
+	{
+		// no throwing out on destruct so a bit simpler code:
+		if ( m_psob )
+			(void)m_psob->Release();
+		m_psob = _psob;
+	}
+	void ResetSharedObjectBase( _TySharedObjectBase * _psob ) noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+		requires( !s_fDtorNoExcept && s_fDtorAllowThrow )
+	{
+		// destructor may throw:
+		if ( m_psob )
+		{
+			_TySharedObjectBase * psobRelease = m_psob;
+			m_psob = nullptr; // throw-safety
+			(void)psobRelease->Release();
+		}
+		m_psob = _psob;
+	}
+	_TySharedObjectBase * m_psob/* {nullptr} */; // No reason to initialize because we are never constructed.
 };
 
 __BIENUTIL_END_NAMESPACE
