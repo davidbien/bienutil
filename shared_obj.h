@@ -139,6 +139,21 @@ public:
   {
     std::swap( m_pt, _r.m_pt );
   }
+// In-place construction constructors:
+  // In-place construction of the same type as the declared _TyT.
+  template < class ... t_TysArgs >
+  explicit SharedPtr( std::in_place_t, t_TysArgs && ... _args ) noexcept( s_fIsNoThrowConstructible )
+  {
+    m_pt = DBG_NEW _TyT( std::forward< t_TysArgs >( _args ) ... );
+  }
+  // In-place construction of a derived type. In this case we expect a non-qualified type in t_TyDerived, though if I had reason to change that...
+  template < class t_TyDerived, class ... t_TysArgs >
+  explicit SharedPtr( std::in_place_type_t< t_TyDerived >, t_TysArgs && ... _args ) noexcept( is_nothrow_constructible_v< t_TyDerived > )
+  {
+    static_assert( is_same_v< t_TyDerived, remove_cv_t< t_TyDerived > > ); // Have this here so that we participate in overload resolution and then fail.
+    m_pt = DBG_NEW t_TyDerived( std::forward< t_TysArgs >( _args ) ... );
+  }
+
 // Emplacement: We allow creation of this object and derived objects.
   // We return the non-cv-qualified object reference - allowing full access to the object for the caller.
   // This is a design decision and should be considered in the future.
