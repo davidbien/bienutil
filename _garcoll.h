@@ -129,7 +129,7 @@ class _gco
 	// Emplacement constructor:
 	template < class ... t_TysArgs >
 	_gco( t_TyAllocator const & _rAlloc, t_TysArgs && ... _args )
-		: m_alloc( _r.m_alloc ),
+		: m_alloc( _rAlloc ),
 			m_tEl( std::forward< t_TysArgs >( _args ) ... ),
       m_ref( 1 )
 	{
