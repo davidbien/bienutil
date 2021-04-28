@@ -32,9 +32,13 @@ foreach(CompilerFlag ${CompilerFlags})
 endforeach()
 endif(MSVC)
 
-if (UNIX AND NOT APPLE)
-message("Compiling under LINUX")
-    set(LINUX TRUE)
+if (UNIX)
+if (NOT APPLE)
+  message("Compiling under LINUX")
+  set(LINUX TRUE)
+else()
+  message("Compiling under MacOS")
+  endif()
 endif()
 
 # Code must run on C++20.
@@ -58,9 +62,21 @@ if (WIN32)
   )
 endif (WIN32)
 
-if (LINUX)
+if (APPLE)
+# I used "brew install icu4c" which doesn't link the libraries into /usr/local directly since it might stomp on MacOS Xcode libraries somehow.
+  set(MACOS_LOCAL_OPT "/usr/local/opt")
+  include_directories( BEFORE SYSTEM
+    ${MACOS_LOCAL_OPT}/icu4c/include
+  )
+  link_directories( 
+    BEFORE ${MACOS_LOCAL_OPT}/icu4c/lib
+  )
+  endif(APPLE)
+
+if (UNIX)
+# Shared between Linux and MacOS.
 link_libraries(
   uuid
   icuuc
 )
-endif(LINUX)
+endif(UNIX)
