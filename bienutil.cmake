@@ -71,12 +71,18 @@ if (APPLE)
   link_directories( 
     BEFORE ${MACOS_LOCAL_OPT}/icu4c/lib
   )
-  endif(APPLE)
+endif(APPLE)
 
 if (UNIX)
 # Shared between Linux and MacOS.
 link_libraries(
-  uuid
   icuuc
 )
 endif(UNIX)
+
+if (LINUX)
+# Linux only
+link_libraries(
+  uuid
+)
+endif(LINUX)

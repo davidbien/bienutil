@@ -782,6 +782,53 @@ public:
     SetValue(_ldbl);
     return *this;
   }
+#if defined( WIN32 ) || defined ( __APPLE__ ) // Linux seems to handle this correctly without - and there's an endless loop with...
+  // Translate long and unsigned long appropriately by platform size:
+  void SetValue(long _l)
+     requires ( sizeof( int32_t ) == sizeof( long ) )
+  {
+    return SetValue((int32_t)_l);
+  }
+  _tyThis &operator =(long _l)
+     requires ( sizeof( int32_t ) == sizeof( long ) )
+  {
+    SetValue((int32_t)_l);
+    return *this;
+  }
+  void SetValue(long _l)
+    requires (sizeof(int64_t) == sizeof(long))
+  {
+    return SetValue((int64_t)_l);
+  }
+  _tyThis &operator =(long _l)
+    requires (sizeof(int64_t) == sizeof(long))
+  {
+    SetValue((int64_t)_l);
+    return *this;
+  }
+  void SetValue(unsigned long _l)
+    requires (sizeof(uint32_t) == sizeof(unsigned long))
+  {
+    return SetValue((uint32_t)_l);
+  }
+  _tyThis &operator =(unsigned long _l)
+    requires (sizeof(uint32_t) == sizeof(unsigned long))
+  {
+    SetValue((uint32_t)_l);
+    return *this;
+  }
+  void SetValue(unsigned long _l)
+    requires (sizeof(uint64_t) == sizeof(unsigned long))
+  {
+    return SetValue((uint64_t)_l);
+  }
+  _tyThis &operator =(unsigned long _l)
+    requires (sizeof(uint64_t) == sizeof(unsigned long))
+  {
+    SetValue((uint64_t)_l);
+    return *this;
+  }
+#endif //WIN32 || APPLE
 
   // Read JSON from a string - throws upon finding bad JSON, etc.
   template <class t_tyStr>

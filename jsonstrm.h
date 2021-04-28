@@ -2851,7 +2851,7 @@ public:
   {
     _WriteValue(_pszKey, str_array_cast<_tyChar>("%Lf"), _ldbl);
   }
-#ifdef WIN32 // Linux seems to handle this correctly without - and there's an endless loop with...
+#if defined( WIN32 ) || defined ( __APPLE__ ) // Linux seems to handle this correctly without - and there's an endless loop with...
   // Translate long and unsigned long appropriately by platform size:
   void WriteValue(_tyLPCSTR _pszKey, long _l)
      requires ( sizeof( int32_t ) == sizeof( long ) )
@@ -2873,7 +2873,7 @@ public:
   {
     return WriteValue(_pszKey, (uint64_t)_l);
   }
-#endif //WIN32
+#endif //WIN32 || APPLE
 
   void WriteTimeStringValue(_tyLPCSTR _pszKey, time_t const &_tt)
   {
@@ -3046,6 +3046,29 @@ public:
   {
     _WriteValue(str_array_cast<_tyChar>("%Lf"), _ldbl);
   }
+#if defined( WIN32 ) || defined ( __APPLE__ ) // Linux seems to handle this correctly without - and there's an endless loop with...
+  // Translate long and unsigned long appropriately by platform size:
+  void WriteValue(long _l)
+     requires ( sizeof( int32_t ) == sizeof( long ) )
+  {
+    return WriteValue((int32_t)_l);
+  }
+  void WriteValue(long _l)
+    requires (sizeof(int64_t) == sizeof(long))
+  {
+    return WriteValue((int64_t)_l);
+  }
+  void WriteValue(unsigned long _l)
+    requires (sizeof(uint32_t) == sizeof(unsigned long))
+  {
+    return WriteValue((uint32_t)_l);
+  }
+  void WriteValue(unsigned long _l)
+    requires (sizeof(uint64_t) == sizeof(unsigned long))
+  {
+    return WriteValue((uint64_t)_l);
+  }
+#endif //WIN32 || APPLE
 
 protected:
   template <class t_tyNum>
@@ -3157,6 +3180,11 @@ public:
   virtual void WriteValue(_tyLPCSTR _pszKey, int64_t _sl) = 0;
   virtual void WriteValue(_tyLPCSTR _pszKey, double _dbl) = 0;
   virtual void WriteValue(_tyLPCSTR _pszKey, long double _ldbl) = 0;
+#ifdef __APPLE__
+// On MacOS 64bit size_t is defined as "unsigned long" - which doesn't correspond(apparently) to any of the above values..
+// But I am pretty sure it clashed in previous compilations - i.e. caused ambiguous function calls. So I will define it only for MacOS for now.
+  virtual void WriteValue(_tyLPCSTR _pszKey, unsigned long _ul) = 0;
+#endif //__APPLE__
 
   virtual void WriteNullValue() = 0;
   virtual void WriteBoolValue(bool _f) = 0;
@@ -3179,6 +3207,11 @@ public:
   virtual void WriteValue(int64_t _sl) = 0;
   virtual void WriteValue(double _dbl) = 0;
   virtual void WriteValue(long double _ldbl) = 0;
+#ifdef __APPLE__
+// On MacOS 64bit size_t is defined as "unsigned long" - which doesn't correspond(apparently) to any of the above values..
+// But I am pretty sure it clashed in previous compilations - i.e. caused ambiguous function calls. So I will define it only for MacOS for now.
+  virtual void WriteValue(unsigned long _ul) = 0;
+#endif //__APPLE__
 
   // TODO: Add a lot more virtual methods to implement various things.
 };
@@ -3310,6 +3343,14 @@ public:
   {
     _tyBase::WriteValue(_pszKey, _v);
   }
+#ifdef __APPLE__
+// On MacOS 64bit size_t is defined as "unsigned long" - which doesn't correspond(apparently) to any of the above values..
+// But I am pretty sure it clashed in previous compilations - i.e. caused ambiguous function calls. So I will define it only for MacOS for now.
+  void WriteValue(_tyLPCSTR _pszKey, unsigned long _ul) override
+  {
+    _tyBase::WriteValue( _pszKey, _ul );
+  }
+#endif //__APPLE__
 
   void WriteNullValue() override
   {
@@ -3381,6 +3422,14 @@ public:
   {
     _tyBase::WriteValue(_v);
   }
+#ifdef __APPLE__
+// On MacOS 64bit size_t is defined as "unsigned long" - which doesn't correspond(apparently) to any of the above values..
+// But I am pretty sure it clashed in previous compilations - i.e. caused ambiguous function calls. So I will define it only for MacOS for now.
+  void WriteValue(unsigned long _ul) override
+  {
+    _tyBase::WriteValue( _ul );
+  }
+#endif //__APPLE__
 };
 
 // JsonAggregate:
