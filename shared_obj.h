@@ -212,6 +212,8 @@ protected:
 // SharedObjectBase:
 // We templatize by whether the destructor of the most derived object can throw.
 // The second template argument is whether we allow a throwing destructor to throw out of _DeleteSelf() or we catch locally.
+// REVIEW: We could add a deleter object (which we would have to cascade up to the SharedPtr<> container) instead of just using
+//  global operator delete.
 template < bool t_fDtorNoExcept, bool t_fDtorAllowThrow >
 class SharedObjectBase
 {
