@@ -356,4 +356,23 @@ concept c_has_swap = requires (T& t1, T& t2)
     { t1.swap(t2) };
 };
 
+// Add <n> to an atomic but only when the value is not equal to another value:
+template < class t_TyT >
+bool FAtomicAddNotEqual( atmoic< t_TyT > & _rat, const t_TyT & _rtNotEqual, const t_TyT & _rtAdd ) noexcept
+{
+  t_TyT tCur = _rat.load();
+  for ( ; tCur != _rtNotEqual; )
+  {
+    AssertStatement( t_TyT dbg_tResult = tCur + _rtAdd );
+    bool fSuccess = _rat.compare_exchange_weak( tCur, tCur + _rtAdd ); // may fail spuriously - but tCur should still contain the current value regardless.
+    if ( fSuccess )
+    {
+      Assert( tCur == dbg_tResult );
+      return true;
+    }
+  }
+  return false;
+}
+
+
 __BIENUTIL_END_NAMESPACE

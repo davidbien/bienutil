@@ -8,8 +8,8 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-// We must specify the value of t_fDtorNoExcept since t_TyT is the derived class we are defining and it is an undefined type at this point.
-template < bool t_fDtorNoExcept, bool t_fDtorAllowThrow = true >
+// We must specify the value of t_kfDtorNoExcept since t_TyT is the derived class we are defining and it is an undefined type at this point.
+template < bool t_kfDtorNoExcept, bool t_kfDtorAllowThrow = true >
 class SharedObjectBase;
 
 // CHasSharedObjectBase: Enforce no reference, a base class and the base class.
@@ -30,16 +30,16 @@ class SharedPtr
   template < CHasSharedObjectBase t_TyTOther > friend class SharedPtr;
 public:
   typedef t_TyT _TyT;
-  static constexpr bool s_fIsConstObject = is_const_v< t_TyT >;
-  static constexpr bool s_fIsVolatileObject = is_volatile_v< t_TyT >;
+  static constexpr bool s_kfIsConstObject = is_const_v< t_TyT >;
+  static constexpr bool s_kfIsVolatileObject = is_volatile_v< t_TyT >;
   typedef remove_cv_t< _TyT > _TyTNonConstVolatile;
-  static constexpr bool s_fDtorNoExcept = is_nothrow_destructible_v< _TyTNonConstVolatile >;
-  static constexpr bool s_fDtorAllowThrow = _TyTNonConstVolatile::s_fDtorAllowThrow;
-  static constexpr bool s_fIsNoThrowConstructible = is_nothrow_constructible_v< _TyTNonConstVolatile >;
+  static constexpr bool s_kfDtorNoExcept = is_nothrow_destructible_v< _TyTNonConstVolatile >;
+  static constexpr bool s_kfDtorAllowThrow = _TyTNonConstVolatile::s_kfDtorAllowThrow;
+  static constexpr bool s_kfIsNoThrowConstructible = is_nothrow_constructible_v< _TyTNonConstVolatile >;
   // Get the ultimate shared object base:
   typedef typename _TyTNonConstVolatile::_TySharedObjectBase _TySharedObjectBase;
 
-  ~SharedPtr() noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+  ~SharedPtr() noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
   {
     if ( m_pt ) // We are assume that re-entering this method cannot occur even if m_pt->Release() ends up throwing in ~t_TyT().
       m_pt->Release();
@@ -53,7 +53,7 @@ public:
       m_pt->AddRef();
   }
   // This may throw because we must release any existing referece.
-  _TyThis & operator = ( SharedPtr const & _r ) noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+  _TyThis & operator = ( SharedPtr const & _r ) noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
   {
     Clear();
     if ( _r.m_pt )
@@ -67,8 +67,8 @@ public:
   //  class _TyT - as we understand that _TySharedObjectBase has a virtual destructor.
   template < class t_TyTOther >
   SharedPtr( SharedPtr< t_TyTOther > const & _rO ) noexcept
-    requires( ( s_fIsConstObject >= is_const_v< t_TyTOther > ) && 
-              ( s_fIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
+    requires( ( s_kfIsConstObject >= is_const_v< t_TyTOther > ) && 
+              ( s_kfIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
               is_base_of_v< _TyTNonConstVolatile, remove_cv_t< t_TyTOther > > )
 #if 0 // We should just be able to static_cast<> and things should work - also it's a good litmus for my requirements below - they should match.
     : m_pt( static_cast< _TyTNonConstVolatile * >( const_cast< remove_cv_t< t_TyTOther > * >( _rO.m_pt ) ) )
@@ -81,9 +81,9 @@ public:
   }
   // Similar as above for assignment - might throw due to Clear().
   template < class t_TyTOther>
-  _TyThis & operator =( SharedPtr< t_TyTOther > const & _rO ) noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
-    requires( ( s_fIsConstObject >= is_const_v< t_TyTOther > ) && 
-              ( s_fIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
+  _TyThis & operator =( SharedPtr< t_TyTOther > const & _rO ) noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
+    requires( ( s_kfIsConstObject >= is_const_v< t_TyTOther > ) && 
+              ( s_kfIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
               is_base_of_v< _TyTNonConstVolatile, remove_cv_t< t_TyTOther > > )
   {
     Clear();
@@ -101,7 +101,7 @@ public:
     swap( _rr );
   }
   // This may throw because we must release any existing referece.
-  _TyThis & operator = ( SharedPtr && _rr ) noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+  _TyThis & operator = ( SharedPtr && _rr ) noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
   {
     Clear();
     swap( _rr );
@@ -110,8 +110,8 @@ public:
   // As with copy construct and assign we allow move construct and assign from an object base on _TyT.
   template < class t_TyTOther >
   SharedPtr( SharedPtr< t_TyTOther > && _rrO ) noexcept
-    requires( ( s_fIsConstObject >= is_const_v< t_TyTOther > ) && 
-              ( s_fIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
+    requires( ( s_kfIsConstObject >= is_const_v< t_TyTOther > ) && 
+              ( s_kfIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
               is_base_of_v< _TyTNonConstVolatile, remove_cv_t< t_TyTOther > > )
   {
     if ( _rrO.m_pt )
@@ -122,9 +122,9 @@ public:
   }
   // Similar as above for assignment - might throw due to Clear().
   template < class t_TyTOther>
-  _TyThis & operator =( SharedPtr< t_TyTOther > && _rrO ) noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
-    requires( ( s_fIsConstObject >= is_const_v< t_TyTOther > ) && 
-              ( s_fIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
+  _TyThis & operator =( SharedPtr< t_TyTOther > && _rrO ) noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
+    requires( ( s_kfIsConstObject >= is_const_v< t_TyTOther > ) && 
+              ( s_kfIsVolatileObject >= is_volatile_v< t_TyTOther > ) &&
               is_base_of_v< _TyTNonConstVolatile, remove_cv_t< t_TyTOther > > )
   {
     Clear();
@@ -142,7 +142,7 @@ public:
 // In-place construction constructors:
   // In-place construction of the same type as the declared _TyT.
   template < class ... t_TysArgs >
-  explicit SharedPtr( std::in_place_t, t_TysArgs && ... _args ) noexcept( s_fIsNoThrowConstructible )
+  explicit SharedPtr( std::in_place_t, t_TysArgs && ... _args ) noexcept( s_kfIsNoThrowConstructible )
   {
     m_pt = DBG_NEW _TyT( std::forward< t_TysArgs >( _args ) ... );
   }
@@ -160,7 +160,7 @@ public:
   // We will clear any existing object first. The side effect of this is that the SharedPtr will be empty if we throw
   //  in the existing reference's destructor or in the constructor of the created object.
   template < class ... t_TysArgs >
-  _TyTNonConstVolatile & emplace( t_TysArgs &&... _args ) noexcept( s_fIsNoThrowConstructible && ( s_fDtorNoExcept || !s_fDtorAllowThrow ) )
+  _TyTNonConstVolatile & emplace( t_TysArgs &&... _args ) noexcept( s_kfIsNoThrowConstructible && ( s_kfDtorNoExcept || !s_kfDtorAllowThrow ) )
   {
     Clear();
     _TyTNonConstVolatile * pt = DBG_NEW _TyTNonConstVolatile( std::forward< t_TysArgs >( _args ) ... );
@@ -175,7 +175,7 @@ public:
   // We still return a reference to a non-cv-qualified object to allow the caller to further modify as necessary as the
   //  caller must be the only thread with access to this object at the time of creation.
   template < class t_TyDerived, class ... t_TysArgs >
-  remove_cv_t< t_TyDerived > & emplaceDerived( t_TysArgs && ... _args ) noexcept( is_nothrow_constructible_v< t_TyDerived > && ( s_fDtorNoExcept || !s_fDtorAllowThrow ) )
+  remove_cv_t< t_TyDerived > & emplaceDerived( t_TysArgs && ... _args ) noexcept( is_nothrow_constructible_v< t_TyDerived > && ( s_kfDtorNoExcept || !s_kfDtorAllowThrow ) )
   {
     typedef remove_cv_t< t_TyDerived > _TyDerivedNoCV;
     Clear();
@@ -195,7 +195,7 @@ public:
     return *m_pt; // may be a null reference...
   }
 // operations:
-  void Clear() noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+  void Clear() noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
   {
     if ( m_pt )
     {
@@ -214,13 +214,13 @@ protected:
 // The second template argument is whether we allow a throwing destructor to throw out of _DeleteSelf() or we catch locally.
 // REVIEW: We could add a deleter object (which we would have to cascade up to the SharedPtr<> container) instead of just using
 //  global operator delete.
-template < bool t_fDtorNoExcept, bool t_fDtorAllowThrow >
+template < bool t_kfDtorNoExcept, bool t_kfDtorAllowThrow >
 class SharedObjectBase
 {
 	typedef SharedObjectBase _TyThis;
 public:
-	static constexpr bool s_fDtorNoExcept = t_fDtorNoExcept;
-	static constexpr bool s_fDtorAllowThrow = t_fDtorAllowThrow;
+	static constexpr bool s_kfDtorNoExcept = t_kfDtorNoExcept;
+	static constexpr bool s_kfDtorAllowThrow = t_kfDtorAllowThrow;
   typedef _TyThis _TySharedObjectBase;
 
 	// We'll use the supposed "fastest" integer here - since we know our pointer is 64bit.
@@ -256,7 +256,7 @@ public:
     return ++const_cast< _TyRefValueType & >( m_nRefCount );
 #endif //!IS_MULTITHREADED_BUILD
 	}
-  _TyRefValueType Release() const volatile noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
+  _TyRefValueType Release() const volatile noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
 	{
 #if IS_MULTITHREADED_BUILD
 		_TyRefValueType nRef = --m_nRefCount;
@@ -268,18 +268,18 @@ public:
 		return nRef;
 	}
 protected:
-	virtual ~SharedObjectBase() noexcept( s_fDtorNoExcept ) = default;
+	virtual ~SharedObjectBase() noexcept( s_kfDtorNoExcept ) = default;
   // Need to declare const volatile since might get called by Release().
   // If we are the last reference to an object then we are the only thread accessing that object.
-	void _DeleteSelf() const volatile noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
-		requires( s_fDtorNoExcept )
+	void _DeleteSelf() const volatile noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
+		requires( s_kfDtorNoExcept )
 	{
 		delete this; // destructor can't throw so nothing special to do here.
 	}
-	void _DeleteSelf() const volatile noexcept( s_fDtorNoExcept || !s_fDtorAllowThrow )
-		requires( !s_fDtorNoExcept )
+	void _DeleteSelf() const volatile noexcept( s_kfDtorNoExcept || !s_kfDtorAllowThrow )
+		requires( !s_kfDtorNoExcept )
 	{
-    const bool kfInUnwinding = !s_fDtorAllowThrow || !!std::uncaught_exceptions();
+    const bool kfInUnwinding = !s_kfDtorAllowThrow || !!std::uncaught_exceptions();
     try
     {
 			delete this;
