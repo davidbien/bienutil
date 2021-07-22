@@ -136,7 +136,7 @@ public:
     if ( _r.m_pc )
     {
       _r.m_pc->_AddRefStrongOnly(); // This might throw if the strong count is currently zero.
-      _r.m_pc->_AddRefWeakOnlyNoThrow();
+      _r.m_pc->_AddRefWeakNoThrow();
       m_pc = _r.m_pc;
     }
   }
@@ -223,7 +223,7 @@ public:
     if ( _r.m_pc )
     {
       _r.m_pc->_AddRefStrongOnly(); // This might throw if the strong count is currently zero.
-      _r.m_pc->_AddRefWeakOnlyNoThrow();
+      _r.m_pc->_AddRefWeakNoThrow();
       m_pc = _r.m_pc;
     }
     return *this;
@@ -287,11 +287,13 @@ public:
   }
   _TyT * operator ->() const noexcept
   {
-    return &m_pt->TGet(); // may be null...
+    Assert( !!m_pc );
+    return &m_pt->m_tyT;
   }
   _TyT & operator *() const noexcept
   {
-    return m_pt->TGet(); // may be null...
+    Assert( !!m_pc );
+    return m_pt->m_tyT;
   }
 protected:
   _TyContainerPtr * m_pc{ nullptr };
@@ -497,7 +499,6 @@ public:
   static constexpr bool s_kfStrongReleaseNoThrow = !t_kfReleaseAllowThrow || ( s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible );
   static constexpr bool s_kfWeakReleaseNoThrow = !t_kfReleaseAllowThrow || ( s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible );
 
-protected:
 // These create just weakly held _SharedWeakPtrContainer which contain no object. Note that these never can contain an object given our creation paradigm.
   static _SharedWeakPtrContainer * PCreate( _TyAllocatorThis && _rralloc ) noexcept( false )
     requires( s_kfIsAllocatorNoThrowMoveConstructible ) // The move construction of the allocator won't throw.
@@ -617,7 +618,7 @@ protected:
     if ( !fAddToZeroSuccess )
       THROWSHAREDWEAK_NOOBJECTPRESENT( "_AddRefStrongOnly(): No object present to obtain strong reference." );
 	}
-  void _AddRefWeakOnlyNoThrow() const volatile noexcept
+  void _AddRefWeakNoThrow() const volatile noexcept
   {
 #if IS_MULTITHREADED_BUILD
     ++m_nRefWeak;
