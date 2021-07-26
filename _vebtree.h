@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <climits>
 #include "_assert.h"
-#include "_aloctrt.h"
 #include "_namdexc.h"
 #include "_bitutil.h"
 
@@ -3149,7 +3148,7 @@ protected:
     {
         m_rgstSubtrees.shrink_to_fit();
     }
-    typedef typename _Alloc_traits< _tySubtree, t_tyAllocator >::allocator_type _tyAllocSubtree;
+    typedef typename allocator_traits< t_tyAllocator >::template rebind_alloc< _tySubtree >;
     typedef vector< _tySubtree, _tyAllocSubtree > _tyRgSubtrees;
     _tyRgSubtrees m_rgstSubtrees;
     _tySummaryTree m_stSummary;
@@ -3157,7 +3156,5 @@ protected:
     _tyImplType m_nMin{s_kstUniverse-1}; // The collection is empty when m_nMin > m_nMax.
     _tyImplType m_nMax{0};
 };
-
-
 
 __BIENUTIL_END_NAMESPACE

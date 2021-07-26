@@ -65,18 +65,16 @@ struct _gco_dispatch_compare< t_TyCompare, t_TyEl, false >
 // Non-polymorphic object support:
 
 // _gco
-// _gco with instanced allocator, element is member ( note this limits construction ):
+// _gco with element as member.
 template <	class t_TyEl,
 						class t_TyAllocator = allocator< char >,
 						bool t_fUseElCompare = false,
-						bool t_fElIsInEmbeddedStore = false,
-						bool t_fAllocatorIsStatic = _Alloc_traits< t_TyEl, t_TyAllocator >::_S_instanceless >
+						bool t_fElIsInEmbeddedStore = false >
 class _gco
 {
-	typedef _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, 
-                t_fElIsInEmbeddedStore, t_fAllocatorIsStatic >  _TyThis;
+	typedef _gco _TyThis;
 
-	typedef typename _Alloc_traits< _TyThis, t_TyAllocator >::allocator_type  _TyAllocatorThis;
+	typedef typename allocator_traits< t_TyAllocator >::template rebind_alloc< _TyThis > _TyAllocatorThis;
 
   // Needed for external access:
 	typedef t_TyAllocator		_TyAllocator;	
@@ -248,192 +246,24 @@ class _gco
     return p;
 	}
 
-	void			destroy( )
+	void destroy( )
 	{
-		_TyAllocatorThis		localAllocator( m_alloc ); // since we are deallocating this.
+		_TyAllocatorThis localAllocator( std::move( m_alloc ) ); // since we are deallocating this.
 		this->~_TyThis();
 		localAllocator.deallocate( this, 1 );
 	}
 };
 
-// _gco with instanceless allocator, element is member:
-template <	class t_TyEl,
-						class t_TyAllocator,
-            bool t_fUseElCompare,
-            bool t_fElIsInEmbeddedStore >
-class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, t_fElIsInEmbeddedStore, true >
-{
-	typedef _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, 
-                t_fElIsInEmbeddedStore, true >                _TyThis;
-
-  // The type for the static allocator:
-	typedef typename _Alloc_traits<_TyThis, t_TyAllocator>::_Alloc_type	  _TyAllocThis;
-
-  // Needed for external access:
-	typedef t_TyAllocator		_TyAllocator;	
-  typedef t_TyEl _TyEl;
-
-  // Only allow _gcr, _gcp, and _gco_dispatch_compare access to this class:
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcr;
-
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcp;
-
-  template <  class t__TyThis,
-              class t__TyEl, 
-              bool t__fUseElCompare >
-  friend struct _gco_dispatch_compare;
-
-  template < class t_TyGcr, bool t__fCopyOnWrite >
-  friend struct _gcr_dispatch_el_access;
-
-  template < class t_TyGcr, bool t__fCopyOnWrite >
-  friend struct _gcp_dispatch_el_access;
-
-	vytGcoRef	          m_ref;
-	t_TyEl	          m_tEl;
-
-	explicit _gco()
-		: m_ref( 1 )
-	{
-	}
-	explicit _gco( _TyThis const & _r )
-		: m_ref( 1 ),
-      m_tEl( _r.m_tEl )
-	{
-	}
-
-  // Utility templatized constructors, unfortunately, these
-  //  do not allow the passing of reference parameters:
-	template < class t_Ty1 >
-	_gco( t_Ty1 _r1 )
-		: m_ref( 1 ),
-      m_tEl( _r1 )
-	{
-	}
-	template < class t_Ty1, class t_Ty2 >
-	_gco( t_Ty1 _r1, t_Ty2 _r2 )
-		: m_ref( 1 ),
-      m_tEl( _r1, _r2 )
-	{
-	}
-
-#ifndef NDEBUG
-	~_gco()
-	{
-		Assert( !m_ref );	// This should be the case.
-	}
-#endif //!NDEBUG
-
-// access:
-	operator t_TyEl const & () const
-	{
-		return m_tEl;
-	}
-	operator t_TyEl & ()
-	{
-		return m_tEl;
-	}
-
-// reference counting:
-	vytGcoRef	AddRef() _BIEN_NOTHROW
-	{
-		return ++m_ref;
-	}
-	vytGcoRef	Release() _BIEN_NOTHROW
-	{
-		return --m_ref;
-	}
-
-	bool operator == ( _TyThis const & _r ) const	
-  {
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::equals( *this, _r );
-  }
-	bool operator != ( _TyThis const & _r ) const
-  { 
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::notequals( *this, _r );
-  }
-	bool operator < ( _TyThis const & _r) const		
-  { 
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::less( *this, _r );
-  }
-	bool operator > ( _TyThis const & _r) const
-  { 
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::greater( *this, _r );
-  }
-
-	// Return a copy of this:
-	_TyThis *	copy() const
-	{
-		_TyThis *	p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( *this );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-		return p;
-	}
-
-// Public static creation utilities:
-	static _TyThis * PGCOCreate( t_TyAllocator const & )
-	{
-		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return p;
-	}
-
-	template < class t_Ty1 >
-	static _TyThis * PGCOCreate1( t_Ty1 _r1, 
-												  	    t_TyAllocator const & )
-	{
-		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( _r1 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return p;
-	}
-
-	template < class t_Ty1, class t_Ty2 >
-	static _TyThis * PGCOCreate2( t_Ty1 _r1, t_Ty2 _r2,
-									    			  	t_TyAllocator const & )
-	{
-		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( _r1, _r2 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return p;
-	}
-
-	void		destroy( )
-	{
-		this->~_TyThis();
-		_TyAllocThis::deallocate( this, 1 );
-	}
-};
-
-// _gco with instanced allocator, element is contained in member buffer -
+// _gco where element is contained in member buffer -
 //  this enables construction of contained element with exact params
 //  ( no template argument dedection occurs when ctor is called ):
 template <	class t_TyEl,
 						class t_TyAllocator,
             bool t_fUseElCompare >
-class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
+class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true >
 {
-	typedef _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >     _TyThis;
-	typedef typename _Alloc_traits<_TyThis, t_TyAllocator>::allocator_type	_TyAllocatorThis;
+	typedef _gco _TyThis;
+	typedef typename allocator_traits< t_TyAllocator >::template rebind_alloc< _TyThis > _TyAllocatorThis;
 
   // Needed for external access:
 	typedef t_TyAllocator		_TyAllocator;	
@@ -461,9 +291,10 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
   template < class t_TyGcr, bool t__fCopyOnWrite >
   friend struct _gcp_dispatch_el_access;
 
-  _TyAllocatorThis  m_alloc;
 	vytGcoRef	          m_ref;
-  char              m_cpEl[ sizeof( _TyEl ) ];
+  [[no_unique_address]] _TyAllocatorThis  m_alloc;
+	// REVIEW:<dbien>: Better to do this with an anonymous union - ie. as std::optional<> is done since then the alignment of the structure would be correct.
+  char m_cpEl[ sizeof( _TyEl ) ];
 
 	explicit _gco( t_TyAllocator const & _rAlloc )
 		: m_alloc( _rAlloc ),
@@ -536,7 +367,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 // static creation utilities:
 	static _TyThis *	PGCOCreate( t_TyAllocator const & _rAlloc = t_TyAllocator() )
 	{
-		_TyAllocatorThis		localAllocator( _rAlloc );
+		_TyAllocatorThis localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
 		_BIEN_TRY
 		{
@@ -551,7 +382,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	static _TyThis *	PGCOCreate1(  t_Ty1 _r1, 
 													      t_TyAllocator const & _rAlloc = t_TyAllocator() )
 	{
-		_TyAllocatorThis		localAllocator( _rAlloc );
+		_TyAllocatorThis localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
 		_BIEN_TRY
 		{
@@ -566,7 +397,7 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
 	static _TyThis *	PGCOCreate2(  t_Ty1 _r1, t_Ty2 _r2,
 													      t_TyAllocator const & _rAlloc = t_TyAllocator() )
 	{
-		_TyAllocatorThis		localAllocator( _rAlloc );
+		_TyAllocatorThis localAllocator( _rAlloc );
     _TyThis *	p = localAllocator.allocate( 1 );
 		_BIEN_TRY
 		{
@@ -577,171 +408,12 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, false >
     return p;
 	}
 
-	void			destroy( )
+	void destroy( )
 	{
-		_TyAllocatorThis		localAllocator( m_alloc ); // since we are deallocating this.
+		_TyAllocatorThis localAllocator( std::move( m_alloc ) ); // since we are deallocating this.
     static_cast< _TyEl & >( *this ).~_TyEl(); // destruct contained object.
 		this->~_TyThis();
 		localAllocator.deallocate( this, 1 );
-	}
-};
-
-// _gco with instanceless allocator, element is contained in member buffer -
-//  this enables construction of contained element with exact params
-//  ( no template argument dedection occurs when ctor is called ):
-template <	class t_TyEl,
-						class t_TyAllocator,
-            bool t_fUseElCompare >
-class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >
-{
-	typedef _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true, true >     _TyThis;
-
-  // The type for the static allocator:
-	typedef typename _Alloc_traits<_TyThis, t_TyAllocator>::allocator_type _TyAllocThis;
-
-  // Needed for external access:
-	typedef t_TyAllocator		_TyAllocator;	
-  typedef t_TyEl _TyEl;
-
-  // Only allow _gcr, _gcp, and _gco_dispatch_compare access to this class:
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcr;
-
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcp;
-
-  template <  class t__TyThis,
-              class t__TyEl, 
-              bool t__fUseElCompare >
-  friend struct _gco_dispatch_compare;
-
-  template < class t_TyGcr, bool t__fCopyOnWrite >
-  friend struct _gcr_dispatch_el_access;
-
-  template < class t_TyGcr, bool t__fCopyOnWrite >
-  friend struct _gcp_dispatch_el_access;
-
-	vytGcoRef	          m_ref;
-  char              m_cpEl[ sizeof( _TyEl ) ];
-
-	_gco()
-		: m_ref( 1 )
-	{
-	}
-
-	explicit _gco( _TyThis const & _r )
-		: m_ref( 1 )
-	{
-    // Call copy constructor explicitly:
-    new ( m_cpEl ) _TyEl( static_cast< _TyEl const & >( _r ) );
-	}
-
-#ifndef NDEBUG
-	~_gco()
-	{
-		Assert( !m_ref );	// This should be the case.
-	}
-#endif //!NDEBUG
-
-// access:
-	operator t_TyEl const & () const
-	{
-		return *reinterpret_cast< t_TyEl const * >( m_cpEl );
-	}
-	operator t_TyEl & ()
-	{
-		return *reinterpret_cast< t_TyEl * >( m_cpEl );
-	}
-
-// reference counting:
-	vytGcoRef	AddRef() _BIEN_NOTHROW
-	{
-		return ++m_ref;
-	}
-	vytGcoRef	Release() _BIEN_NOTHROW
-	{
-		return --m_ref;
-	}
-
-	bool operator == ( _TyThis const & _r ) const	
-  {
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::equals( *this, _r );
-  }
-	bool operator != ( _TyThis const & _r ) const
-  { 
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::notequals( *this, _r );
-  }
-	bool operator < ( _TyThis const & _r) const		
-  { 
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::less( *this, _r );
-  }
-	bool operator > ( _TyThis const & _r) const
-  { 
-    return _gco_dispatch_compare< _TyThis, t_TyEl, t_fUseElCompare >::greater( *this, _r );
-  }
-
-	// Return a copy of this:
-	_TyThis *	copy() const
-	{
-		_TyThis *	p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( *this );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-		return p;
-	}
-
-// Public static creation utilities:
-	static _TyThis * PGCOCreate( t_TyAllocator const & )
-	{
-		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( );
-      new ( &static_cast< _TyEl & >( *p ) ) _TyEl();
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return p;
-	}
-
-	template < class t_Ty1 >
-	static _TyThis * PGCOCreate1( t_Ty1 _r1, 
-												  	    t_TyAllocator const & )
-	{
-		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( );
-      new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return p;
-	}
-
-	template < class t_Ty1, class t_Ty2 >
-	static _TyThis * PGCOCreate2( t_Ty1 _r1, t_Ty2 _r2,
-									    			  	t_TyAllocator const & )
-	{
-		_TyThis * p = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( p ) _TyThis( );
-      new ( &static_cast< _TyEl & >( *p ) ) _TyEl( _r1, _r2 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( p, 1 ) );
-    return p;
-	}
-
-	void		destroy( )
-	{
-    static_cast< _TyEl & >( *this ).~_TyEl(); // destruct contained object.
-		this->~_TyThis();
-		_TyAllocThis::deallocate( this, 1 );
 	}
 };
 
@@ -846,14 +518,13 @@ protected:
 
 // Instanced allocator:
 template <  class t_TyDerived, class t_TyBase, class t_TyAllocator = allocator< char >,
-            class t_TyBaseClass = _gcop_base< t_TyBase >,
-            bool t_fInstanceless = _Alloc_traits< t_TyDerived, t_TyAllocator >::_S_instanceless >
+            class t_TyBaseClass = _gcop_base< t_TyBase > >
 class _gcop_derived : public t_TyBaseClass
 {
-  typedef _gcop_derived< t_TyDerived, t_TyBase, t_TyAllocator, t_TyBaseClass, t_fInstanceless > _TyThis;
+  typedef _gcop_derived _TyThis;
   typedef t_TyBaseClass _TyBase;
 
-  typedef typename _Alloc_traits< _TyThis, t_TyAllocator >::allocator_type _TyAllocatorThis;
+	typedef typename allocator_traits< t_TyAllocator >::template rebind_alloc< _TyThis > _TyAllocatorThis;
 
   typedef t_TyAllocator _TyAllocator;
   typedef t_TyDerived   _TyDerived;
@@ -904,8 +575,8 @@ public:
 
 private:
 
-  _TyAllocatorThis  m_alloc;
-  t_TyDerived       m_tEl;  // The derived element.
+  t_TyDerived m_tEl;  // The derived element.
+  [[no_unique_address]] _TyAllocatorThis  m_alloc;
 
   explicit _gcop_derived( _TyThis const & _r )
     : _TyBase( (t_TyBase*)&m_tEl, static_cast< _TyPMFnDestroy >( &_TyThis::destroy ) ),
@@ -992,147 +663,6 @@ private:
     _TyAllocatorThis local( m_alloc );
     this->~_TyThis();
     local.deallocate( this, 1 );
-  }
-};
-
-// Instanceless allocator:
-template <  class t_TyDerived, class t_TyBase, class t_TyAllocator,
-            class t_TyBaseClass >
-class _gcop_derived< t_TyDerived, t_TyBase, t_TyAllocator, t_TyBaseClass, true >
-  : public t_TyBaseClass
-{
-  typedef _gcop_derived< t_TyDerived, t_TyBase, t_TyAllocator, t_TyBaseClass, true > _TyThis;
-  typedef t_TyBaseClass _TyBase;
-
-	typedef typename _Alloc_traits< _TyThis, t_TyAllocator >::_Alloc_type  _TyAllocThis;
-
-  typedef t_TyAllocator _TyAllocator;
-  typedef t_TyDerived   _TyDerived;
-	typedef typename _TyBase::_TyPMFnDestroy _TyPMFnDestroy;
-
-  // Only _gcp and _gcr have access to members of this class.
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcr;
-  template <	class t_TyGCODerived,
-              class t_TyGcrBase >
-  friend class _gcr_create;
-
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcp;
-
-  template < class t_TyGcr, bool t__fCopyOnWrite >
-  friend struct _gcr_dispatch_el_access;
-
-  template < class t_TyGcr, bool t__fCopyOnWrite >
-  friend struct _gcp_dispatch_el_access;
-
-public:
-// Public static creation utilities - this is how a _gcop_derived object is created:
-  template < class t_TyGcp >
-  static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
-  {
-    t_TyGcp::template create< _TyThis >::Create( _rgcp, _rAlloc );
-  }
-
-  template < class t_TyGcp, class t_Ty1 >
-  static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
-                          t_TyAllocator const & _rAlloc = t_TyAllocator() )
-  {
-    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
-  }
-
-  template < class t_TyGcp, class t_Ty1, class t_Ty2 >
-  static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
-                          t_TyAllocator const & _rAlloc = t_TyAllocator() )
-  {
-    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
-  }
-
-private:
-
-  t_TyDerived       m_tEl;  // The derived element.
-
-  explicit _gcop_derived( _TyThis const & _r )
-    : _TyBase( (t_TyBase*)&m_tEl, static_cast< _TyPMFnDestroy >( &_TyThis::destroy ) ),
-      m_tEl( _r.m_tEl )
-  { 
-  }
-
-  explicit _gcop_derived( )
-    : _TyBase( (t_TyBase*)&m_tEl, static_cast< _TyPMFnDestroy >( &_TyThis::destroy ) )
-  {
-  }
-
-	template < class t_Ty1 >
-  explicit _gcop_derived( t_Ty1 _r1 )
-    : _TyBase( (t_TyBase*)&m_tEl, static_cast< _TyPMFnDestroy >( &_TyThis::destroy ) ),
-      m_tEl( _r1 )
-  {
-  }
-
-	template < class t_Ty1, class t_Ty2 >
-  explicit _gcop_derived( t_Ty1 _r1, t_Ty2 _r2 )
-    : _TyBase( (t_TyBase*)&m_tEl, static_cast< _TyPMFnDestroy >( &_TyThis::destroy ) ),
-      m_tEl( _r1, _r2 )
-  {
-  }
-
-	_TyThis *	copy() const
-	{
-		_TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( *this );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-		return pgco;
-	}
-
-	static _TyThis *	PGCOCreate( t_TyAllocator const &  )
-	{
-    _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-    return pgco;
-	}
-
-	template < class t_Ty1 >
-	static _TyThis *	PGCOCreate1(  t_Ty1 _r1, 
-						  							      t_TyAllocator const & )
-	{
-    _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( _r1 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-    return pgco;
-	}
-
-	template < class t_Ty1, class t_Ty2 >
-	static _TyThis *	PGCOCreate2(  t_Ty1 _r1, t_Ty2 _r2,
-					  								      t_TyAllocator const & )
-	{
-    _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( _r1, _r2 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-    return pgco;
-	}
-
-  void  destroy()
-  {
-    this->~_TyThis();
-    _TyAllocThis::deallocate( this, 1 );
   }
 };
 
@@ -1235,14 +765,13 @@ protected:
 
 // Instanced allocator:
 template <  class t_TyDerived, class t_TyBase, class t_TyAllocator = allocator< char >,
-            class t_TyBaseClass = _gcop_basev< t_TyBase >,
-            bool t_fInstanceless = _Alloc_traits< t_TyDerived, t_TyAllocator >::_S_instanceless >
+            class t_TyBaseClass = _gcop_basev< t_TyBase > >
 class _gcop_derivedv : public t_TyBaseClass
 {
-  typedef _gcop_derivedv< t_TyDerived, t_TyBase, t_TyAllocator, t_TyBaseClass, t_fInstanceless > _TyThis;
+  typedef _gcop_derivedv _TyThis;
   typedef t_TyBaseClass _TyBase;
 
-  typedef typename _Alloc_traits< _TyThis, t_TyAllocator >::allocator_type _TyAllocatorThis;
+	typedef typename allocator_traits< t_TyAllocator >::template rebind_alloc< _TyThis > _TyAllocatorThis;
 
   typedef t_TyAllocator _TyAllocator;
   typedef t_TyDerived   _TyDerived;
@@ -1286,7 +815,7 @@ public:
 
 private:
 
-  _TyAllocatorThis  m_alloc;
+  [[no_unique_address]] _TyAllocatorThis m_alloc;
   t_TyDerived       m_tEl;  // The derived element.
 
   explicit _gcop_derivedv( _TyThis const & _r )
@@ -1378,141 +907,6 @@ private:
   }
 };
 
-// Instanceless allocator:
-template <  class t_TyDerived, class t_TyBase, class t_TyAllocator,
-            class t_TyBaseClass >
-class _gcop_derivedv< t_TyDerived, t_TyBase, t_TyAllocator, t_TyBaseClass, true >
-  : public t_TyBaseClass
-{
-  typedef _gcop_derivedv< t_TyDerived, t_TyBase, t_TyAllocator, t_TyBaseClass, true > _TyThis;
-  typedef t_TyBaseClass _TyBase;
-
-	typedef typename _Alloc_traits< _TyThis, t_TyAllocator >::_Alloc_type  _TyAllocThis;
-
-  typedef t_TyAllocator _TyAllocator;
-  typedef t_TyDerived   _TyDerived;
-
-  // Only _gcp and _gcr have access to members of this class.
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcr;
-  template <	class t_TyGCODerived,
-              class t_TyGcrBase >
-  friend class _gcr_create;
-
-	template <	class t__TyEl, 
-							class t__TyGCO,
-							bool t__fCopyOnWrite >
-	friend class _gcp;
-
-public:
-// Public static creation utilities - this is how a _gcop_derivedv object is created:
-  template < class t_TyGcp >
-  static void CreateGct( t_TyGcp & _rgcp, t_TyAllocator const & _rAlloc = t_TyAllocator() )
-  {
-    t_TyGcp::template create< _TyThis >::Create( _rgcp, _rAlloc );
-  }
-
-  template < class t_TyGcp, class t_Ty1 >
-  static void CreateGct1( t_TyGcp & _rgcp, t_Ty1 _r1, 
-                          t_TyAllocator const & _rAlloc = t_TyAllocator() )
-  {
-    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _rAlloc );
-  }
-
-  template < class t_TyGcp, class t_Ty1, class t_Ty2 >
-  static void CreateGct2( t_TyGcp & _rgcp, t_Ty1 _r1, t_Ty2 _r2,
-                          t_TyAllocator const & _rAlloc = t_TyAllocator() )
-  {
-    t_TyGcp::template create< _TyThis >::Create1( _rgcp, _r1, _r2, _rAlloc );
-  }
-
-private:
-
-  t_TyDerived       m_tEl;  // The derived element.
-
-  explicit _gcop_derivedv( _TyThis const & _r )
-    : _TyBase( static_cast< t_TyBase* >( &m_tEl ) ),
-      m_tEl( _r.m_tEl )
-  { 
-  }
-
-  explicit _gcop_derivedv( )
-    : _TyBase( static_cast< t_TyBase* >( &m_tEl ) )
-  {
-  }
-
-	template < class t_Ty1 >
-  explicit _gcop_derivedv( t_Ty1 _r1 )
-    : _TyBase( static_cast< t_TyBase* >( &m_tEl ) ),
-      m_tEl( _r1 )
-  {
-  }
-
-	template < class t_Ty1, class t_Ty2 >
-  explicit _gcop_derivedv( t_Ty1 _r1, t_Ty2 _r2 )
-    : _TyBase( static_cast< t_TyBase* >( &m_tEl ) ),
-      m_tEl( _r1, _r2 )
-  {
-  }
-
-  // Bug in Intel compiler prevents returning covariant type:
-	_TyBase *	copy() const
-	{
-		_TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( *this );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-		return pgco;
-	}
-
-	static _TyThis *	PGCOCreate( t_TyAllocator const &  )
-	{
-    _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-    return pgco;
-	}
-
-	template < class t_Ty1 >
-	static _TyThis *	PGCOCreate1(  t_Ty1 _r1, 
-						  							      t_TyAllocator const & )
-	{
-    _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( _r1 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-    return pgco;
-	}
-
-	template < class t_Ty1, class t_Ty2 >
-	static _TyThis *	PGCOCreate2(  t_Ty1 _r1, t_Ty2 _r2,
-					  								      t_TyAllocator const & )
-	{
-    _TyThis *	pgco = _TyAllocThis::allocate( 1 );
-		_BIEN_TRY
-		{
-			new ( pgco ) _TyThis( _r1, _r2 );
-		}
-		_BIEN_UNWIND( _TyAllocThis::deallocate( pgco, 1 ) );
-    return pgco;
-	}
-
-  void  destroy()
-  {
-    this->~_TyThis();
-    _TyAllocThis::deallocate( this, 1 );
-  }
-};
-
 template <	class t__TyEl, 
 						class t__TyGCO = _gco< t__TyEl >,
 						bool t__fCopyOnWrite = false >
@@ -1542,9 +936,7 @@ template <	class t_TyEl,
 						bool t_fCopyOnWrite = false >
 class _gcp
 {
-private:
-
-	typedef	_gcp< t_TyEl, t_TyGCO, t_fCopyOnWrite >	_TyThis;
+	typedef	_gcp _TyThis;
 	typedef	typename t_TyGCO::_TyAllocator					_TyAllocator;
 
 	template <	class t__TyEl, 

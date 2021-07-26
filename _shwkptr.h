@@ -20,6 +20,8 @@
 //  the above paradigm. It might be nice to have the ability to construct t_TyT into a weak-ref'd-only object. It requires a thread-safe manner
 //  of swapping t_TyT into place. This could be done in an impl that worked as below but instead accepted a new'd pointer.
 
+#include <utility>
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 // STRUCT _bienutil_Nontrivial_dummy_type
@@ -33,9 +35,9 @@ static_assert(!is_trivially_default_constructible_v<_bienutil_Nontrivial_dummy_t
 // Predeclare:
 template < class t_TyT, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
 class _SharedWeakPtrContainer;
-template < class t_TyT, class t_TyAllocator = allocator< t_TyT >, class t_TyRef = size_t, bool t_kfReleaseAllowThrow = is_nothrow_destructible_v< t_TyT > >
+template < class t_TyT, class t_TyAllocator = allocator< t_TyT >, class t_TyRef = uint32_t, bool t_kfReleaseAllowThrow = !is_nothrow_destructible_v< t_TyT > >
 class SharedStrongPtr;
-template < class t_TyT, class t_TyAllocator = allocator< t_TyT >, class t_TyRef = size_t, bool t_kfReleaseAllowThrow = is_nothrow_destructible_v< t_TyT > >
+template < class t_TyT, class t_TyAllocator = allocator< t_TyT >, class t_TyRef = uint32_t, bool t_kfReleaseAllowThrow = !is_nothrow_destructible_v< t_TyT > >
 class SharedWeakPtr;
 
 // This exception will get thrown if the user SharedStrongPtr tries to .
@@ -62,11 +64,14 @@ public:
 
 // SharedStrongPtr: Unique name for this class since this is yaspc (yet another shared pointer class).
 // This smart pointer locks the object itself, it also obtains a weak 
-template <  class t_TyT, class t_TyAllocator = allocator< remove_cv_t< _TyT > >, 
-            class t_TyRef = size_t, bool t_kfReleaseAllowThrow = is_nothrow_destructible_v< t_TyT > >
+template <  class t_TyT, class t_TyAllocator,class t_TyRef, bool t_kfReleaseAllowThrow >
 class SharedStrongPtr
 {
   typedef SharedStrongPtr _TyThis;
+  template < class t_TyTCVQ, class t_TyAllocator,class t_TyRef, bool t_kfReleaseAllowThrow >
+  friend class SharedWeakPtr;
+  template < class t_TyTCVQ, class t_TyAllocator,class t_TyRef, bool t_kfReleaseAllowThrow >
+  friend class SharedStrongPtr;
 public:
   typedef t_TyT _TyT;
   typedef remove_cv_t< _TyT > _TyTNonConstVolatile;
@@ -151,7 +156,7 @@ public:
   {
     if ( _rr.m_pc )
     {
-      _r.m_pc->_AddRefStrongOnly(); // This might throw if the strong count is currently zero.
+      _rr.m_pc->_AddRefStrongOnly(); // This might throw if the strong count is currently zero.
       m_pc = _rr.m_pc;
       _rr.m_pc = nullptr;
     }
@@ -246,7 +251,8 @@ public:
     {
       _rr.m_pc->_AddRefStrongOnly(); // This might throw if the strong count is currently zero.
       // The weak reference is inherited from the weak pointer.
-      std::swap( _rr.m_pc, m_pc );
+      m_pc = _rr.m_pc;
+      _rr.m_pc = nullptr;
     }
     return *this;
   }
@@ -291,18 +297,18 @@ public:
   _TyT * operator ->() const noexcept
   {
     Assert( !!m_pc );
-    return &m_pt->m_tyT;
+    return &m_pc->m_tyT;
   }
   _TyT & operator *() const noexcept
   {
     Assert( !!m_pc );
-    return m_pt->m_tyT;
+    return m_pc->m_tyT;
   }
   // Allow access to the non-qualified type via a specially named method:
   _TyTNonConstVolatile & TGetNonConstVolatile() const noexcept
   {
     Assert( !!m_pc );
-    return const_cast< _TyContainerNonConstVolatile * >( m_pt )->m_tyT;
+    return const_cast< _TyContainerNonConstVolatile * >( m_pc )->m_tyT;
   }
 protected:
   _TyContainerPtr * m_pc{ nullptr };
@@ -310,11 +316,14 @@ protected:
 
 // SharedWeakPtr:
 // This smart pointer locks the memory block containing the object but doesn't lock the lifetime of the object itself.
-template <  class t_TyT, class t_TyAllocator = allocator< remove_cv_t< _TyT > >, 
-            class t_TyRef = size_t, bool t_kfReleaseAllowThrow = is_nothrow_destructible_v< t_TyT > >
+template <  class t_TyT, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
 class SharedWeakPtr
 {
   typedef SharedWeakPtr _TyThis;
+  template < class t_TyTCVQ, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
+  friend class SharedStrongPtr;
+  template < class t_TyTCVQ, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
+  friend class SharedWeakPtr;
 public:
   typedef t_TyT _TyT;
   typedef remove_cv_t< _TyT > _TyTNonConstVolatile;
@@ -375,6 +384,17 @@ public:
     : m_pc( _rr.m_pc )
   {
     _rr.m_pc = nullptr;
+  }
+  // We allow initialization from a less or equally cv-qualified SharedStrongPtr with same unqualified _TyT.
+  template < class t_TyTCVQ >
+  SharedWeakPtr( SharedStrongPtr< t_TyTCVQ, t_TyAllocator, t_TyRef, t_kfReleaseAllowThrow > const & _r ) noexcept
+    requires( ( s_kfIsConstTyT >= is_const_v< t_TyTCVQ > ) && 
+              ( s_kfIsVolatileTyT >= is_volatile_v< t_TyTCVQ > ) &&
+              is_same_v< _TyTNonConstVolatile, remove_cv_t< t_TyTCVQ > > )
+    : m_pc( _r.m_pc )
+  {
+    if ( m_pc )
+      m_pc->_AddRefWeakNoThrow();
   }
   void AssertValid() const
   {
@@ -494,15 +514,15 @@ public:
 	typedef _TyRef _TyRefMemberType;
 #endif //!IS_MULTITHREADED_BUILD
 
-  static const size_t s_nbyThis = sizeof( _TyThis );
+  static const size_t s_nbyThis; // = sizeof( _TyThis );
   static constexpr bool s_kfIsNoThrowDestructible = is_nothrow_destructible_v< _TyT >;
-  static constexpr bool s_kfIsAllocatorNoThrowDestructible = is_nothrow_destructible_v< _TyAllocatorThis >;
   static constexpr bool s_kfReleaseAllowThrow = t_kfReleaseAllowThrow;
   
   // We need an allocator for this piece of memory since when the final weak reference count is release we will deallocate ourselves.
   typedef typename allocator_traits< _TyAllocatorAsPassed >::template rebind_traits< _TyThis > _TyAllocTraitsThis;
   typedef typename _TyAllocTraitsThis::allocator_type _TyAllocatorThis; // Make this public so that 
-  static constexpr bool s_kfIsAllocatorNoThrowMoveConstructible = std::is_nothrow_move_constructible_v< _TyAllocatorThis >();
+  static constexpr bool s_kfIsAllocatorNoThrowMoveConstructible = std::is_nothrow_move_constructible_v< _TyAllocatorThis >;
+  static constexpr bool s_kfIsAllocatorNoThrowDestructible = is_nothrow_destructible_v< _TyAllocatorThis >;
 
   // We publish whether or not the Release() won't throw - for both strong and weak releases:
   static constexpr bool s_kfStrongReleaseNoThrow = !t_kfReleaseAllowThrow || ( s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible );
@@ -560,7 +580,7 @@ public:
 
 // We need only provide constructors taking rvalue-refs to an allocator for this since all creations go through PCreate().
   // Construct the allocator and set weak reference count to 1 - the object is not constructed.
-  _SharedWeakPtrContainer( _TyAllocatorThis && _rralloc )
+  _SharedWeakPtrContainer( _TyAllocatorThis && _rralloc ) noexcept( s_kfIsAllocatorNoThrowMoveConstructible )
     : m_alloc( std::move( _rralloc ) )
   {
   }
@@ -570,19 +590,22 @@ public:
   //  can't throw then this is still correct.
   template < class ... t_TysArgs >
   _SharedWeakPtrContainer( _TyAllocatorThis && _rralloc, std::in_place_t, t_TysArgs && ... _args )
+    noexcept( s_kfIsAllocatorNoThrowMoveConstructible && std::is_nothrow_constructible_v< _TyT, t_TysArgs ... > )
     : m_tyT( std::forward< t_TysArgs >( _args ) ... ),
       m_alloc( std::move( _rralloc ) ),
       m_nRefObj( 1 )
   {
   }
   // No reason and no point in overriding the default destructor.
-  ~_SharedWeakPtrContainer() = default;
+  ~_SharedWeakPtrContainer() noexcept( s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible )
+  {
+  }
 
   void AssertValid( bool _fStrongRef ) const volatile noexcept
   {
 #if ASSERTSENABLED
     Assert( !_fStrongRef || _NGetStrongRef() );
-    Assert( _NGetWeakRef() && ( _NGetStrongRef() >= _NGetWeakRef() ) );
+    Assert( _NGetWeakRef() && ( _NGetWeakRef() >= _NGetStrongRef() ) );
 #endif //ASSERTSENABLED    
   }
 
@@ -619,7 +642,7 @@ public:
 	{
     AssertValid( true ); // This will bark if we don't have a current strong ref.
 #if IS_MULTITHREADED_BUILD
-		bool fAddToZeroSuccess = FAtomicAddNotEqual( m_nRefObj, 0, 1 ); // Only add one if we aren't equal to zero.
+		bool fAddToZeroSuccess = FAtomicAddNotEqual( m_nRefObj, _TyRef( 0 ), _TyRef( 1 ) ); // Only add one if we aren't equal to zero.
 #else //!IS_MULTITHREADED_BUILD
     bool fAddToZeroSuccess = !m_nRefObj ? false : ( ++m_nRefObj, true );
 #endif //!IS_MULTITHREADED_BUILD
@@ -635,12 +658,14 @@ public:
     ++const_cast< _TyRef & >( m_nRefWeak );
 #endif //!IS_MULTITHREADED_BUILD
   }
-  static constexpr bool s_kfIsNoThrowDestructible = is_nothrow_destructible_v< _TyT >;
-  static constexpr bool s_kfIsAllocatorNoThrowDestructible = is_nothrow_destructible_v< _TyAllocatorThis >;
-  static constexpr bool s_kfReleaseAllowThrow = t_kfReleaseAllowThrow;
 
 // Produce some flavors of the release depending on what might or might not throw - allows better codegen when destructors don't throw (as is usual).
   void _ReleaseStrong() const volatile noexcept( true )
+    requires( s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible ) // nothing can throw.
+  {
+    const_cast< _TyThis * >( this )->_DoReleaseStrong();
+  }
+  void _DoReleaseStrong() noexcept( true )
     requires( s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible ) // nothing can throw.
   {
     AssertValid( true );
@@ -664,6 +689,11 @@ public:
     }
   }
   void _ReleaseStrong() const volatile noexcept( !s_kfReleaseAllowThrow )
+    requires( !s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible ) // ~_TyT() can throw.
+  {
+    const_cast< _TyThis * >( this )->_DoReleaseStrong();
+  }
+  void _DoReleaseStrong() noexcept( !s_kfReleaseAllowThrow )
     requires( !s_kfIsNoThrowDestructible && s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible ) // ~_TyT() can throw.
   {
     AssertValid( true );
@@ -701,6 +731,11 @@ public:
       std::rethrow_exception( eptrRethrow );
   }
   void _ReleaseStrong() const volatile noexcept( !s_kfReleaseAllowThrow )
+    requires( !s_kfIsNoThrowDestructible && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // ~_TyT() can throw and the allocator might throw.
+  {
+    const_cast< _TyThis * >( this )->_DoReleaseStrong();
+  }
+  void _DoReleaseStrong() noexcept( !s_kfReleaseAllowThrow )
     requires( !s_kfIsNoThrowDestructible && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // ~_TyT() can throw and the allocator might throw.
   {
     AssertValid( true );
@@ -748,6 +783,11 @@ public:
   void _ReleaseStrong() const volatile noexcept( !s_kfReleaseAllowThrow )
     requires( s_kfIsNoThrowDestructible && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // only the allocator might throw.
   {
+    const_cast< _TyThis * >( this )->_DoReleaseStrong();
+  }
+  void _DoReleaseStrong() noexcept( false )
+    requires( s_kfReleaseAllowThrow && s_kfIsNoThrowDestructible && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // only the allocator might throw.
+  {
     AssertValid( true );
 #if IS_MULTITHREADED_BUILD
     bool fDeleteT = !--m_nRefObj;
@@ -772,13 +812,49 @@ public:
       }
       catch( ... )
       {
-        if ( s_kfReleaseAllowThrow && !fInUnwinding )
+        if ( !fInUnwinding )
           throw; // merely rethrow - nothing we can do about the failure and the caller wants to know about it.
+      }
+    }
+  }
+  void _DoReleaseStrong() noexcept
+    requires( !s_kfReleaseAllowThrow && s_kfIsNoThrowDestructible && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // only the allocator might throw.
+  {
+    AssertValid( true );
+#if IS_MULTITHREADED_BUILD
+    bool fDeleteT = !--m_nRefObj;
+#else //!IS_MULTITHREADED_BUILD
+    bool fDeleteT = !--const_cast< _TyRef & >( m_nRefObj );
+#endif //!IS_MULTITHREADED_BUILD
+    if ( fDeleteT )
+      m_tyT.~_TyT();
+  // Don't decrement the weak count until after destructing T in case it had a weak pointer to this.
+#if IS_MULTITHREADED_BUILD
+    const bool fDeallocateThis = !--m_nRefWeak;
+#else //!IS_MULTITHREADED_BUILD
+    const bool fDeallocateThis = !--const_cast< _TyRef & >( m_nRefWeak );
+#endif //!IS_MULTITHREADED_BUILD
+    if ( fDeallocateThis )
+    {
+      bool fInUnwinding = !!std::uncaught_exceptions();
+      try
+      {
+        _TyAllocatorThis alloc( std::move( m_alloc ) ); // Not much to do if the move constructor for the allocator throws. If the destructor throws then we don't really case too much.
+        _TyAllocTraitsThis::deallocate( alloc, this, 1 );
+      }
+      catch( ... )
+      {
+        // Eat the exception as we do not allow Release() to throw.
       }
     }
   }
 
   void _ReleaseWeak() const volatile noexcept( true )
+    requires( s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible )
+  {
+    const_cast< _TyThis * >( this )->_DoReleaseWeak();
+  }
+  void _DoReleaseWeak() noexcept( true )
     requires( s_kfIsAllocatorNoThrowDestructible && s_kfIsAllocatorNoThrowMoveConstructible )
   {
     AssertValid( false );
@@ -796,6 +872,11 @@ public:
   void _ReleaseWeak() const volatile noexcept( !s_kfReleaseAllowThrow )
     requires( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) // only the allocator might throw.
   {
+    const_cast< _TyThis * >( this )->_DoReleaseWeak();
+  }
+  void _DoReleaseWeak() noexcept( false )
+    requires( s_kfReleaseAllowThrow && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // only the allocator might throw.
+  {
     AssertValid( false );
 #if IS_MULTITHREADED_BUILD
     const bool fDeallocateThis = !--m_nRefWeak;
@@ -812,8 +893,31 @@ public:
       }
       catch( ... )
       {
-        if ( s_kfReleaseAllowThrow && !fInUnwinding )
+        if ( !fInUnwinding )
           throw; // merely rethrow - nothing we can do about the failure and the caller wants to know about it.
+      }
+    }
+  }
+  void _DoReleaseWeak() noexcept
+    requires( !s_kfReleaseAllowThrow && ( !s_kfIsAllocatorNoThrowDestructible || !s_kfIsAllocatorNoThrowMoveConstructible ) ) // only the allocator might throw.
+  {
+    AssertValid( false );
+#if IS_MULTITHREADED_BUILD
+    const bool fDeallocateThis = !--m_nRefWeak;
+#else //!IS_MULTITHREADED_BUILD
+    const bool fDeallocateThis = !--const_cast< _TyRef & >( m_nRefWeak );
+#endif //!IS_MULTITHREADED_BUILD
+    if ( fDeallocateThis )
+    {
+      bool fInUnwinding = !!std::uncaught_exceptions();
+      try
+      {
+        _TyAllocatorThis alloc( std::move( m_alloc ) ); // Not much to do if the move constructor for the allocator throws. If the destructor throws then we don't really case too much.
+        _TyAllocTraitsThis::deallocate( alloc, this, 1 );
+      }
+      catch( ... )
+      {
+        // eat the exception entirely - we don't allow the throw.
       }
     }
   }
@@ -828,5 +932,7 @@ public:
   mutable _TyRefMemberType m_nRefObj{ 0 }; // The reference on the _TyT object contained in m_rgbyBufT;
 };
 
+template < class t_TyT, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
+const size_t _SharedWeakPtrContainer< t_TyT, t_TyAllocator, t_TyRef, t_kfReleaseAllowThrow >::s_nbyThis = sizeof( _TyThis );
 
 __BIENUTIL_END_NAMESPACE
