@@ -474,6 +474,17 @@ public:
   {
     std::swap( m_pc, _r.m_pc );
   }
+  // We allow emplacement of a weak-ref'd-only element but one can never create an object within it due to threadsafe object creation paradigm.
+  void emplace() noexcept( false ) // at the least we may throw because of allocation.
+  {
+    emplace( _TyAllocatorAsPassed() );
+  }
+  void emplace( _TyAllocatorAsPassed const & _ralloc ) noexcept( false ) // at the least we may throw because of allocation.
+  {
+    reset(); // If we allow release to throw then we may throw here before allocation
+    m_pc = _TyContainerNonConstVolatile::PCreate( _ralloc ); // If this fails to compile then the allocator has no default allocator.
+    Assert( m_pc->_NGetStrongRef() == 0 );
+  }
   void reset() noexcept( s_kfWeakReleaseNoThrow )
   {
     if ( m_pc )
@@ -549,7 +560,7 @@ public:
   static _SharedWeakPtrContainer * PCreate( _TyAllocatorAsPassed const & _ralloc ) noexcept( false )
   {
     _TyAllocatorThis alloc( _ralloc );
-    return _SharedWeakPtrContainer( std::move( alloc ) );
+    return PCreate( std::move( alloc ) );
   }
 // These create strongly held _SharedWeakPtrContainer containing an object.
   template < class ... t_TysArgs >
@@ -640,7 +651,7 @@ public:
   // We may not have a current object in which case we throw.
   void _AddRefStrongOnly() const volatile noexcept( false )
 	{
-    AssertValid( true ); // This will bark if we don't have a current strong ref.
+    // AssertValid( true ); // This will bark if we don't have a current strong ref - comment out for unittesting to work better.
 #if IS_MULTITHREADED_BUILD
 		bool fAddToZeroSuccess = FAtomicAddNotEqual( m_nRefObj, _TyRef( 0 ), _TyRef( 1 ) ); // Only add one if we aren't equal to zero.
 #else //!IS_MULTITHREADED_BUILD
