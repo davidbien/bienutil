@@ -64,13 +64,13 @@ public:
 
 // SharedStrongPtr: Unique name for this class since this is yaspc (yet another shared pointer class).
 // This smart pointer locks the object itself, it also obtains a weak 
-template <  class t_TyT, class t_TyAllocator,class t_TyRef, bool t_kfReleaseAllowThrow >
+template <  class t_TyT, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
 class SharedStrongPtr
 {
   typedef SharedStrongPtr _TyThis;
-  template < class t_TyTCVQ, class t_TyAllocator,class t_TyRef, bool t_kfReleaseAllowThrow >
+  template < class, class, class, bool >
   friend class SharedWeakPtr;
-  template < class t_TyTCVQ, class t_TyAllocator,class t_TyRef, bool t_kfReleaseAllowThrow >
+  template < class, class, class, bool >
   friend class SharedStrongPtr;
 public:
   typedef t_TyT _TyT;
@@ -166,14 +166,14 @@ public:
   template < class ... t_TysArgs >
   SharedStrongPtr( std::in_place_t, t_TysArgs && ... _args ) noexcept( false ) // at the least we may throw because of allocation.
   {
-    m_pc = _TyContainerNonConstVolatile::PCreate( _TyAllocatorContainer(), std::in_place_t(), std::forward( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
+    m_pc = _TyContainerNonConstVolatile::PCreate( _TyAllocatorContainer(), std::in_place_t(), std::forward< t_TysArgs >( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
     Assert( m_pc->_NGetStrongRef() == 1 );
   }
   // In-place construction from any set of arguments - instanced allocator version:
   template < class ... t_TysArgs >
   SharedStrongPtr( _TyAllocatorAsPassed const & _ralloc, std::in_place_t, t_TysArgs && ... _args ) noexcept( false ) // at the least we may throw because of allocation.
   {
-    m_pc = _TyContainerNonConstVolatile::PCreate( _ralloc, std::in_place_t(), std::forward( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
+    m_pc = _TyContainerNonConstVolatile::PCreate( _ralloc, std::in_place_t(), std::forward< t_TysArgs >( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
     Assert( m_pc->_NGetStrongRef() == 1 );
   }
   void AssertValid() const
@@ -275,18 +275,18 @@ public:
   _TyTNonConstVolatile & emplace( std::in_place_t, t_TysArgs && ... _args ) noexcept( false ) // at the least we may throw because of allocation.
   {
     reset(); // If we allow release to throw then we may throw here before construction 
-    m_pc = _TyContainerNonConstVolatile::PCreate( _TyAllocatorContainer(), std::in_place_t(), std::forward( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
+    m_pc = _TyContainerNonConstVolatile::PCreate( _TyAllocatorContainer(), std::in_place_t(), std::forward< t_TysArgs >( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
     Assert( m_pc->_NGetStrongRef() == 1 );
-    return m_pc->TGet();
+    return const_cast< _TyTNonConstVolatile & >( m_pc->m_tyT );
   }
   // In-place construction from any set of arguments - instanced allocator version:
   template < class ... t_TysArgs >
   _TyTNonConstVolatile & emplace( _TyAllocatorAsPassed const & _ralloc, std::in_place_t, t_TysArgs && ... _args ) noexcept( false ) // at the least we may throw because of allocation.
   {
     reset(); // If we allow release to throw then we may throw here before construction 
-    m_pc = _TyContainerNonConstVolatile::PCreate( _ralloc, std::in_place_t(), std::forward( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
+    m_pc = _TyContainerNonConstVolatile::PCreate( _ralloc, std::in_place_t(), std::forward< t_TysArgs >( _args ) ...  ); // If this fails to compile then the allocator has no default allocator.
     Assert( m_pc->_NGetStrongRef() == 1 );
-    return m_pc->TGet();
+    return const_cast< _TyTNonConstVolatile & >( m_pc->m_tyT );
   }
 // equality comparison - we ignore cv qualifications for these.
   template < class t_TyTCVQ >
@@ -330,9 +330,9 @@ template <  class t_TyT, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAll
 class SharedWeakPtr
 {
   typedef SharedWeakPtr _TyThis;
-  template < class t_TyTCVQ, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
+  template < class, class, class, bool >
   friend class SharedStrongPtr;
-  template < class t_TyTCVQ, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
+  template < class, class, class, bool >
   friend class SharedWeakPtr;
 public:
   typedef t_TyT _TyT;
@@ -589,7 +589,7 @@ public:
     requires( s_kfIsAllocatorNoThrowMoveConstructible && std::is_nothrow_constructible_v< _TyT, t_TysArgs ... > ) // This method cannot throw except during allocation.
   {
     _TyThis * pThis = _TyAllocTraitsThis::allocate( _rralloc, 1 ); // This will throw rather than return nullptr.
-    return new( pThis ) _SharedWeakPtrContainer( std::move( _rralloc ), std::in_place_t(), std::forward( _args ) ... ); // shouldn't throw.
+    return new( pThis ) _SharedWeakPtrContainer( std::move( _rralloc ), std::in_place_t(), std::forward< t_TysArgs >( _args ) ... ); // shouldn't throw.
   }
   template < class ... t_TysArgs >
   static _SharedWeakPtrContainer * PCreate( _TyAllocatorThis && _rralloc, std::in_place_t, t_TysArgs && ... _args ) noexcept( false )
@@ -599,7 +599,7 @@ public:
     _BIEN_TRY
     {
       // Hmmm... we moved the allocator into the object - but it threw. We rely on the implementation of the allocator's move constructor to not modify the source upon throw to allow correct operation.
-      return new( pThis ) _SharedWeakPtrContainer( std::move( _rralloc ), std::in_place_t(), std::forward( _args ) ... ); // might throw.
+      return new( pThis ) _SharedWeakPtrContainer( std::move( _rralloc ), std::in_place_t(), std::forward< t_TysArgs >( _args ) ... ); // might throw.
     }
     _BIEN_UNWIND( _TyAllocTraitsThis::deallocate( _rralloc, pThis, 1 ) ); // Still deallocate the memory then rethrow.
   }
@@ -607,7 +607,7 @@ public:
   static _SharedWeakPtrContainer * PCreate( _TyAllocatorAsPassed const & _ralloc, std::in_place_t, t_TysArgs && ... _args ) noexcept( false )
   {
     _TyAllocatorThis alloc( _ralloc );
-    return _SharedWeakPtrContainer( std::move( alloc ), std::in_place_t(), std::forward( _args ) ... );
+    return _SharedWeakPtrContainer( std::move( alloc ), std::in_place_t(), std::forward< t_TysArgs >( _args ) ... );
   }
 
 // We need only provide constructors taking rvalue-refs to an allocator for this since all creations go through PCreate().
@@ -676,7 +676,7 @@ public:
 #if IS_MULTITHREADED_BUILD
 		bool fAddToZeroSuccess = FAtomicAddNotEqual( m_nRefObj, _TyRef( 0 ), _TyRef( 1 ) ); // Only add one if we aren't equal to zero.
 #else //!IS_MULTITHREADED_BUILD
-    bool fAddToZeroSuccess = !m_nRefObj ? false : ( ++m_nRefObj, true );
+    bool fAddToZeroSuccess = !m_nRefObj ? false : ( ++const_cast< _TyRef & >( m_nRefObj ), true );
 #endif //!IS_MULTITHREADED_BUILD
     // We must increment the strong reference count iff it is non-zero.
     if ( !fAddToZeroSuccess )
