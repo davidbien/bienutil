@@ -1275,7 +1275,8 @@ inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _
 
 __BIENUTIL_END_NAMESPACE
 
-#if defined( _MSC_VER ) || defined( __APPLE__ )
+#if defined( __linux__ ) || defined( __APPLE__ )
+// Support for this is spotty and ever-changing but growing...
 namespace std
 {
 	// neither VC or clang define basic_string_view::operator <=>():

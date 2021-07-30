@@ -32,6 +32,15 @@ struct _bienutil_Nontrivial_dummy_type {
 };
 static_assert(!is_trivially_default_constructible_v<_bienutil_Nontrivial_dummy_type>);
 
+// __shared_weak_leave_empty: Constructor tag for obtaining a strong pointer from a weak.
+// If the weak pointer is already expired then instead of throwing a _SharedWeakPtr_no_object_present_exception as
+//  we normally would we instead merely leave the strong pointer empty. This avoids the annoyance of a try/catch when
+//  we might expect the weak pointer not to reference an active object - as we understand that checking expired() in a
+//  multithreaded environment is inherently racy.
+struct _SharedWeakPtr_weak_leave_empty
+{
+};
+
 // Predeclare:
 template < class t_TyT, class t_TyAllocator, class t_TyRef, bool t_kfReleaseAllowThrow >
 class _SharedWeakPtrContainer;
@@ -159,6 +168,19 @@ public:
       _rr.m_pc->_AddRefStrongOnly(); // This might throw if the strong count is currently zero.
       m_pc = _rr.m_pc;
       _rr.m_pc = nullptr;
+    }
+  }
+  // Construct a strong from a weak but merely leave the strong null upon finding an expired weak ptr.
+  template < class t_TyTCVQ >
+  SharedStrongPtr( _SharedWeakPtr_weak_leave_empty, SharedWeakPtr< t_TyTCVQ, t_TyAllocator, t_TyRef, t_kfReleaseAllowThrow > const & _r ) noexcept
+    requires( ( s_kfIsConstTyT >= is_const_v< t_TyTCVQ > ) && 
+              ( s_kfIsVolatileTyT >= is_volatile_v< t_TyTCVQ > ) &&
+              is_same_v< _TyTNonConstVolatile, remove_cv_t< t_TyTCVQ > > )
+  {
+    if ( _r.m_pc && _r.m_pc->_FAddRefStrongOnlyNoThrow() )
+    {
+      _r.m_pc->_AddRefWeakNoThrow();
+      m_pc = _r.m_pc;
     }
   }
 
@@ -681,6 +703,16 @@ public:
     // We must increment the strong reference count iff it is non-zero.
     if ( !fAddToZeroSuccess )
       THROWSHAREDWEAK_NOOBJECTPRESENT( "_AddRefStrongOnly(): No object present to obtain strong reference." );
+	}
+  bool _FAddRefStrongOnlyNoThrow() const volatile noexcept
+	{
+    // AssertValid( true ); // This will bark if we don't have a current strong ref - comment out for unittesting to work better.
+#if IS_MULTITHREADED_BUILD
+		bool fAddToZeroSuccess = FAtomicAddNotEqual( m_nRefObj, _TyRef( 0 ), _TyRef( 1 ) ); // Only add one if we aren't equal to zero.
+#else //!IS_MULTITHREADED_BUILD
+    bool fAddToZeroSuccess = !m_nRefObj ? false : ( ++const_cast< _TyRef & >( m_nRefObj ), true );
+#endif //!IS_MULTITHREADED_BUILD
+    return fAddToZeroSuccess;
 	}
   void _AddRefWeakNoThrow() const volatile noexcept
   {
