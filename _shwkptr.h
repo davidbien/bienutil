@@ -322,6 +322,10 @@ public:
     return _r.m_pc == m_pc;
   }  
 // Accessors:
+  operator bool () const noexcept
+  {
+    return !m_pc;
+  }
   bool operator !() const noexcept
   {
     return !m_pc;
@@ -542,6 +546,10 @@ public:
     return !m_pc || !m_pc->_NGetWeakRef();
   }
 // Accessors:
+  operator bool () const noexcept
+  {
+    return !m_pc;
+  }
   bool operator !() const noexcept
   {
     return !m_pc;
