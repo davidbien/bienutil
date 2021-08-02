@@ -55,7 +55,7 @@ _bv_get_first_set( t_Ty const & _rt )
 // Note: Should be able to use intel integer vectors as elements. Will have
 //  to specialize _bv_clear_first_set() and UMSBSet().
 
-template < class t_TyEl, class t_TyAllocator >
+template < class t_TyEl, class t_TyAllocator = std::allocator< t_TyEl > >
 class _simple_bitvec
   : public _alloc_base< t_TyEl, t_TyAllocator >
 {
@@ -248,7 +248,9 @@ public:
   size_type getnextset( size_type _stLast ) const _BIEN_NOTHROW
   {
     AssertValid();
-    Assert( _stLast < size() );
+    Assert( _stLast <= size() );
+    if ( _stLast >= size() )
+      return size();
     // First process any partial elements:
     t_TyEl * pElNext = m_rgEls + ( ++_stLast / ms_kstElSizeBits );
     if ( _stLast %= ms_kstElSizeBits )
@@ -265,6 +267,29 @@ public:
     }
 
     return _getset( pElNext );
+  }
+  // Return the next unset bit after the given bit.
+  size_type getnextnotset( size_type _stLast ) const _BIEN_NOTHROW
+  {
+    AssertValid();
+    Assert( _stLast <= size() );
+    if ( _stLast >= size() )
+      return size();
+    // First process any partial elements:
+    t_TyEl * pElNext = m_rgEls + ( ++_stLast / ms_kstElSizeBits );
+    if ( _stLast %= ms_kstElSizeBits )
+    {
+      // We know that beyond the end is empty ( invariant ):
+      t_TyEl  el;
+      if ( !!( el = ( ~*pElNext & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
+      {
+        _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_kstElSizeBits;
+        Assert( _stLast <= size() ); // may be size() and that is by design.
+        return _stLast;
+      }
+      ++pElNext;
+    }
+    return _getnotset( pElNext );
   }
 
   size_type countsetbits() const _BIEN_NOTHROW
@@ -507,6 +532,22 @@ protected:
       {
         size_type stFound = size_type(pEl - m_rgEls) * ms_kstElSizeBits + size_type(_bv_get_first_set( *pEl ));
         Assert( stFound < m_kstBits );
+        return stFound;
+      }
+    }
+    return m_kstBits;
+  }
+  // Return first unset bit starting at this element's container.
+  size_type _getnotset( t_TyEl * pEl ) const _BIEN_NOTHROW
+  {
+    t_TyEl * pElEnd = m_rgEls + m_kstSize;
+    for ( ; pEl != pElEnd; ++pEl )
+    {
+      t_TyEl inverted = ~*pEl;
+      if ( inverted )
+      {
+        size_type stFound = size_type(pEl - m_rgEls) * ms_kstElSizeBits + size_type(_bv_get_first_set( inverted ));
+        Assert( stFound <= m_kstBits );
         return stFound;
       }
     }
