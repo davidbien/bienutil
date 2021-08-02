@@ -206,6 +206,30 @@ public:
 #endif //ASSERTSENABLED
   }
 // Assignment:
+  _TyThis & operator = ( _TyThis const & _r ) noexcept( s_kfStrongReleaseNoThrow )
+  {
+    AssertValid();
+    _r.AssertValid();
+    // If the release throws then the assignment fails:
+    reset();
+    if ( _r.m_pc )
+    {
+      m_pc = _r.m_pc;
+      m_pc->_AddRefStrongNoThrow(); // Since we received a valid strong reference we shouldn't throw here - and so we don't even check for it.
+    }
+    return *this;
+  }
+  // This leaves _rr empty.
+  _TyThis & operator = ( _TyThis && _rr ) noexcept( s_kfStrongReleaseNoThrow )
+  {
+    AssertValid();
+    _rr.AssertValid();
+    // If the release throws then the assignment fails:
+    reset();
+    m_pc = _rr.m_pc;
+    _rr.m_pc = nullptr;
+    return *this;
+  }
 // To another less qualified strong pointer:
   template < class t_TyTCVQ >
   _TyThis & operator = ( SharedStrongPtr< t_TyTCVQ, t_TyAllocator, t_TyRef, t_kfReleaseAllowThrow > const & _r ) noexcept( s_kfStrongReleaseNoThrow )

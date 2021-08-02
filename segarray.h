@@ -483,7 +483,7 @@ public:
     SetSizeSmaller( m_nElements - _nEls ); // may not throw but we don't really care.
   }
   // This method efficiently removes elements as indicated by bits set in the passed _rbv.
-  // This one might throw.
+  // This one might not throw.
   template < class t_tyBitVector >
   void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( std::is_nothrow_destructible_v< _tyT > )
     requires ( std::is_nothrow_move_assignable_v< _tyT > )
@@ -506,7 +506,7 @@ public:
     SetSizeSmaller( m_nElements - nElsRemoved );
   }
   // This method efficiently removes elements as indicated by bits set in the passed _rbv.
-  // This one can't throw.
+  // This always can throw.
   template < class t_tyBitVector >
   void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( false )
     requires ( !std::is_nothrow_move_assignable_v< _tyT > )

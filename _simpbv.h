@@ -74,7 +74,6 @@ public:
   const size_type m_kstSize{0};
   t_TyEl *        m_rgEls{nullptr};
 
-  _simple_bitvec() = delete;
   ~_simple_bitvec() _BIEN_NOTHROW
   {
     if ( m_rgEls )
@@ -129,6 +128,7 @@ public:
     _TyThis acquire( std::move( _rr ) );
     swap( acquire );
     AssertValid();
+    return *this;
   }
 
   void AssertValid() const
