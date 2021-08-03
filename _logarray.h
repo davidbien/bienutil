@@ -302,6 +302,8 @@ public:
   void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( false )
     requires ( !std::is_nothrow_move_assignable_v< _TyT > )
   {
+    if ( !_rbv.size() )
+      return; // noop
     VerifyThrowSz( _rbv.size() == NElements(), "Algorithm requires that size of bit vector equals number of elements." );
     size_t nCur = _rbv.getfirstset();
     const size_t nElements = NElements();
