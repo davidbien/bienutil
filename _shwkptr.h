@@ -348,7 +348,7 @@ public:
 // Accessors:
   operator bool () const noexcept
   {
-    return !m_pc;
+    return !!m_pc;
   }
   bool operator !() const noexcept
   {
@@ -572,7 +572,7 @@ public:
 // Accessors:
   operator bool () const noexcept
   {
-    return !m_pc;
+    return !!m_pc;
   }
   bool operator !() const noexcept
   {
