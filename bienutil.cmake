@@ -33,6 +33,7 @@ endforeach()
 endif(MSVC)
 
 if (UNIX)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 if (NOT APPLE)
   message("Compiling under LINUX")
   set(LINUX TRUE)
