@@ -470,6 +470,45 @@ public:
     AssertValid();
   }
 
+  // This will increment the entire bitvector as if it were a number.
+  void increment()
+  {
+    AssertValid();
+    if ( m_kstSize )
+    {
+      t_TyEl * pElEnd = m_rgEls + m_kstSize;
+			t_TyEl * pEl;
+      for ( pEl = m_rgEls; pEl != pElEnd; ++pEl )
+      {
+        if ( !!++*pEl )
+          break;
+      }
+      const size_t kstLastFill = m_kstBits % ms_kstElSizeBits;
+      if ( ( pEl == pElEnd-1 ) && !!kstLastFill ) // update the last element?
+        *pEl &= ( ( 1ull << kstLastFill ) - 1ull );
+    }    
+    AssertValid();
+  }
+  // This will decrement the entire bitvector as if it were a number.
+  void decrement()
+  {
+    AssertValid();
+    if ( m_kstSize )
+    {
+      t_TyEl * pElEnd = m_rgEls + m_kstSize;
+			t_TyEl * pEl;
+      for ( pEl = m_rgEls; pEl != pElEnd; ++pEl )
+      {
+        if ( !!*pEl-- )
+          break;
+      }
+      const size_t kstLastFill = m_kstBits % ms_kstElSizeBits;
+      if ( ( pEl == pElEnd-1 ) && !!kstLastFill ) // update the last element?
+        *pEl &= ( ( 1ull << kstLastFill ) - 1ull );
+    }    
+    AssertValid();
+  }
+
   size_t  hash() const _BIEN_NOTHROW
   {
     AssertValid();

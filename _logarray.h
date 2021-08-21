@@ -279,6 +279,8 @@ public:
   void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( std::is_nothrow_destructible_v< _TyT > )
     requires ( std::is_nothrow_move_assignable_v< _TyT > )
   {
+    if ( !_rbv.size() )
+      return; // noop
     VerifyThrowSz( _rbv.size() == NElements(), "Algorithm requires that size of bit vector equals number of elements." );
     size_t nCur = _rbv.getfirstset();
     const size_t nElements = NElements();
@@ -289,12 +291,13 @@ public:
     size_t nNotSet = _rbv.getnextnotset( nCur );
     for ( ; nNotSet != nElements; )
     {
-      nCur = _rbv.getnextset( nNotSet );
       nElsRemoved += nNotSet - nCur;
+      nCur = _rbv.getnextset( nNotSet );
       for ( ; nNotSet != nCur; ++nNotSet, ++nCurWrite )
         ElGet( nCurWrite ) = std::move( ElGet( nNotSet ) );
       nNotSet = _rbv.getnextnotset( nCur );
     }
+    nElsRemoved += ( nNotSet - nCur );
     _SetSizeSmaller( nElements - nElsRemoved ); // might throw
   }
   // This one always can throw.
@@ -314,12 +317,13 @@ public:
     size_t nNotSet = _rbv.getnextnotset( nCur );
     for ( ; nNotSet != nElements; )
     {
-      nCur = _rbv.getnextset( nNotSet );
       nElsRemoved += nNotSet - nCur;
+      nCur = _rbv.getnextset( nNotSet );
       for ( ; nNotSet != nCur; ++nNotSet, ++nCurWrite )
         ElGet( nCurWrite ) = std::move( ElGet( nNotSet ) );
       nNotSet = _rbv.getnextnotset( nCur );
     }
+    nElsRemoved += ( nNotSet - nCur );
     _SetSizeSmaller( nElements - nElsRemoved ); // might throw
   }
 
