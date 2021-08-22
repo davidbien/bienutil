@@ -207,6 +207,14 @@ public:
       ( static_cast< t_TyEl >( 1 ) << ( _rstBit % ms_kstElSizeBits ) );
     AssertValid();
   }
+  // Version that takes a boolean allowing setting or clearing.
+  void  setbit( size_type _rstBit, bool _fSet ) _BIEN_NOTHROW
+  {
+    if ( _fSet )
+      setbit( _rstBit );
+    else
+      clearbit( _rstBit );
+  }
 
   void  clearbit( size_type _rstBit ) _BIEN_NOTHROW
   {
