@@ -488,21 +488,25 @@ public:
   void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( std::is_nothrow_destructible_v< _tyT > )
     requires ( std::is_nothrow_move_assignable_v< _tyT > )
   {
+    if ( !_rbv.size() )
+      return; // noop
     VerifyThrowSz( _rbv.size() == NElements(), "Algorithm requires that size of bit vector equals number of elements." );
-    _tySizeType nCur = _rbv.getfirstset();
-    if ( nCur == m_nElements )
+    size_t nCur = _rbv.getfirstset();
+    const size_t nElements = NElements();
+    if ( nCur == nElements )
       return; // noop.
-    _tySizeType nCurWrite = nCur;
-    _tySizeType nElsRemoved = 0;
-    _tySizeType nNotSet = _rbv.getnextnotset( nCur );
-    for ( ; nNotSet != m_nElements; )
+    size_t nCurWrite = nCur;
+    size_t nElsRemoved = 0;
+    size_t nNotSet = _rbv.getnextnotset( nCur );
+    for ( ; nNotSet != nElements; )
     {
-      nCur = _rbv.getnextset( nNotSet );
       nElsRemoved += nNotSet - nCur;
+      nCur = _rbv.getnextset( nNotSet );
       for ( ; nNotSet != nCur; ++nNotSet, ++nCurWrite )
         ElGet( nCurWrite ) = std::move( ElGet( nNotSet ) );
       nNotSet = _rbv.getnextnotset( nCur );
     }
+    nElsRemoved += ( nNotSet - nCur );
     SetSizeSmaller( m_nElements - nElsRemoved );
   }
   // This method efficiently removes elements as indicated by bits set in the passed _rbv.
@@ -511,21 +515,25 @@ public:
   void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( false )
     requires ( !std::is_nothrow_move_assignable_v< _tyT > )
   {
+    if ( !_rbv.size() )
+      return; // noop
     VerifyThrowSz( _rbv.size() == NElements(), "Algorithm requires that size of bit vector equals number of elements." );
-    _tySizeType nCur = _rbv.getfirstset();
-    if ( nCur == m_nElements )
+    size_t nCur = _rbv.getfirstset();
+    const size_t nElements = NElements();
+    if ( nCur == nElements )
       return; // noop.
-    _tySizeType nCurWrite = nCur;
-    _tySizeType nElsRemoved = 0;
-    _tySizeType nNotSet = _rbv.getnextnotset( nCur );
-    for ( ; nNotSet != m_nElements; )
+    size_t nCurWrite = nCur;
+    size_t nElsRemoved = 0;
+    size_t nNotSet = _rbv.getnextnotset( nCur );
+    for ( ; nNotSet != nElements; )
     {
-      nCur = _rbv.getnextset( nNotSet );
       nElsRemoved += nNotSet - nCur;
+      nCur = _rbv.getnextset( nNotSet );
       for ( ; nNotSet != nCur; ++nNotSet, ++nCurWrite )
         ElGet( nCurWrite ) = std::move( ElGet( nNotSet ) );
       nNotSet = _rbv.getnextnotset( nCur );
     }
+    nElsRemoved += ( nNotSet - nCur );
     SetSizeSmaller( m_nElements - nElsRemoved );
   }
 
