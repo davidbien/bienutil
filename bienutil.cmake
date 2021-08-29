@@ -1,6 +1,12 @@
 # bienutil.cmake
 # Standard cmake setup for modules using bienutil, etc.
 
+#          Copyright David Lawrence Bien 1997 - 2021.
+# Distributed under the Boost Software License, Version 1.0.
+#    (See accompanying file LICENSE_1_0.txt or copy at
+#          https://www.boost.org/LICENSE_1_0.txt).
+
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(COMPILER_CLANG TRUE)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

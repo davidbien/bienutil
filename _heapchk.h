@@ -1,5 +1,10 @@
 #pragma once
 
+//          Copyright David Lawrence Bien 1997 - 2021.
+// Distributed under the Boost Software License, Version 1.0.
+//    (See accompanying file LICENSE_1_0.txt or copy at
+//          https://www.boost.org/LICENSE_1_0.txt).
+
 // _heapchk.h
 // Check the heap. Generally we only do this in debug but it can be turned on in retail.
 
