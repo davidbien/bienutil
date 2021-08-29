@@ -512,7 +512,7 @@ public: // Allow access for testing.
       // Then we are always allocating just the first block:
       m_ptSingleBlock = (_TyT*)malloc( s_knSingleBlockSizeLimit * sizeof( _TyT ) );
       if ( !m_ptSingleBlock )
-        THROWNAMEDBADALLOC( "" );
+        THROWNAMEDBADALLOC( "malloc failed" );
       m_nElements = -1;
       return m_ptSingleBlock;
     }
@@ -541,7 +541,7 @@ public: // Allow access for testing.
       {
         ::free( pptBlockPtrs ); // calling free() on null has null effect.
         ::free( ptNewBlock );  // avoid leaks.
-        THROWNAMEDBADALLOC( "" );
+        THROWNAMEDBADALLOC( "malloc failed" );
       }
       *pptBlockPtrs = m_ptSingleBlock;
       pptBlockPtrs[1] = ptNewBlock;
@@ -562,12 +562,12 @@ public: // Allow access for testing.
         size_t nNewBlocks = nBlockNextEl + s_knAllocateBlockPtrsInBlocksOf;
         pptNewBlockPtrs = (_TyT**)malloc( nNewBlocks * sizeof( _TyT * ) );
         if ( !pptNewBlockPtrs )
-          THROWNAMEDBADALLOC( "" );
+          THROWNAMEDBADALLOC( "malloc failed" );
         memcpy( pptNewBlockPtrs, m_pptBlocksBegin, nBlockNextEl * sizeof( _TyT * ) ); // copy in old data.
       }
       _TyT * ptNewBlock = (_TyT*)malloc( nBlockSize * sizeof( _TyT ) );
       if ( !ptNewBlock )
-        THROWNAMEDBADALLOC( "" );
+        THROWNAMEDBADALLOC( "malloc failed" );
       // Everything is allocated now - we won't throw for the rest of this method.
       if ( pptNewBlockPtrs )
       {
@@ -617,7 +617,7 @@ public: // Allow access for testing.
         pptBlockPtrsNew = (_TyT**)malloc( nBlockPtrsNew * sizeof(_TyT*) );
         // memset( pptBlockPtrsNew, 0, nBlockPtrsNew * sizeof(_TyT*) ); - unnecessary - we are copying in the old one 
         if ( !pptBlockPtrsNew )
-          THROWNAMEDBADALLOC( "" ); // The only reallocation that we have to do in this method and we haven't changed anything yet... good.
+          THROWNAMEDBADALLOC( "malloc failed" ); // The only reallocation that we have to do in this method and we haven't changed anything yet... good.
       }
     }
     // Now we start moving backwards and destructing and removing blocks as we go:

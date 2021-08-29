@@ -554,7 +554,7 @@ GetCurrentExecutablePath(std::string &_rstrPath)
 		char *cpMallocedPath = realpath(strInitPath.c_str(), 0);
 		FreeVoid fv(cpMallocedPath); // Ensure we free.
 		Assert(!!cpMallocedPath);
-		if (!cpMallocedPath)
+		if (!cpMallocedPath) // not throwing here because we don't want this to fail.
 			_rstrPath = strInitPath;
 		else
 			_rstrPath = cpMallocedPath;
