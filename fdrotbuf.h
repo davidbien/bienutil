@@ -206,6 +206,7 @@ public:
   {
     AssertValid();
     m_saBuffer.SetIBaseEl( _posEnd );
+    m_posCur = _posEnd;
     AssertValid();
   }
   // Return the data in the buffer between the base of the buffer and m_posCur.
