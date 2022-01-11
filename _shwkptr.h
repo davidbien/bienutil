@@ -369,6 +369,11 @@ public:
     Assert( !!m_pc );
     return m_pc->m_tyT;
   }
+  bool FIsT( _TyT * _pt ) const noexcept
+  {
+    return !!m_pc && ( _pt == &m_pc->m_tyT );
+  }
+
   // Allow access to the non-qualified type via a specially named method:
   _TyTNonConstVolatile & TGetNonConstVolatile() const noexcept
   {
@@ -582,6 +587,10 @@ public:
   bool operator !() const noexcept
   {
     return !m_pc;
+  }
+  bool FIsT( _TyT * _pt ) const noexcept
+  {
+    return !!m_pc && ( _pt == &m_pc->m_tyT );
   }
 protected:
   _TyContainerPtr * m_pc{ nullptr };
