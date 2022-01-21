@@ -152,6 +152,8 @@ inline void UUIDCreate(vtyUUID& _ruuid) noexcept
 {
 #ifdef WIN32
   (void)UuidCreate(&_ruuid); // Not much to do on failure...
+#elif defined( __ANDROID__ )
+  memset( &_ruuid, 0, sizeof( _ruuid ) ); // We need to get this working for Android eventually.
 #elif defined( __APPLE__ ) || defined( __linux__ )
   uuid_generate(_ruuid);
 #endif
@@ -176,6 +178,11 @@ inline int UUIDToString(const vtyUUID& _ruuid, char* _rgcBuffer, const size_t _k
   }
   ::SetLastError(s);
   return -1;
+#elif defined( __ANDROID__ )
+  const char rgcNullGuid[] = "00000000-0000-0000-0000-000000000000";
+  memcpy( _rgcBuffer, rgcNullGuid, (std::min)(sizeof(rgcNullGuid), _knBuf) );
+  _rgcBuffer[_knBuf - 1] = 0;
+  return 0;
 #elif defined( __APPLE__ ) || defined( __linux__ )
   if (_knBuf < vkstUUIDNCharsWithNull)
   {

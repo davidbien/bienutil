@@ -30,7 +30,9 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <dirent.h>
+#ifndef __ANDROID__
 #include <uuid/uuid.h>
+#endif // !__ANDROID__
 #endif //!WIN32
 
 // Test for compilation with multi-threading support under various platforms:
