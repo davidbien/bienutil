@@ -29,11 +29,14 @@
 #ifndef WIN32
 #include <syslog.h>
 #include <sys/syscall.h>
+#ifndef __ANDROID__
 #include <uuid/uuid.h>
+#endif //!__ANDROID__
 #endif //!WIN32
 #include "bienutil.h"
 #include "bientypes.h"
 #include "_util.h"
+#include "_compat.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
