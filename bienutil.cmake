@@ -60,13 +60,37 @@ if (WIN32)
   set(DEVENV_ROOT_DIRECTORY "c:/devenv" )
   message(STATUS "Dev root dir ${DEVENV_ROOT_DIRECTORY}")
 
+# ICU4C support:
+if ( MOD_USE_ICU4C EQUAL 1 )
+  set(DEVENV_ICU4C_VERSION "70" )
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(DEVENV_ICU4C_DIRECTORY ${DEVENV_ROOT_DIRECTORY}/icu4c64 )
+  set(DEVENV_ICU4C_BIN_DIRECTORY ${DEVENV_ICU4C_DIRECTORY}/bin64 )
   include_directories( BEFORE SYSTEM
-    ${DEVENV_ROOT_DIRECTORY}/icu4c/include
+    ${DEVENV_ICU4C_DIRECTORY}/include
   )
   link_libraries(
     Rpcrt4
-    ${DEVENV_ROOT_DIRECTORY}/icu4c/lib64/icuuc.lib
+    ${DEVENV_ICU4C_DIRECTORY}/lib64/icuuc.lib
   )
+else()
+  set(DEVENV_ICU4C_DIRECTORY ${DEVENV_ROOT_DIRECTORY}/icu4c32 )
+  set(DEVENV_ICU4C_BIN_DIRECTORY ${DEVENV_ICU4C_DIRECTORY}/bin )
+  include_directories( BEFORE SYSTEM
+    ${DEVENV_ICU4C_DIRECTORY}/include
+  )
+  link_libraries(
+    Rpcrt4
+    ${DEVENV_ICU4C_DIRECTORY}/lib/icuuc.lib
+  )
+endif()
+set(DEVENV_ICU4C_SRC_DLLS icudt${DEVENV_ICU4C_VERSION}.dll icuuc${DEVENV_ICU4C_VERSION}.dll )
+# since we are using ICU4C for these unit tests then copy the appropriate DLL(s) to the output directory:
+foreach( DEVENV_ICU4C_DLL ${DEVENV_ICU4C_SRC_DLLS} )
+message(STATUS "Copying file ${DEVENV_ICU4C_BIN_DIRECTORY}/${DEVENV_ICU4C_DLL} to ${DEVENV_ICU4C_DLL}")
+configure_file( ${DEVENV_ICU4C_BIN_DIRECTORY}/${DEVENV_ICU4C_DLL} ${DEVENV_ICU4C_DLL} COPYONLY )
+endforeach()
+endif()
 endif (WIN32)
 
 if (APPLE)

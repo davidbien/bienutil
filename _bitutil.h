@@ -103,41 +103,41 @@ inline
 constexpr size_t _KMSBitSet64( uint64_t _u64Test )
 {
 	uint64_t nShift;
-	if ( _u64Test > 0x00000000ffffffff )
+	if ( _u64Test > 0x00000000ffffffffull )
 	{
-		if ( _u64Test > 0x0000ffffffffffff )
+		if ( _u64Test > 0x0000ffffffffffffull )
 		{
-			if ( _u64Test > 0x00ffffffffffffff )
-				nShift = ( _u64Test > 0x0fffffffffffffff ) ? 60 : 56;
+			if ( _u64Test > 0x00ffffffffffffffull )
+				nShift = ( _u64Test > 0x0fffffffffffffffull ) ? 60 : 56;
 			else
-				nShift = ( _u64Test > 0x000fffffffffffff ) ? 52 : 48;
+				nShift = ( _u64Test > 0x000fffffffffffffull ) ? 52 : 48;
 		}
 		else
 		{
-			if ( _u64Test >	0x000000ffffffffff )
-				nShift = ( _u64Test > 0x00000fffffffffff ) ? 44 : 40;
+			if ( _u64Test >	0x000000ffffffffffull )
+				nShift = ( _u64Test > 0x00000fffffffffffull ) ? 44 : 40;
 			else
-				nShift = ( _u64Test > 0x0000000fffffffff ) ? 36 : 32;
+				nShift = ( _u64Test > 0x0000000fffffffffull ) ? 36 : 32;
 		}
 	}
 	else
 	{
-		if ( _u64Test > 0x000000000000ffff )
+		if ( _u64Test > 0x000000000000ffffull )
 		{
-			if ( _u64Test >	0x0000000000ffffff )
-				nShift = ( _u64Test > 0x000000000fffffff ) ? 28 : 24;
+			if ( _u64Test >	0x0000000000ffffffull )
+				nShift = ( _u64Test > 0x000000000fffffffull ) ? 28 : 24;
 			else
-				nShift = ( _u64Test > 0x00000000000fffff ) ? 20 : 16;
+				nShift = ( _u64Test > 0x00000000000fffffull ) ? 20 : 16;
 		}
 		else
 		{
-			if ( _u64Test >	0x00000000000000ff )
-				nShift = ( _u64Test > 0x0000000000000fff ) ? 12 : 8;
+			if ( _u64Test >	0x00000000000000ffull )
+				nShift = ( _u64Test > 0x0000000000000fffull ) ? 12 : 8;
 			else
-				nShift = ( _u64Test > 0x000000000000000f ) ? 4 : 0;
+				nShift = ( _u64Test > 0x000000000000000full ) ? 4 : 0;
 		}
 	}
-	size_t nRet = v_rgiBit[ ( _u64Test >> nShift ) & 0x000000000000000f ] + nShift;
+	size_t nRet = (size_t)( v_rgiBit[ ( _u64Test >> nShift ) & 0x000000000000000full ] + nShift );
 	return nRet;
 }
 

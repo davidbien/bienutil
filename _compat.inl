@@ -53,8 +53,14 @@ FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySe
     return SetFilePointerEx( _hFile, *((LARGE_INTEGER*)&_off), (PLARGE_INTEGER)_poffResult, _whence ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
     PrepareErrNo();
+#if INTPTR_MAX == INT32_MAX
+    vtySeekOffset off = lseek64( _hFile, _off, _whence );
+#elif INTPTR_MAX == INT64_MAX
     vtySeekOffset off = lseek( _hFile, _off, _whence );
-    if ( -1 != off )
+#else
+#error Not sure which lseek() to use.
+#endif
+    if ( -1ll != off )
     {
         Assert( off >= 0 );
         if ( _poffResult )
@@ -76,65 +82,169 @@ NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whenc
   return offResult;
 }
 
-inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead ) noexcept
+inline int FileRead( vtyFileHandle _hFile, void * _pvBuffer, uint64_t _u64NBytesToRead, uint64_t * _pu64NBytesRead ) noexcept
 {
+  // First check for overflow of read on 32bit platforms:
 #ifdef WIN32
-  if ( _stNBytesToRead > (std::numeric_limits<DWORD>::max)() )
+// We need only loop on 64bit platforms:
+#if INTPTR_MAX == INT32_MAX
+  if ( _u64NBytesToRead >= (std::numeric_limits<DWORD>::max)() )
   {
     SetLastErrNo( vkerrOverflow );
     return -1;
   }
   DWORD nBytesRead;
-  if ( !::ReadFile( _hFile, _pvBuffer, (DWORD)_stNBytesToRead, &nBytesRead, NULL ) )
+  if ( !::ReadFile( _hFile, _pvBuffer, (DWORD)_u64NBytesToRead, &nBytesRead, NULL ) )
       return -1;
-  if ( _pstNBytesRead )
-      *_pstNBytesRead = nBytesRead;
+  if ( _pu64NBytesRead )
+      *_pu64NBytesRead = nBytesRead;
   return 0;
+#else // INTPTR_MAX == INT32_MAX
+  static_assert( sizeof(size_t) == 8 );
+  uint64_t u64BytesRead = 0;
+  const DWORD kdwMaxPerRead = (std::numeric_limits<DWORD>::max)(); // as we understand - couldn't find otherwise.
+  for ( ; _u64NBytesToRead > 0;  )
+  {
+    DWORD dwBytesToRead = ( _u64NBytesToRead > kdwMaxPerRead ) ? kdwMaxPerRead : (DWORD)_u64NBytesToRead;
+    DWORD nBytesRead;
+    if ( !::ReadFile( _hFile, _pvBuffer, dwBytesToRead, &nBytesRead, NULL ) )
+        return -1;
+    u64BytesRead += nBytesRead;
+    if ( nBytesRead != dwBytesToRead ) // we hit EOF.
+      break; // can't read anymore - up to caller if wants to treat as error.
+    _u64NBytesToRead -= nBytesRead;
+    (uint8_t*&)_pvBuffer += nBytesRead;
+  }
+  if ( _pu64NBytesRead )
+      *_pu64NBytesRead = u64BytesRead;
+  return 0;
+#endif // INTPTR_MAX != INT32_MAX
 #elif defined( __APPLE__ ) || defined( __linux__ )
   PrepareErrNo();
-  ssize_t sstRead = ::read( _hFile, _pvBuffer, _stNBytesToRead );
+  // According to the online documentation "On Linux, read() (and similar system calls) will transfer at most
+  //  0x7ffff000 (2,147,479,552) bytes, returning the number of bytes actually transferred.  (This is true on 
+  //  both 32-bit and 64-bit systems.)"
+  const uint64_t ku64MaxPerRead = 0x7ffff000ull;
+// We need only loop on 64bit platforms:
+#if INTPTR_MAX == INT32_MAX
+  if ( _u64NBytesToRead > ku64MaxPerRead )
+  {
+    SetLastErrNo( vkerrOverflow );
+    return -1;
+  }
+  ssize_t sstRead = ::read( _hFile, _pvBuffer, (size_t)_u64NBytesToRead );
   if ( -1 == sstRead )
       return -1;
-  if ( _pstNBytesRead )
-      *_pstNBytesRead = sstRead;
+  if ( _pu64NBytesRead )
+      *_pu64NBytesRead = (size_t)sstRead;
   return 0;
+#else // INTPTR_MAX == INT32_MAX
+  static_assert( sizeof(size_t) == 8 );
+  uint64_t u64BytesRead = 0;
+  for ( ; _u64NBytesToRead > 0;  )
+  {
+    uint64_t u64BytesToRead = ( _u64NBytesToRead > ku64MaxPerRead ) ? ku64MaxPerRead : _u64NBytesToRead;
+    ssize_t sstRead = ::read( _hFile, _pvBuffer, u64BytesToRead );
+    if ( -1ll == sstRead )
+        return -1;
+    u64BytesRead += (size_t)sstRead;
+    if ( (size_t)sstRead != u64BytesToRead ) // we hit EOF.
+      break; // can't read anymore - up to caller if wants to treat as error.
+    _u64NBytesToRead -= u64BytesToRead;
+    (uint8_t*&)_pvBuffer += u64BytesToRead;
+  }
+  if ( _pu64NBytesRead )
+      *_pu64NBytesRead = u64BytesRead;
+  return 0;
+#endif // INTPTR_MAX != INT32_MAX
 #endif
 }
 
-inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten ) noexcept
+inline int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, uint64_t _u64NBytesToWrite, uint64_t * _pu64NBytesWritten ) noexcept
 {
 #ifdef WIN32  
-  if ( _stNBytesToWrite > (std::numeric_limits<DWORD>::max)() )
+// We need only loop on 64bit platforms:
+#if INTPTR_MAX == INT32_MAX
+  if ( _u64NBytesToWrite > (std::numeric_limits<DWORD>::max)() )
   {
     SetLastErrNo( vkerrOverflow );
     return -1;
   }
   DWORD nBytesWritten;
-  if ( !WriteFile( _hFile, _pvBuffer, (DWORD)_stNBytesToWrite, &nBytesWritten, NULL ) )
+  if ( !WriteFile( _hFile, _pvBuffer, (DWORD)_u64NBytesToWrite, &nBytesWritten, NULL ) )
       return -1;
-  if ( _pstNBytesWritten )
-      *_pstNBytesWritten = nBytesWritten;
+  if ( _pu64NBytesWritten )
+      *_pu64NBytesWritten = nBytesWritten;
   return 0;
+#else // INTPTR_MAX == INT32_MAX
+  static_assert( sizeof(size_t) == 8 );
+  uint64_t u64BytesWritten = 0;
+  const DWORD kdwMaxPerWrite = (std::numeric_limits<DWORD>::max)(); // as we understand - couldn't find otherwise.
+  for ( ; _u64NBytesToWrite > 0;  )
+  {
+    DWORD dwBytesToWrite = ( _u64NBytesToWrite > kdwMaxPerWrite ) ? kdwMaxPerWrite : (DWORD)_u64NBytesToWrite;
+    DWORD nBytesWritten;
+    if ( !::WriteFile( _hFile, _pvBuffer, dwBytesToWrite, &nBytesWritten, NULL ) )
+        return -1;
+    u64BytesWritten += nBytesWritten;
+    if ( nBytesWritten != dwBytesToWrite ) // we may not have transferred all bytes in some cases - caller needs to check for this on success.
+      break; // can't write anymore - up to caller if wants to treat as error.
+    _u64NBytesToWrite -= nBytesWritten;
+    (uint8_t*&)_pvBuffer += nBytesWritten;
+  }
+  if ( _pu64NBytesWritten )
+      *_pu64NBytesWritten = u64BytesWritten;
+  return 0;
+#endif // INTPTR_MAX != INT32_MAX
 #elif defined( __APPLE__ ) || defined( __linux__ )
   PrepareErrNo();
-  ssize_t sstWritten = ::write( _hFile, _pvBuffer, _stNBytesToWrite );
+  // According to the online documentation "On Linux, write() (and similar system calls) will transfer at most
+  //  0x7ffff000 (2,147,479,552) bytes, returning the number of bytes actually transferred.  (This is true on 
+  //  both 32-bit and 64-bit systems.)"
+  const uint64_t ku64MaxPerWrite = 0x7ffff000ull;
+// We need only loop on 64bit platforms:
+#if INTPTR_MAX == INT32_MAX
+  if ( _u64NBytesToWrite > ku64MaxPerWrite )
+  {
+    SetLastErrNo( vkerrOverflow );
+    return -1;
+  }
+  ssize_t sstWritten = ::write( _hFile, _pvBuffer, _u64NBytesToWrite );
   if ( -1 == sstWritten )
       return -1;
-  if ( _pstNBytesWritten )
-      *_pstNBytesWritten = sstWritten;
+  if ( _pu64NBytesWritten )
+      *_pu64NBytesWritten = (size_t)sstWritten;
   return 0;
+#else // INTPTR_MAX == INT32_MAX
+  static_assert( sizeof(size_t) == 8 );
+  uint64_t u64BytesWritten = 0;
+  for ( ; _u64NBytesToWrite > 0;  )
+  {
+    uint64_t u64BytesToWrite = ( _u64NBytesToWrite > ku64MaxPerWrite ) ? ku64MaxPerWrite : _u64NBytesToWrite;
+    ssize_t sstWrite = ::write( _hFile, _pvBuffer, u64BytesToWrite );
+    if ( -1ll == sstWrite )
+        return -1;
+    u64BytesWritten += (size_t)sstWrite;
+    if ( (size_t)sstWrite != u64BytesToWrite ) // we hit EOF.
+      break; // can't write anymore - up to caller if wants to treat as error.
+    _u64NBytesToWrite -= u64BytesToWrite;
+    (uint8_t*&)_pvBuffer += u64BytesToWrite;
+  }
+  if ( _pu64NBytesWritten )
+      *_pu64NBytesWritten = u64BytesWritten;
+  return 0;
+#endif // INTPTR_MAX != INT32_MAX
 #endif
 }
-inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite )
+inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, uint64_t _u64NBytesToWrite )
 {
-  size_t nbyWritten;
-  int iResult = FileWrite( _hFile,  _pvBuffer, _stNBytesToWrite, &nbyWritten );
+  uint64_t nbyWritten;
+  int iResult = FileWrite( _hFile,  _pvBuffer, _u64NBytesToWrite, &nbyWritten );
   if ( !!iResult )
     THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "FileWrite() failed." );
-  Assert( nbyWritten == _stNBytesToWrite );
-  VerifyThrowSz( nbyWritten == _stNBytesToWrite, "Only wrote [%lu] bytes of [%lu].", nbyWritten, _stNBytesToWrite );
+  Assert( nbyWritten == _u64NBytesToWrite );
+  VerifyThrowSz( nbyWritten == _u64NBytesToWrite, "Only wrote [%lu] bytes of [%lu].", nbyWritten, _u64NBytesToWrite );
 }
-
 
 // Time methods:
 inline int LocalTimeFromTime(const time_t* _ptt, struct tm* _ptmDest) noexcept

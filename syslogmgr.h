@@ -79,7 +79,7 @@ namespace n_SysLog
     {
       m_tpProgramStart = _tyClock::now();
     }
-    size_t NMillisecondsSinceStart() const
+    uint64_t NMillisecondsSinceStart() const
     {
       _tyTimePoint tpNow = _tyClock::now();
       _tyClock::duration dur = tpNow - m_tpProgramStart;
@@ -113,7 +113,7 @@ namespace n_SysLog
 // This contains thread level info about syslog messages that is constant for all contained messages.
 struct _SysLogThreadHeader
 {
-  size_t m_nmsSinceProgramStart{0}; // easiest way to do this.
+  uint64_t m_nmsSinceProgramStart{0}; // easiest way to do this.
   std::string m_szProgramName;
   vtyProcThreadId m_tidThreadId{0};
   time_t m_timeStart{0}; // The time that this program was started - or at least when InitSysLog() was called.
@@ -144,7 +144,7 @@ struct _SysLogThreadHeader
 // This breaks out all info from a log message so we can put it into a JSON file where it can then be put in a DB, etc.
 struct _SysLogContext
 {
-  size_t m_nmsSinceProgramStart{0};           // easiest way to do this.
+  uint64_t m_nmsSinceProgramStart{0};           // easiest way to do this.
   const JsoValue<char> *m_pjvLog{nullptr}; // additional JSON to log to the entry.
   time_t m_time{0};
   std::string m_szFullMesg; // The full annotated message.
@@ -286,7 +286,7 @@ public:
   _SysLogMgr(_SysLogMgr *_pslmOverlord);
   ~_SysLogMgr();
 
-  static size_t _GetMsSinceProgramStart()
+  static uint64_t _GetMsSinceProgramStart()
   {
     return s_psProgramStart.NMillisecondsSinceStart();
   }

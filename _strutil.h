@@ -848,54 +848,54 @@ inline constexpr EFileCharacterEncoding GetEncodingThisMachine( EFileCharacterEn
 	return efceFileCharacterEncodingCount;
 }
 
-static const size_t vknBytesBOM = 4;
+static const uint64_t vknBytesBOM = 4;
 // GetCharacterEncodingFromBOM:
-// Detect if there is a BOM present and if so return it. _rstLen should be at least 4 bytes.
-// Upon return _rstLen is set to the length of the BOM if a valid BOM is found or zero is no BOM is found.
+// Detect if there is a BOM present and if so return it. _ru64Len should be at least 4 bytes.
+// Upon return _ru64Len is set to the length of the BOM if a valid BOM is found or zero is no BOM is found.
 // If no valid BOM is found then efceFileCharacterEncodingCount is returned.
-inline EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, size_t & _rstLen )
+inline EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, uint64_t & _ru64Len )
 {
-	Assert( _rstLen >= vknBytesBOM );
-	VerifyThrowSz( _rstLen >= vknBytesBOM, "Requires vknBytesBOM(%lu) of file to determine BOM.", vknBytesBOM );
+	Assert( _ru64Len >= vknBytesBOM );
+	VerifyThrowSz( _ru64Len >= vknBytesBOM, "Requires vknBytesBOM(%lu) of file to determine BOM.", vknBytesBOM );
 
 	if ( ( 0xEF == _pbyBufFileBegin[0] ) && ( 0xBB == _pbyBufFileBegin[1] ) && ( 0xBF == _pbyBufFileBegin[2] ) )
 	{
-		_rstLen = 3;
+		_ru64Len = 3;
 		return efceUTF8;
 	}
 	if ( ( 0xFF == _pbyBufFileBegin[0] ) && ( 0xFE == _pbyBufFileBegin[1] ) )
 	{
 		if ( ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
 		{
-			_rstLen = 4;
+			_ru64Len = 4;
 			return efceUTF32LE;
 		}
 		else
 		{
-			_rstLen = 2;
+			_ru64Len = 2;
 			return efceUTF16LE;
 		}
 	}
 	if ( ( 0xFE == _pbyBufFileBegin[0] ) && ( 0xFF == _pbyBufFileBegin[1] ) )
 	{
-		_rstLen = 2;
+		_ru64Len = 2;
 		return efceUTF16BE;
 	}
 	if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0xFE == _pbyBufFileBegin[2] ) && ( 0xFF == _pbyBufFileBegin[3] ) )
 	{
-		_rstLen = 4;
+		_ru64Len = 4;
 		return efceUTF32BE;
 	}
-	_rstLen = 0;
+	_ru64Len = 0;
 	return efceFileCharacterEncodingCount;
 }
 
 // DetectEncodingXmlFile:
 // If the above GetCharacterEncodingFromBOM() fails then we can try to detect the encoding using the fact that the first character in an XML file is an '<'.
-inline EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, size_t _stLen )
+inline EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin, uint64_t _u64Len )
 {
-	Assert( _stLen >= vknBytesBOM );
-	if ( _stLen < vknBytesBOM )
+	Assert( _u64Len >= vknBytesBOM );
+	if ( _u64Len < vknBytesBOM )
 			return efceFileCharacterEncodingCount;
 	if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 != _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
 			return efceUTF8;
@@ -1015,12 +1015,13 @@ auto SvCharacterEncodingName( EFileCharacterEncoding _efce ) -> basic_string_vie
 inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _efceSrc, const char * _pszFileNameDest, EFileCharacterEncoding _efceDst, bool _fAddBOM )
 {
 	// Map the source at its current seek point - this might be just past the BOM or somewhere in the middle of the file.
-	size_t nbySizeSrc;
-	size_t stMapAtPostion = (size_t)NFileSeekAndThrow(_hFileSrc, 0, vkSeekCur);
-	FileMappingObj fmoSrc( MapReadOnlyHandle( _hFileSrc, &nbySizeSrc, &stMapAtPostion ) );
+	uint64_t nbySizeSrc;
+	uint64_t u64MapAtPostion = (size_t)NFileSeekAndThrow(_hFileSrc, 0, vkSeekCur);
+	FileMappingObj fmoSrc( MapReadOnlyHandle( _hFileSrc, &nbySizeSrc, &u64MapAtPostion ) );
 	VerifyThrowSz( fmoSrc.FIsOpen(), "Couldn't map source file." );
-	void * pvMapped = fmoSrc.Pby( stMapAtPostion );
-	nbySizeSrc -= stMapAtPostion;
+	void * pvMapped = fmoSrc.Pby( (size_t)u64MapAtPostion ); // u64MapAtPostion is updated by MapReadOnlyHandle to be less than a page size.
+	nbySizeSrc -= u64MapAtPostion;
+	VerifyThrowSz( nbySizeSrc < (size_t)(std::numeric_limits<ssize_t>::max)(), "Source file is too large to be converted."); // Limit appropriately under 32bit.
 
 	FileObj foDst( CreateWriteOnlyFile( _pszFileNameDest ) );
 	VerifyThrowSz( foDst.FIsOpen(), "Couldn't create file[%s].", _pszFileNameDest );
@@ -1041,7 +1042,7 @@ inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _
 	{
 		VerifyThrowSz( !( nbySizeSrc % sizeof(char16_t) ), "Source file is not a integral number of char16_t characters - something is fishy." );
 		// We're just gonna use a string to convert the file. It could be huge and we might run out of memory but I ain't solving that problem in this method.
-		basic_string< char16_t > strSrcData( (char16_t*)pvMapped, nbySizeSrc / sizeof(char16_t) );
+		basic_string< char16_t > strSrcData( (char16_t*)pvMapped, (size_t)nbySizeSrc / sizeof(char16_t) );
 		if ( _efceSrc != GetEncodingThisMachine( _efceSrc ) )
 		{
 			// Then we must switch the endian before doing anything with it.
@@ -1074,7 +1075,7 @@ inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _
 	{
 		VerifyThrowSz( !( nbySizeSrc % sizeof(char32_t) ), "Source file is not a integral number of char32_t characters - something is fishy." );
 		// We're just gonna use a string to convert the file. It could be huge and we might run out of memory but I ain't solving that problem in this method.
-		basic_string< char32_t > strSrcData( (char32_t*)pvMapped, nbySizeSrc / sizeof(char32_t) );
+		basic_string< char32_t > strSrcData( (char32_t*)pvMapped, (size_t)nbySizeSrc / sizeof(char32_t) );
 		if ( _efceSrc != GetEncodingThisMachine( _efceSrc ) )
 		{
 			// Then we must switch the endian before doing anything with it.
@@ -1105,7 +1106,7 @@ inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _
 	}
 	Assert( efceUTF8 == _efceSrc );
 	VerifyThrowSz( efceUTF8 == _efceSrc, "Unknown encoding _efceSrc[%u].", _efceSrc );
-	basic_string_view< char8_t > svSrcData( (char8_t*)pvMapped, nbySizeSrc );
+	basic_string_view< char8_t > svSrcData( (char8_t*)pvMapped, (size_t)nbySizeSrc );
 	if ( ( efceUTF16BE == _efceDst ) || ( efceUTF16LE == _efceDst ) )
 	{
 		basic_string< char16_t > strConverted;

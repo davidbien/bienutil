@@ -380,39 +380,39 @@ public:
 };
 typedef MappedMemoryHandle vtyMappedMemoryHandle;
 
-// Map the file readonly. Return the size of the mapping in _pstSizeMapping. Map at position *_pstAtPosition if _pstAtPosition.
-// If _pstAtPosition is specified then it is updated correctly by the page size - i.e. upon return *_pstAtPosition will be equal to *_pstAtPosition % dwPageSize.
+// Map the file readonly. Return the size of the mapping in _pu64SizeMapping. Map at position *_pu64AtPosition if _pu64AtPosition.
+// If _pu64AtPosition is specified then it is updated correctly by the page size - i.e. upon return *_pu64AtPosition will be equal to *_pu64AtPosition % dwPageSize.
 // It's up to the caller to offset the returned void pointer appropriately.
-inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = nullptr, size_t * _pstAtPosition = nullptr ) noexcept
+inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = nullptr, uint64_t * _pu64AtPosition = nullptr ) noexcept
 {
 #ifdef WIN32
-    static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pstSizeMapping) );
-    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
-    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
-    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
-    if ( _pstAtPosition )
-       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
-    if ( !!_pstSizeMapping )
+    static_assert( sizeof(LARGE_INTEGER) == sizeof(*_pu64SizeMapping) );
+    uint64_t u64AtPosition = !_pu64AtPosition ? 0 : *_pu64AtPosition;
+    uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+    uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
+    if ( _pu64AtPosition )
+       *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
+    if ( !!_pu64SizeMapping )
     {
         BOOL fGetFileSize;
-        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( stAtPosition >= *_pstSizeMapping ) )
+        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pu64SizeMapping ) ) || ( u64AtPosition >= *_pu64SizeMapping ) )
         {
             if ( !fGetFileSize )
             {
-                if ( !!_pstSizeMapping )
-                    *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+                if ( !!_pu64SizeMapping )
+                    *_pu64SizeMapping = (numeric_limits<uint64_t>::max)(); // indicate to the caller that we didn't get the file size.
             }
             else
                 SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file or a file at a posiion beyond or equal to the end.
             return vtyMappedMemoryHandle(); 
         }
-        *_pstSizeMapping -= stAtPositionAligned;
+        *_pu64SizeMapping -= u64AtPositionAligned;
     }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READONLY, 0, 0, NULL );
     if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
         return vtyMappedMemoryHandle();
-    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_READ, DWORD(stAtPositionAligned >> 32), (DWORD)stAtPositionAligned, 0 );
+    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_READ, DWORD(u64AtPositionAligned >> 32), (DWORD)u64AtPositionAligned, 0 );
     ::CloseHandle( hMapping ); // Close the mapping because MapViewOfFile maintains an internal handle on it.
     if ( !pvFile )
         return vtyMappedMemoryHandle();
@@ -420,62 +420,62 @@ inline vtyMappedMemoryHandle MapReadOnlyHandle( vtyFileHandle _hFile, size_t * _
 #elif defined( __APPLE__ ) || defined( __linux__ )
     // We must specify a size to mmap under linux:
     struct stat bufStat;
-    static_assert( sizeof(bufStat.st_size) == sizeof(*_pstSizeMapping) );
+    static_assert( sizeof(bufStat.st_size) == sizeof(*_pu64SizeMapping) );
     int iStat = ::fstat( _hFile, &bufStat );
     if ( -1 == iStat )    
     {
-        if ( !!_pstSizeMapping )
-            *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+        if ( !!_pu64SizeMapping )
+            *_pu64SizeMapping = (numeric_limits<uint64_t>::max)(); // indicate to the caller that we didn't get the file size.
         return vtyMappedMemoryHandle();
     }
-    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
-    if ( stAtPosition >= bufStat.st_size )
+    uint64_t u64AtPosition = !_pu64AtPosition ? 0 : *_pu64AtPosition;
+    if ( u64AtPosition >= bufStat.st_size )
     {
         SetLastErrNo( EINVAL );
         return vtyMappedMemoryHandle();
     }
-    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
-    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
-    if ( _pstAtPosition )
-       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
-    if ( !!_pstSizeMapping )
-        *_pstSizeMapping = bufStat.st_size - stAtPositionAligned;
-    void * pvFile = ::mmap( 0, bufStat.st_size - stAtPositionAligned, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, stAtPositionAligned );
+    uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+    uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
+    if ( _pu64AtPosition )
+       *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
+    if ( !!_pu64SizeMapping )
+        *_pu64SizeMapping = bufStat.st_size - u64AtPositionAligned;
+    void * pvFile = ::mmap( 0, bufStat.st_size - u64AtPositionAligned, PROT_READ, MAP_NORESERVE | MAP_SHARED, _hFile, u64AtPositionAligned );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
-    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - stAtPositionAligned );
+    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - u64AtPositionAligned );
 #endif
 }
 // To map writeable you must map read/write - it seems on both Linux and Windows.
-inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * _pstSizeMapping = 0, size_t * _pstAtPosition = nullptr ) noexcept
+inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = 0, uint64_t * _pu64AtPosition = nullptr ) noexcept
 {
 #ifdef WIN32
-    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
-    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
-    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
-    if ( _pstAtPosition )
-       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
-    if ( !!_pstSizeMapping )
+    uint64_t u64AtPosition = !_pu64AtPosition ? 0 : *_pu64AtPosition;
+    uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+    uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
+    if ( _pu64AtPosition )
+       *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
+    if ( !!_pu64SizeMapping )
     {
         BOOL fGetFileSize;
-        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pstSizeMapping ) ) || ( stAtPosition >= *_pstSizeMapping ) )
+        if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pu64SizeMapping ) ) || ( u64AtPosition >= *_pu64SizeMapping ) )
         {
             if ( !fGetFileSize )
             {
-                if ( !!_pstSizeMapping )
-                    *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+                if ( !!_pu64SizeMapping )
+                    *_pu64SizeMapping = (numeric_limits<uint64_t>::max)(); // indicate to the caller that we didn't get the file size.
             }
             else
                 SetLastErrNo( ERROR_INVALID_PARAMETER );// Can't map a zero size file or a file at a posiion beyond or equal to the end.
             return vtyMappedMemoryHandle(); 
         }
-        *_pstSizeMapping -= stAtPositionAligned;
+        *_pu64SizeMapping -= u64AtPositionAligned;
     }
      // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
     vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READWRITE, 0, 0, NULL );
     if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
         return vtyMappedMemoryHandle();
-    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_WRITE, DWORD(stAtPositionAligned >> 32), (DWORD)stAtPositionAligned, 0); // FILE_MAP_WRITE means read/write according to docs.
+    void* pvFile = ::MapViewOfFile(hMapping, FILE_MAP_WRITE, DWORD(u64AtPositionAligned >> 32), (DWORD)u64AtPositionAligned, 0); // FILE_MAP_WRITE means read/write according to docs.
     ::CloseHandle( hMapping ); // Close the mapping because MapViewOfFile maintains an internal handle on it.
     if ( !pvFile )
         return vtyMappedMemoryHandle();
@@ -483,30 +483,30 @@ inline vtyMappedMemoryHandle MapReadWriteHandle( vtyFileHandle _hFile, size_t * 
 #elif defined( __APPLE__ ) || defined( __linux__ )
     // We must specify a size to mmap under linux:
     struct stat bufStat;
-    static_assert( sizeof(bufStat.st_size) == sizeof(*_pstSizeMapping) );
+    static_assert( sizeof(bufStat.st_size) == sizeof(*_pu64SizeMapping) );
     int iStat = ::fstat( _hFile, &bufStat );
     if ( -1 == iStat )
     {
-        if ( !!_pstSizeMapping )
-            *_pstSizeMapping = (numeric_limits< size_t>::max)(); // indicate to the caller that we didn't get the file size.
+        if ( !!_pu64SizeMapping )
+            *_pu64SizeMapping = (numeric_limits<uint64_t>::max)(); // indicate to the caller that we didn't get the file size.
         return vtyMappedMemoryHandle();
     }
-    size_t stAtPosition = !_pstAtPosition ? 0 : *_pstAtPosition;
-    if ( stAtPosition >= bufStat.st_size )
+    uint64_t u64AtPosition = !_pu64AtPosition ? 0 : *_pu64AtPosition;
+    if ( u64AtPosition >= bufStat.st_size )
     {
         SetLastErrNo( EINVAL );
         return vtyMappedMemoryHandle();
     }
-    size_t stAtPositionRemainder = ( stAtPosition % GetPageSize() );
-    size_t stAtPositionAligned = stAtPosition - stAtPositionRemainder;
-    if ( _pstAtPosition )
-       *_pstAtPosition = stAtPositionRemainder; // update for the caller.
-    if ( !!_pstSizeMapping )
-        *_pstSizeMapping = bufStat.st_size - stAtPositionAligned;
-    void * pvFile = ::mmap( 0, bufStat.st_size - stAtPositionAligned,  PROT_READ | PROT_WRITE, MAP_NORESERVE | MAP_SHARED, _hFile, stAtPositionAligned );
+    uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+    uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
+    if ( _pu64AtPosition )
+       *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
+    if ( !!_pu64SizeMapping )
+        *_pu64SizeMapping = bufStat.st_size - u64AtPositionAligned;
+    void * pvFile = ::mmap( 0, bufStat.st_size - u64AtPositionAligned,  PROT_READ | PROT_WRITE, MAP_NORESERVE | MAP_SHARED, _hFile, u64AtPositionAligned );
     if ( MAP_FAILED == pvFile )
         return vtyMappedMemoryHandle();
-    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - stAtPositionAligned );
+    return vtyMappedMemoryHandle( pvFile, bufStat.st_size - u64AtPositionAligned );
 #endif
 }
 
@@ -516,20 +516,20 @@ int UnmapHandle( vtyMappedMemoryHandle const & _rhmm ) noexcept;
 // This provides a general usage method that returns a void* and closes all other files and handles, etc. Clean and is a major usage scenario.
 // Return the size of the mapping in _rstSizeMapping.
 // We don't throw here and we don't log - this is meant as a utility method and a black box.
-inline vtyMappedMemoryHandle MapReadOnlyFilename( const char * _pszFileName, size_t * _pstSizeMapping = 0 ) noexcept
+inline vtyMappedMemoryHandle MapReadOnlyFilename( const char * _pszFileName, uint64_t * _pu64SizeMapping = 0 ) noexcept
 {
 #ifdef WIN32
     vtyFileHandle hFile = ::CreateFile( _pszFileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL );
     if ( INVALID_HANDLE_VALUE == hFile )
         return vtyMappedMemoryHandle();
-    vtyMappedMemoryHandle hmm = MapReadOnlyHandle( hFile, _pstSizeMapping );
+    vtyMappedMemoryHandle hmm = MapReadOnlyHandle( hFile, _pu64SizeMapping );
     ::CloseHandle( hFile );
     return hmm;
 #elif defined( __APPLE__ ) || defined( __linux__ )
     int fd = ::open( _pszFileName, O_RDONLY );
     if ( -1 == fd )
         return vtyMappedMemoryHandle();
-    vtyMappedMemoryHandle hmm = MapReadOnlyHandle( fd, _pstSizeMapping );
+    vtyMappedMemoryHandle hmm = MapReadOnlyHandle( fd, _pu64SizeMapping );
     ::close( fd );
     return hmm;
 #endif
@@ -639,15 +639,15 @@ inline uint64_t GetFileSizeFromHandle( vtyFileHandle _hFile )
 }
 
 // Seeking files:
+// We always use a 64bit seek offset for files - we normalize to this regardless if we are compiling in 32bit.
+typedef int64_t vtySeekOffset;
 #ifdef WIN32
 typedef DWORD vtySeekWhence;
-typedef ssize_t vtySeekOffset;
 static const vtySeekWhence vkSeekBegin = FILE_BEGIN;
 static const vtySeekWhence vkSeekCur = FILE_CURRENT;
 static const vtySeekWhence vkSeekEnd = FILE_END;
 #elif defined( __APPLE__ ) || defined( __linux__ )
 typedef int vtySeekWhence;
-typedef off_t vtySeekOffset;
 static const vtySeekWhence vkSeekBegin = SEEK_SET;
 static const vtySeekWhence vkSeekCur = SEEK_CUR;
 static const vtySeekWhence vkSeekEnd = SEEK_END;
@@ -660,33 +660,52 @@ inline vtySeekOffset
 NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence);
 
 // Reading and writing files:
-int FileRead( vtyFileHandle _hFile, void * _pvBuffer, size_t _stNBytesToRead, size_t * _pstNBytesRead = 0 ) noexcept;
-int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite, size_t * _pstNBytesWritten = 0 ) noexcept;
+// For the sake of consistency between 32bit/64bit Windows and Linux and others we accept uint64_t as the sizes here.
+// Under 32bit clearly we can't read something larger than the address space and so we throw an exception if we receive an
+//  argument larger than 32bit max. In the case of Windows 64bit we will loop and call ReadFile() multiple times when the argument
+//  is larger than 32bit max since the methods only accept 32bit arguments.
+int FileRead( vtyFileHandle _hFile, void * _pvBuffer, uint64_t _u64NBytesToRead, uint64_t * _pu64NBytesRead = 0 ) noexcept;
+int FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, uint64_t _u64NBytesToWrite, uint64_t * _pu64NBytesWritten = 0 ) noexcept;
 // This method always throws on failure or not writing the number of bytes requested.
-void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, size_t _stNBytesToWrite );
+void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, uint64_t _u64NBytesToWrite );
 
 // Set the size of the file bigger or smaller. I avoid using truncate to set the file larger in linux due to performance concerns.
 // There is no expectation that this results in zeros in the new portion of a larger file.
-inline int FileSetSize( vtyFileHandle _hFile, size_t _stSize ) noexcept
+inline int FileSetSize( vtyFileHandle _hFile, uint64_t _u64Size ) noexcept
 {
 #ifdef WIN32
+  static_assert( sizeof( _u64Size ) == sizeof( LARGE_INTEGER ) );
   LARGE_INTEGER li;
-  li.QuadPart = _stSize;
+  li.QuadPart = _u64Size;
   if ( !SetFilePointerEx( _hFile, li, NULL, FILE_BEGIN ) )
       return -1;
   return SetEndOfFile( _hFile ) ? 0 : -1;
 #elif defined( __APPLE__ ) || defined( __linux__ )
   struct stat bufStat;
+  static_assert(sizeof(_u64Size) == sizeof(bufStat.st_size));
   int iResult = ::fstat( _hFile, &bufStat );
   if ( -1 == iResult )
       return -1;
-  if ( _stSize < bufStat.st_size )
-      return ::ftruncate( _hFile, _stSize );
+  if ( _u64Size < bufStat.st_size )
+#if INTPTR_MAX == INT32_MAX
+      return ::ftruncate64( _hFile, _u64Size );
+#elif INTPTR_MAX == INT64_MAX
+#error got here
+      return ::ftruncate( _hFile, _u64Size );
+#else
+#error Not sure which ftruncate() to use.
+#endif
   else
-  if ( _stSize > bufStat.st_size )
+  if ( _u64Size > bufStat.st_size )
   { // ftruncate writes zeros and it is unclear if that cause perf issues. We don't care about zeros here.
-      ssize_t posEnd = ::lseek(_hFile, _stSize - 1, SEEK_SET);
-      if (-1 == posEnd)
+#if INTPTR_MAX == INT32_MAX
+      vtySeekOffset posEnd = ::lseek64(_hFile, _u64Size - 1, SEEK_SET);
+#elif INTPTR_MAX == INT64_MAX
+      vtySeekOffset posEnd = ::lseek(_hFile, _u64Size - 1, SEEK_SET);
+#else
+#error Not sure which lseek() to use.
+#endif
+      if ( -1ll == posEnd )
           return -1;
       errno = 0;
       return ( 1 == ::write(_hFile, "", 1) ) ? 0 : -1; // write a single byte to grow the file to s_knGrowFileByBytes.

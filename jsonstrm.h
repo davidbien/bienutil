@@ -1438,14 +1438,14 @@ public:
     Assert( FOpened() );
     Assert( 0 == NFileSeekAndThrow( m_foFile.HFileGet(), 0, vkSeekCur ) );
     uint8_t rgBOM[] = {0xFF, 0xFE};
-    size_t stWrote;
-    int iWriteResult = FileWrite( m_foFile.HFileGet(), &rgBOM, sizeof rgBOM, &stWrote );
+    uint64_t u64Wrote;
+    int iWriteResult = FileWrite( m_foFile.HFileGet(), &rgBOM, sizeof rgBOM, &u64Wrote );
     if (!!iWriteResult)
     {
       Assert( -1 == iWriteResult );
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
     }
-    Assert( stWrote == sizeof rgBOM );
+    Assert( u64Wrote == sizeof rgBOM );
   }
   // Write a single character from the file - always throw on EOF.
   void WriteChar(_tyChar _tc)
@@ -1453,28 +1453,28 @@ public:
     Assert(FOpened());
     if (sizeof(_tyChar) == sizeof(_tyPersistAsChar))
     {
-      size_t stWrote;
-      int iWriteResult = FileWrite( m_foFile.HFileGet(), &_tc, sizeof _tc, &stWrote );
+      uint64_t u64Wrote;
+      int iWriteResult = FileWrite( m_foFile.HFileGet(), &_tc, sizeof _tc, &u64Wrote );
       if (!!iWriteResult)
       {
         Assert( -1 == iWriteResult );
         THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
-      Assert( stWrote == sizeof _tc );
+      Assert( u64Wrote == sizeof _tc );
     }
     else
     {
       _tyStdStrPersist strPersist;
       ConvertString(strPersist, &_tc, 1);
       size_t stWrite = strPersist.length() * sizeof(_tyPersistAsChar);
-      size_t stWrote;
-      int iWriteResult = FileWrite( m_foFile.HFileGet(), &strPersist[0], stWrite, &stWrote );
+      uint64_t u64Wrote;
+      int iWriteResult = FileWrite( m_foFile.HFileGet(), &strPersist[0], stWrite, &u64Wrote );
       if (!!iWriteResult)
       {
         Assert( -1 == iWriteResult );
         THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
-      Assert( stWrote == stWrite );
+      Assert( u64Wrote == stWrite );
     }
   }
   void WriteRawChars(_tyLPCSTR _psz, ssize_t _sstLen = -1)
@@ -1487,25 +1487,25 @@ public:
       _tyStdStrPersist strPersist;
       ConvertString(strPersist, _psz, _sstLen);
       size_t stWrite = strPersist.length() * sizeof(_tyPersistAsChar);
-      size_t stWrote;
-      int iWriteResult = FileWrite( m_foFile.HFileGet(), &strPersist[0], stWrite, &stWrote );
+      uint64_t u64Wrote;
+      int iWriteResult = FileWrite( m_foFile.HFileGet(), &strPersist[0], stWrite, &u64Wrote );
       if (!!iWriteResult)
       {
         Assert( -1 == iWriteResult );
         THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
-      Assert( stWrote == stWrite );
+      Assert( u64Wrote == stWrite );
     }
     else
     {
-      size_t stWrote;
-      int iWriteResult = FileWrite( m_foFile.HFileGet(), _psz, _sstLen, &stWrote );
+      uint64_t u64Wrote;
+      int iWriteResult = FileWrite( m_foFile.HFileGet(), _psz, _sstLen, &u64Wrote );
       if (!!iWriteResult)
       {
         Assert( -1 == iWriteResult );
         THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileWrite() failed for file [%s]", m_szFilename.c_str());
       }
-      Assert( stWrote == _sstLen );
+      Assert( u64Wrote == _sstLen );
     }
   }
   // If <_fEscape> then we escape all special characters when writing.
