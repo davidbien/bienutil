@@ -9,6 +9,7 @@
 // String utilities based on the ICU library.
 // dbien: split off of _strutil.h on 20JAN2022
 
+#include <unicode/urename.h>
 #include <unicode/ustring.h>
 
 __BIENUTIL_BEGIN_NAMESPACE
@@ -47,7 +48,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -55,7 +56,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc32Source
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF32WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 }
 
@@ -72,7 +73,7 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -80,7 +81,7 @@ void ConvertString( t_tyString32 & _rstrDest, const t_tyCharSource * _pc16Source
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF32WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 }
 
@@ -97,7 +98,7 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -105,7 +106,7 @@ void ConvertString( t_tyString8 & _rstrDest, const t_tyCharSource * _pc16Source,
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strToUTF8WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 }
 
@@ -124,7 +125,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	if ( U_FAILURE( ec ) && ( U_BUFFER_OVERFLOW_ERROR != ec ) ) // It seems to return U_BUFFER_OVERFLOW_ERROR when preflighting the buffer size.
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 	_rstrDest.resize( nLenReq );
 	ec = U_ZERO_ERROR;
@@ -132,7 +133,7 @@ void ConvertString( t_tyString16 & _rstrDest, const t_tyCharSource * _pc8Source,
 	if ( U_FAILURE( ec ) )
 	{
 		const char * cpErrorCode = u_errorName( ec );
-		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%ld][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
+		THROWNAMEDEXCEPTION( "u_strFromUTF8WithSub() returned UErrorCode[%zd][%s].", ptrdiff_t(ec), cpErrorCode ? cpErrorCode : "u_errorName() returned null" );
 	}
 }
 

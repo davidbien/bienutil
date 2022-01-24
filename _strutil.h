@@ -328,7 +328,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 			{
 				stBufSize *= 2;
 				if ( stBufSize > kstMaxBufSize )
-					THROWNAMEDEXCEPTION("Overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%ld].", kstMaxBufSize);
+					THROWNAMEDEXCEPTION("Overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%zu].", kstMaxBufSize);
 				_rstr.resize( stBufSize-1 );
 				pcBuf = (_tyChar*)&_rstr[0];
 			}
@@ -856,7 +856,7 @@ static const uint64_t vknBytesBOM = 4;
 inline EFileCharacterEncoding GetCharacterEncodingFromBOM( uint8_t * _pbyBufFileBegin, uint64_t & _ru64Len )
 {
 	Assert( _ru64Len >= vknBytesBOM );
-	VerifyThrowSz( _ru64Len >= vknBytesBOM, "Requires vknBytesBOM(%lu) of file to determine BOM.", vknBytesBOM );
+	VerifyThrowSz( _ru64Len >= vknBytesBOM, "Requires vknBytesBOM(%llu) of file to determine BOM.", vknBytesBOM );
 
 	if ( ( 0xEF == _pbyBufFileBegin[0] ) && ( 0xBB == _pbyBufFileBegin[1] ) && ( 0xBF == _pbyBufFileBegin[2] ) )
 	{

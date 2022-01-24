@@ -11,7 +11,6 @@
 // Would like to templatize by allocator but I have to propagate it and it's annoying right now. Later.
 
 // Predeclare.
-#include <unicode/urename.h>
 #include "_strutil.h"
 
 #ifndef NDEBUG
@@ -57,7 +56,7 @@ public:
     {
       uint8_t **ppbySegments = (uint8_t **)malloc((_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *));
       if (!ppbySegments)
-        THROWNAMEDEXCEPTION("OOM for malloc(%lu).", (_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *));
+        THROWNAMEDEXCEPTION("OOM for malloc(%zu).", (_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *));
       ns_bienutil::FreeVoid fvFreeSegments(ppbySegments);                                      // In case we throw below.
       memset(ppbySegments, 0, (_r.m_ppbyEndSegments - _r.m_ppbySegments) * sizeof(uint8_t *)); // not strictly necessary but nice and cheap.
 
@@ -225,7 +224,7 @@ public:
     Assert( !((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements))) );
 #ifdef SEGARRAY_STRICT
     if ((_nEl > m_nElements) || (!_fMaybeEnd && (_nEl == m_nElements)))
-      THROWNAMEDEXCEPTION("Out of bounds _nEl[%lu] m_nElements[%lu].", _nEl, m_nElements);
+      THROWNAMEDEXCEPTION("Out of bounds _nEl[%llu] m_nElements[%llu].", uint64_t(_nEl), uint64_t(m_nElements) );
 #endif //SEGARRAY_STRICT
     return ((_tyT *)m_ppbySegments[_nEl / NElsPerSegment()])[_nEl % NElsPerSegment()];
   }
@@ -290,7 +289,7 @@ public:
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
       return; // empty result.
-    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
+    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%llu],_posEnd[%llu],NElements()[%llu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     _rstr.resize( _posEnd - _posBegin );
     _CopyStringToBuf( _posBegin, _posEnd, (_tyT*)&_rstr[0] );
     Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
@@ -302,7 +301,7 @@ public:
     Assert( _rstr.empty() );
     if ( _posBegin == _posEnd )
       return; // empty result.
-    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%lu],_posEnd[%lu],NElements()[%lu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
+    VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%llu],_posEnd[%llu],NElements()[%llu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     static size_t knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof(_tyT);
     std::basic_string< _tyT > strTempBuf; // For when we have more than knchMaxAllocaSize - avoid using t_tyString as it may be some derivation of string or anything else for that matter.
     _tySizeType nLen = _posEnd - _posBegin;
@@ -388,9 +387,9 @@ public:
         {
           if (!*ppbyCurAlloc)
           {
-            *ppbyCurAlloc = (uint8_t *)malloc(NElsPerSegment() * sizeof(_tyT));
+            *ppbyCurAlloc = (uint8_t *)malloc( (size_t)( NElsPerSegment() * sizeof(_tyT) ) );
             if (!*ppbyCurAlloc)
-              THROWNAMEDEXCEPTION("OOM for malloc(%lu).", NElsPerSegment() * sizeof(_tyT));
+              THROWNAMEDEXCEPTION("OOM for malloc(%llu).", uint64_t( NElsPerSegment() * sizeof(_tyT) ) );
           }
         }
         if ( m_ppbySegments + nBlocksNeeded > m_ppbyEndSegments )
@@ -603,7 +602,7 @@ public:
       _tySizeType stBackOffDest = ((stEndDest - 1) % NElsPerSegment()) + 1;
       _tySizeType stMin = (std::min)(nElsLeft, stBackOffDest);
       Assert(stMin);
-      memcpy(&ElGet(stEndDest - stMin, true), ptEndOrig - stMin, stMin * sizeof(_tyT));
+      memcpy(&ElGet(stEndDest - stMin, true), ptEndOrig - stMin, (size_t)( stMin * sizeof(_tyT) ) );
       nElsLeft -= stMin;
       stEndDest -= stMin;
       ptEndOrig -= stMin;
@@ -664,7 +663,7 @@ public:
       _tySizeType stBackOffOrig = ((stEndOrig - 1) % NElsPerSegment()) + 1;
       _tySizeType stMin = (std::min)(nElsLeft, stBackOffOrig);
       Assert(stMin);
-      memcpy(ptEndDest - stMin, &ElGet(stEndOrig - stMin), stMin * sizeof(_tyT));
+      memcpy(ptEndDest - stMin, &ElGet(stEndOrig - stMin), (size_t)( stMin * sizeof(_tyT) ) );
       nElsLeft -= stMin;
       stEndOrig -= stMin;
       ptEndDest -= stMin;
@@ -719,10 +718,10 @@ public:
       _tySizeType stMin = (std::min)(nElsLeft, stSegRemainWrite);
       stSegRemainWrite = NElsPerSegment(); // From here on out.
       Assert(stMin);
-      size_t stWritten;
-      int iWrite = FileWrite( _hFile, &ElGet(stCurOrig), stMin * sizeof(_tyT), &stWritten );
-      if ( !!iWrite || ( stWritten != stMin * sizeof(_tyT) ) )
-        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error writing to _hFile[0x%lx], towrite[%lu] stWritten[%lu].", (uint64_t)_hFile, stMin * sizeof(_tyT), stWritten );
+      uint64_t u64Written;
+      int iWrite = FileWrite( _hFile, &ElGet(stCurOrig), stMin * sizeof(_tyT), &u64Written );
+      if ( !!iWrite || ( u64Written != stMin * sizeof(_tyT) ) )
+        THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error writing to _hFile[0x%zx], towrite[%llu] u64Written[%llu].", (size_t)_hFile, uint64_t( stMin * sizeof(_tyT) ), u64Written );
       nElsLeft -= stMin;
       stCurOrig += stMin;
     }
@@ -839,10 +838,10 @@ protected:
   }
   void AllocNewSegmentPointerBlock(_tySizeType _nNewBlocks)
   {
-    uint8_t **ppbySegments = (uint8_t **)realloc(m_ppbySegments, ((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *));
+    uint8_t **ppbySegments = (uint8_t **)realloc(m_ppbySegments, (size_t)( ((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *) ) );
     if (!ppbySegments)
-      THROWNAMEDEXCEPTION("OOM for realloc(%lu).", ((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *));
-    memset(ppbySegments + (m_ppbyEndSegments - m_ppbySegments), 0, _nNewBlocks * sizeof(uint8_t *));
+      THROWNAMEDEXCEPTION("OOM for realloc(%llu).", uint64_t((m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks) * sizeof(uint8_t *));
+    memset(ppbySegments + (m_ppbyEndSegments - m_ppbySegments), 0, (size_t)( _nNewBlocks * sizeof(uint8_t *) ) );
     m_ppbyEndSegments = ppbySegments + (m_ppbyEndSegments - m_ppbySegments) + _nNewBlocks;
     m_ppbySegments = ppbySegments;
   }
@@ -859,9 +858,9 @@ protected:
     if (!*ppbyCurSegment)
     {
       Assert(!(m_nElements % NElsPerSegment()));
-      *ppbyCurSegment = (uint8_t *)malloc(m_nbySizeSegment);
+      *ppbyCurSegment = (uint8_t *)malloc( (size_t)m_nbySizeSegment );
       if (!*ppbyCurSegment)
-        THROWNAMEDEXCEPTION("OOM for malloc(%lu).", m_nbySizeSegment);
+        THROWNAMEDEXCEPTION("OOM for malloc(%llu).", uint64_t(m_nbySizeSegment) );
     }
     return *ppbyCurSegment + ((m_nElements % NElsPerSegment()) * sizeof(_tyT));
   }
@@ -1021,7 +1020,7 @@ public:
       return;
     }
     VerifyThrowSz( _iBaseEl >= m_iBaseEl, 
-      "Trying to set the base element to something less than the current base or switch signs which is not possible. _iBaseEl[%ld], m_iBaseEl[%ld].", int64_t(_iBaseEl), int64_t(m_iBaseEl) );
+      "Trying to set the base element to something less than the current base or switch signs which is not possible. _iBaseEl[%lld], m_iBaseEl[%lld].", int64_t(_iBaseEl), int64_t(m_iBaseEl) );
 #if ASSERTSENABLED
     size_t ast_nBlocksStart = _tySizeType(_tyBase::m_ppbyEndSegments - _tyBase::m_ppbySegments);
 #endif // ASSERTSENABLED
@@ -1040,7 +1039,7 @@ public:
       else
       {
         AssertStatement( _tySizeType ast_nElsBefore = NElements() );
-        ssize_t sstShifted = ( _iBaseEl / NElsPerSegment() ) - ( m_iBaseEl / NElsPerSegment() );
+        ssize_t sstShifted = (ssize_t)( ( _iBaseEl / NElsPerSegment() ) - ( m_iBaseEl / NElsPerSegment() ) );
         Assert( sstShifted < ( m_ppbyEndSegments - m_ppbySegments ) );
         m_iBaseEl = _iBaseEl;
         if ( !!( sstShifted % ( m_ppbyEndSegments - m_ppbySegments ) ) ) // in case the above assert can fail - in my mind currently it can't.
@@ -1057,7 +1056,7 @@ public:
       }
     }
 #if ASSERTSENABLED
-    size_t ast_nBlocksEnd = _tySizeType(_tyBase::m_ppbyEndSegments - _tyBase::m_ppbySegments);
+    _tySizeType ast_nBlocksEnd = _tySizeType(_tyBase::m_ppbyEndSegments - _tyBase::m_ppbySegments);
     Assert( ast_nBlocksEnd == ast_nBlocksStart );
 #endif // ASSERTSENABLED
   }
@@ -1067,7 +1066,7 @@ public:
     AssertValid();
     _tySizeType nEls = NElements();
     if ( ( _nEl < NBaseElMagnitude() ) || ( _nEl > nEls ) ||  (!_fMaybeEnd && ( _nEl == nEls ) ) )
-      THROWNAMEDEXCEPTION("Out of bounds m_iBaseEl[%ld] _nEl[%lu] m_nElements[%lu].", (int64_t)m_iBaseEl, (uint64_t)_nEl, (uint64_t)nEls);
+      THROWNAMEDEXCEPTION("Out of bounds m_iBaseEl[%lld] _nEl[%llu] m_nElements[%llu].", (int64_t)m_iBaseEl, (uint64_t)_nEl, (uint64_t)nEls);
     return _tyBase::ElGet( _nEl - _NBaseOffset() );
   }
   _tyT const &ElGet(_tySizeType _nEl) const
@@ -1091,7 +1090,7 @@ public:
     if ( _posBegin == _posEnd )
       return true;
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
-      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to read data before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
     return _tyBase::FGetStringView( _rsv, _posBegin - nOff, _posEnd - nOff );
   }
@@ -1108,7 +1107,7 @@ public:
     if ( _posBegin == _posEnd )
       return; // empty result.
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
-      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to read data before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
     return _tyBase::GetString( _rstr, _posBegin - nOff, _posEnd - nOff );
   }
@@ -1120,14 +1119,14 @@ public:
   bool FSpanChars( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszCharSet ) const
   {
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
-      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to read data before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
     return _tyBase::FSpanChars( _posBegin - nOff, _posEnd - nOff, _pszCharSet );
   }
   bool FMatchString( _tySizeType _posBegin, _tySizeType _posEnd, const _tyT * _pszMatch ) const
   {
     VerifyThrowSz( ( _posBegin >= NBaseElMagnitude() ), 
-      "Trying to read data before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to read data before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tySizeType nOff = _NBaseOffset();
     return _tyBase::FMatchString( _posBegin - nOff, _posEnd - nOff, _pszMatch );
   }
@@ -1141,7 +1140,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( m_iBaseEl >= 0, 
-      "Can't call CopyDataAndAdvanceBuffer() on a negative m_iBaseEl SegArrayRotatingBuffer, m_iBaseEl[%ld].", int64_t(m_iBaseEl) );
+      "Can't call CopyDataAndAdvanceBuffer() on a negative m_iBaseEl SegArrayRotatingBuffer, m_iBaseEl[%lld].", int64_t(m_iBaseEl) );
     _tyT * ptBufCur = _ptBuf;
     ApplyContiguous( _posBegin, _posBegin + _nLenEls, 
       [&ptBufCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
@@ -1159,7 +1158,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nElements >= NBaseElMagnitude(), 
-      "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%lu], m_iBaseEl[%ld].", uint64_t(_nElements), int64_t(m_iBaseEl) );
+      "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%llu], m_iBaseEl[%lld].", uint64_t(_nElements), int64_t(m_iBaseEl) );
     _tyBase::SetSize( _nElements - _NBaseOffset(), _fCompact, _nNewBlockMin );
   }
   // Set the number of elements in this object less than the current number.
@@ -1168,7 +1167,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nElements >= NBaseElMagnitude(), 
-      "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%lu], m_iBaseEl[%ld].", uint64_t(_nElements), int64_t(m_iBaseEl) );
+      "Trying to set the number of elements less than the base of the rotating buffer, _nElements[%llu], m_iBaseEl[%lld].", uint64_t(_nElements), int64_t(m_iBaseEl) );
     _tyBase::SetSizeSmaller( _nElements - _NBaseOffset(), _fCompact );
   }
   using _tyBase::Compact;
@@ -1178,7 +1177,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nPos >= NBaseElMagnitude(), 
-      "Trying to insert before the base of the rotating buffer, _nPos[%lu], m_iBaseEl[%ld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
+      "Trying to insert before the base of the rotating buffer, _nPos[%llu], m_iBaseEl[%lld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
     _tyBase::Insert( _nPos - _NBaseOffset(), _pt, _nEls );
     AssertValid();
   }
@@ -1187,7 +1186,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nPos >= NBaseElMagnitude(), 
-      "Trying to overwrite before the base of the rotating buffer, _nPos[%lu], m_iBaseEl[%ld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
+      "Trying to overwrite before the base of the rotating buffer, _nPos[%llu], m_iBaseEl[%lld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
     _tyBase::Overwrite( _nPos - _NBaseOffset(), _pt, _nEls );
     AssertValid();
   }
@@ -1198,7 +1197,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nPosWrite >= NBaseElMagnitude(), 
-      "Trying to write before the base of the rotating buffer, _nPosWrite[%lu], m_iBaseEl[%ld].", uint64_t(_nPosWrite), int64_t(m_iBaseEl) );
+      "Trying to write before the base of the rotating buffer, _nPosWrite[%llu], m_iBaseEl[%lld].", uint64_t(_nPosWrite), int64_t(m_iBaseEl) );
     _tyBase::OverwriteFromStream( _nPosWrite - _NBaseOffset(), _rs, _nPosRead, _nElsRead );
     AssertValid();
   }
@@ -1207,7 +1206,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nPos >= NBaseElMagnitude(), 
-      "Trying to read before the base of the rotating buffer, _nPos[%lu], m_iBaseEl[%ld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
+      "Trying to read before the base of the rotating buffer, _nPos[%llu], m_iBaseEl[%lld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
     return _tyBase::Read( _nPos - _NBaseOffset(), _pt, _nEls );
   }
   // This one just needs to be done here since each range in the iteration must be offset.
@@ -1240,7 +1239,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _nPos >= NBaseElMagnitude(), 
-      "Trying to read before the base of the rotating buffer, _nPos[%lu], m_iBaseEl[%ld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
+      "Trying to read before the base of the rotating buffer, _nPos[%llu], m_iBaseEl[%lld].", uint64_t(_nPos), int64_t(m_iBaseEl) );
     _tyBase::WriteToFile( _hFile, _nPos - _NBaseOffset(), _nElsWrite );
   }
   // This will call t_tyApply with contiguous ranges of [begin,end) elements to be applied to.
@@ -1249,7 +1248,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
-      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to apply before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
   // const version.
@@ -1258,7 +1257,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
-      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to apply before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     _tyBase::ApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
   template < class t_tyApply >
@@ -1266,7 +1265,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
-      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to apply before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     return _tyBase::NApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
   template < class t_tyApply >
@@ -1274,7 +1273,7 @@ public:
   {
     AssertValid();
     VerifyThrowSz( _posBegin >= NBaseElMagnitude(), 
-      "Trying to apply before the base of the rotating buffer, _posBegin[%lu], m_iBaseEl[%ld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
+      "Trying to apply before the base of the rotating buffer, _posBegin[%llu], m_iBaseEl[%lld].", uint64_t(_posBegin), int64_t(m_iBaseEl) );
     return _tyBase::NApplyContiguous( _posBegin - _NBaseOffset(), _posEnd - _NBaseOffset(), std::forward<t_tyApply>(_rrapply) );
   }
 protected:

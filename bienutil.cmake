@@ -60,6 +60,9 @@ if (WIN32)
   set(DEVENV_ROOT_DIRECTORY "c:/devenv" )
   message(STATUS "Dev root dir ${DEVENV_ROOT_DIRECTORY}")
 
+  link_libraries(
+    Rpcrt4
+  )
 # ICU4C support:
 if ( MOD_USE_ICU4C EQUAL 1 )
   set(DEVENV_ICU4C_VERSION "70" )
@@ -70,7 +73,6 @@ if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     ${DEVENV_ICU4C_DIRECTORY}/include
   )
   link_libraries(
-    Rpcrt4
     ${DEVENV_ICU4C_DIRECTORY}/lib64/icuuc.lib
   )
 else()
@@ -80,7 +82,6 @@ else()
     ${DEVENV_ICU4C_DIRECTORY}/include
   )
   link_libraries(
-    Rpcrt4
     ${DEVENV_ICU4C_DIRECTORY}/lib/icuuc.lib
   )
 endif()

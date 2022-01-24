@@ -17,46 +17,6 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-#ifdef _MSC_VER
-#pragma intrinsic(_BitScanReverse)
-#endif //_MSC_VER
-
-// Unless a constexpr is needed then these methods use intrinsics for speed:
-template < class t_tyT >
-size_t MSBitSet( t_tyT _tTest )
-	requires( 8 == sizeof( t_tyT ) )
-{
-	Assert( _tTest );
-#ifdef _MSC_VER
-	unsigned long ulIndex;
-	unsigned char ucRes = _BitScanReverse64( &ulIndex, (unsigned __int64)_tTest );
-	return !ucRes ? (numeric_limits< size_t >::max)() : size_t(ulIndex);
-#else // clang, gcc:
-	if ( !_tTest )
-		return (numeric_limits< size_t >::max)();
-	int clz = __builtin_clzll( (unsigned long long)_tTest );
-	return size_t( 63 - clz );
-#endif 
-}
-template < class t_tyT >
-size_t MSBitSet( t_tyT _tTest )
-	requires( ( 4 == sizeof( t_tyT ) ) || ( 2 == sizeof( t_tyT ) ) || ( 1 == sizeof( t_tyT ) ) )
-{
-	Assert( _tTest );
-#ifdef _MSC_VER
-	static_assert( 4 == sizeof( unsigned long ) );
-	unsigned long ulIndex;
-	unsigned char ucRes = _BitScanReverse( &ulIndex, (unsigned long)_tTest );
-	return !ucRes ? (numeric_limits< size_t >::max)() : size_t(ulIndex);
-#else // clang, gcc:
-	static_assert( 4 == sizeof( unsigned int ) );
-	if ( !_tTest )
-		return (numeric_limits< size_t >::max)();
-	int clz = __builtin_clz( (unsigned int)_tTest );
-	return size_t( 31 - clz );
-#endif 
-}
-
 // Lookup table for MSB of a nibble:
 static constexpr size_t v_rgiBit[16] = { 0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3 };
 
@@ -227,6 +187,51 @@ inline constexpr uint64_t KUPow( uint64_t _u64Base, uint8_t _u8Exp )
     break;    
   }
   return u64Result;
+}
+
+#ifdef _MSC_VER
+#pragma intrinsic(_BitScanReverse)
+#endif //_MSC_VER
+
+// Unless a constexpr is needed then these methods use intrinsics for speed:
+template < class t_tyT >
+size_t MSBitSet( t_tyT _tTest )
+	requires( 8 == sizeof( t_tyT ) )
+{
+	Assert( _tTest );
+#ifdef _MSC_VER
+#if INTPTR_MAX == INT32_MAX
+	// Under 32bit we don't have access to the 64bit intrisic so we must use brute force.
+	return KMSBitSet( _tTest );
+#else // 64bit:
+	unsigned long ulIndex;
+	unsigned char ucRes = _BitScanReverse64( &ulIndex, (unsigned __int64)_tTest );
+	return !ucRes ? (numeric_limits< size_t >::max)() : size_t(ulIndex);
+#endif // INTPTR_MAX != INT32_MAX
+#else // clang, gcc:
+	if ( !_tTest )
+		return (numeric_limits< size_t >::max)();
+	int clz = __builtin_clzll( (unsigned long long)_tTest );
+	return size_t( 63 - clz );
+#endif 
+}
+template < class t_tyT >
+size_t MSBitSet( t_tyT _tTest )
+	requires( ( 4 == sizeof( t_tyT ) ) || ( 2 == sizeof( t_tyT ) ) || ( 1 == sizeof( t_tyT ) ) )
+{
+	Assert( _tTest );
+#ifdef _MSC_VER
+	static_assert( 4 == sizeof( unsigned long ) );
+	unsigned long ulIndex;
+	unsigned char ucRes = _BitScanReverse( &ulIndex, (unsigned long)_tTest );
+	return !ucRes ? (numeric_limits< size_t >::max)() : size_t(ulIndex);
+#else // clang, gcc:
+	static_assert( 4 == sizeof( unsigned int ) );
+	if ( !_tTest )
+		return (numeric_limits< size_t >::max)();
+	int clz = __builtin_clz( (unsigned int)_tTest );
+	return size_t( 31 - clz );
+#endif 
 }
 
 __BIENUTIL_END_NAMESPACE

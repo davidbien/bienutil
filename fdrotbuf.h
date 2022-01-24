@@ -49,7 +49,7 @@ class FdReadRotating
 public:
   typedef t_tyChar _tyChar;
   static constexpr bool s_kfSwitchEndian = t_fSwitchEndian;
-  typedef SegArrayRotatingBuffer< _tyChar > _tySegArray;
+  typedef SegArrayRotatingBuffer< _tyChar, uint64_t > _tySegArray; // We need to be able to read files larger than 4GB even in 32bit.
   typedef typename _tySegArray::_tySizeType _tySizeType;
 
   ~FdReadRotating()
@@ -76,8 +76,8 @@ public:
   }
 
   // Initialize - we should be empty.
-  void Init( vtyFileHandle _hFile, size_t _posCur = 0, bool _fReadAhead = false, 
-    size_t _stchLenRead = (std::numeric_limits<size_t>::max)(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
+  void Init( vtyFileHandle _hFile, _tySizeType _posCur = 0, bool _fReadAhead = false, 
+    _tySizeType _stchLenRead = (std::numeric_limits<_tySizeType>::max)(), _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
   {
     Assert( !m_saBuffer.FHasAnyCapacity() );
     m_hFile = _hFile;
@@ -87,20 +87,20 @@ public:
     m_saBuffer.InitSegmentSize( _nbySizeSegment );
     AssertValid();
   }
-  size_t _NLenRemaining() const
+  _tySizeType _NLenRemaining() const
   {
-    return m_stchLenRead - ( ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) ? 0 : m_posCur );
+    return m_stchLenRead - ( ( (std::numeric_limits<_tySizeType>::max)() == m_stchLenRead ) ? 0 : m_posCur );
   }
   void AssertValid() const
   {
 #if ASSERTSENABLED
     m_saBuffer.AssertValid();
-    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<size_t>::max)() == m_stchLenRead ) );
+    Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<_tySizeType>::max)() == m_stchLenRead ) );
     Assert( m_stchLenRead >= m_posCur );
     Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
 #endif //ASSERTSENABLED  
   }
-  void AssertValidRange( size_t _posBegin, size_t _posEnd ) const
+  void AssertValidRange( _tySizeType _posBegin, _tySizeType _posEnd ) const
   {
 #if ASSERTSENABLED
     Assert( _posEnd >= _posBegin );
@@ -114,11 +114,11 @@ public:
     AssertValid();
     return vkhInvalidFileHandle == m_hFile;
   }
-  size_t PosCurrent() const
+  _tySizeType PosCurrent() const
   {
     return m_posCur;
   }
-  size_t PosBase() const
+  _tySizeType PosBase() const
   {
     return m_saBuffer.IBaseElement();
   }
@@ -136,10 +136,10 @@ public:
     {
       if ( !m_fReadAhead )
       {
-        size_t stRead;
+        _tySizeType stRead;
         int iReadResult = FileRead( m_hFile, &_rc, sizeof _rc, &stRead );
         if ( -1 == iReadResult )
-          THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): 1 char, m_hFile[0x%lx]", (uint64_t)m_hFile );
+          THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): 1 char, m_hFile[0x%zx]", (size_t)m_hFile );
         if ( stRead < sizeof _rc )
         {
           Assert( !stRead );
@@ -153,7 +153,7 @@ public:
       }
       else
       {
-        static constexpr size_t s_knSegmentsReadAhead = 4;
+        static constexpr _tySizeType s_knSegmentsReadAhead = 4;
         // Then we should read ahead by the amount we like to read ahead by - which is s_knSegmentsReadAhead segments.
         Assert( !( m_posCur % m_saBuffer.NElsPerSegment() ) ); // Should always be at a tile boundary when we are reading ahead.
         _tySizeType sizeAdd = min( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, _NLenRemaining() );
@@ -163,10 +163,10 @@ public:
         _tySizeType nRead = m_saBuffer.NApplyContiguous( m_posCur, m_posCur + sizeAdd,
           [this]( _tyChar * _pcBegin, _tyChar * _pcEnd ) -> _tySizeType
           {
-            size_t stRead;
+            _tySizeType stRead;
             int iReadResult = FileRead( m_hFile, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ), &stRead );
             if ( -1 == iReadResult )
-              THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): m_hFile[0x%lx] m[%lu]", (uint64_t)m_hFile, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
+              THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): m_hFile[0x%zx] m[%zu]", (size_t)m_hFile, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
             if ( s_kfSwitchEndian )
               SwitchEndian( _pcBegin, _pcEnd );
             Assert( ( (_tySizeType)stRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
@@ -229,8 +229,8 @@ public:
 protected:
   // The current "base" of the SegArrayRotatingBuffer is the beginning of the "view".
   _tySegArray m_saBuffer;
-  size_t m_stchLenRead{(std::numeric_limits<size_t>::max)()};
-  size_t m_posCur{0};
+  _tySizeType m_stchLenRead{(std::numeric_limits<_tySizeType>::max)()};
+  _tySizeType m_posCur{0};
   vtyFileHandle m_hFile{vkhInvalidFileHandle};
   bool m_fReadAhead{false};
 };

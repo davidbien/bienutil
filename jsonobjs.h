@@ -634,10 +634,10 @@ public:
   void GetValue(int16_t &_rss) const { _GetValue("%hd", _rss); }
   void GetValue(uint32_t &_rui) const { _GetValue("%u", _rui); }
   void GetValue(int32_t &_rsi) const { _GetValue("%d", _rsi); }
-  void GetValue(uint64_t &_rul) const { _GetValue("%lu", _rul); }
-  void GetValue(int64_t &_rsl) const { _GetValue("%ld", _rsl); }
+  void GetValue(uint64_t &_rul) const { _GetValue("%llu", _rul); }
+  void GetValue(int64_t &_rsl) const { _GetValue("%lld", _rsl); }
   void GetValue(float &_rfl) const { _GetValue("%e", _rfl); }
-  void GetValue(double &_rdbl) const { _GetValue("%le", _rdbl); }
+  void GetValue(double &_rdbl) const { _GetValue("%e", _rdbl); }
   void GetValue(long double &_rldbl) const { _GetValue("%Le", _rldbl); }
 
   // Setting methods: These overwrite the existing element at this location.
@@ -748,7 +748,7 @@ public:
   }
   void SetValue(uint64_t _ul)
   {
-    _SetValue("%lu", _ul);
+    _SetValue("%llu", _ul);
   }
   _tyThis &operator=(uint64_t _ul)
   {
@@ -757,7 +757,7 @@ public:
   }
   void SetValue(int64_t _sl)
   {
-    _SetValue("%ld", _sl);
+    _SetValue("%lld", _sl);
   }
   _tyThis &operator=(int64_t _sl)
   {
@@ -766,7 +766,7 @@ public:
   }
   void SetValue(double _dbl)
   {
-    _SetValue("%lf", _dbl);
+    _SetValue("%f", _dbl);
   }
   _tyThis &operator=(double _dbl)
   {

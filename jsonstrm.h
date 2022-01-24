@@ -887,7 +887,7 @@ public:
       m_tcLookahead = cpxRead;
       m_pos += stRead;
       if (stRead != sizeof cpxRead)
-        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() for file [%s] had [%ld] leftover bytes.", m_szFilename.c_str(), stRead);
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() for file [%s] had [%zu] leftover bytes.", m_szFilename.c_str(), stRead);
       if (!stRead)
       {
         m_fHasLookahead = false;
@@ -967,7 +967,7 @@ public:
       if (!!stRead)
       {
         m_pos += stRead;
-        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "read() for file [%s] had [%ld] leftover bytes.", m_szFilename.c_str(), stRead);
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "read() for file [%s] had [%zu] leftover bytes.", m_szFilename.c_str(), stRead);
       }
       else
       {
@@ -1204,18 +1204,18 @@ public:
     int iResult = GetHandleAttrs( fileLocal.HFileGet(), attrFile );
     if (-1 == iResult)
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "GetHandleAttrs() failed for [%s]", _szFilename);
-    size_t stSize = GetSize_HandleAttr( attrFile );
-    if (0 == stSize )
+    uint64_t u64Size = GetSize_HandleAttr( attrFile );
+    if (0 == u64Size )
       THROWBADJSONSTREAM("File [%s] is empty - it contains no JSON value.", _szFilename);
-    if (!!(stSize % sizeof(t_tyPersistAsChar)))
-      THROWBADJSONSTREAM("File [%s]'s size not multiple of char size stSize[%ld].", _szFilename, stSize);
+    if (!!(u64Size % sizeof(t_tyPersistAsChar)))
+      THROWBADJSONSTREAM("File [%s]'s size not multiple of char size u64Size[%llu].", _szFilename, u64Size);
     if ( !FIsRegularFile_HandleAttr( attrFile ) )
       THROWBADJSONSTREAM("File [%s] is not a regular file.", _szFilename);
     m_fmoMapping.SetHMMFile( MapReadOnlyHandle( fileLocal.HFileGet(), nullptr ) );
     if ( !m_fmoMapping.FIsOpen() )
-      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "MapReadOnlyHandle() failed to map [%s], size [%ld].", _szFilename, stSize);
+      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "MapReadOnlyHandle() failed to map [%s], size [%llu].", _szFilename, u64Size);
     m_pcpxBegin = m_pcpxCur = (const t_tyPersistAsChar *)m_fmoMapping.Pv();
-    m_pcpxEnd = m_pcpxCur + (stSize / sizeof(t_tyPersistAsChar));
+    m_pcpxEnd = m_pcpxCur + (u64Size / sizeof(t_tyPersistAsChar));
     m_fHasLookahead = false;    // ensure that if we had previously been opened that we don't think we still have a lookahead.
     m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
   }
@@ -1801,7 +1801,7 @@ public:
         if (-1 == sstWrote)
           THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Write() failed for MemFile.");
         else
-          THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite);
+          THROWBADJSONSTREAM("write() only wrote [%zd] bytes of [%zd] to MemFile.", sstWrote, sstWrite);
       }
     }
   }
@@ -1821,7 +1821,7 @@ public:
         if (-1 == sstWrote)
           THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Write() failed for MemFile.");
         else
-          THROWBADJSONSTREAM("write() only wrote [%ld] bytes of [%ld] to MemFile.", sstWrote, sstWrite);
+          THROWBADJSONSTREAM("write() only wrote [%zd] bytes of [%zd] to MemFile.", sstWrote, sstWrite);
       }
     }
     else
@@ -2837,11 +2837,11 @@ public:
   }
   void WriteValue(_tyLPCSTR _pszKey, uint64_t _ul)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%lu"), _ul);
+    _WriteValue(_pszKey, str_array_cast<_tyChar>("%llu"), _ul);
   }
   void WriteValue(_tyLPCSTR _pszKey, int64_t _sl)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%ld"), _sl);
+    _WriteValue(_pszKey, str_array_cast<_tyChar>("%lld"), _sl);
   }
   void WriteValue(_tyLPCSTR _pszKey, double _dbl)
   {
@@ -3032,15 +3032,15 @@ public:
   }
   void WriteValue(uint64_t _ul)
   {
-    _WriteValue(str_array_cast<_tyChar>("%lu"), _ul);
+    _WriteValue(str_array_cast<_tyChar>("%llu"), _ul);
   }
   void WriteValue(int64_t _sl)
   {
-    _WriteValue(str_array_cast<_tyChar>("%ld"), _sl);
+    _WriteValue(str_array_cast<_tyChar>("%lld"), _sl);
   }
   void WriteValue(double _dbl)
   {
-    _WriteValue(str_array_cast<_tyChar>("%lf"), _dbl);
+    _WriteValue(str_array_cast<_tyChar>("%f"), _dbl);
   }
   void WriteValue(long double _ldbl)
   {
@@ -3951,10 +3951,10 @@ public:
   void GetValue(int16_t &_rss) const { _GetValue("%hd", _rss); }
   void GetValue(uint32_t &_rui) const { _GetValue("%u", _rui); }
   void GetValue(int32_t &_rsi) const { _GetValue("%d", _rsi); }
-  void GetValue(uint64_t &_rul) const { _GetValue("%lu", _rul); }
-  void GetValue(int64_t &_rsl) const { _GetValue("%ld", _rsl); }
+  void GetValue(uint64_t &_rul) const { _GetValue("%llu", _rul); }
+  void GetValue(int64_t &_rsl) const { _GetValue("%lld", _rsl); }
   void GetValue(float &_rfl) const { _GetValue("%e", _rfl); }
-  void GetValue(double &_rdbl) const { _GetValue("%le", _rdbl); }
+  void GetValue(double &_rdbl) const { _GetValue("%e", _rdbl); }
   void GetValue(long double &_rldbl) const { _GetValue("%Le", _rldbl); }
 
   // Speciality values:

@@ -55,10 +55,8 @@ FileSeek( vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whence, vtySe
     PrepareErrNo();
 #if INTPTR_MAX == INT32_MAX
     vtySeekOffset off = lseek64( _hFile, _off, _whence );
-#elif INTPTR_MAX == INT64_MAX
-    vtySeekOffset off = lseek( _hFile, _off, _whence );
 #else
-#error Not sure which lseek() to use.
+    vtySeekOffset off = lseek( _hFile, _off, _whence );
 #endif
     if ( -1ll != off )
     {
@@ -78,7 +76,7 @@ NFileSeekAndThrow(vtyFileHandle _hFile, vtySeekOffset _off, vtySeekWhence _whenc
   vtySeekOffset offResult;
   int iSeek = FileSeek(_hFile, _off, _whence, &offResult);
   if (!!iSeek)
-    THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "FileSeek() failed, _hFile[0x%lx].", (uint64_t)_hFile);
+    THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "FileSeek() failed, _hFile[0x%zx].", (size_t)_hFile);
   return offResult;
 }
 
@@ -243,7 +241,7 @@ inline void FileWriteOrThrow( vtyFileHandle _hFile, const void * _pvBuffer, uint
   if ( !!iResult )
     THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "FileWrite() failed." );
   Assert( nbyWritten == _u64NBytesToWrite );
-  VerifyThrowSz( nbyWritten == _u64NBytesToWrite, "Only wrote [%lu] bytes of [%lu].", nbyWritten, _u64NBytesToWrite );
+  VerifyThrowSz( nbyWritten == _u64NBytesToWrite, "Only wrote [%llu] bytes of [%llu].", nbyWritten, _u64NBytesToWrite );
 }
 
 // Time methods:

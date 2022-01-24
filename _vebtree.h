@@ -2110,7 +2110,7 @@ public:
         if ( m_rgstSubtrees.size() )
             _Deinit(); // We could do a lot better here but it takes a bit of work. I.e. we could keep the existing blocks and Clear() them.
         if ( _stNElements > s_kstUniverse )
-            THROWNAMEDEXCEPTION( "_stNElements[%lu] is greater than the allowable universe size[%lu].", _stNElements, s_kstUniverse );
+            THROWNAMEDEXCEPTION( "_stNElements[%zu] is greater than the allowable universe size[%zu].", _stNElements, s_kstUniverse );
         size_t stClusters = ( (_stNElements-1) / t_kstUniverseCluster ) + 1;
         _tyRgSubtrees rgstSubtrees( m_rgstSubtrees.get_allocator() ); // must pass custody of instanced allocator.
         rgstSubtrees.reserve( stClusters ); // Not sure if this does what we want, but pretty sure it won't hurt.
@@ -2346,7 +2346,7 @@ public:
             return Init( _stNewUniverse );
          
         if ( _stNewUniverse > s_kstUniverse )
-            THROWNAMEDEXCEPTION( "_stNewUniverse[%lu] is greater than the allowable universe size[%lu].", _stNewUniverse, s_kstUniverse );
+            THROWNAMEDEXCEPTION( "_stNewUniverse[%zu] is greater than the allowable universe size[%zu].", _stNewUniverse, s_kstUniverse );
          
         size_t stClustersNew = ( (_stNewUniverse-1) / t_kstUniverseCluster ) + 1;
         size_t stClustersOld = m_rgstSubtrees.size();
@@ -2471,7 +2471,7 @@ public:
     void Insert( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         Assert( !FHasElement( _x ) ); // We don't want to check this and throw because we want the caller to use CheckInsert() instead.
         if ( !FHasAnyElements() )
             m_nMin = m_nMax = _x;
@@ -2491,7 +2491,7 @@ public:
     bool FCheckInsert( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
 
         if ( !FHasAnyElements() )
         {
@@ -2528,7 +2528,7 @@ public:
     void Delete( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         Assert( FHasElement( _x ) );
         if ( m_nMin == m_nMax )
         {
@@ -2571,7 +2571,7 @@ public:
     bool FCheckDelete( _tyImplType _x )
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         if ( m_nMin == m_nMax )
         {
             if ( _x == m_nMin )
@@ -2670,7 +2670,7 @@ public:
     bool FHasElement( _tyImplType _x ) const
     {
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         if ( !FHasAnyElements() )
             return false;
         if ( ( _x == m_nMin ) || ( _x == m_nMax ) )
@@ -2691,7 +2691,7 @@ public:
             return m_nMin;
         Assert( _x <= m_nLastElement );
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMaxCluster;
@@ -2727,7 +2727,7 @@ public:
             return n;
         }
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster, nMaxCluster;
@@ -2787,7 +2787,7 @@ public:
         if ( (numeric_limits< size_t >::max)() == _x )
             return m_nMax;
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         if ( _x > m_nMax )
             return m_nMax;
         _tyImplTypeSubtree nCluster = NCluster( _x );
@@ -2831,7 +2831,7 @@ public:
             return n;
         }
         if ( _x > m_nLastElement )
-            THROWNAMEDEXCEPTION( "_x[%lu] is greater than m_nLastElement[%lu].", size_t(_x), size_t(m_nLastElement) );
+            THROWNAMEDEXCEPTION( "_x[%zu] is greater than m_nLastElement[%zu].", size_t(_x), size_t(m_nLastElement) );
         _tyImplTypeSubtree nCluster = NCluster( _x );
         _tyImplTypeSubtree nEl = NElInCluster( _x );
         _tyImplTypeSubtree nMinCluster, nMaxCluster;
@@ -2874,7 +2874,7 @@ public:
     {
         // Currently we only allow oring between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("NSize()[%lu] doesn't match _r.NSize()[%lu].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%zu] doesn't match _r.NSize()[%zu].", NSize(), _r.NSize() );
         if ( !_r.FHasAnyElements() )
             return *this; // nop
         // Process the min:
@@ -2905,7 +2905,7 @@ public:
     {
         // Currently we only allow anding between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("NSize()[%lu] doesn't match _r.NSize()[%lu].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%zu] doesn't match _r.NSize()[%zu].", NSize(), _r.NSize() );
         
         // Boundary conditions:
         if ( !_r.FHasAnyElements() )
@@ -2996,7 +2996,7 @@ public:
     {
         // Currently we only allow anding between sets of the same size:
         if ( NSize() != _r.NSize() )
-            THROWNAMEDEXCEPTION("NSize()[%lu] doesn't match _r.NSize()[%lu].", NSize(), _r.NSize() );
+            THROWNAMEDEXCEPTION("NSize()[%zu] doesn't match _r.NSize()[%zu].", NSize(), _r.NSize() );
 
         if ( !_r.FHasAnyElements() )
             return *this; // nop

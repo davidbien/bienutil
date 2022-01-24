@@ -18,6 +18,10 @@
 #error We don't have any compatibility platforms we are familiar with.
 #endif
 
+#if ( INTPTR_MAX != INT32_MAX ) && ( INTPTR_MAX != INT64_MAX )
+#error We only support 32bit and 64bit compilation.
+#endif
+
 #include <bit>
 #include <utility>
 #include <filesystem>
@@ -689,21 +693,16 @@ inline int FileSetSize( vtyFileHandle _hFile, uint64_t _u64Size ) noexcept
   if ( _u64Size < bufStat.st_size )
 #if INTPTR_MAX == INT32_MAX
       return ::ftruncate64( _hFile, _u64Size );
-#elif INTPTR_MAX == INT64_MAX
-#error got here
-      return ::ftruncate( _hFile, _u64Size );
 #else
-#error Not sure which ftruncate() to use.
+      return ::ftruncate( _hFile, _u64Size );
 #endif
   else
   if ( _u64Size > bufStat.st_size )
   { // ftruncate writes zeros and it is unclear if that cause perf issues. We don't care about zeros here.
 #if INTPTR_MAX == INT32_MAX
       vtySeekOffset posEnd = ::lseek64(_hFile, _u64Size - 1, SEEK_SET);
-#elif INTPTR_MAX == INT64_MAX
-      vtySeekOffset posEnd = ::lseek(_hFile, _u64Size - 1, SEEK_SET);
 #else
-#error Not sure which lseek() to use.
+      vtySeekOffset posEnd = ::lseek(_hFile, _u64Size - 1, SEEK_SET);
 #endif
       if ( -1ll == posEnd )
           return -1;
