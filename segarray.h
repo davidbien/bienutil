@@ -290,7 +290,7 @@ public:
     if ( _posBegin == _posEnd )
       return; // empty result.
     VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%llu],_posEnd[%llu],NElements()[%llu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
-    _rstr.resize( _posEnd - _posBegin );
+    _rstr.resize( size_t( _posEnd - _posBegin ) );
     _CopyStringToBuf( _posBegin, _posEnd, (_tyT*)&_rstr[0] );
     Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
   }
