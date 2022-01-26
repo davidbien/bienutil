@@ -36,11 +36,15 @@
 #ifdef _MSC_VER
 #define DEBUG_BREAK __debugbreak()
 #elif defined( __clang__ )
+#ifdef __ANDROID__
+#define DEBUG_BREAK raise(SIGTRAP)
+#else // !__ANDROID__
 #if __has_builtin(__builtin_debugtrap)
 #define DEBUG_BREAK __builtin_debugtrap()
 #else
 #define DEBUG_BREAK __builtin_trap()
 #endif
+#endif // !__ANDROID__
 #elif defined( __GNUC__ )
 #define DEBUG_BREAK __builtin_trap()
 #else

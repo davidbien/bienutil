@@ -59,10 +59,10 @@ class JNIStringUTF8 : public JNIEnvBase
 public:
   void AssertValid() const noexcept
   {
-    Assert( !!m_pjeEnv || ( !m_jstr && !m_pcUTF8 && ( ejniuIsCopyFalse == m_jniuIsModifiable ) ) ); // null state.
-    Assert( ( ejniuIsCopyFalse == m_jniuIsModifiable ) || !!m_pcUTF8 ); // local copy and modifiable copy state.
-    Assert( ( ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !!m_jstr && !!m_pcUTF8 ) ); // modifiable copy state.
-    Assert( ( ejniuIsLocalCopy != m_jniuIsModifiable ) || ( !m_jstr && !!m_pcUTF8 ) ); // local copy state.
+    Assert( !!m_pjeEnv || ( !m_jstr && !m_pcUTF8 && ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) ) ); // null state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) || !!m_pcUTF8 ); // local copy and modifiable copy state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !!m_jstr && !!m_pcUTF8 ) ); // modifiable copy state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy != m_jniuIsModifiable ) || ( !m_jstr && !!m_pcUTF8 ) ); // local copy state.
   }
   JNIStringUTF8() noexcept = default;
   // Provide a copy constructor which produces a local modifiable copy.
@@ -72,10 +72,10 @@ public:
     _r.AssertValid();
     if ( !!_r.m_pcUTF8 )
     {
-      size_t stLen = strlen( _r.m_pcUTF8 );
+      size_t stLen = strlen( (const char*)_r.m_pcUTF8 );
       m_pcUTF8 = DBG_NEW char8_t[ stLen + 1 ]; // throws.
       memcpy( m_pcUTF8, _r.m_pcUTF8, ( stLen + 1 ) * sizeof( char8_t ) );
-      m_jniuIsModifiable = ejniuIsLocalCopy;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsLocalCopy;
       // Leave m_jstr at nullptr since we have a local copy that isn't maintained by the Java VM.
     }
     AssertValid();
@@ -83,7 +83,7 @@ public:
   JNIStringUTF8( JNIStringUTF8 && _rr ) noexcept
     : _TyBase( _rr ) // We want _rr to be left with a valid JNIEnv* if it already has one.
   {
-    std::swap( _rr );
+    swap( _rr );
   }
   JNIStringUTF8( JNIEnv * _pjeEnv ) noexcept
     : _TyBase( _pjeEnv )
@@ -97,7 +97,7 @@ public:
     jboolean jbIsCopy;
     VerifyThrowSz( !!( m_pcUTF8 = (char8_t*)m_pjeEnv->GetStringUTFChars( m_jstr, &jbIsCopy ) ), "GetStringUTFChars() failed." );
     if ( JNI_TRUE == jbIsCopy )
-      m_jniuIsModifiable = ejniuIsCopyTrue;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsCopyTrue;
     AssertValid();
   }
   ~JNIStringUTF8() noexcept
@@ -122,7 +122,7 @@ public:
     VerifyThrowSz( !!( m_pcUTF8 = (char8_t*)m_pjeEnv->GetStringUTFChars( _jstr, &jbIsCopy ) ), "GetStringUTFChars() failed." );
     m_jstr = _jstr; // TS
     if ( JNI_TRUE == jbIsCopy )
-      m_jniuIsModifiable = ejniuIsCopyTrue;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsCopyTrue;
     AssertValid();
   }
   void Release() noexcept
@@ -133,8 +133,8 @@ public:
       char8_t * pcUTF8 = m_pcUTF8;
       m_pcUTF8 = nullptr;
       EJNIUtilIsModifiable jniuIsModifiable = m_jniuIsModifiable;
-      m_jniuIsModifiable = ejniuIsCopyFalse;
-      if ( ejniuIsLocalCopy == jniuIsModifiable )
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsCopyFalse;
+      if ( EJNIUtilIsModifiable::ejniuIsLocalCopy == jniuIsModifiable )
       {
         // Then we have already called ReleaseStringUTFChars().
         delete[] pcUTF8;
@@ -152,17 +152,17 @@ public:
   void MakeLocalCopy() noexcept(false)
   {
     AssertValid();
-    if ( !!m_pcUTF8 && ( ejniuIsLocalCopy != m_jniuIsModifiable )  )
+    if ( !!m_pcUTF8 && ( EJNIUtilIsModifiable::ejniuIsLocalCopy != m_jniuIsModifiable )  )
     {
       // Then we need to make a copy and then release our existing string:
-      size_t stLen = strlen( m_pcUTF8 );
+      size_t stLen = strlen( (const char *)m_pcUTF8 );
       char8_t * pcUTF8Copy = DBG_NEW char8_t[ stLen + 1 ]; // throws.
       memcpy( pcUTF8Copy, m_pcUTF8, ( stLen + 1 ) * sizeof( char8_t ) );
       jstring jstr = m_jstr;
       m_jstr = nullptr;
       char8_t * pcUTF8 = m_pcUTF8;
       m_pcUTF8 = pcUTF8Copy;
-      m_jniuIsModifiable = ejniuIsLocalCopy;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsLocalCopy;
       m_pjeEnv->ReleaseStringUTFChars( jstr, (const char *)pcUTF8 );
     }
   }
@@ -177,6 +177,11 @@ public:
     AssertValid();
     return m_pcUTF8;
   }
+  // Provide this for compatibility with string.
+  const char * c_str() const noexcept
+  {
+    return (const char *)PCGet();
+  }
   operator const char8_t * () const noexcept
   {
     return PCGet();
@@ -187,7 +192,7 @@ public:
   {
     if ( !!m_pcUTF8 )
     {
-      if ( ejniuIsCopyFalse == m_jniuIsModifiable )
+      if ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable )
         MakeLocalCopy();
       return m_pcUTF8;
     }
@@ -203,7 +208,7 @@ public:
 protected:
   char8_t * m_pcUTF8{ nullptr }; // Use char8_t to require a cast to indicate that we are potentially a multibyte character string.
   jstring m_jstr{ nullptr };
-  EJNIUtilIsModifiable m_jniuIsModifiable{ ejniuIsCopyFalse }; // This mirrors the isCopy result from acquiring the string. Before returning a non-const access to this string a copy is made if it currently is not a modifiable string.
+  EJNIUtilIsModifiable m_jniuIsModifiable{ EJNIUtilIsModifiable::ejniuIsCopyFalse }; // This mirrors the isCopy result from acquiring the string. Before returning a non-const access to this string a copy is made if it currently is not a modifiable string.
 };
 
 // JNIStringUTF16:
@@ -217,10 +222,10 @@ public:
 
   void AssertValid() const noexcept
   {
-    Assert( !!m_pjeEnv || ( !m_jstr && !m_stUnitLength && !m_pcUTF16 && ( ejniuIsCopyFalse == m_jniuIsModifiable ) ) ); // null state.
-    Assert( ( ejniuIsCopyFalse == m_jniuIsModifiable ) || !!m_pcUTF16 ); // local copy and modifiable copy state.
-    Assert( ( ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !!m_jstr && !!m_pcUTF16 ) ); // modifiable copy state.
-    Assert( ( ejniuIsLocalCopy != m_jniuIsModifiable ) || ( !m_jstr && !!m_pcUTF16 ) ); // local copy state.
+    Assert( !!m_pjeEnv || ( !m_jstr && !m_stUnitLength && !m_pcUTF16 && ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) ) ); // null state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) || !!m_pcUTF16 ); // local copy and modifiable copy state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !!m_jstr && !!m_pcUTF16 ) ); // modifiable copy state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy != m_jniuIsModifiable ) || ( !m_jstr && !!m_pcUTF16 ) ); // local copy state.
   }
   JNIStringUTF16() noexcept = default;
   // Provide a copy constructor which produces a local modifiable copy.
@@ -233,7 +238,7 @@ public:
       m_pcUTF16 = DBG_NEW char16_t[ _r.m_stUnitLength ]; // throws.
       m_stUnitLength = _r.m_stUnitLength;
       memcpy( m_pcUTF16, _r.m_pcUTF16, m_stUnitLength * sizeof( char16_t ) );
-      m_jniuIsModifiable = ejniuIsLocalCopy;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsLocalCopy;
       // Leave m_jstr at nullptr since we have a local copy that isn't maintained by the Java VM.
     }
     AssertValid();
@@ -241,7 +246,7 @@ public:
   JNIStringUTF16( JNIStringUTF16 && _rr ) noexcept
     : _TyBase( _rr ) // We want _rr to be left with a valid JNIEnv* if it already has one.
   {
-    std::swap( _rr );
+    swap( _rr );
   }
   JNIStringUTF16( JNIEnv * _pjeEnv ) noexcept
     : _TyBase( _pjeEnv )
@@ -255,7 +260,7 @@ public:
     jboolean jbIsCopy;
     VerifyThrowSz( !!( m_pcUTF16 = (char16_t*)m_pjeEnv->GetStringChars( m_jstr, &jbIsCopy ) ), "GetStringChars() failed." );
     if ( JNI_TRUE == jbIsCopy )
-      m_jniuIsModifiable = ejniuIsCopyTrue;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsCopyTrue;
     m_stUnitLength = m_pjeEnv->GetStringLength( m_jstr );
     AssertValid();
   }
@@ -282,7 +287,7 @@ public:
     VerifyThrowSz( !!( m_pcUTF16 = (char16_t*)m_pjeEnv->GetStringChars( _jstr, &jbIsCopy ) ), "GetStringChars() failed." );
     m_jstr = _jstr; // TS
     if ( JNI_TRUE == jbIsCopy )
-      m_jniuIsModifiable = ejniuIsCopyTrue;
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsCopyTrue;
     m_stUnitLength = m_pjeEnv->GetStringLength( m_jstr );
     AssertValid();
   }
@@ -295,8 +300,8 @@ public:
       m_pcUTF16 = nullptr;
       m_stUnitLength = 0;
       EJNIUtilIsModifiable jniuIsModifiable = m_jniuIsModifiable;
-      m_jniuIsModifiable = ejniuIsCopyFalse;
-      if ( ejniuIsLocalCopy == jniuIsModifiable )
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsCopyFalse;
+      if ( EJNIUtilIsModifiable::ejniuIsLocalCopy == jniuIsModifiable )
       {
         // Then we have already called ReleaseStringChars().
         delete[] pcUTF16;
@@ -314,7 +319,7 @@ public:
   void MakeLocalCopy() noexcept(false)
   {
     AssertValid();
-    if ( !!m_pcUTF16 && ( ejniuIsLocalCopy != m_jniuIsModifiable )  )
+    if ( !!m_pcUTF16 && ( EJNIUtilIsModifiable::ejniuIsLocalCopy != m_jniuIsModifiable )  )
     {
       // Then we need to make a copy and then release our existing string:
       char16_t * pcUTF16Copy = DBG_NEW char16_t[ m_stUnitLength ]; // throws.
@@ -323,8 +328,8 @@ public:
       m_jstr = nullptr;
       char16_t * pcUTF16 = m_pcUTF16;
       m_pcUTF16 = pcUTF16Copy;
-      m_jniuIsModifiable = ejniuIsLocalCopy;
-      m_pjeEnv->ReleaseStringUTFChars( jstr, (const jchar *)pcUTF16 );
+      m_jniuIsModifiable = EJNIUtilIsModifiable::ejniuIsLocalCopy;
+      m_pjeEnv->ReleaseStringChars( jstr, (const jchar *)pcUTF16 );
     }
   }
   bool FIsNull() const noexcept
@@ -337,14 +342,14 @@ public:
   {
     return std::pair< const char16_t *, size_t >( m_pcUTF16, m_stUnitLength );
   }
-  std::pair< const char16_t *, size_t > GetPairStringLenNonConst() noexcept(false)
+  std::pair< char16_t *, size_t > GetPairStringLenNonConst() noexcept(false)
   {
     if ( !!m_pcUTF16 )
     {
-      if ( ejniuIsCopyFalse == m_jniuIsModifiable )
+      if ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable )
         MakeLocalCopy();
     }
-    return std::pair< const char16_t *, size_t >( m_pcUTF16, m_stUnitLength );
+    return std::pair< char16_t *, size_t >( m_pcUTF16, m_stUnitLength );
   }
   // Note that this returns the "code unit" length of the string - not the code length of the potentially multi-code-unit UTF16 string.
   size_t UnitLength() const noexcept
@@ -356,7 +361,7 @@ protected:
   char16_t * m_pcUTF16{ nullptr }; // Use char16_t to require a cast to indicate that we are potentially a multibyte character string.
   size_t m_stUnitLength{0}; // the code-unit length of the UTF16 string.
   jstring m_jstr{ nullptr };
-  EJNIUtilIsModifiable m_jniuIsModifiable{ ejniuIsCopyFalse }; // This mirrors the isCopy result from acquiring the string. Before returning a non-const access to this string a copy is made if it currently is not a modifiable string.
+  EJNIUtilIsModifiable m_jniuIsModifiable{ EJNIUtilIsModifiable::ejniuIsCopyFalse }; // This mirrors the isCopy result from acquiring the string. Before returning a non-const access to this string a copy is made if it currently is not a modifiable string.
 };
 
 __BIENUTIL_END_NAMESPACE
