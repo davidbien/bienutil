@@ -326,6 +326,10 @@ inline int UUIDFromString(const char* _rgcBuffer, vtyUUID& _ruuid) noexcept
     return -1;
   }
   return 0;
+#elif defined( __ANDROID__ )
+  // TODO: Get a uuid.lib for ANDROID.
+  memset( &_ruuid, 0, sizeof _ruuid );
+  return 0;
 #elif defined( __APPLE__ ) || defined( __linux__ )
   if (nLenBuf < vkstUUIDNChars)
   {

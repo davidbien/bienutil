@@ -17,7 +17,6 @@
 #ifndef WIN32
 #include <unistd.h>
 #include <sys/mman.h>
-#include <uuid/uuid.h>
 #endif //!WIN32
 #include <stdexcept>
 #include <fcntl.h>

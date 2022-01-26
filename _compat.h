@@ -34,7 +34,10 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <dirent.h>
-#ifndef __ANDROID__
+#ifdef __ANDROID__
+#include <linux/uuid.h>
+typedef guid_t uuid_t;
+#else
 #include <uuid/uuid.h>
 #endif // !__ANDROID__
 #endif //!WIN32
