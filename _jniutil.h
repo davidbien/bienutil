@@ -61,7 +61,7 @@ public:
   {
     Assert( !!m_pjeEnv || ( !m_jstr && !m_pcUTF8 && ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) ) ); // null state.
     Assert( ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) || !!m_pcUTF8 ); // local copy and modifiable copy state.
-    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !!m_jstr && !!m_pcUTF8 ) ); // modifiable copy state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !m_jstr == !m_pcUTF8 ) ); // modifiable copy state.
     Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy != m_jniuIsModifiable ) || ( !m_jstr && !!m_pcUTF8 ) ); // local copy state.
   }
   JNIStringUTF8() noexcept = default;
@@ -224,7 +224,7 @@ public:
   {
     Assert( !!m_pjeEnv || ( !m_jstr && !m_stUnitLength && !m_pcUTF16 && ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) ) ); // null state.
     Assert( ( EJNIUtilIsModifiable::ejniuIsCopyFalse == m_jniuIsModifiable ) || !!m_pcUTF16 ); // local copy and modifiable copy state.
-    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !!m_jstr && !!m_pcUTF16 ) ); // modifiable copy state.
+    Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy == m_jniuIsModifiable ) || ( !m_jstr == !m_pcUTF16 ) ); // modifiable copy state.
     Assert( ( EJNIUtilIsModifiable::ejniuIsLocalCopy != m_jniuIsModifiable ) || ( !m_jstr && !!m_pcUTF16 ) ); // local copy state.
   }
   JNIStringUTF16() noexcept = default;
