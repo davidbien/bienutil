@@ -31,7 +31,11 @@ set(CompilerFlags
         CMAKE_C_FLAGS_RELWITHDEBINFO
         )
 foreach(CompilerFlag ${CompilerFlags})
+if ( MOD_USE_WINDOWS_UCRT_DLL EQUAL 1 )
+    string(REPLACE "/MT" "/MD" ${CompilerFlag} "${${CompilerFlag}}")
+else()
     string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+endif()
     string(REPLACE "/bigobj" "" ${CompilerFlag} "${${CompilerFlag}}")
     set(${CompilerFlag} "${${CompilerFlag}} /bigobj" CACHE STRING "msvc compiler flags" FORCE)
     message("MSVC flags: ${CompilerFlag}:${${CompilerFlag}}")
