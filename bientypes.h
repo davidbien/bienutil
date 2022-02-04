@@ -14,6 +14,8 @@
 // We will leave it generally compiled in case somehow the MacOS version changed.
 typedef char uuid_string_t[37];
 
+#include "bienutil.h"
+
 __BIENUTIL_BEGIN_NAMESPACE
 
 template <class t_tyChar>
