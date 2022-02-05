@@ -6,9 +6,13 @@
 // 04FEB2022
 
 #include "bienutil.h"
+#include "glad/glad.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+// GLBufferConainerFixed:
+// This manages a fixed set of buffers which are created and deleted en masse.
+// There are other paragigms than this that would be useful but this is one useful paradigm.
 template < GLsizei t_knBuffers >
 class GLBufferConainerFixed
 {
@@ -77,6 +81,62 @@ public:
   {
     Assert( FIsInited() );
     return m_rgBuffers.at( _n );// at performs bounds checking.
+  }
+
+  // Binds a single of the contained buffers to the given target.
+  void BindOne( size_t _n, GLenum _eTarget ) noexcept(false)
+  {
+    Assert( FIsInited() );
+    glBindBuffer( _eTarget, (*this)[ _n ] );
+    Assert( FIsOneBound( _n, _eTarget ) );
+  }
+  // Check if the given buffer is bound to the given target.
+  // This translates the target to the appropriate querying flag.
+  bool FIsOneBound( size_t _n, GLenum _eTarget ) noexcept(false)
+  {
+    GLenum eBindingForTarget = EGetBindingFromTarget( _eTarget );
+    VerifyThrowSz( !!eBindingForTarget, "Invalid _eTarget[0x%x]", _eTarget );
+    GLuint uBound;
+    glGetIntegerv( eBindingForTarget, (GLint*)&uBound );
+    return uBound == (*this)[ _n ];
+  }
+
+  static GLenum EGetBindingFromTarget( GLenum _eTarget ) noexcept
+  {
+    switch( _eTarget )
+    {
+      case GL_ARRAY_BUFFER:
+        return GL_ARRAY_BUFFER_BINDING;
+      case GL_ATOMIC_COUNTER_BUFFER:
+        return GL_ATOMIC_COUNTER_BUFFER_BINDING;
+      case GL_COPY_READ_BUFFER:
+        return GL_COPY_READ_BUFFER_BINDING;
+      case GL_COPY_WRITE_BUFFER:
+        return GL_COPY_WRITE_BUFFER_BINDING;
+      case GL_DISPATCH_INDIRECT_BUFFER:
+        return GL_DISPATCH_INDIRECT_BUFFER_BINDING;
+      case GL_DRAW_INDIRECT_BUFFER:
+        return GL_DRAW_INDIRECT_BUFFER_BINDING;
+      case GL_ELEMENT_ARRAY_BUFFER:
+        return GL_ELEMENT_ARRAY_BUFFER_BINDING;
+      case GL_PIXEL_PACK_BUFFER:
+        return GL_PIXEL_PACK_BUFFER_BINDING;
+      case GL_PIXEL_UNPACK_BUFFER:
+        return GL_PIXEL_UNPACK_BUFFER_BINDING;
+      case GL_QUERY_BUFFER:
+        return GL_QUERY_BUFFER_BINDING;
+      case GL_SHADER_STORAGE_BUFFER:
+        return GL_SHADER_STORAGE_BUFFER_BINDING;
+      case GL_TEXTURE_BUFFER:
+        return GL_TEXTURE_BUFFER_BINDING;
+      case GL_TRANSFORM_FEEDBACK_BUFFER:
+        return GL_TRANSFORM_FEEDBACK_BUFFER_BINDING;
+      case GL_UNIFORM_BUFFER:
+        return GL_UNIFORM_BUFFER_BINDING;
+      default:
+        Assert( false );
+        return 0;       
+    }
   }
 
 protected:
