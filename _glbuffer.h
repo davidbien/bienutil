@@ -10,26 +10,27 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-// GLBufferConainerFixed:
+// GLBufferContainerFixed:
 // This manages a fixed set of buffers which are created and deleted en masse.
 // There are other paragigms than this that would be useful but this is one useful paradigm.
 template < GLsizei t_knBuffers >
-class GLBufferConainerFixed
+class GLBufferContainerFixed
 {
-  typedef GLBufferConainerFixed _TyThis;
+  typedef GLBufferContainerFixed _TyThis;
 public:
+  static_assert( t_knBuffers > 0 );
   typedef array< GLuint, t_knBuffers > _TyArray;
 
-  GLBufferConainerFixed() noexcept = default;
-  GLBufferConainerFixed( GLBufferConainerFixed const & ) = delete;
-  GLBufferConainerFixed & operator=( GLBufferConainerFixed const & ) = delete;
-  GLBufferConainerFixed( GLBufferConainerFixed && _rr ) noexcept
+  GLBufferContainerFixed() noexcept = default;
+  GLBufferContainerFixed( GLBufferContainerFixed const & ) = delete;
+  GLBufferContainerFixed & operator=( GLBufferContainerFixed const & ) = delete;
+  GLBufferContainerFixed( GLBufferContainerFixed && _rr ) noexcept
   {
     m_rgBuffers.swap( _rr.m_rgBuffers );
   }
-  GLBufferConainerFixed & operator=( GLBufferConainerFixed && _rr ) noexcept
+  GLBufferContainerFixed & operator=( GLBufferContainerFixed && _rr ) noexcept
   {
-    GLBufferConainerFixed acquire( std::move( _rr ) );
+    GLBufferContainerFixed acquire( std::move( _rr ) );
     swap( acquire );
     return *this;
   }
@@ -39,15 +40,15 @@ public:
   }
 
   // _fInit: Whether to initialize the buffers. If this initialization fails then we throw.
-  GLBufferConainerFixed( bool _fInit ) noexcept(false)
+  GLBufferContainerFixed( bool _fInit ) noexcept(false)
   {
     if ( _fInit )
     {
       glGenBuffers( t_knBuffers, &m_rgBuffers[0] );
-      VerifyThrowSz( FIsInited(), "glGenBuffers() failed to generate buffers." );
+      VerifyThrowSz( FIsInited(), "glGenBuffers() failed." );
     }
   }
-  ~GLBufferConainerFixed()
+  ~GLBufferContainerFixed()
   {
     if ( FIsInited() )
       glDeleteBuffers( t_knBuffers, m_rgBuffers );
@@ -55,12 +56,14 @@ public:
   // Either all elements should be zero or all non-zero.
   void AssertValid() const
   {
+#if ASSERTSENABLED
     const GLuint * puCur = &m_rgBuffers[0];
     const GLuint * puTail = puCur + t_knBuffers - 1;
     for ( ; puTail != puCur; ++puCur )
     {
       Assert( !*puCur == !puCur[1] );
     }
+#endif //ASSERTSENABLED
   }
   bool FIsInited() const noexcept
   {

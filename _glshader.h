@@ -74,17 +74,17 @@ public:
     bool fFailed;
     if ( ( !( fFailed = GetCompileStatus() ) && _fLogErrors ) || _fLogSuccess )
     {
-      GLint nCharLog; // includes NULL terminating character.
-      glGetShaderiv( m_uShaderId, GL_INFO_LOG_LENGTH, &nCharLog );
-      Assert( nCharLog > 1 ); // We expect log info on failure to compile.
+      GLint nCharsLog; // includes NULL terminating character.
+      glGetShaderiv( m_uShaderId, GL_INFO_LOG_LENGTH, &nCharsLog );
+      Assert( nCharsLog > 1 ); // We expect log info on failure to compile.
       string strLog;
-      if ( nCharLog > 1 )
+      if ( nCharsLog > 1 )
       {
-        strLog.resize( nCharLog - 1 ); // reserves nCharLog.
+        strLog.resize( nCharsLog - 1 ); // reserves nCharsLog.
         GLsizei nFilled;
-        glGetShaderInfoLog( m_uShaderId, nCharLog, &nFilled, &strLog[0] );
-        Assert( nFilled == ( nCharLog - 1 ) );
-        strLog[ nCharLog - 1 ] = 0; // ensure null termination regardless.
+        glGetShaderInfoLog( m_uShaderId, nCharsLog, &nFilled, &strLog[0] );
+        Assert( nFilled == ( nCharsLog - 1 ) );
+        strLog[ nCharsLog - 1 ] = 0; // ensure null termination regardless.
       }
       const char * pszFmt = strLog.length() ? "InfoLog:%s:%s \"%s\"" : "InfoLog:%s:%s nologinfo";
       LOGSYSLOG( fFailed ? eslmtError : eslmtInfo, pszFmt, PszShaderTypeName(), fFailed ? "FAILED" : "SUCCEEDED", &strLog[0] );      

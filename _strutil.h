@@ -259,7 +259,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 			requires ( sizeof( typename t_tyString::value_type ) == sizeof( char ) )
 {
 	typedef char _tyChar;
-  	int nRequired;
+	int nRequired;
 	{//B
 		va_list ap2;
 		va_copy(ap2, _ap); // Do this correctly
@@ -285,7 +285,7 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
 #ifdef WIN32
 	// Of course MS did this correctly - they have all the str..._s() methods as well - Linux is lagging.
 	typedef wchar_t _tyChar;
-  	int nRequired;
+	int nRequired;
 	{//B
 		va_list ap2;
 		va_copy(ap2, _ap); // Do this correctly
