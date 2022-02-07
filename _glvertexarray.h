@@ -1,11 +1,12 @@
 #pragma once
 
-// _glprogram.h
-// Utility object for maintaining lifetime of a glProgram.
+// _glvertexarray.h
+// Utility object for maintaining sets of vertex arrays.
 // dbien
 // 05FEB2022
 
 #include <cstdarg>
+#include <array>
 #include "glad/glad.h"
 #include "bienutil.h"
 #include "_assert.h"
@@ -53,7 +54,7 @@ public:
   ~GLVertexArrayFixed()
   {
     if ( FIsInited() )
-      glDeleteVertexArrays( t_knArrays, m_rgArrays );
+      glDeleteVertexArrays( t_knArrays, &m_rgArrays[0] );
   }
   // Either all elements should be zero or all non-zero.
   void AssertValid() const
@@ -78,7 +79,7 @@ public:
     {
       _TyArray rgArrays = { 0 };
       m_rgArrays.swap( rgArrays );
-      glDeleteBuffers( t_knBuffers, rgArrays );
+      glDeleteBuffers( t_knArrays, rgArrays );
       AssertValid();
     }
   }
@@ -87,7 +88,29 @@ public:
     Assert( FIsInited() );
     return m_rgArrays.at( _n );// at performs bounds checking.
   }
-
+  // When there is just a single vertex array then these methods are enabled:
+  void Bind() const noexcept(false)
+    requires ( 1 == t_knArrays )
+  {
+    BindOne( 0 );
+  }
+  bool FIsBound() const noexcept(false)
+    requires ( 1 == t_knArrays )
+  {
+    return FIsOneBound( 0 );
+  }
+  // Binds a single of the contained buffers to the given target.
+  void BindOne( size_t _n ) const noexcept(false)
+  {
+    glBindVertexArray( (*this)[ _n ] );
+    Assert( FIsOneBound( _n ) );
+  }
+  // Check if the given buffer is bound to the given target.
+  // This translates the target to the appropriate querying flag.
+  bool FIsOneBound( size_t _n ) const noexcept(false)
+  {
+    return !!glIsVertexArray( (*this)[ _n ] );
+  }
 protected:
   _TyArray m_rgArrays = {0};
 };

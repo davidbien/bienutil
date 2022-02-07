@@ -51,7 +51,7 @@ public:
   ~GLBufferContainerFixed()
   {
     if ( FIsInited() )
-      glDeleteBuffers( t_knBuffers, m_rgBuffers );
+      glDeleteBuffers( t_knBuffers, &m_rgBuffers[0] );
   }
   // Either all elements should be zero or all non-zero.
   void AssertValid() const
@@ -85,9 +85,19 @@ public:
     Assert( FIsInited() );
     return m_rgBuffers.at( _n );// at performs bounds checking.
   }
-
+  // When there is just a buffer then these methods are enabled:
+  void Bind( GLenum _eTarget ) const noexcept(false)
+    requires ( 1 == t_knBuffers )
+  {
+    BindOne( 0, _eTarget );
+  }
+  bool FIsBound( GLenum _eTarget ) const noexcept(false)
+    requires ( 1 == t_knBuffers )
+  {
+    return FIsOneBound( 0, _eTarget );
+  }
   // Binds a single of the contained buffers to the given target.
-  void BindOne( size_t _n, GLenum _eTarget ) noexcept(false)
+  void BindOne( size_t _n, GLenum _eTarget ) const noexcept(false)
   {
     Assert( FIsInited() );
     glBindBuffer( _eTarget, (*this)[ _n ] );
@@ -95,7 +105,7 @@ public:
   }
   // Check if the given buffer is bound to the given target.
   // This translates the target to the appropriate querying flag.
-  bool FIsOneBound( size_t _n, GLenum _eTarget ) noexcept(false)
+  bool FIsOneBound( size_t _n, GLenum _eTarget ) const noexcept(false)
   {
     GLenum eBindingForTarget = EGetBindingFromTarget( _eTarget );
     VerifyThrowSz( !!eBindingForTarget, "Invalid _eTarget[0x%x]", _eTarget );
@@ -110,6 +120,7 @@ public:
     {
       case GL_ARRAY_BUFFER:
         return GL_ARRAY_BUFFER_BINDING;
+#if 0
       case GL_ATOMIC_COUNTER_BUFFER:
         return GL_ATOMIC_COUNTER_BUFFER_BINDING;
       case GL_COPY_READ_BUFFER:
@@ -120,18 +131,21 @@ public:
         return GL_DISPATCH_INDIRECT_BUFFER_BINDING;
       case GL_DRAW_INDIRECT_BUFFER:
         return GL_DRAW_INDIRECT_BUFFER_BINDING;
+#endif 0
       case GL_ELEMENT_ARRAY_BUFFER:
         return GL_ELEMENT_ARRAY_BUFFER_BINDING;
       case GL_PIXEL_PACK_BUFFER:
         return GL_PIXEL_PACK_BUFFER_BINDING;
       case GL_PIXEL_UNPACK_BUFFER:
         return GL_PIXEL_UNPACK_BUFFER_BINDING;
+#if 0
       case GL_QUERY_BUFFER:
         return GL_QUERY_BUFFER_BINDING;
       case GL_SHADER_STORAGE_BUFFER:
         return GL_SHADER_STORAGE_BUFFER_BINDING;
       case GL_TEXTURE_BUFFER:
         return GL_TEXTURE_BUFFER_BINDING;
+#endif 0
       case GL_TRANSFORM_FEEDBACK_BUFFER:
         return GL_TRANSFORM_FEEDBACK_BUFFER_BINDING;
       case GL_UNIFORM_BUFFER:

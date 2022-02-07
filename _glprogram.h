@@ -38,7 +38,7 @@ public:
 #if ASSERTSENABLED
     // We should either have a null program id or a valid and linked program here.
     if ( !m_uProgramId )
-      rerturn;
+      return;
     GLint iLinkSuccess;
     glGetProgramiv( m_uProgramId, GL_LINK_STATUS, &iLinkSuccess );
     Assert( !!iLinkSuccess );
@@ -49,14 +49,12 @@ public:
     Assert( !!iValidateStatus );
 #endif //ASSERTSENABLED
   }
-
   // Construct and link the program from a set of shader ids.
   // Due to how variable arguments in C++ work must pass the count of shaders first.
-  GLProgram( bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, ... )
+  GLProgram( bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, ... ) noexcept(false)
   {
     va_list ap;
     va_start(ap, _uShaderId);
-    bool fSuccess;
     try
     {
       (void)_FInit( true, _fLogErrors, _fLogSuccess, _nShaders, _uShaderId, ap );
@@ -69,7 +67,7 @@ public:
     }
     va_end(ap);
   }
-  bool FInit( bool _fThrowOnError, bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, ... )
+  bool FInit( bool _fThrowOnError, bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, ... ) noexcept(false)
   {
     AssertValid();
     Release();
@@ -82,23 +80,41 @@ public:
     }
     catch( ... )
     {
+      Assert( _fThrowOnError );
       va_end(ap);
-      if ( _fThrowOnError )
-        throw;
+      throw;
     }
     va_end(ap);
     AssertValid();
     return fSuccess;
   }
+  ~GLProgram()
+  {
+    Release();
+  }
+  void Release() noexcept
+  {
+    if ( !!m_uProgramId )
+    {
+      GLuint uProgramId = m_uProgramId;
+      m_uProgramId = 0;
+      glDeleteProgram( uProgramId );
+    }
+  }
+  GLuint UGetProgram() const noexcept
+  {
+    return m_uProgramId;
+  }
 
 protected:
-  bool _FInit( bool _fThrowOnError, bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, va_list _ap )
+  bool _FInit( bool _fThrowOnError, bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, va_list _ap ) noexcept(false)
   {
     Assert( _nShaders < 4 ); // only three shaders may be connected to a program.
     m_uProgramId = glCreateProgram(); // Must delete this before we leave the method if we fail.
     if ( _fThrowOnError )
       VerifyThrowSz( !!m_uProgramId, "glCreateProgram() failed." );
     else
+    if ( !m_uProgramId )
       return false;
     glAttachShader( m_uProgramId, _uShaderId );
 
@@ -108,10 +124,10 @@ protected:
       for ( ; _nShaders--; )
       {
         GLuint uShaderId = va_arg( _ap, GLuint );
-        glAttachShader( uShaderId );
+        glAttachShader( m_uProgramId, uShaderId );
       }
     }
-    
+
     glLinkProgram( m_uProgramId );
     GLint iLinkSuccess;
     glGetProgramiv( m_uProgramId, GL_LINK_STATUS, &iLinkSuccess );
@@ -145,7 +161,7 @@ protected:
     }
     return !fFailed;
   }
-
+  
   GLuint m_uProgramId{0};
 };
 

@@ -47,10 +47,6 @@ public:
       VerifyThrowSz( fCompiled, "Error compiling shader." );
     }
   }
-  GLShader( GLShader && _rr ) noexcept
-  {
-    std::swap( m_uShaderId, _rr.m_uShaderId );
-  }
   ~GLShader() noexcept
   {
     if ( !!m_uShaderId )
@@ -65,6 +61,10 @@ public:
       glDeleteShader( uShaderId );
     }
   }
+  GLuint UGetShaderId() const noexcept
+  {
+    return m_uShaderId;
+  }
   // simple compilation via a single null terminated string.
   bool FCompileShader( const char * _pszShaderSource, bool _fLogErrors = true, bool _fThrow = false, bool _fLogSuccess = false ) noexcept(false)
   {
@@ -72,22 +72,25 @@ public:
     glShaderSource( m_uShaderId, 1, &_pszShaderSource, nullptr );
     glCompileShader( m_uShaderId );
     bool fFailed;
-    if ( ( !( fFailed = GetCompileStatus() ) && _fLogErrors ) || _fLogSuccess )
+    if ( ( !( fFailed = !GetCompileStatus() ) && _fLogErrors ) || _fLogSuccess )
     {
       GLint nCharsLog; // includes NULL terminating character.
       glGetShaderiv( m_uShaderId, GL_INFO_LOG_LENGTH, &nCharsLog );
-      Assert( nCharsLog > 1 ); // We expect log info on failure to compile.
-      string strLog;
-      if ( nCharsLog > 1 )
+      Assert( !fFailed || ( nCharsLog > 1 ) ); // We expect log info on failure to compile.
+      if ( fFailed || ( nCharsLog > 1 ) ) // don't log no info on success.
       {
-        strLog.resize( nCharsLog - 1 ); // reserves nCharsLog.
-        GLsizei nFilled;
-        glGetShaderInfoLog( m_uShaderId, nCharsLog, &nFilled, &strLog[0] );
-        Assert( nFilled == ( nCharsLog - 1 ) );
-        strLog[ nCharsLog - 1 ] = 0; // ensure null termination regardless.
+        string strLog;
+        if ( nCharsLog > 1 )
+        {
+          strLog.resize( nCharsLog - 1 ); // reserves nCharsLog.
+          GLsizei nFilled;
+          glGetShaderInfoLog( m_uShaderId, nCharsLog, &nFilled, &strLog[0] );
+          Assert( nFilled == ( nCharsLog - 1 ) );
+          strLog[ nCharsLog - 1 ] = 0; // ensure null termination regardless.
+        }
+        const char * pszFmt = strLog.length() ? "InfoLog:%s:%s \"%s\"" : "InfoLog:%s:%s nologinfo";
+        LOGSYSLOG( fFailed ? eslmtError : eslmtInfo, pszFmt, PszShaderTypeName(), fFailed ? "FAILED" : "SUCCEEDED", &strLog[0] );
       }
-      const char * pszFmt = strLog.length() ? "InfoLog:%s:%s \"%s\"" : "InfoLog:%s:%s nologinfo";
-      LOGSYSLOG( fFailed ? eslmtError : eslmtInfo, pszFmt, PszShaderTypeName(), fFailed ? "FAILED" : "SUCCEEDED", &strLog[0] );      
     }
     return true;
   }

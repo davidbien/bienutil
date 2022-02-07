@@ -11,6 +11,8 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+#define GL_BUFFER_OFFSET( _off ) ((char*)nullptr + ( _off ))
+
 inline const char *
 PszGetGLErrorCodeName( GLuint _uId )
 {
