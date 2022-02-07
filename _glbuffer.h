@@ -113,6 +113,8 @@ public:
     glGetIntegerv( eBindingForTarget, (GLint*)&uBound );
     return uBound == (*this)[ _n ];
   }
+  // Multiple bindings in a single call.
+  // Caller should provide the number of targets that are equal to the count 
 
   static GLenum EGetBindingFromTarget( GLenum _eTarget ) noexcept
   {
@@ -158,6 +160,35 @@ public:
 
 protected:
   _TyArray m_rgBuffers = { 0 };
+};
+
+// A buffer container that takes the names of the targets as template parameters.
+template < GLenum ... t_knsTargets >
+class GLBufferContainerTargets : public GLBufferContainerFixed< sizeof...( t_knsTargets ) >
+{
+  typedef GLBufferContainerTargets _TyThis;
+  typedef GLBufferContainerFixed< sizeof...( t_knsTargets ) > _TyBase;
+public:
+  // We want same semantics as base class.
+  using GLBufferContainerTargets::GLBufferContainerTargets;
+  // We don't define any members so swaping with a base is reasonable.
+  using _TyBase::swap;
+  using _TyBase::FIsInited;
+  using _TyBase::operator [];
+
+  // We bind all buffers in the order of the declaration or the targets.
+  void BindAll()
+  {
+    _Bind( 0, t_knsTargets... );
+  }
+protected:
+  void _Bind( size_t _n ) { } // base case.
+  template < typename ... t_knsRemainingTargets >
+  void _Bind( size_t _n, GLenum _eTarget, t_knsRemainingTargets ... _esTargetsRemaining )
+  {
+    _TyBase::BindOne( _n, _eTarget );
+    _Bind( _n + 1, _esTargetsRemaining... );
+  }
 };
 
 __BIENUTIL_END_NAMESPACE
