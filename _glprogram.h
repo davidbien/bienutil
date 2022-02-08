@@ -105,8 +105,26 @@ public:
   {
     return m_uProgramId;
   }
+  void UseProgram() const noexcept
+  {
+    glUseProgram( m_uProgramId );
+  }
+  void SetInt( const char * _pszUniformName, GLint _i ) noexcept(false)
+  {
+    glUniform1i( _IGetUniform( _pszUniformName ), _i );
+  }
+  void SetFloat( const char * _pszUniformName, GLfloat _f ) noexcept(false)
+  {
+    glUniform1f( _IGetUniform( _pszUniformName ), _f );
+  }
 
 protected:
+  GLint _IGetUniform( const char * _pszUniformName ) noexcept(false)
+  {
+    GLint iUniform = glGetUniformLocation( m_uProgramId, _pszUniformName );
+    VerifyThrowSz( -1 != iUniform, "Uniform name [%s] not found.", _pszUniformName );
+    return iUniform;
+  }
   bool _FInit( bool _fThrowOnError, bool _fLogErrors, bool _fLogSuccess, size_t _nShaders, GLuint _uShaderId, va_list _ap ) noexcept(false)
   {
     Assert( _nShaders < 4 ); // only three shaders may be connected to a program.

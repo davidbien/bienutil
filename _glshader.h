@@ -107,7 +107,7 @@ public:
         VerifyThrowSz( false, "Error reading [%llu] bytes from shader file [%s].", u64Size, _pszShaderFile );
       return false;
     }
-    return FCompileShader( strShaderSource.c_str(), _fLogErrors, _fThrow, _fLogSuccess )
+    return FCompileShader( strShaderSource.c_str(), _fLogErrors, _fThrow, _fLogSuccess );
   }
   // simple compilation via a single null terminated string.
   bool FCompileShader( const char * _pszShaderSource, bool _fLogErrors = true, bool _fThrow = false, bool _fLogSuccess = false ) noexcept(false)

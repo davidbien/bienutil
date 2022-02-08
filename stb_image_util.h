@@ -34,11 +34,11 @@ public:
     std::swap( m_pcImageData, _r.m_pcImageData );
   }
 
-  StbImageSmartPtr( char8_t * _pcImageData ) noexcept
+  StbImageSmartPtr( stbi_uc * _pcImageData ) noexcept
     : m_pcImageData( _pcImageData )
   {
   }
-  void Init( char8_t * _pcImageData ) noexcept
+  void Init( stbi_uc * _pcImageData ) noexcept
   {
     Release();
     m_pcImageData = _pcImageData;
@@ -52,7 +52,7 @@ public:
   {
     if ( m_pcImageData )
     {
-      char8_t * pcImageData = m_pcImageData;
+      stbi_uc * pcImageData = m_pcImageData;
       m_pcImageData = nullptr;
       stbi_image_free( pcImageData );
     }
@@ -61,16 +61,16 @@ public:
   {
     return !m_pcImageData;
   }
-  char8_t * PcGetImageData() noexcept
+  stbi_uc * PcGetImageData() noexcept
   {
     return m_pcImageData;
   }
-  const char8_t * PcGetImageData() const noexcept
+  const stbi_uc * PcGetImageData() const noexcept
   {
     return m_pcImageData;
   }
 protected:
-  char8_t * m_pcImageData{ nullptr };
+  stbi_uc * m_pcImageData{ nullptr };
 };
 
 __BIENUTIL_END_NAMESPACE
