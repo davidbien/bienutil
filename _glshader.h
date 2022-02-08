@@ -47,6 +47,17 @@ public:
       VerifyThrowSz( fCompiled, "Error compiling shader." );
     }
   }
+  // Load a shader of the given type from a file. Always throws on compilation error or loading of file error.
+  GLShader( const char * _pszShaderFile, GLenum _eShaderType, bool _fLogErrors = true, bool _fLogSuccess = false ) noexcept(false)
+  {
+    VerifyThrowSz( !!( m_uShaderId = glCreateShader( _eShaderType ) ), "Error creating shader." );
+    bool fCompiled = FCompileShaderFile( _pszShaderFile, _fLogErrors, false, _fLogSuccess );
+    if ( !fCompiled )
+    {
+      glDeleteShader( m_uShaderId );
+      VerifyThrowSz( fCompiled, "Error compiling shader file." );
+    }
+  }
   ~GLShader() noexcept
   {
     if ( !!m_uShaderId )
@@ -64,6 +75,39 @@ public:
   GLuint UGetShaderId() const noexcept
   {
     return m_uShaderId;
+  }
+  // compilation via a filename.
+  bool FCompileShaderFile( const char * _pszShaderFile, bool _fLogErrors = true, bool _fThrow = false, bool _fLogSuccess = false ) noexcept(false)
+  {
+    FileObj foShaderFile( OpenReadOnlyFile( _pszShaderFile ) );
+    if ( !foShaderFile.FIsOpen() )
+    {
+      if ( _fThrow )
+        VerifyThrowSz( false, "Unable to open shader file [%s].", _pszShaderFile );
+      return false;
+    }
+    string strShaderSource;
+    uint64_t u64Size = GetFileSizeFromHandle( foShaderFile.HFileGet() );
+    if ( uint64_t(-1) == u64Size )
+    {
+      if ( _fThrow )
+        VerifyThrowSz( false, "Unable to open shader file size [%s].", _pszShaderFile );
+      return false;
+    }
+    if ( ( u64Size + 1ull ) > (numeric_limits< size_t >::max)() )
+    {
+      if ( _fThrow )
+        VerifyThrowSz( false, "Shader file [%s] is too large [%llu].", _pszShaderFile, u64Size );
+      return false;
+    }
+    strShaderSource.resize( (size_t)u64Size );
+    if ( !!FileRead( foShaderFile.HFileGet(), &strShaderSource[0], u64Size * sizeof(char), nullptr ) )
+    {
+      if ( _fThrow )
+        VerifyThrowSz( false, "Error reading [%llu] bytes from shader file [%s].", u64Size, _pszShaderFile );
+      return false;
+    }
+    return FCompileShader( strShaderSource.c_str(), _fLogErrors, _fThrow, _fLogSuccess )
   }
   // simple compilation via a single null terminated string.
   bool FCompileShader( const char * _pszShaderSource, bool _fLogErrors = true, bool _fThrow = false, bool _fLogSuccess = false ) noexcept(false)
@@ -92,7 +136,8 @@ public:
         LOGSYSLOG( fFailed ? eslmtError : eslmtInfo, pszFmt, PszShaderTypeName(), fFailed ? "FAILED" : "SUCCEEDED", &strLog[0] );
       }
     }
-    return true;
+    VerifyThrowSz( !fFailed || !_fThrow, "Compile of shader failed." );
+    return !fFailed;
   }
   bool GetCompileStatus() const noexcept
   {

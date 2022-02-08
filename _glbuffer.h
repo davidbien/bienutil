@@ -108,13 +108,11 @@ public:
   bool FIsOneBound( size_t _n, GLenum _eTarget ) const noexcept(false)
   {
     GLenum eBindingForTarget = EGetBindingFromTarget( _eTarget );
-    VerifyThrowSz( !!eBindingForTarget, "Invalid _eTarget[0x%x]", _eTarget );
+    VerifyThrowSz( !!eBindingForTarget, "Invalid buffer _eTarget[0x%x]", _eTarget );
     GLuint uBound;
     glGetIntegerv( eBindingForTarget, (GLint*)&uBound );
     return uBound == (*this)[ _n ];
   }
-  // Multiple bindings in a single call.
-  // Caller should provide the number of targets that are equal to the count 
 
   static GLenum EGetBindingFromTarget( GLenum _eTarget ) noexcept
   {
@@ -133,7 +131,7 @@ public:
         return GL_DISPATCH_INDIRECT_BUFFER_BINDING;
       case GL_DRAW_INDIRECT_BUFFER:
         return GL_DRAW_INDIRECT_BUFFER_BINDING;
-#endif 0
+#endif //0
       case GL_ELEMENT_ARRAY_BUFFER:
         return GL_ELEMENT_ARRAY_BUFFER_BINDING;
       case GL_PIXEL_PACK_BUFFER:
@@ -147,7 +145,7 @@ public:
         return GL_SHADER_STORAGE_BUFFER_BINDING;
       case GL_TEXTURE_BUFFER:
         return GL_TEXTURE_BUFFER_BINDING;
-#endif 0
+#endif //0
       case GL_TRANSFORM_FEEDBACK_BUFFER:
         return GL_TRANSFORM_FEEDBACK_BUFFER_BINDING;
       case GL_UNIFORM_BUFFER:
