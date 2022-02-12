@@ -41,9 +41,8 @@ inline bool FReadSPIRVShaderCode( const char * _pszFileName, vector< uint32_t > 
       VerifyThrowSz( false, "Shader file [%s] size [%llu] is not a multiple of sizeof(uint32_t) = 4.", _pszFileName, u64Size );
     return false;
   }
-  _rrg32.resize( )
-  strShaderSource.resize( size_t(u64Size) / sizeof( uint32_t ) ) );
-  if ( !!FileRead( foSpirV.HFileGet(), &strShaderSource[0], u64Size, nullptr ) )
+  _rrg32.resize( size_t(u64Size) / sizeof( uint32_t ) );
+  if ( !!FileRead( foSpirV.HFileGet(), _rrg32.data(), u64Size, nullptr ) )
   {
     if ( _fThrow )
       VerifyThrowSz( false, "Error reading [%llu] bytes from shader file [%s].", u64Size, _pszFileName );
