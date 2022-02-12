@@ -91,7 +91,7 @@ public:
     if ( uint64_t(-1) == u64Size )
     {
       if ( _fThrow )
-        VerifyThrowSz( false, "Unable to open shader file size [%s].", _pszShaderFile );
+        VerifyThrowSz( false, "Unable to get shader file size [%s].", _pszShaderFile );
       return false;
     }
     if ( ( u64Size + 1ull ) > (numeric_limits< size_t >::max)() )
