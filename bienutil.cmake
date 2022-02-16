@@ -128,6 +128,12 @@ set( Vulkan_LIBRARY C:/devenv/VulkanSDK/CurrentVersion)
 find_package(Vulkan COMPONENTS glslc REQUIRED)
 find_program(glslc_executable NAMES glslc HINTS Vulkan::glslc)
 
+# If we have a vk_layer_settings.txt in the source directory then copy it to the build directory for usage.
+if ( EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vk_layer_settings.txt )
+message( "vk_layer_settings.txt exists")
+configure_file( ${CMAKE_CURRENT_SOURCE_DIR}/vk_layer_settings.txt vk_layer_settings.txt COPYONLY )
+endif ()
+
 function(compile_shader target)
     cmake_parse_arguments(PARSE_ARGV 1 arg "" "ENV;FORMAT" "SOURCES")
     foreach(source ${arg_SOURCES})
