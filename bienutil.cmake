@@ -124,7 +124,14 @@ link_libraries(
 endif(LINUX)
 
 if ( MOD_USE_VULKAN EQUAL 1 )
+
+if (WIN32)
 set( Vulkan_LIBRARY C:/devenv/VulkanSDK/CurrentVersion)
+set( Vulkan_INCLUDE C:/devenv/VulkanSDK/CurrentVersion/vulkan)
+endif (WIN32)
+if (LINUX)
+set( Vulkan_INCLUDE /usr/include/vulkan)
+endif (LINUX)
 find_package(Vulkan COMPONENTS glslc REQUIRED)
 find_program(glslc_executable NAMES glslc HINTS Vulkan::glslc)
 
