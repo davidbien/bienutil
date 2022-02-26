@@ -1,6 +1,6 @@
 #pragma once
 
-// obj_io.h
+// obj_opt.h
 // This module optimizes an object loaded with tiny_obj_loader and stores it in a binary format for fast loading.
 // dbien
 // 24FEB2022
@@ -26,7 +26,7 @@ concept CxVertexHasFileWrite = requires( t_TyVertex _v, t_TyFile _f )
 template < typename t_TyVertex >
 concept CxVertexHasMemIO = requires( t_TyVertex _v, void * _pv, size_t _stLength )
 {
-  { t_TyVertex::GetMaxWriteLength() } -> std::convertible_to<size_t>;
+  { t_TyVertex::GetWriteLength() } -> std::convertible_to<size_t>;
   { _v.ReadMem( _pv, _stLength ) } -> std::convertible_to<size_t>;
   { _v.WriteMem( ( _pv ) ) } -> std::convertible_to<size_t>;
 };
@@ -37,18 +37,18 @@ struct _OO_MappedWriteableFile
 public:
   FileObj m_foFile;
   FileMappingObj m_fmoFile;
-  const size_t m_kstMaxVertexWriteSize;
+  const size_t m_kstVertexWriteSize;
   static const size_t s_kstVertexGrowBy = 8192;
   size_t m_stCurrentMappedSize;
   uint8_t * m_pbyCur{ nullptr };
   uint8_t * m_pbyEnd{ nullptr };
   string m_strFileOut;
 
-  _OO_MappedWriteableFile( const char * _pcFileOut, size_t _kstMaxVertexWriteSize ) noexcept( false )
+  _OO_MappedWriteableFile( const char * _pcFileOut, size_t _kstVertexWriteSize ) noexcept( false )
     : m_strFileOut( _pcFileOut ),
       m_foFile( CreateReadWriteFile( _pcFileOut ) ),
-      m_kstMaxVertexWriteSize( _kstMaxVertexWriteSize ),
-      m_stCurrentMappedSize( _kstMaxVertexWriteSize * s_kstVertexGrowBy )
+      m_kstVertexWriteSize( _kstVertexWriteSize ),
+      m_stCurrentMappedSize( _kstVertexWriteSize * s_kstVertexGrowBy )
   {
     VerifyThrowSz( m_foFile.FIsOpen(), "Unable to open [%s] for reading and writing.", &m_strFileOut[0] );
     int iResult = FileSetSize( m_foFile.HFileGet(), m_stCurrentMappedSize ); // Set initial size.
@@ -61,8 +61,8 @@ public:
   template < class t_TyVertex >
   void WriteVertex( t_TyVertex const & _rvtx )
   {
-    if ( size_t( m_pbyEnd - m_pbyCur ) < m_kstMaxVertexWriteSize )
-      _SetMappedSize( m_stCurrentMappedSize + ( m_kstMaxVertexWriteSize * s_kstVertexGrowBy ) );
+    if ( size_t( m_pbyEnd - m_pbyCur ) < m_kstVertexWriteSize )
+      _SetMappedSize( m_stCurrentMappedSize + ( m_kstVertexWriteSize * s_kstVertexGrowBy ) );
     m_pbyCur += _rvtx.WriteMem( m_pbyCur );
   }
   // Reset the file to the final needed size and then write the indices.
@@ -107,7 +107,7 @@ public:
   template < class t_TyIterShapes >
   void OptimizeTinyObjShapes( tinyobj::attrib_t const & _toAttribs, t_TyIterShapes _iterShapesBegin, t_TyIterShapes _iterShapesEnd, const char * _pcFileOut )
   {
-    _OO_MappedWriteableFile mwf( _pcFileOut, _TyVertex::GetMaxWriteLength() );
+    _OO_MappedWriteableFile mwf( _pcFileOut, _TyVertex::GetWriteLength() );
 
     // First move through and count the vertices so that we can reserve space in the index array to avoid reallocation during loading. (speed)
     size_t nIndices = 0;
@@ -120,7 +120,7 @@ public:
     rgIndices.reserve( nIndices );
 
     // Make space for the count of unique vertices, and the count of indices - we can write the count of indices right now:
-    mwf.m_pbyCur += 2 * sizeof( uint32_t ); // Also reserve a spot for the offset of the start of the indices.
+    mwf.m_pbyCur += sizeof( uint32_t );
     *(uint32_t*)mwf.m_pbyCur = (uint32_t)nIndices;
     mwf.m_pbyCur += sizeof( uint32_t );
     const size_t stAlignOfVertex = alignof( _TyVertex );
@@ -164,13 +164,9 @@ public:
     }
     // Now write the count of vertices to the begining of the file:
     ((uint32_t*)mwf.m_fmoFile.Pv())[0] = nUniqueVertCur;
-    // Write the offset of the start of the indices, this allows variable length per-vertex data.
-    ((uint32_t*)mwf.m_fmoFile.Pv())[1] = uint32_t( mwf.m_pbyCur - (uint8_t*)mwf.m_fmoFile.Pv() );
     Assert( rgIndices.size() == nIndices );
     mwf.WriteIndices( &rgIndices[0], &rgIndices[0] + nIndices );
   }
-
-
 };
 
 
