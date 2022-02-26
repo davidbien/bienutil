@@ -156,7 +156,24 @@ function(compile_shader target)
                 -o ${source}.${arg_FORMAT}
                 ${CMAKE_CURRENT_SOURCE_DIR}/${source}
         )
-        target_sources(${target} PRIVATE ${source}.${arg_FORMAT})
+        target_sources(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/${source}.${arg_FORMAT})
+    endforeach()
+endfunction()
+
+function( fn_compile_model target model_compiler )
+    cmake_parse_arguments(PARSE_ARGV 2 arg "" "EXTENSION" "SOURCES")
+    message( "arg_EXTENSION: ${arg_EXTENSION}" )
+    message( "arg_SOURCES: ${arg_SOURCES}" )
+    foreach(source ${arg_SOURCES})
+        add_custom_command(
+            OUTPUT ${source}.${arg_EXTENSION}
+            DEPENDS ${source} ${CMAKE_CURRENT_BINARY_DIR}/${model_compiler}
+            COMMAND
+                ${model_compiler}
+                ${CMAKE_CURRENT_SOURCE_DIR}/${source}
+                ${source}.${arg_EXTENSION}
+        )
+        target_sources(${target} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/${source}.${arg_EXTENSION})
     endforeach()
 endfunction()
 endif()
