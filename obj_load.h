@@ -17,48 +17,41 @@ public:
   typedef t_TyVertex _TyVertex;
 
   // We need only keep open the mapped file - we can close the file proper.
-  FileMappingObj m_fmoFile;
+  string m_strFileName;
+  FileMappingObj m_fmoMapping;
 
-  OptimizedObjLoader( const char * _pcFileName )
+  OptimizedObjLoader( const char * _pcFileName ) noexcept(false)
+    : m_strFileName( _pcFileName )
   {
-    FileObj fileLocal( OpenReadOnlyFile(_szFilename) ); // We will close the file after we map it since that is fine and results in easier cleanup.
-    if ( !fileLocal.FIsOpen() )
-      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "Unable to OpenReadOnlyFile() file [%s]", _szFilename);
-    // Now get the size of the file and then map it.
+    FileObj fileLocal( OpenReadOnlyFile(_pcFileName) ); // We will close the file after we map it since that is fine and results in easier cleanup.
+    VerifyThrowSz( fileLocal.FIsOpen(), "Unable to OpenReadOnlyFile() file [%s]", &m_strFileName[0] );
     vtyHandleAttr attrFile;
     int iResult = GetHandleAttrs( fileLocal.HFileGet(), attrFile );
-    if (-1 == iResult)
-      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "GetHandleAttrs() failed for [%s]", _szFilename);
+    VerifyThrowSz( !iResult, "GetHandleAttrs() failed for [%s] errno[%u]", &m_strFileName[0], GetLastErrNo() );
     uint64_t u64Size = GetSize_HandleAttr( attrFile );
-    if (0 == u64Size )
-      THROWBADJSONSTREAM("File [%s] is empty - it contains no JSON value.", _szFilename);
-    if (!!(u64Size % sizeof(t_tyPersistAsChar)))
-      THROWBADJSONSTREAM("File [%s]'s size not multiple of char size u64Size[%llu].", _szFilename, u64Size);
-    if ( !FIsRegularFile_HandleAttr( attrFile ) )
-      THROWBADJSONSTREAM("File [%s] is not a regular file.", _szFilename);
+    VerifyThrowSz( !!u64Size, "File [%s] is empty.", &m_strFileName[0] );
+    VerifyThrowSz( FIsRegularFile_HandleAttr( attrFile ), "File [%s] is not a regular file.", &m_strFileName[0] );
     m_fmoMapping.SetHMMFile( MapReadOnlyHandle( fileLocal.HFileGet(), nullptr ) );
-    if ( !m_fmoMapping.FIsOpen() )
-      THROWBADJSONSTREAMERRNO(GetLastErrNo(), "MapReadOnlyHandle() failed to map [%s], size [%llu].", _szFilename, u64Size);
-    m_pcpxBegin = m_pcpxCur = (const t_tyPersistAsChar *)m_fmoMapping.Pv();
-    m_pcpxEnd = m_pcpxCur + (u64Size / sizeof(t_tyPersistAsChar));
-    m_fHasLookahead = false;    // ensure that if we had previously been opened that we don't think we still have a lookahead.
-    m_szFilename = _szFilename; // For error reporting and general debugging. Of course we don't need to store this.
+    VerifyThrowSz( m_fmoMapping.FIsOpen(), "MapReadOnlyHandle() failed to map [%s], size [%llu].", &m_strFileName[0], u64Size );
+    // Now check validity of file as much as we can - really the only thing to check is that the end of the indices corresponds to the end
+    //  of the file itself.
+    VerifyThrowSz( (size_t)u64Size == ( (uint8_t*)PIndexEnd() - (uint8_t*)m_fmoMapping.Pv() ), "Invalid or corrupt file [%s].", &m_strFileName[0] );
   }
 
   size_t NVertices() const noexcept
   {
-    return *(uint32_t*)m_fmoFile.Pv();
+    return *(uint32_t*)m_fmoMapping.Pv();
   }
   size_t NIndices() const noexcept
   {
-    return ((uint32_t*)m_fmoFile.Pv())[1];
+    return ((uint32_t*)m_fmoMapping.Pv())[1];
   }
   const _TyVertex * PVertexBegin() const noexcept
   {
     const size_t kstBegin = 2 * sizeof( uint32_t );
     const size_t kstAlignVertex = alignof( _TyVertex );
-    const size_t kstVertexBegin = kstBegin + ( kstAlignVertex - ( kstAlignVertex % kstBegin ) );
-    return (const _TyVertex *)( (uint8_t*)m_fmoFile.Pv() + kstVertexBegin );
+    const size_t kstVertexBegin = kstBegin + ( ( kstBegin % kstAlignVertex ) ? ( kstAlignVertex - ( kstBegin % kstAlignVertex ) ) : 0 );
+    return (const _TyVertex *)( (uint8_t*)m_fmoMapping.Pv() + kstVertexBegin );
   }
   const _TyVertex * PVertexEnd() const noexcept
   {
@@ -72,7 +65,6 @@ public:
   {
     return PIndexBegin() + NIndices();
   }
-
 };
 
 __BIENUTIL_END_NAMESPACE

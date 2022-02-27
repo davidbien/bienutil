@@ -162,8 +162,6 @@ endfunction()
 
 function( fn_compile_model target model_compiler )
     cmake_parse_arguments(PARSE_ARGV 2 arg "" "EXTENSION" "SOURCES")
-    message( "arg_EXTENSION: ${arg_EXTENSION}" )
-    message( "arg_SOURCES: ${arg_SOURCES}" )
     foreach(source ${arg_SOURCES})
         add_custom_command(
             OUTPUT ${source}.${arg_EXTENSION}

@@ -105,8 +105,10 @@ public:
   // Read the vertices from all shapes in [_iterShapesBegin, _iterShapesEnd) in index-order and de-duplicate vertices.
   // Write the optimized vertices and indices to _pcFileOut 
   template < class t_TyIterShapes >
-  void OptimizeTinyObjShapes( tinyobj::attrib_t const & _toAttribs, t_TyIterShapes _iterShapesBegin, t_TyIterShapes _iterShapesEnd, const char * _pcFileOut )
+  static void OptimizeTinyObjShapes( tinyobj::attrib_t const & _toAttribs, t_TyIterShapes _iterShapesBegin, t_TyIterShapes _iterShapesEnd, const char * _pcFileOut )
   {
+    // We want to be able to map the resultant file and use that as the store for vertices that we then pass to the GPU directly to avoid any extra copying.
+    VerifyThrowSz( _TyVertex::GetWriteLength() == sizeof( _TyVertex ), "We only (currently) support a write length that is the sizeof the vertex struct itself.");
     _OO_MappedWriteableFile mwf( _pcFileOut, _TyVertex::GetWriteLength() );
 
     // First move through and count the vertices so that we can reserve space in the index array to avoid reallocation during loading. (speed)
@@ -126,7 +128,8 @@ public:
     const size_t stAlignOfVertex = alignof( _TyVertex );
     static_assert( stAlignOfVertex >= alignof( uint32_t ) );
     // Align to the vertex alignment:
-    mwf.m_pbyCur += stAlignOfVertex - ( mwf.m_pbyCur - (uint8_t*)mwf.m_fmoFile.Pv() ) % stAlignOfVertex;
+    const size_t kstBegin = ( mwf.m_pbyCur - (uint8_t*)mwf.m_fmoFile.Pv() );
+    mwf.m_pbyCur += ( kstBegin % stAlignOfVertex ) ? ( stAlignOfVertex - ( kstBegin % stAlignOfVertex ) ) : 0;
 
     typedef unordered_map< _TyVertex, uint32_t > _TyMapUniqueVert;
     _TyMapUniqueVert mapUniqueVertices;
@@ -158,7 +161,7 @@ public:
           dbg_vtx.FinishImport( _toAttribs, ridxShapeCur );
           Assert( dbg_vtx.FCompare( pib.first->first, false ) );
 #endif //!NDEBUG
-          rgIndices.push_back( pib.second ); // existing vertex - just record the index.
+          rgIndices.push_back( pib.first->second ); // existing vertex - just record the index.
         }
       }
     }

@@ -56,10 +56,9 @@ int _TryMain( int _argc, char ** _argv )
   VerifyThrowSz( tinyobj::LoadObj( &attrib, &shapes, &materials, &szWarn, &szErr, _argv[0] ), "Error loading model from [%s]. szWarn[%s], szErr[%s].", _argv[0], &szWarn[0], &szErr[0] );
 
   typedef ObjOptimizer< vtyVertexType > _TyObjOptimizer;
-  _TyObjOptimizer objopt;
   try
   {
-    objopt.OptimizeTinyObjShapes( attrib, shapes.data(), shapes.data() + shapes.size(), _argv[1] );
+    _TyObjOptimizer::OptimizeTinyObjShapes( attrib, shapes.data(), shapes.data() + shapes.size(), _argv[1] );
   }
   catch( std::exception const & _rexc )
   {
