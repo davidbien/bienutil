@@ -33,3 +33,4 @@
 #include "syslogmgr.inl"
 #include "_compat.inl"
 #include "obj_opt.h"
+#include "obj_save.h"

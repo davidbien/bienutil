@@ -6,6 +6,7 @@
 // 25FEB2022
 
 #include "bienutil.h"
+#include "obj_opt.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 
@@ -38,17 +39,26 @@ public:
     VerifyThrowSz( (size_t)u64Size == ( (uint8_t*)PIndexEnd() - (uint8_t*)m_fmoMapping.Pv() ), "Invalid or corrupt file [%s].", &m_strFileName[0] );
   }
 
+  const OptObjAttribs * PAttribs() const noexcept
+  {
+    return (OptObjAttribs*)m_fmoMapping.Pv();
+  }
+
   size_t NVertices() const noexcept
   {
-    return *(uint32_t*)m_fmoMapping.Pv();
+    return PAttribs()->m_nVertices;
   }
   size_t NIndices() const noexcept
   {
-    return ((uint32_t*)m_fmoMapping.Pv())[1];
+    return PAttribs()->m_nIndices;
+  }
+  float FlRadius() const noexcept
+  {
+    return PAttribs()->m_flMaxDistance;
   }
   const _TyVertex * PVertexBegin() const noexcept
   {
-    const size_t kstBegin = 2 * sizeof( uint32_t );
+    const size_t kstBegin = sizeof( OptObjAttribs );
     const size_t kstAlignVertex = alignof( _TyVertex );
     const size_t kstVertexBegin = kstBegin + ( ( kstBegin % kstAlignVertex ) ? ( kstAlignVertex - ( kstBegin % kstAlignVertex ) ) : 0 );
     return (const _TyVertex *)( (uint8_t*)m_fmoMapping.Pv() + kstVertexBegin );
