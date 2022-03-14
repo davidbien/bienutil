@@ -52,6 +52,34 @@ class VulkanInstance : public vk::raii::Instance
 public:
   using _TyBase::_TyBase;
 
+  // We call this from the VulkanContext object - which stores a pointer to the created VulkanInstance allowing it to forward the message.
+  virtual void VulkanDebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT _grfMessageSeverity, 
+    VkDebugUtilsMessageTypeFlagsEXT _grfMessageType, const VkDebugUtilsMessengerCallbackDataEXT* _pCallbackData, void* _pUserData )
+  {
+    StaticVulkanDebugCallback( _grfMessageSeverity, _grfMessageType, _pCallbackData, _pUserData );
+  }
+  static void StaticVulkanDebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT _grfMessageSeverity, 
+    VkDebugUtilsMessageTypeFlagsEXT _grfMessageType, const VkDebugUtilsMessengerCallbackDataEXT* _pCallbackData, void* _pUserData )
+  {
+    ESysLogMessageType eslmtCur;
+    if ( VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT & _grfMessageSeverity )
+      eslmtCur = eslmtError;
+    else
+    if ( VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT & _grfMessageSeverity )
+      eslmtCur = eslmtWarning;
+    else
+      eslmtCur = eslmtInfo;
+    const char * pszMessageType;
+    if ( VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT & _grfMessageType )
+      pszMessageType = "General";
+    else
+    if ( VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT & _grfMessageType )
+      pszMessageType = "Validation";
+    else
+      pszMessageType = "Performance";
+    LOGSYSLOG( eslmtCur, "VulkanDebugCallback: T[%s]: id[%s]: %s", pszMessageType, _pCallbackData->pMessageIdName, _pCallbackData->pMessage );
+    return VK_FALSE;
+  }
 };
 
 // Return if an extension is supported. If it is builtin the the current version then return true and set _rfIsBuiltin to true.
@@ -86,11 +114,17 @@ bool FIsVulkanExtensionSupported( const char * _pszExt, bool & _rfIsBuiltin, uin
   return pepFound != pepEnd;
 }
 
+// VulkanContext:
+// This holds its associated t_TyVulkanInstance as a member and maintains its lifetime.
+// This allows forwarding of 
+template < class t_TyVulkanInstance >
 class VulkanContext : public vk::raii::Context
 {
   typedef vk::raii::Context _TyBase;
   typedef VulkanContext _TyThis;
 public:
+  typedef t_TyVulkanInstance _TyVulkanInstance;
+
   VulkanContext()
   {
     m_rgExtensionProperties = enumerateInstanceExtensionProperties();
@@ -98,42 +132,82 @@ public:
     m_rgLayerProperties = enumerateInstanceLayerProperties();
     m_nApiVersion = enumerateInstanceVersion();
   }
-  VulkanInstance CreateInstance(  unordered_map<const char *, bool> const & _umLayersOpt, 
-                                  unordered_map<const char *, bool> const &_umExtentionsOpt ) const noexcept(false)
+  
+  _TyVulkanInstance * PCreateInstance(  vk::ApplicationInfo const & _raiAppInfo,
+                                        unordered_map<const char *, bool> const & _umLayersOpt, bool _fEnableValidationLayer,
+                                        unordered_map<const char *, bool> const & _umExtentionsOpt, bool _fEnableDebugUtils,
+                                        vk::DebugUtilsMessengerCreateInfoEXT const * _pdumCreateInfo = nullptr ) const noexcept(false)
   {
+    VerifyThwowSz( !m_upviInstance, "Instance already created." );
+    typedef unordered_map<const char *, bool>::value_type _TyValue;
+    if ( _fEnableValidationLayer )
+      (void)_umLayersOpt.insert( _TyValue( "VK_LAYER_KHRONOS_validation", true ) ); // May already be there - and may be optional.
+    if ( _fEnableDebugUtils )
+      (void)_umExtentionsOpt.insert( _TyValue( VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true ) ); // May already be there - and may be optional.
     // Check for layer support:
     typedef unordered_map<const char *, bool>::value_type _TyValue;
     typedef unordered_map<const char *, bool>::const_iterator _TyConstIter;
     vector< const char * > rgpszLayers;
-    { //B
-      rgpszLayers.reserve( _umLayersOpt.size() );
-      _TyConstIter pcitCur = _umLayersOpt.begin();
-      _TyConstIter pcitEnd = _umLayersOpt.end();
-      for( pcitEnd != pcitCur; ++pcitCur )
-      {
-        bool fIsSupported = FIsLayerSupported( pcitCur->first );
-        VerifyThrowSz( fIsSupported || !pcitCur->second, "Required layer [%s] isn't supported.", pcitCur->first );
-        if ( fIsSupported )
-          rgpszLayers.push_back( pcitCur->first );
-      }
-    } //EB
+    rgpszLayers.reserve( _umLayersOpt.size() );
+    for( auto & rvtLayer : _umLayersOpt )
+    {
+      bool fIsSupported = FIsLayerSupported( rvtLayer.first );
+      VerifyThrowSz( fIsSupported || !rvtLayer.second, "Required layer [%s] isn't supported.", rvtLayer.first );
+      if ( fIsSupported )
+        rgpszLayers.push_back( rvtLayer.first );
+    }
+    bool fDebugUtils = false;
     vector< const char * > rgpszExtensions;
-    { //B
-      rgpszExtensions.reserve( _umExtensionsOpt.size() );
-      _TyConstIter pcitCur = _umExtensionsOpt.begin();
-      _TyConstIter pcitEnd = _umExtensionsOpt.end();
-      for( pcitEnd != pcitCur; ++pcitCur )
+    rgpszExtensions.reserve( _umExtensionsOpt.size() );
+    for( auto & rvtExt : _umExtensionsOpt )
+    {
+      bool fIsBuiltin;
+      bool fIsSupported = FIsExtensionSupported( rvtExt.first, fIsBuiltin );
+      VerifyThrowSz( fIsSupported || !rvtExt.second, "Required extension [%s] isn't supported.", rvtExt.first );
+      if ( fIsSupported )
       {
-        bool fIsBuiltin;
-        bool fIsSupported = FIsExtensionSupported( rvExtension.first, fIsBuiltin );
-        VerifyThrowSz( fIsSupported || !rvExtension.second, "Required layer [%s] isn't supported.", rvExtension.first );
-        if ( fIsSupported && !fIsBuiltin )
-          rgpszExtensions.push_back( pcitCur->first );
+        if ( !strcmp( rvtExt.first, VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) )
+          fDebugUtils = true;
+        if ( !fIsBuiltin )
+         rgpszExtensions.push_back( rvtExt.first );
       }
-    } //EB
+    }
 
-    
+    vk::DebugUtilsMessengerCreateInfoEXT dumCreateInfo;
+    if ( fDebugUtils )
+    {
+      if ( _pdumCreateInfo )
+      {
+        dumCreateInfo = *_pdumCreateInfo;
+        dumCreateInfo.pfnUserCallback = _TyThis::VulkanDebugCallback;
+        dumCreateInfo.pUserData = this;
+      }
+      else
+      {
+        dumCreateInfo = vk::DebugUtilsMessengerCreateInfoEXT( {},
+          vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+          vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+          _TyThis::VulkanDebugCallback, this
+        );
+      }
+    }
 
+    vk::InstanceCreateInfo iciCreateInfo( {}, &_raiAppInfo,  );
+
+
+
+  }
+
+  static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT _grfMessageSeverity, 
+    VkDebugUtilsMessageTypeFlagsEXT _grfMessageType, const VkDebugUtilsMessengerCallbackDataEXT* _pCallbackData, void* _pUserData )
+  {
+    Assert( _pUserData );
+    VulkanContext * pvcThis = (VulkanContext *)_pUserData;
+    Assert( !!pvcThis->m_upviInstance );
+    if ( !pvcThis->m_upviInstance )
+      return VulkanInstance::StaticVulkanDebugCallback( _grfMessageSeverity, _grfMessageType, _pCallbackData, _pUserData );
+    else
+      return pvcThis->m_upviInstance->VulkanDebugCallback( _grfMessageSeverity, _grfMessageType, _pCallbackData, _pUserData );
   }
 
   // Return if an extension is supported. If it is builtin the the current version then return true and set _rfIsBuiltin to true.
@@ -153,9 +227,11 @@ public:
     return plpFound != plpEnd;
   }
 
-  std::vector< vk::ExtensionProperties > m_rgExtensionProperties;
-  std::vector< _ExtensionByVersion > m_rgExtensionsByVersion;
-  std::vector< vk::LayerProperties > m_rgLayerProperties;
+  unique_ptr< _TyVulkanInstance > m_upviInstance;
+  unique_ptr< vk::raii::DebugUtilsMessengerEXT > m_updumDebugMessenger; // store this here as well and forward to stored instance.
+  vector< vk::ExtensionProperties > m_rgExtensionProperties;
+  vector< _ExtensionByVersion > m_rgExtensionsByVersion;
+  vector< vk::LayerProperties > m_rgLayerProperties;
   uint32_t m_nApiVersion;
 };
 
