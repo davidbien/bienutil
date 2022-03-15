@@ -12,22 +12,6 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
-static constexpr uint32_t GetVulkanApiVersion()
-{
-#if VMA_VULKAN_VERSION == 1003000
-    return VK_API_VERSION_1_3;
-#elif VMA_VULKAN_VERSION == 1002000
-    return VK_API_VERSION_1_2;
-#elif VMA_VULKAN_VERSION == 1001000
-    return VK_API_VERSION_1_1;
-#elif VMA_VULKAN_VERSION == 1000000
-    return VK_API_VERSION_1_0;
-#else
-#error Invalid VMA_VULKAN_VERSION.
-    return UINT32_MAX;
-#endif
-}
-
 // _ExtensionByVersion:
 // This codfies the idea of extensions being incorporated into Vulkan versions.
 struct _ExtensionByVersion
@@ -83,7 +67,7 @@ public:
 };
 
 // Return if an extension is supported. If it is builtin the the current version then return true and set _rfIsBuiltin to true.
-bool FIsVulkanExtensionSupported( const char * _pszExt, bool & _rfIsBuiltin, uint32_t _nApiVersion,
+inline bool FIsVulkanExtensionSupported( const char * _pszExt, bool & _rfIsBuiltin, uint32_t _nApiVersion,
   vector< _ExtensionByVersion > const & _rrgebv, vector< vk::ExtensionProperties > const & _regep )
 {
   // First check if we find it in the ExtensionByVersion array and if we are above the version found:
@@ -114,6 +98,57 @@ bool FIsVulkanExtensionSupported( const char * _pszExt, bool & _rfIsBuiltin, uin
   return pepFound != pepEnd;
 }
 
+// ExtensionFeaturesChain:
+// This object maintains extension feature chains to be used for extension features for instance creation and logical device creation.
+class ExtensionFeaturesChain
+{
+  typedef ExtensionFeaturesChain _TyThis;
+public:
+  typedef unordered_map< VkStructureType, unique_void_ptr > _TyMapExtFeatures;
+
+  void * PGetFirstExtension() const
+  {
+    return m_pvFirst;
+  }
+
+  // AddInstanceExtensionFeature: Adds a new extension feature object for a Vulkan Instance - this doesn't obtain the feature first since there is no instance yet.
+  // If already added then returns the current one.
+  template < class t_TyExtFeature >
+  t_TyExtFeature & AddInstanceExtensionFeature( t_TyExtFeature const & _rtefDefault )
+  {
+    _TyMapExtFeatures::iterator it = m_umapExtFeatures.find( _rtefDefault.sType );
+    if ( m_umapExtFeatures.end() != it )
+      return *static_cast< t_TyExtFeature * >( it->second.get() );
+    pair< _TyMapExtFeatures::iterator, bool > pib = m_umapExtFeatures.emplace( _rtefDefault.sType, make_unique_void_ptr< t_TyExtFeature >( _rtefDefault ) );
+    Assert( pib.second );
+    t_TyExtFeature & rtef = *static_cast< t_TyExtFeature * >( pib.first->second.get() );
+    rtef.pNext = m_pvFirst;
+    m_pvFirst = &rtef;
+    return rtef;
+  }
+
+  template < class t_TyExtFeature >
+  t_TyExtFeature & AddDeviceExtensionFeature( vk::raii::PhysicalDevice const & _rpd, VkStructureType _st )
+  {
+    _TyMapExtFeatures::iterator it = m_umapExtFeatures.find( _st );
+    if ( m_umapExtFeatures.end() != it )
+      return *static_cast< t_TyExtFeature * >( it->second.get() );
+    // In this case we get the default extension feature settings from the physical device:
+    vk::StructureChain< vk::PhysicalDeviceFeatures2, t_TyExtFeature > scFeatures = _rpd.getFeatures2KHR();
+    t_TyExtFeature & rtef = scFeatures.get< t_TyExtFeature >();
+    Assert( rtef.sType == _st );
+    pair< _TyMapExtFeatures::iterator, bool > pib = m_umapExtFeatures.emplace( _rtefDefault.sType, make_unique_void_ptr< t_TyExtFeature >( rtef ) );
+    Assert( pib.second );
+    t_TyExtFeature & rtef = *static_cast< t_TyExtFeature * >( pib.first->second.get() );
+    rtef.pNext = m_pvFirst;
+    m_pvFirst = &rtef;
+    return rtef;
+  }
+
+  _TyMapExtFeatures m_umapExtFeatures;
+  void * m_pvFirst{nullptr}; // This points to the chain if it exists at all. New features are pushed in front of it.
+};
+
 // VulkanContext:
 // This holds its associated t_TyVulkanInstance as a member and maintains its lifetime.
 // This allows forwarding of 
@@ -132,6 +167,12 @@ public:
     m_rgLayerProperties = enumerateInstanceLayerProperties();
     m_nApiVersion = enumerateInstanceVersion();
   }
+
+  template < class t_TyExtFeature >
+  t_TyExtFeature & AddInstanceExtensionFeature( t_TyExtFeature const & _rtefDefault )
+  {
+    return m_efcFeaturesChain.AddInstanceExtensionFeature( dumCreateInfo );
+  }
   
   _TyVulkanInstance * PCreateInstance(  vk::ApplicationInfo const & _raiAppInfo,
                                         unordered_map<const char *, bool> const & _umLayersOpt, bool _fEnableValidationLayer,
@@ -147,7 +188,7 @@ public:
     // Check for layer support:
     typedef unordered_map<const char *, bool>::value_type _TyValue;
     typedef unordered_map<const char *, bool>::const_iterator _TyConstIter;
-    vector< const char * > rgpszLayers;
+    vector< const char * const > rgpszLayers;
     rgpszLayers.reserve( _umLayersOpt.size() );
     for( auto & rvtLayer : _umLayersOpt )
     {
@@ -157,7 +198,7 @@ public:
         rgpszLayers.push_back( rvtLayer.first );
     }
     bool fDebugUtils = false;
-    vector< const char * > rgpszExtensions;
+    vector< const char * const > rgpszExtensions;
     rgpszExtensions.reserve( _umExtensionsOpt.size() );
     for( auto & rvtExt : _umExtensionsOpt )
     {
@@ -173,9 +214,9 @@ public:
       }
     }
 
-    vk::DebugUtilsMessengerCreateInfoEXT dumCreateInfo;
     if ( fDebugUtils )
     {
+      vk::DebugUtilsMessengerCreateInfoEXT dumCreateInfo;
       if ( _pdumCreateInfo )
       {
         dumCreateInfo = *_pdumCreateInfo;
@@ -187,15 +228,17 @@ public:
         dumCreateInfo = vk::DebugUtilsMessengerCreateInfoEXT( {},
           vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
           vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
-          _TyThis::VulkanDebugCallback, this
-        );
+          _TyThis::VulkanDebugCallback, this );
       }
+      // Add this to the extensions features chain. If it is already in there then the caller will have overridden our options entirely.
+      (void)m_efcFeaturesChain.AddInstanceExtensionFeature( dumCreateInfo );
     }
 
-    vk::InstanceCreateInfo iciCreateInfo( {}, &_raiAppInfo,  );
-
-
-
+    vk::InstanceCreateInfo iciCreateInfo( {}, &_raiAppInfo, rgpszLayers, rgpszExtensions );
+    iciCreateInfo.pNext = m_efcFeaturesChain.PGetFirstExtension();
+    m_upviInstance = make_unique< vk::raii::Instance >( g_vkcContext, iciCreateInfo );
+    m_updumDebugMessenger = make_unique< vk::raii::DebugUtilsMessengerEXT >( *m_upviInstance, dumCreateInfo );
+    return &*m_upviInstance;
   }
 
   static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback( VkDebugUtilsMessageSeverityFlagBitsEXT _grfMessageSeverity, 
@@ -232,6 +275,7 @@ public:
   vector< vk::ExtensionProperties > m_rgExtensionProperties;
   vector< _ExtensionByVersion > m_rgExtensionsByVersion;
   vector< vk::LayerProperties > m_rgLayerProperties;
+  ExtensionFeaturesChain m_efcFeaturesChain;
   uint32_t m_nApiVersion;
 };
 
@@ -355,6 +399,22 @@ public:
     return rgqcp;
   }
 
+  template < class t_TyExtFeature >
+  t_TyExtFeature & AddDeviceExtensionFeature( VkStructureType _st )
+  {
+    return m_efcFeaturesChain.AddDeviceExtensionFeature< t_TyExtFeature >( *this, _st );
+  }
+
+  // Create a VmaDevice - a logical device that incorporates the Vulkan Memory Allocator for device allocation.
+  // Upon success *this will be moved assigned into the VmaDevice::m_vpdPhysicalDevice member. This is fine because
+  //  the physical device's lifetime is that of the vulkan instance itself.
+  template < class t_TyQueueCreatePropsIter >
+  VmaDevice CreateVmaDevice(  std::unordered_map<const char *, bool> _umExtentionsOpt,
+                              t_TyQueueCreatePropsIter _iterqcpBegin, t_TyQueueCreatePropsIter _iterqcpEnd )
+  {
+    
+  }
+
   vk::PhysicalDeviceProperties m_PhysicalDeviceProperties;
   vk::PhysicalDeviceFeatures m_PhysicalDeviceFeatures;
   vk::PhysicalDeviceMemoryProperties m_PhysicalDeviceMemoryProperties;
@@ -362,6 +422,7 @@ public:
   std::vector< _QueueFlagSupportIndex > m_rgqfsiQueueSupport; // Results of queue support;
   std::vector< vk::ExtensionProperties > m_rgExtensionProperties;
   std::vector< _ExtensionByVersion > m_rgExtensionsByVersion;
+  ExtensionFeaturesChain m_efcFeaturesChain;
   bool m_fQueuesHaveSupport{false};
 // surface-related properties - may not have a surface.
   vk::raii::SurfaceKHR const * m_psrfSurface{nullptr};
@@ -391,8 +452,7 @@ public:
   
 
 
-  // maintain a reference to our physical device since our base doesn't.
-  vk::raii::PhysicalDevice const & m_rpdPhysicalDevice;
+  VulkanPhysicalDevice m_vpdPhysicalDevice; // The physical device is contained within our logical device for easy access at all times.
   vk::raii::SurfaceKHR const & m_psrfSurface;
   // We maintain a reference to a VulkanInstance since our m_vmaAllocator has one that isn't ref-counted.
 	VmaAllocator m_vmaAllocator{ nullptr };
