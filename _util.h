@@ -371,4 +371,24 @@ bool FAtomicAddNotEqual( volatile atomic< t_TyT > & _rat, const t_TyT & _rtNotEq
   return false;
 }
 
+// unique_void_ptr: Allows "type erasure"(of a sort) with unique_ptr<void>.
+// From: https://stackoverflow.com/questions/39288891/why-is-shared-ptrvoid-legal-while-unique-ptrvoid-is-ill-formed
+using unique_void_ptr = std::unique_ptr< void, void(*)( void const *) >;
+
+template< typename t_TyT >
+auto unique_void_newed( t_TyT * ptr ) -> unique_void_ptr
+{
+    return unique_void_ptr( ptr, 
+    []( void const * _kpv )
+    {
+         t_TyT const * kpt = static_cast< t_TyT const* >( _kpv );
+         delete kpt;
+    } );
+}
+template < typename t_TyT, typename... t_TysArgs >
+auto make_unique_void_ptr( t_TysArgs&&... _args ) -> unique_void_ptr
+{
+  return unique_void_newed( new t_TyT( std::forward<t_TysArgs>( _args ... ) ) );
+}
+
 __BIENUTIL_END_NAMESPACE
