@@ -66,27 +66,33 @@ public:
   }
 };
 
-// Return if an extension is supported. If it is builtin the the current version then return true and set _rfIsBuiltin to true.
-inline bool FIsVulkanExtensionSupported( const char * _pszExt, bool & _rfIsBuiltin, uint32_t _nApiVersion,
+// Return if an extension is supported. If it is builtin the the current version then return true and set *_pfIsBuiltin to true.
+inline bool FIsVulkanExtensionSupported( const char * _pszExt, bool * _pfIsBuiltin, uint32_t _nApiVersion,
   vector< _ExtensionByVersion > const & _rrgebv, vector< vk::ExtensionProperties > const & _regep )
 {
   // First check if we find it in the ExtensionByVersion array and if we are above the version found:
-  _rfIsBuiltin = false;
+  if ( _pfIsBuiltin )
+    *_pfIsBuiltin = false;
+  bool fIsBuiltin = false;
   const _ExtensionByVersion * const pebvBegin = _rrgebv.data();
   const _ExtensionByVersion * const pebvEnd = pebvBegin + _rrgebv.size();
   const _ExtensionByVersion * pebvFound = std::find_if( pebvBegin, pebvEnd,
-    [_pszExt,&_rfIsBuiltin]( _ExtensionByVersion const & _rebv )
+    [_pszExt,&fIsBuiltin]( _ExtensionByVersion const & _rebv )
     {
       if ( !strcmp( _rebv.m_szExtensionName, _pszExt ) )
       {
-        _rfIsBuiltin = _nApiVersion >= _rebv.m_nVersionPromoted;
+        fIsBuiltin = _nApiVersion >= _rebv.m_nVersionPromoted;
         return true;
       }
       return false;
     } );
 
-  if ( ( pebvFound != pebvEnd ) && _rfIsBuiltin )
+  if ( ( pebvFound != pebvEnd ) && fIsBuiltin )
+  {
+    if ( _pfIsBuiltin )
+      *_pfIsBuiltin = true;
     return true;
+  }
 
   const vk::ExtensionProperties * const pepBegin = _regep.data();
   const vk::ExtensionProperties * const pepEnd = pepBegin + _regep.size();
@@ -97,6 +103,14 @@ inline bool FIsVulkanExtensionSupported( const char * _pszExt, bool & _rfIsBuilt
     });
   return pepFound != pepEnd;
 }
+inline bool FIsExtLayerEnabled( vector< const char * const > & _rgpszLayersEnabled, const char * _pszLayer )
+{
+  return find_if( _rgpszLayersEnabled.begin(), _rgpszLayersEnabled.end(), 
+    [_pszLayer]( const char * const _pszTest )
+    {
+      return !strcmp( _pszLayer, _pszTest );
+    } ) != _rgpszLayersEnabled.end();
+}
 
 // ExtensionFeaturesChain:
 // This object maintains extension feature chains to be used for extension features for instance creation and logical device creation.
@@ -105,6 +119,14 @@ class ExtensionFeaturesChain
   typedef ExtensionFeaturesChain _TyThis;
 public:
   typedef unordered_map< VkStructureType, unique_void_ptr > _TyMapExtFeatures;
+
+  ExtensionFeaturesChain() = default;
+  ExtensionFeaturesChain( ExtensionFeaturesChain const & ) = delete;
+  ExtensionFeaturesChain( ExtensionFeaturesChain && _rr )
+    : m_umapExtFeatures( std::move( _rr.m_umapExtFeatures ) ),
+      m_pvFirst( exchange( _rr.m_pvFirst, nullptr ) )
+  {
+  }
 
   void * PGetFirstExtension() const
   {
@@ -145,6 +167,35 @@ public:
     return rtef;
   }
 
+  // This obtains the features structure from Vulkan but doesn't add it to the set of features.
+  // If the feature has already been added then it is returned. Note that the return is by value.
+  // If the feature, once examined, is desired to be added then a further call to AddDeviceFeatureSet() (the below version)
+  //  is needed.
+  template < class t_TyExtFeature >
+  t_TyExtFeature CheckDeviceExtensionFeatures( vk::raii::PhysicalDevice const & _rpd, VkStructureType _st )
+  {
+    _TyMapExtFeatures::iterator it = m_umapExtFeatures.find( _st );
+    if ( m_umapExtFeatures.end() != it )
+      return *static_cast< t_TyExtFeature * >( it->second.get() );
+    vk::StructureChain< vk::PhysicalDeviceFeatures2, t_TyExtFeature > scFeatures = _rpd.getFeatures2KHR();
+    t_TyExtFeature & rtef = scFeatures.get< t_TyExtFeature >();
+    Assert( rtef.sType == _st );
+    return rtef;
+  }
+  // This adds a device extension feature that was already obtained via CheckDeviceExtensionFeatures() above.
+  template < class t_TyExtFeature >
+  t_TyExtFeature & AddDeviceExtensionFeature( t_TyExtFeature const & _rtef )
+  {
+    _TyMapExtFeatures::iterator it = m_umapExtFeatures.find( rtef.sType );
+    if ( m_umapExtFeatures.end() != it )
+      return *static_cast< t_TyExtFeature * >( it->second.get() );
+    pair< _TyMapExtFeatures::iterator, bool > pib = m_umapExtFeatures.emplace( _rtefDefault.sType, make_unique_void_ptr< t_TyExtFeature >( _rtef ) );
+    Assert( pib.second );
+    t_TyExtFeature & rtef = *static_cast< t_TyExtFeature * >( pib.first->second.get() );
+    rtef.pNext = m_pvFirst;
+    m_pvFirst = &rtef;
+    return rtef;
+  }
   _TyMapExtFeatures m_umapExtFeatures;
   void * m_pvFirst{nullptr}; // This points to the chain if it exists at all. New features are pushed in front of it.
 };
@@ -168,6 +219,22 @@ public:
     m_nApiVersion = enumerateInstanceVersion();
   }
 
+  // Return if an extension is supported. If it is builtin the the current version then return true and set *_pfIsBuiltin to true.
+  bool FIsExtensionSupported( const char * _pszExt, bool * _pfIsBuiltin = nullptr ) const noexcept
+  {
+    return FIsVulkanExtensionSupported( _pszExt, _pfIsBuiltin, m_nApiVersion, m_rgExtensionsByVersion, m_rgExtensionProperties );
+  }
+  bool FIsLayerSupported( const char * _pszLayer ) const noexcept
+  {
+    const vk::LayerProperties * const plpBegin = _regep.data();
+    const vk::LayerProperties * const plpEnd = plpBegin + _regep.size();
+    const vk::LayerProperties * const plpFound = std::find_if( plpBegin, plpEnd,
+      [_pszLayer]( vk::LayerProperties const & _rlp ) 
+      {
+        return !strcmp( _rlp.layerName, _pszLayer );
+      });
+    return plpFound != plpEnd;
+  }
   template < class t_TyExtFeature >
   t_TyExtFeature & AddInstanceExtensionFeature( t_TyExtFeature const & _rtefDefault )
   {
@@ -175,8 +242,8 @@ public:
   }
   
   _TyVulkanInstance * PCreateInstance(  vk::ApplicationInfo const & _raiAppInfo,
-                                        unordered_map<const char *, bool> const & _umLayersOpt, bool _fEnableValidationLayer,
-                                        unordered_map<const char *, bool> const & _umExtentionsOpt, bool _fEnableDebugUtils,
+                                        unordered_map<const char *, bool> _umLayersOpt, bool _fEnableValidationLayer,
+                                        unordered_map<const char *, bool> _umExtentionsOpt, bool _fEnableDebugUtils,
                                         vk::DebugUtilsMessengerCreateInfoEXT const * _pdumCreateInfo = nullptr ) const noexcept(false)
   {
     VerifyThwowSz( !m_upviInstance, "Instance already created." );
@@ -233,11 +300,12 @@ public:
       // Add this to the extensions features chain. If it is already in there then the caller will have overridden our options entirely.
       (void)m_efcFeaturesChain.AddInstanceExtensionFeature( dumCreateInfo );
     }
-
     vk::InstanceCreateInfo iciCreateInfo( {}, &_raiAppInfo, rgpszLayers, rgpszExtensions );
     iciCreateInfo.pNext = m_efcFeaturesChain.PGetFirstExtension();
     m_upviInstance = make_unique< vk::raii::Instance >( g_vkcContext, iciCreateInfo );
     m_updumDebugMessenger = make_unique< vk::raii::DebugUtilsMessengerEXT >( *m_upviInstance, dumCreateInfo );
+    m_rgpszLayersEnabled.swap( rgpszLayers );
+    m_rgpszExtensionsEnabled.swap( rgpszExtensions );
     return &*m_upviInstance;
   }
 
@@ -252,31 +320,32 @@ public:
     else
       return pvcThis->m_upviInstance->VulkanDebugCallback( _grfMessageSeverity, _grfMessageType, _pCallbackData, _pUserData );
   }
-
-  // Return if an extension is supported. If it is builtin the the current version then return true and set _rfIsBuiltin to true.
-  bool FIsExtensionSupported( const char * _pszExt, bool & _rfIsBuiltin ) const noexcept
+// Valid after successful call to PCreateInstance().
+  _TyVulkanInstance & GetInstance() const
   {
-    return FIsVulkanExtensionSupported( _pszExt, _rfIsBuiltin, m_nApiVersion, m_rgExtensionsByVersion, m_rgExtensionProperties );
+    Assert( !!m_upviInstance );
+    return *m_upviInstance;
   }
-  bool FIsLayerSupported( const char * _pszLayer ) const noexcept
+  bool FIsLayerEnabled( const char * _pszLayer ) const noexcept
   {
-    const vk::LayerProperties * const plpBegin = _regep.data();
-    const vk::LayerProperties * const plpEnd = plpBegin + _regep.size();
-    const vk::LayerProperties * const plpFound = std::find_if( plpBegin, plpEnd,
-      [_pszLayer]( vk::LayerProperties const & _rlp ) 
-      {
-        return !strcmp( _rlp.layerName, _pszLayer );
-      });
-    return plpFound != plpEnd;
+    return FIsExtLayerEnabled( m_rgpszLayersEnabled, _pszLayer );
+  }
+  bool FIsExtensionEnabled( const char * _pszExt ) const noexcept
+  {
+    return FIsExtLayerEnabled( m_rgpszExtensionsEnabled, _pszExt );
   }
 
-  unique_ptr< _TyVulkanInstance > m_upviInstance;
-  unique_ptr< vk::raii::DebugUtilsMessengerEXT > m_updumDebugMessenger; // store this here as well and forward to stored instance.
+// Properties initialized during creation:
   vector< vk::ExtensionProperties > m_rgExtensionProperties;
   vector< _ExtensionByVersion > m_rgExtensionsByVersion;
   vector< vk::LayerProperties > m_rgLayerProperties;
   ExtensionFeaturesChain m_efcFeaturesChain;
   uint32_t m_nApiVersion;
+// Properties of the created instance, initialized in PCreateInstance():
+  unique_ptr< _TyVulkanInstance > m_upviInstance;
+  unique_ptr< vk::raii::DebugUtilsMessengerEXT > m_updumDebugMessenger; // store this here as well and forward to stored instance.
+  vector< const char * const > m_rgpszLayersEnabled;
+  vector< const char * const > m_rgpszExtensionsEnabled;
 };
 
 struct _QueueFlagSupportIndex
@@ -288,12 +357,16 @@ struct _QueueFlagSupportIndex
 };
 struct _QueueCreateProps : public _QueueFlagSupportIndex
 {
-  _QueueCreateProps( _QueueFlagSupportIndex const & _rBase )
+  _QueueCreateProps( _QueueFlagSupportIndex const & _rBase ) noexcept
     : _QueueFlagSupportIndex( _rBase )
   {
     m_dqciCreateInfo.queueFamilyIndex = m_nQueueIndex;
     m_dqciCreateInfo.queueCount = 1;
     m_dqciCreateInfo.pQueuePriorities = &m_flQueuePriority;
+  }
+  operator vk::DeviceQueueCreateInfo() const noexcept
+  {
+    return m_dqciCreateInfo;
   }
   float m_flQueuePriority = {1.0f};
   vk::DeviceQueueCreateInfo m_dqciCreateInfo = {};
@@ -305,31 +378,45 @@ class VulkanPhysicalDevice : public vk::raii::PhysicalDevice
   typedef vk::raii::PhysicalDevice _TyBase;
   typedef VulkanPhysicalDevice _TyThis;
 public:
-  VulkanPhysicalDevice & operator=( VulkanPhysicalDevice && _rr )
+  VulkanPhysicalDevice() = delete;
+  VulkanPhysicalDevice( VulkanPhysicalDevice const & ) = delete;
+  VulkanPhysicalDevice & operator = ( VulkanPhysicalDevice const & ) = delete;
+  VulkanPhysicalDevice & operator = ( VulkanPhysicalDevice && ) = delete;
+  ~VulkanPhysicalDevice() = default;
+
+  VulkanPhysicalDevice( VulkanPhysicalDevice && _rr ) noexcept
+    : m_rviInstance( _rr.m_rviInstance ),
+      m_PhysicalDeviceProperties( _rr.m_PhysicalDeviceProperties ),
+      m_PhysicalDeviceFeaturesHas( _rr.m_PhysicalDeviceFeaturesHas ),
+      m_PhysicalDeviceMemoryProperties( _rr.m_PhysicalDeviceMemoryProperties ),
+      m_rgqfpQueueProps( std::move( m_rgqfpQueueProps ) ),
+      m_rgqfsiQueueSupport( std::move( m_rgqfsiQueueSupport ) ),
+      m_rgExtensionProperties( std::move( m_rgExtensionProperties ) ),
+      m_rgExtensionsByVersion( std::move( m_rgExtensionsByVersion ) ),
+      m_efcFeaturesChain( std::move( _rr.m_efcFeaturesChain ) ),
+      m_PhysicalDeviceFeaturesMutable( _rr.m_PhysicalDeviceFeaturesMutable ),
+      m_nApiVersion( _rr.m_nApiVersion ),
+      m_psrfSurface( _rr.m_psrfSurface ),
+      m_rgFormats( std::move( _rr.m_rgFormats ) ),
+      m_SurfaceCapabilitiesKHR( _rr.m_SurfaceCapabilitiesKHR ),
+      m_rgFormats( std::move( m_rgFormats ) ),
+      m_rgPresentModeKHR( std::move( m_rgPresentModeKHR ) ),
+      m_rgpszExtensionsEnabled( std::move( m_rgpszExtensionsEnabled ) )
   {
-    _TyBase::operator = ( std::move( _rr ) );
-    m_PhysicalDeviceProperties = _rr.m_PhysicalDeviceProperties;
-    m_PhysicalDeviceFeatures = _rr.m_PhysicalDeviceFeatures;
-    m_PhysicalDeviceMemoryProperties = _rr.m_PhysicalDeviceMemoryProperties;
-    m_rgqfpQueueProps = std::move( _rr.m_rgqfpQueueProps );
-    m_rgqfsiQueueSupport = std::move( _rr.m_rgqfsiQueueSupport ); // Results of queue support;
-    m_fQueuesHaveSupport = std::exchange( _rr.m_fQueuesHaveSupport, false );
-    m_psrfSurface = std::exchange( _rr.m_psrfSurface, nullptr );
-    m_rgFormats = std::move( _rr.m_rgFormats );
-    m_SurfaceCapabilitiesKHR = _rr.m_SurfaceCapabilitiesKHR;
-    m_rgFormats = std::move( _rr. m_rgFormats );
-    m_rgPresentModeKHR = std::move( _rr.m_rgPresentModeKHR );
   }
   
   // We always construct this via move constructor and then we initialize it by getting all the properties, etc.
   // If a surface is not required then nullptr may be passed for it - i.e. for off-screen rendering.
   // If <_fFindAllQueuesForFlags> then we will continue to find different queue families for <_grfQueueFlags> even though one was already found.
-  VulkanPhysicalDevice( vk::raii::PhysicalDevice && _rr, vk::QueueFlags _grfQueueFlags, vk::raii::SurfaceKHR const * _psrfSurface, bool _fFindAllQueuesForFlags = true )
+  VulkanPhysicalDevice( vk::raii::Context const & _rctxt, vk::raii::PhysicalDevice && _rr, vk::QueueFlags _grfQueueFlags, 
+                        vk::raii::SurfaceKHR const * _psrfSurface, bool _fFindAllQueuesForFlags = true ) noexcept(false) // might throw due to OOM.
     : _TyBase( std::move( _rr ) ),
-      m_psrfSurface( _psrfSurface )
+      m_psrfSurface( _psrfSurface ),
+      m_nApiVersion( _rctxt.m_nApiVersion ),
+      m_rviInstance( _rctxt.GetInstance() )
   {
     m_PhysicalDeviceProperties = getProperties();
-    m_PhysicalDeviceFeatures = getFeatures();
+    m_PhysicalDeviceFeaturesHas = getFeatures();
     m_PhysicalDeviceMemoryProperties = getMemoryProperties();
     m_rgqfpQueueProps = getQueueFamilyProperties();
     // Now get surface-related info if needed:
@@ -343,7 +430,9 @@ public:
     m_rgExtensionProperties = enumerateDeviceExtensionProperties();
     m_rgExtensionsByVersion.push_back( _ExtensionByVersion( VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, VK_API_VERSION_1_1 ) );
     m_rgExtensionsByVersion.push_back( _ExtensionByVersion( VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME, VK_API_VERSION_1_1 ) );
-
+    m_rgExtensionsByVersion.push_back( _ExtensionByVersion( VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME, VK_API_VERSION_1_2 ) );
+    m_rgExtensionsByVersion.push_back( _ExtensionByVersion( VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME, VK_API_VERSION_1_2 ) );
+    
     // Now check for support of all required queue types:
     bool fPresentFoundOne = !m_psrfSurface;
     bool fPresentFoundAll = !m_psrfSurface;
@@ -371,10 +460,54 @@ public:
   }
 
   // After construction this checks that all requested queues are supported by this device.
-  bool FQueuesHaveSupport() const
+  bool FQueuesAndSurfaceSupport() const
   {
-    return m_fQueuesHaveSupport;
+    return m_fQueuesHaveSupport && ( !m_psrfSurface || ( !m_rgFormats.empty() && !m_rgPresentModeKHR.empty() ) );
   }
+  // Returns the set of physical devices features present in the device.
+  const VkPhysicalDeviceFeatures & RHasPhysicalDeviceFeatures() const
+  {
+    return m_HasPhysicalDeviceFeatures;
+  }
+  // Allows setting physical device features before creating the logical device.
+  VkPhysicalDeviceFeatures & RSetPhysicalDeviceFeatures()
+  {
+    return m_PhysicalDeviceFeaturesMutable;
+  }
+  void ActivateAllDeviceFeatures()
+  {
+    m_PhysicalDeviceFeaturesMutable = m_HasPhysicalDeviceFeatures;
+  }
+  bool FIsExtensionSupported( const char * _pszExt, bool * _pfIsBuiltin = nullptr ) const noexcept
+  {
+    return FIsVulkanExtensionSupported( _pszExt, _pfIsBuiltin, m_nApiVersion, m_rgExtensionsByVersion, m_rgExtensionProperties );
+  }
+  template < typename t_TyIter >
+  bool FCheckExtensionsSupported( t_TyIter _iterBegin, t_TyIter _iterEnd ) const noexcept
+  {
+    for ( t_TyIter iterCur = _iterBegin; _iterEnd != iterCur; ++iterCur )
+      if ( !FIsExtensionSupported( *iterCur ) )
+        return false;
+    return true;
+  }
+  vk::SampleCountFlagBits GetMaxUsableSampleCount() const noexcept
+  {
+    vk::SampleCountFlags counts = m_PhysicalDeviceProperties.limits.framebufferColorSampleCounts & m_PhysicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    if ( counts & vk::SampleCountFlagBits::e64 )
+      return vk::SampleCountFlagBits::e64; 
+    if ( counts & vk::SampleCountFlagBits::e32 ) 
+      return vk::SampleCountFlagBits::e32;
+    if ( counts & vk::SampleCountFlagBits::e16 ) 
+      return vk::SampleCountFlagBits::e16;
+    if ( counts & vk::SampleCountFlagBits::e8 ) 
+      return vk::SampleCountFlagBits::e8;
+    if ( counts & vk::SampleCountFlagBits::e4 ) 
+      return vk::SampleCountFlagBits::e4;
+    if ( counts & vk::SampleCountFlagBits::e2 ) 
+      return vk::SampleCountFlagBits::e2;
+    return vk::SampleCountFlagBits::e1;
+  }
+
   // Return all required queue families for the support requested.
   std::vector< uint32_t > RgGetQueueFamilies() const
   {
@@ -388,9 +521,9 @@ public:
     return rgQueueIndices;
   }
   // Return default creation properties from discovered queues:
-  std::vector< _QueueCreateProps > RgGetQueueCreateProps() const
+  vector< _QueueCreateProps > RgGetQueueCreateProps() const
   {
-    std::vector< _QueueCreateProps > rgqcp;
+    vector< _QueueCreateProps > rgqcp;
     rgqcp.reserve( m_rgqfsiQueueSupport.size() );
     const _QueueFlagSupportIndex * pqfsiCur = m_rgqfsiQueueSupport.data();
     const _QueueFlagSupportIndex * const pqfsiEnd = pqfsiCur + m_rgqfsiQueueSupport.size();
@@ -409,20 +542,94 @@ public:
   // Upon success *this will be moved assigned into the VmaDevice::m_vpdPhysicalDevice member. This is fine because
   //  the physical device's lifetime is that of the vulkan instance itself.
   template < class t_TyQueueCreatePropsIter >
-  VmaDevice CreateVmaDevice(  std::unordered_map<const char *, bool> _umExtentionsOpt,
-                              t_TyQueueCreatePropsIter _iterqcpBegin, t_TyQueueCreatePropsIter _iterqcpEnd )
+  VmaDevice CreateVmaDevice(  unordered_map<const char *, bool> _umExtentionsOpt,
+                              t_TyQueueCreatePropsIter _iterqcpBegin, t_TyQueueCreatePropsIter _iterqcpEnd,
+                              bool _fEnablePerfQueries = false ) noexcept(false)
   {
-    
+    // Transfer queue creation props:
+    std::vector< vk::DeviceQueueCreateInfo > rgdqci;
+    rgdqci.reserve( distance( _iterqcpBegin, _iterqcpEnd ) );
+    for ( t_TyQueueCreatePropsIter iterqcpCur = _iterqcpBegin; _iterqcpEnd != iterqcpCur; ++iterqcpCur )
+      rgdqci.push_back( *iterqcpCur );
+
+    VmaAllocatorCreateInfo vaciVmaCreateInfo{};
+    bool fIsBuiltinUnused;
+    bool fGetMemoryRequirements = FIsExtensionSupported( VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, fIsBuiltinUnused );
+    bool fDedicatedAllocation = FIsExtensionSupported( VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME, fIsBuiltinUnused );
+
+    typedef unordered_map<const char *, bool>::value_type _TyValue;
+    if ( fGetMemoryRequirements && fDedicatedAllocation )
+    {
+      vaciVmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_KHR_DEDICATED_ALLOCATION_BIT;
+      (void)_umExtentionsOpt.insert( _TyValue( VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, true ) );
+      (void)_umExtentionsOpt.insert( _TyValue( VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME, true ) );
+    }
+    if ( _fEnablePerfQueries )
+    {
+      bool fPerformanceQuery = FIsExtensionSupported( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME, fIsBuiltinUnused );
+      bool fHostQueryReset = FIsExtensionSupported( VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME, fIsBuiltinUnused );
+      if ( fPerformanceQuery && fHostQueryReset )
+      {
+        // Before enabling these extensions we want to see if they have the support that we need for perf queries:
+        vk::PhysicalDevicePerformanceQueryFeaturesKHR pqfFeatures = 
+          m_efcFeaturesChain.CheckDeviceExtensionFeatures< vk::PhysicalDevicePerformanceQueryFeaturesKHR >( *this, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PERFORMANCE_QUERY_FEATURES_KHR );
+        vk::PhysicalDeviceHostQueryResetFeatures hqrfFeatures = 
+          m_efcFeaturesChain.CheckDeviceExtensionFeatures< vk::PhysicalDeviceHostQueryResetFeatures >( *this, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES );
+  		  if ( pqfFeatures.performanceCounterQueryPools && hqrfFeatures.hostQueryReset )
+        {
+          (void)m_efcFeaturesChain.AddDeviceExtensionFeature( pqfFeatures );
+          (void)m_efcFeaturesChain.AddDeviceExtensionFeature( hqrfFeatures );
+          (void)_umExtentionsOpt.insert( _TyValue( VK_KHR_PERFORMANCE_QUERY_EXTENSION_NAME, true ) );
+          (void)_umExtentionsOpt.insert( _TyValue( VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME, true ) );
+        }
+      }
+    }
+
+    // Now move through and create the extensions set:
+    vector< const char * const > rgpszExtensions;
+    rgpszExtensions.reserve( _umExtensionsOpt.size() );
+    for( auto & rvtExt : _umExtensionsOpt )
+    {
+      bool fIsBuiltin;
+      bool fIsSupported = FIsExtensionSupported( rvtExt.first, fIsBuiltin );
+      VerifyThrowSz( fIsSupported || !rvtExt.second, "Required extension [%s] isn't supported.", rvtExt.first );
+      if ( fIsSupported && !fIsBuiltin )
+         rgpszExtensions.push_back( rvtExt.first );
+    }
+    vk::DeviceCreateInfo dci( {}, rgdqci, {}, rgpszExtensions, &m_PhysicalDeviceFeaturesMutable );
+    dci.pNext = m_efcFeaturesChain.PGetFirstExtension();
+
+    vk::raii::Device vd( *this, dci ); // throws on error creating.
+    m_rgpszExtensionsEnabled.swap( rgpszExtensions );
+
+    if ( FIsExtensionEnabled( VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME ) )
+      vaciVmaCreateInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    vaciVmaCreateInfo.physicalDevice = **this;
+    vaciVmaCreateInfo.device = *vd;
+    vaciVmaCreateInfo.instance = *m_rviInstance;
+    VmaAllocator vmaAllocator{nullptr};
+    VkResult result = vmaCreateAllocator( &vaciVmaCreateInfo, &vmaAllocator );
+    VerifyThrowSz( VK_SUCCESS == result, "Error creating Vulkan Memory Allocator [%d].", result );
+
+    // Now create a VmaDevice from vd and vmaAllocator, transfer this object into at the same time and then return the VmaAllocator to the caller.
+    return VmaDevice( std::move( *this), std::move( vd ), vmaAllocator );
+  }
+  bool FIsExtensionEnabled( const char * _pszExt ) const noexcept
+  {
+    return FIsExtLayerEnabled( m_rgpszExtensionsEnabled, _pszExt );
   }
 
+  VulkanInstance & m_rviInstance;
   vk::PhysicalDeviceProperties m_PhysicalDeviceProperties;
-  vk::PhysicalDeviceFeatures m_PhysicalDeviceFeatures;
+  vk::PhysicalDeviceFeatures m_PhysicalDeviceFeaturesHas;
   vk::PhysicalDeviceMemoryProperties m_PhysicalDeviceMemoryProperties;
   std::vector< vk::QueueFamilyProperties > m_rgqfpQueueProps;
   std::vector< _QueueFlagSupportIndex > m_rgqfsiQueueSupport; // Results of queue support;
   std::vector< vk::ExtensionProperties > m_rgExtensionProperties;
   std::vector< _ExtensionByVersion > m_rgExtensionsByVersion;
   ExtensionFeaturesChain m_efcFeaturesChain;
+  vk::PhysicalDeviceFeatures m_PhysicalDeviceFeaturesMutable{};
+  uint32_t m_nApiVersion{};
   bool m_fQueuesHaveSupport{false};
 // surface-related properties - may not have a surface.
   vk::raii::SurfaceKHR const * m_psrfSurface{nullptr};
@@ -430,6 +637,8 @@ public:
   vk::SurfaceCapabilitiesKHR m_SurfaceCapabilitiesKHR;
   std::vector< vk::SurfaceFormatKHR > m_rgFormats;
   std::vector< vk::PresentModeKHR > m_rgPresentModeKHR;
+// initialized after a successful call to CreateVmaDevice().
+  vector< const char * const > m_rgpszExtensionsEnabled;
 };
 
 // VmaDevice: A vk::raii::Device that contains a VmaAllocator.
@@ -440,23 +649,78 @@ class VmaDevice : protected vk::raii::Device
   typedef VmaDevice _TyThis;
 public:
 
-  VmaDevice(  VulkanPhysicalDevice const & _rpdPhysicalDevice, // Contains a reference to our instance and any surface.
-              std::unordered_map<const char *, bool> _umExtentionsOpt,
-              const _QueueCreateProps * _pqcpBegin, const _QueueCreateProps * _pqcpEnd )
-    : m_rpdPhysicalDevice( _rpdPhysicalDevice ),
-      m_psrfSurface( _psrfSurface )
+  VmaDevice() = delete;
+  VmaDevice( VmaDevice const & ) = delete;
+  VmaDevice & operator = ( VmaDevice const & ) = delete;
+  VmaDevice & operator = ( VmaDevice && ) = delete;
+  ~VmaDevice() = default;
+
+  VmaDevice( VmaDevice && _rr )
+    : _TyBase( std::move( _rr ) ),
+      m_vpdPhysicalDevice( std::move( _rr.m_vpdPhysicalDevice ) ),
+      m_vmaAllocator( std::exchange( _rr.m_vmaAllocator, nullptr ) )
+  {
+  }
+  VmaDevice(  VulkanPhysicalDevice && _rrpdPhysicalDevice,
+              vk::raii::Device && _rrdDevice,
+              VmaAllocator _vmaAllocator ) noexcept
+    : m_vpdPhysicalDevice( std::move( _rrpdPhysicalDevice ) ),
+      _TyBase( std::move( _rrdDevice ) ),
+      m_vmaAllocator( _vmaAllocator )
   {
     
   }
+  ~VmaDevice()
+  {
+    vmaDestroyAllocator( m_vmaAllocator );
+  }
 
-  
-
+  vk::SurfaceFormatKHR GetSwapSurfaceFormat()
+  {
+    if ( m_sfmtSurfaceFormat != vk::Format::eUndefined )
+      return m_sfmtSurfaceFormat;
+    
+    for ( const vk::SurfaceFormatKHR & sfmt : m_vpdPhysicalDevice.m_rgFormats )
+    {
+      if ( ( sfmt.format == vk::Format::eB8G8R8A8Srgb ) && ( sfmt.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear ) )
+      {
+        m_sfmtSurfaceFormat = sfmt;
+        return m_sfmtSurfaceFormat;
+      }
+    }
+    m_sfmtSurfaceFormat = m_vpdPhysicalDevice.m_rgFormats[0];
+    return m_sfmtSurfaceFormat;
+  }
+  vk::PresentModeKHR ChooseSwapPresentMode( vk::PresentModeKHR _pmPreferred1st = vk::PresentModeKHR::eMailbox,
+                                            vk::PresentModeKHR _pmPreferred2nd = vk::PresentModeKHR::eFifo  ) const
+  {
+    if ( m_optPresentMode.has_value() )
+      return m_optPresentMode.value();
+    // Move through the available presentation modes choosing the preferred if present:
+    vk::PresentModeKHR * ppmPreferredCur = &_pmPreferred1st;
+    for ( ; !m_optPresentMode.has_value(); ppmPreferredCur = &_pmPreferred2nd )
+    {
+      for ( const vk::PresentModeKHR & pmCur : m_vpdPhysicalDevice.m_rgPresentModeKHR )
+      {
+        if ( pmCur == *ppmPreferredCur )
+        {
+          m_optPresentMode = pmCur;
+          return pmCur;
+        }
+      }
+      if ( ppmPreferredCur == &_pmPreferred2nd )
+        break;
+    }
+    m_optPresentMode = m_vpdPhysicalDevice.m_rgPresentModeKHR[0];
+    return m_optPresentMode.value();
+  }
 
   VulkanPhysicalDevice m_vpdPhysicalDevice; // The physical device is contained within our logical device for easy access at all times.
   vk::raii::SurfaceKHR const & m_psrfSurface;
   // We maintain a reference to a VulkanInstance since our m_vmaAllocator has one that isn't ref-counted.
 	VmaAllocator m_vmaAllocator{ nullptr };
-
+  vk::SurfaceFormatKHR m_sfmtSurfaceFormat{};
+  std::optional< vk::PresentModeKHR > m_optPresentMode;
 };
 
 __BIENUTIL_END_NAMESPACE
