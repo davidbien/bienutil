@@ -520,7 +520,7 @@ public:
       rgQueueIndices.push_back( pqfsiCur->m_nQueueIndex );
     return rgQueueIndices;
   }
-  // Return default creation properties from discovered queues:
+  // Return default creation properties from discovered queues. The caller will modify as desired and send to CreateVmaDevice().
   vector< _QueueCreateProps > RgGetQueueCreateProps() const
   {
     vector< _QueueCreateProps > rgqcp;
@@ -543,14 +543,14 @@ public:
   //  the physical device's lifetime is that of the vulkan instance itself.
   template < class t_TyQueueCreatePropsIter >
   VmaDevice CreateVmaDevice(  unordered_map<const char *, bool> _umExtentionsOpt,
-                              t_TyQueueCreatePropsIter _iterqcpBegin, t_TyQueueCreatePropsIter _iterqcpEnd,
+                              vector< _QueueCreateProps > const & _rrgqcp,
                               bool _fEnablePerfQueries = false ) noexcept(false)
   {
     // Transfer queue creation props:
     std::vector< vk::DeviceQueueCreateInfo > rgdqci;
-    rgdqci.reserve( distance( _iterqcpBegin, _iterqcpEnd ) );
-    for ( t_TyQueueCreatePropsIter iterqcpCur = _iterqcpBegin; _iterqcpEnd != iterqcpCur; ++iterqcpCur )
-      rgdqci.push_back( *iterqcpCur );
+    rgdqci.reserve( _rrgqcp.size() );
+    for ( const _QueueCreateProps & rqcp : _rrgqcp )
+      rgdqci.push_back( rqcp );
 
     VmaAllocatorCreateInfo vaciVmaCreateInfo{};
     bool fIsBuiltinUnused;
@@ -612,7 +612,7 @@ public:
     VerifyThrowSz( VK_SUCCESS == result, "Error creating Vulkan Memory Allocator [%d].", result );
 
     // Now create a VmaDevice from vd and vmaAllocator, transfer this object into at the same time and then return the VmaAllocator to the caller.
-    return VmaDevice( std::move( *this), std::move( vd ), vmaAllocator );
+    return VmaDevice( std::move( *this), std::move( vd ), vmaAllocator, _rrgqcp );
   }
   bool FIsExtensionEnabled( const char * _pszExt ) const noexcept
   {
@@ -648,6 +648,7 @@ class VmaDevice : protected vk::raii::Device
   typedef vk::raii::Device _TyBase;
   typedef VmaDevice _TyThis;
 public:
+  typedef pair< _QueueCreateProps, vector< vk::raii::Queue > > _TyPrQueueInfo;
 
   VmaDevice() = delete;
   VmaDevice( VmaDevice const & ) = delete;
@@ -658,21 +659,45 @@ public:
   VmaDevice( VmaDevice && _rr )
     : _TyBase( std::move( _rr ) ),
       m_vpdPhysicalDevice( std::move( _rr.m_vpdPhysicalDevice ) ),
-      m_vmaAllocator( std::exchange( _rr.m_vmaAllocator, nullptr ) )
+      m_vmaAllocator( std::exchange( _rr.m_vmaAllocator, nullptr ) ),
+      m_rgQueues( std::move( _rr.m_rgQueues ) )
+      m_sfmtSurfaceFormat( std::exchange( _rr.m_sfmtSurfaceFormat, vk::Format::eUndefined ) ),
+      m_optPresentMode( std::move( _rr.m_optPresentMode ) )
   {
   }
   VmaDevice(  VulkanPhysicalDevice && _rrpdPhysicalDevice,
               vk::raii::Device && _rrdDevice,
-              VmaAllocator _vmaAllocator ) noexcept
+              VmaAllocator _vmaAllocator,
+              vector< _QueueCreateProps > const & _rrgqcp ) noexcept
     : m_vpdPhysicalDevice( std::move( _rrpdPhysicalDevice ) ),
       _TyBase( std::move( _rrdDevice ) ),
       m_vmaAllocator( _vmaAllocator )
   {
-    
+    // Obtain our device queues:
+    m_rgQueues.reserve( _rrgqcp.size() );
+    for ( _QueueCreateProps const & rqcp : _rrgqcp )
+    {
+      _TyPrQueueInfo rpr = m_rgQueues.emplace_back( rqcp, {} );
+      rpr.second.reserve( rqcp.m_dqciCreateInfo.queueCount );
+      for ( uint32_t nQueue = 0; nQueue < rqcp.m_dqciCreateInfo.queueCount; ++nQueue )
+      {
+        vk::raii:Queue & rq = rpr.second.emplace_back( vk::raii:Queue( *this, rqcp.m_dqciCreateInfo.queueFamilyIndex, nQueue ) );
+        VerifyThrowSz( *rq != VK_NULL_HANDLE, "Device ueue not found family[%u] index[%u].", rqcp.m_dqciCreateInfo.queueFamilyIndex, nQueue );
+      }
+    }
   }
   ~VmaDevice()
   {
     vmaDestroyAllocator( m_vmaAllocator );
+  }
+
+  bool FIsExtensionEnabled( const char * _pszExt ) const
+  {
+    return m_vpdPhysicalDevice.FIsExtensionEnabled( _pszExt );
+  }
+  const vector< _TyPrQueueInfo > & RgGetQueues() const
+  {
+    return m_rgQueues;
   }
 
   vk::SurfaceFormatKHR GetSwapSurfaceFormat()
@@ -691,8 +716,8 @@ public:
     m_sfmtSurfaceFormat = m_vpdPhysicalDevice.m_rgFormats[0];
     return m_sfmtSurfaceFormat;
   }
-  vk::PresentModeKHR ChooseSwapPresentMode( vk::PresentModeKHR _pmPreferred1st = vk::PresentModeKHR::eMailbox,
-                                            vk::PresentModeKHR _pmPreferred2nd = vk::PresentModeKHR::eFifo  ) const
+  vk::PresentModeKHR GetSwapPresentMode(  vk::PresentModeKHR _pmPreferred1st = vk::PresentModeKHR::eMailbox,
+                                          vk::PresentModeKHR _pmPreferred2nd = vk::PresentModeKHR::eFifo  ) const
   {
     if ( m_optPresentMode.has_value() )
       return m_optPresentMode.value();
@@ -714,13 +739,31 @@ public:
     m_optPresentMode = m_vpdPhysicalDevice.m_rgPresentModeKHR[0];
     return m_optPresentMode.value();
   }
+  // We don't cache the calculation here as it is called every time the window is resized.
+  vk::Extent2D GetSwapExtent( vk::Extent2D _re2dFrameBufferSize ) 
+  {
+    if ( m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.currentExtent.width != std::numeric_limits<uint32_t>::max() ) 
+      return m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.currentExtent;
+    else 
+    {
+      _re2dFrameBufferSize.width = std::clamp( _re2dFrameBufferSize.width, m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.minImageExtent.width, m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.maxImageExtent.width );
+      actualExtent.height = std::clamp( _re2dFrameBufferSize.height, m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.minImageExtent.height, m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.maxImageExtent.height );
+      return _re2dFrameBufferSize;
+    }
+  }
+  uint32_t GetSwapImageCount( uint32_t _nMoreThanMinImageCount = 1 )
+  {
+    uint32_t nImageCount = swapChainSupport.capabilities.minImageCount + _nMoreThanMinImageCount;
+    if ( m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.maxImageCount > 0 && nImageCount > m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.maxImageCount )
+      nImageCount = m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.maxImageCount;
+  }
 
   VulkanPhysicalDevice m_vpdPhysicalDevice; // The physical device is contained within our logical device for easy access at all times.
-  vk::raii::SurfaceKHR const & m_psrfSurface;
   // We maintain a reference to a VulkanInstance since our m_vmaAllocator has one that isn't ref-counted.
 	VmaAllocator m_vmaAllocator{ nullptr };
-  vk::SurfaceFormatKHR m_sfmtSurfaceFormat{};
+  vk::SurfaceFormatKHR m_sfmtSurfaceFormat{ vk::Format::eUndefined };
   std::optional< vk::PresentModeKHR > m_optPresentMode;
+  vector< _TyPrQueueInfo > m_rgQueues;
 };
 
 __BIENUTIL_END_NAMESPACE
