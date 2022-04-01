@@ -758,6 +758,13 @@ public:
       nImageCount = m_vpdPhysicalDevice.m_SurfaceCapabilitiesKHR.maxImageCount;
   }
 
+  VulkanSwapchain CreateSwapchain(  uint32_t _nMoreThanMinImageCount = 1, 
+                                    vk::PresentModeKHR _pmPreferred1st = vk::PresentModeKHR::eMailbox,
+                                    vk::PresentModeKHR _pmPreferred2nd = vk::PresentModeKHR::eFifo  )
+  {
+    
+  }
+
   VulkanPhysicalDevice m_vpdPhysicalDevice; // The physical device is contained within our logical device for easy access at all times.
   // We maintain a reference to a VulkanInstance since our m_vmaAllocator has one that isn't ref-counted.
 	VmaAllocator m_vmaAllocator{ nullptr };
@@ -765,5 +772,24 @@ public:
   std::optional< vk::PresentModeKHR > m_optPresentMode;
   vector< _TyPrQueueInfo > m_rgQueues;
 };
+
+class VulkanSwapchain : public vk::raii::SwapchainKHR
+{
+  typedef vk::raii::SwapchainKHR _TyBase;
+  typedef VulkanSwapchain _TyThis;
+public:
+  SwapchainKHR( VulkanDevice const & _vdDevice,
+                vk::SwapchainCreateInfoKHR const & _rscciCreateInfo )
+    : _TyBase( _vdDevice, _rscciCreateInfo ),
+      m_scciCreateInfo( _rscciCreateInfo )
+  {
+  }
+
+
+
+  // Save the swap chain create info to allow for easy recreation.
+  vk::SwapchainCreateInfoKHR m_scciCreateInfo;
+};
+
 
 __BIENUTIL_END_NAMESPACE
