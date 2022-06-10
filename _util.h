@@ -258,7 +258,7 @@ constexpr size_t DimensionOf( t_Ty (&)[ t_kN ] )
 template < class t_Ty, size_t t_kN >
 constexpr size_t StaticStringLen( const t_Ty (&)[ t_kN ] )
 {
-  static_assert( t_kN );
+  static_assert( !!t_kN );
   return t_kN-1;
 }
 
