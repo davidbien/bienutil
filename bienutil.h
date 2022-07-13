@@ -39,6 +39,11 @@
 
 #include <cstring>
 
+namespace __BIENUTIL_USE_NAMESPACE
+{
+    // keep the ide code compiler happy.
+}
+
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE*)0)->MEMBER)
 #endif // offsetof
