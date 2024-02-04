@@ -388,7 +388,7 @@ auto unique_void_newed( t_TyT * ptr ) -> unique_void_ptr
 template < typename t_TyT, typename... t_TysArgs >
 auto make_unique_void_ptr( t_TysArgs&&... _args ) -> unique_void_ptr
 {
-  return unique_void_newed( new t_TyT( std::forward<t_TysArgs>( _args ... ) ) );
+  return unique_void_newed( new t_TyT( std::forward<t_TysArgs...>( _args ... ) ) );
 }
 
 __BIENUTIL_END_NAMESPACE

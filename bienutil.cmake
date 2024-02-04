@@ -47,6 +47,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 if (NOT APPLE)
   message("Compiling under LINUX")
   set(LINUX TRUE)
+if ( MOD_USE_ICU4C EQUAL 1 )
+if ( MOD_USE_VCPKG EQUAL 1 )
+  message("Using UNICODE ICU Library through VCPKG")
+  find_package( ICU REQUIRED COMPONENTS dt uc )
+endif ( MOD_USE_VCPKG EQUAL 1 )
+endif ( MOD_USE_ICU4C EQUAL 1 )
 else()
   message("Compiling under MacOS")
   endif()
@@ -57,6 +63,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 if (WIN32)
+  message("Compiling under Windows")
   add_compile_definitions( 
       _CRT_SECURE_NO_WARNINGS
   )
@@ -69,33 +76,39 @@ if (WIN32)
   )
 # ICU4C support:
 if ( MOD_USE_ICU4C EQUAL 1 )
-  set(DEVENV_ICU4C_VERSION "70" )
-if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  set(DEVENV_ICU4C_DIRECTORY ${DEVENV_ROOT_DIRECTORY}/icu4c64 )
-  set(DEVENV_ICU4C_BIN_DIRECTORY ${DEVENV_ICU4C_DIRECTORY}/bin64 )
-  include_directories( BEFORE SYSTEM
-    ${DEVENV_ICU4C_DIRECTORY}/include
-  )
-  link_libraries(
-    ${DEVENV_ICU4C_DIRECTORY}/lib64/icuuc.lib
-  )
-else()
-  set(DEVENV_ICU4C_DIRECTORY ${DEVENV_ROOT_DIRECTORY}/icu4c32 )
-  set(DEVENV_ICU4C_BIN_DIRECTORY ${DEVENV_ICU4C_DIRECTORY}/bin )
-  include_directories( BEFORE SYSTEM
-    ${DEVENV_ICU4C_DIRECTORY}/include
-  )
-  link_libraries(
-    ${DEVENV_ICU4C_DIRECTORY}/lib/icuuc.lib
-  )
-endif()
-set(DEVENV_ICU4C_SRC_DLLS icudt${DEVENV_ICU4C_VERSION}.dll icuuc${DEVENV_ICU4C_VERSION}.dll )
-# since we are using ICU4C for these unit tests then copy the appropriate DLL(s) to the output directory:
-foreach( DEVENV_ICU4C_DLL ${DEVENV_ICU4C_SRC_DLLS} )
-message(STATUS "Copying file ${DEVENV_ICU4C_BIN_DIRECTORY}/${DEVENV_ICU4C_DLL} to ${DEVENV_ICU4C_DLL}")
-configure_file( ${DEVENV_ICU4C_BIN_DIRECTORY}/${DEVENV_ICU4C_DLL} ${DEVENV_ICU4C_DLL} COPYONLY )
-endforeach()
-endif()
+if ( MOD_USE_VCPKG EQUAL 1 )
+  message("Using UNICODE ICU Library through VCPKG")
+  find_package( ICU REQUIRED COMPONENTS dt uc )
+else (MOD_USE_VCPKG)
+  message("Using UNICODE ICU Library through DEVENV directory - the old way.")
+  set(DEVENV_ICU4C_VERSION "69" )
+  if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(DEVENV_ICU4C_DIRECTORY ${DEVENV_ROOT_DIRECTORY}/icu4c64 )
+    set(DEVENV_ICU4C_BIN_DIRECTORY ${DEVENV_ICU4C_DIRECTORY}/bin64 )
+    include_directories( BEFORE SYSTEM
+      ${DEVENV_ICU4C_DIRECTORY}/include
+    )
+    link_libraries(
+      ${DEVENV_ICU4C_DIRECTORY}/lib64/icuuc.lib
+    )
+  else(CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(DEVENV_ICU4C_DIRECTORY ${DEVENV_ROOT_DIRECTORY}/icu4c32 )
+    set(DEVENV_ICU4C_BIN_DIRECTORY ${DEVENV_ICU4C_DIRECTORY}/bin )
+    include_directories( BEFORE SYSTEM
+      ${DEVENV_ICU4C_DIRECTORY}/include
+    )
+    link_libraries(
+      ${DEVENV_ICU4C_DIRECTORY}/lib/icuuc.lib
+    )
+  endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(DEVENV_ICU4C_SRC_DLLS icudt${DEVENV_ICU4C_VERSION}.dll icuuc${DEVENV_ICU4C_VERSION}.dll )
+  # since we are using ICU4C for these unit tests then copy the appropriate DLL(s) to the output directory:
+  foreach( DEVENV_ICU4C_DLL ${DEVENV_ICU4C_SRC_DLLS} )
+    message(STATUS "Copying file ${DEVENV_ICU4C_BIN_DIRECTORY}/${DEVENV_ICU4C_DLL} to ${DEVENV_ICU4C_DLL}")
+    configure_file( ${DEVENV_ICU4C_BIN_DIRECTORY}/${DEVENV_ICU4C_DLL} ${DEVENV_ICU4C_DLL} COPYONLY )
+  endforeach()
+endif(MOD_USE_VCPKG EQUAL 1 )
+endif( MOD_USE_ICU4C EQUAL 1 )
 endif (WIN32)
 
 if (APPLE)
@@ -107,14 +120,10 @@ if (APPLE)
   link_directories( 
     BEFORE ${MACOS_LOCAL_OPT}/icu4c/lib
   )
-endif(APPLE)
-
-if (UNIX)
-# Shared between Linux and MacOS.
 link_libraries(
   icuuc
 )
-endif(UNIX)
+endif(APPLE)
 
 if (LINUX)
 # Linux only
