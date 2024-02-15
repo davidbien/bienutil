@@ -361,7 +361,7 @@ namespace n_SysLog
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFmt, ...);
   void Log(ESysLogMessageType _eslmtType, vtyJsoValueSysLog const &_rjvLog, int _errno, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...);
   // Exception logging with catch point:
-  void LogException( exception const & _rexc, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ... );
+  void LogException( std::exception const & _rexc, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ... );
 } // namespace n_SysLog
 
 __BIENUTIL_END_NAMESPACE
