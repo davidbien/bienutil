@@ -87,12 +87,12 @@ public:
 
 #ifndef ACTIONONASSERT
 // By default we do not abort on assert. Abort generates a core dump so if you want to examine the state of things you would want to abort.
-#define ACTIONONASSERT eabiBreak
+#define ACTIONONASSERT __BIENUTIL_USE_NAMESPACE::eabiBreak
 #endif // !ACTIONONASSERT
 
 #ifndef ACTIONONVERIFY
 // By default we do not abort on VERIFY. Abort generates a core dump so if you want to examine the state of things you would want to abort.
-#define ACTIONONVERIFY eabiBreak
+#define ACTIONONVERIFY __BIENUTIL_USE_NAMESPACE::eabiBreak
 #endif // !ACTIONONVERIFY
 
 // This failure mimicks the ANSI standard failure: Print a message (in our case to the syslog and potentially as well to the screen) and then flush the log file and abort() (if _fAbort).
