@@ -234,6 +234,52 @@ size_t MSBitSet( t_tyT _tTest )
 #endif 
 }
 
+template < class t_TyT >
+unsigned int NCountBitsSet( t_TyT _tTest )
+	requires( 8 >= sizeof(t_TyT) )
+{
+#ifdef _MSC_VER
+	if constexpr( 8 == sizeof( t_TyT ) )
+	{
+		return __popcnt64( (unsigned __int64)_tTest );
+	}
+	else if constexpr( 4 == sizeof( t_TyT ) )
+	{
+		return __popcnt( (unsigned int)_tTest );
+	}
+	else if constexpr( 2 == sizeof( t_TyT ) )
+	{
+		return __popcnt16( (unsigned short)_tTest );
+	}
+	else if constexpr( 1 == sizeof( t_TyT ) )
+	{
+		return __popcnt16( (unsigned short)_tTest );
+	}
+#else // clang, gcc
+	if constexpr( 8 == sizeof( t_TyT ) )
+	{
+		return __builtin_popcountll( (unsigned long long)_tTest );
+	}
+	else if constexpr( 4 == sizeof( t_TyT ) )
+	{
+		return __builtin_popcount( (unsigned int)_tTest );
+	}
+	else if constexpr( 2 == sizeof( t_TyT ) )
+	{
+		return __builtin_popcount( (unsigned short)_tTest );
+	}
+	else if constexpr( 1 == sizeof( t_TyT ) )
+	{
+		return __builtin_popcount( (unsigned char)_tTest );
+	}
+	else
+	{
+		// This will fail to compile if the size is not one of the above.
+		static_assert( false );
+	}
+#endif // !_MSC_VER
+}
+
 __BIENUTIL_END_NAMESPACE
 
 #endif //__BITUTIL_H
