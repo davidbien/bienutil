@@ -10,7 +10,7 @@
 // dbien : 30DEC2020
 
 #ifdef WIN32
-#include <windows.h>
+#include <Rpc.h>
 #endif
 #include <assert.h>
 
