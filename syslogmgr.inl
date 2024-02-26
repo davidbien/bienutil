@@ -52,6 +52,40 @@ namespace n_SysLog
     }
     SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
   }
+  inline void Log(ESysLogMessageType _eslmtType, std::string const & _rss, ...)
+  {
+    // We add <type>: to the start of the format string.
+    std::string strFmtAnnotated;
+    PrintfStdStr(strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType(_eslmtType), _rss.c_str());
+
+    va_list ap2;
+    int nRequired;
+    {//B
+      va_list ap;
+      va_start(ap, _rss.c_str());
+      va_copy(ap2, ap);
+      nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
+      va_end(ap);
+      if (nRequired < 0)
+        THROWNAMEDEXCEPTION("vsnprintf() returned nRequired[%d].", nRequired);
+    }//EB
+    std::string strLog;
+    int nRet = NPrintfStdStr(strLog, nRequired, strFmtAnnotated.c_str(), ap2);
+    va_end(ap2);
+    if (nRet < 0)
+      THROWNAMEDEXCEPTION("NPrintfStdStr() returned nRet[%d].", nRet);
+
+    bool fHasLogFile = SysLogMgr::FStaticHasJSONLogFile();
+    _SysLogContext slx;
+    if (fHasLogFile)
+    {
+      slx.m_eslmtType = _eslmtType;
+      slx.m_szFullMesg = strLog;
+      slx.m_time = time(0);
+      slx.m_nmsSinceProgramStart = SysLogMgr::_GetMsSinceProgramStart();
+    }
+    SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
+  }
   inline void Log(ESysLogMessageType _eslmtType, const char *_pcFile, unsigned int _nLine, const char *_pcFmt, ...)
   {
     // We add [type]:_psFile:_nLine: to the start of the format string.
