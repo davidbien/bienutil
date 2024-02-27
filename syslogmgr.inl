@@ -52,17 +52,18 @@ namespace n_SysLog
     }
     SysLogMgr::StaticLog(_eslmtType, std::move(strLog), fHasLogFile ? &slx : 0);
   }
-  inline void Log(ESysLogMessageType _eslmtType, std::string const & _rss, ...)
+  // Must accept a copy of the string to log or we will have a problem with the va_list.
+  inline void Log(ESysLogMessageType _eslmtType, std::string _ss, ...)
   {
     // We add <type>: to the start of the format string.
     std::string strFmtAnnotated;
-    PrintfStdStr(strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType(_eslmtType), _rss.c_str());
+    PrintfStdStr(strFmtAnnotated, "<%s>: %s", SysLogMgr::SzMessageType(_eslmtType), _ss.c_str());
 
     va_list ap2;
     int nRequired;
     {//B
       va_list ap;
-      va_start(ap, _rss.c_str());
+      va_start(ap, _ss );
       va_copy(ap2, ap);
       nRequired = vsnprintf(NULL, 0, strFmtAnnotated.c_str(), ap);
       va_end(ap);
