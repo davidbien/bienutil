@@ -9,6 +9,7 @@
 
 #include <type_traits>
 #include <variant>
+#include <thread>
 #include <stdint.h>
 #include "_booltyp.h"
 
@@ -391,5 +392,54 @@ auto make_unique_void_ptr( t_TysArgs&&... _args ) -> unique_void_ptr
 {
   return unique_void_newed( new t_TyT( std::forward<t_TysArgs...>( _args ... ) ) );
 }
+
+// class ScopedThread:
+// copilot whipped this out for me when I asked about such a thing.
+class ScopedThread 
+{
+public:
+  template < typename... t_TyArgs >
+  ScopedThread(t_TyArgs&&... _args) : t(std::forward<t_TyArgs>(_args)...) {}
+  ScopedThread( ScopedThread&& _rr ) : t( std::move( _rr.t ) ) {}
+  ScopedThread& operator=( ScopedThread&& _rr ) 
+  {
+    if ( t.joinable() )
+      t.join();
+    t = std::move( _rr.t );
+    return *this;
+  }
+
+  ~ScopedThread() {
+    if (t.joinable()) {
+      t.join();
+    }
+  }
+
+  ScopedThread(const ScopedThread&) = delete;
+  ScopedThread& operator=(const ScopedThread&) = delete;
+
+private:
+  std::thread t;
+};
+
+#ifdef WIN32
+static std::string SzGetLastError()
+{
+  DWORD errorMessageID = ::GetLastError();
+  if(errorMessageID == 0)
+      return std::string(); //No error message has been recorded
+
+  LPSTR messageBuffer = nullptr;
+  size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                NULL, errorMessageID, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+
+  std::string message(messageBuffer, size);
+
+  //Free the buffer.
+  LocalFree(messageBuffer);
+
+  return message;
+}
+#endif //WIN32
 
 __BIENUTIL_END_NAMESPACE
