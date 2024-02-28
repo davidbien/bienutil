@@ -395,6 +395,7 @@ auto make_unique_void_ptr( t_TysArgs&&... _args ) -> unique_void_ptr
 
 // class ScopedThread:
 // copilot whipped this out for me when I asked about such a thing.
+// Turns out boost has one that is more malleable but this works for std::thread.
 class ScopedThread 
 {
 public:
@@ -417,6 +418,8 @@ public:
 
   ScopedThread(const ScopedThread&) = delete;
   ScopedThread& operator=(const ScopedThread&) = delete;
+
+  auto native_handle() { return t.native_handle(); }
 
   void reset() 
   {
