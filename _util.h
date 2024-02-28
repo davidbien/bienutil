@@ -418,6 +418,14 @@ public:
   ScopedThread(const ScopedThread&) = delete;
   ScopedThread& operator=(const ScopedThread&) = delete;
 
+  void reset() 
+  {
+    if (t.joinable()) 
+    {
+      t.join();
+    }
+    t = std::thread(); // Reset the thread to a default-constructed state
+  }
 private:
   std::thread t;
 };
