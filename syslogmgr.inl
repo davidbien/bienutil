@@ -604,7 +604,7 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   const char *pszProgNameNoPath = strrchr(_pszProgramName, TChGetFileSeparator<char>() );
   if (!!pszProgNameNoPath)
   {
-    _pszProgramName = pszProgNameNoPath + 1;
+    pszProgNameNoPath = pszProgNameNoPath + 1;
   }
   // Now get the executable path:
   std::string strExePath;
@@ -617,13 +617,17 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   Assert(TChGetFileSeparator<char>() == strExePath[strExePath.length() - 1]);
   _SysLogThreadHeader slth;
   slth.m_szProgramName = strExePath;
-  slth.m_szProgramName += _pszProgramName; // Put full path to EXE here for disambiguation when working with multiple versions.
+  slth.m_szProgramName += pszProgNameNoPath; // Put full path to EXE here for disambiguation when working with multiple versions.
   slth.m_timeStart = time(0);
   slth.m_nmsSinceProgramStart = _GetMsSinceProgramStart();
   UUIDCreate(slth.m_uuid);
   slth.m_tidThreadId = s_tls_tidThreadId;
 
-  std::string strLogFile = slth.m_szProgramName;
+  std::string strLogFile;
+  if (_pszProgramName[0] == '/' || (_pszProgramName[1] == ':' && _pszProgramName[2] == '\\'))
+    strLogFile = _pszProgramName; // if FQPN then use directly.
+  else
+    strLogFile = slth.m_szProgramName;
   vtyUUIDString uusUuid;
   UUIDToString(slth.m_uuid, uusUuid, sizeof uusUuid);
   strLogFile += ".";

@@ -26,6 +26,22 @@ public:
     m_StatusHandle = NULL;
   }
 
+  bool RegisterServiceCtrlHandler( LPCSTR _kServiceName, LPHANDLER_FUNCTION _kHandlerFunction, bool _fSetStartingStatus = true )
+  {
+    m_StatusHandle = ::RegisterServiceCtrlHandler( _kServiceName, _kHandlerFunction );
+    if ( m_StatusHandle == NULL )
+    {
+      return false;
+    }
+
+    if ( _fSetStartingStatus )
+    {
+      return !!SetStatus( SERVICE_START_PENDING );
+    }
+
+    return true;
+  }
+
   DWORD GetStatus()
   {
     std::shared_lock<std::shared_mutex> lock(m_mutex); // Read lock
@@ -68,11 +84,13 @@ public:
     m_ServiceStatus.dwWin32ExitCode = _kWin32ExitCode;
     m_ServiceStatus.dwWaitHint = _kWaitHint;
 
-    if (_kCurrentState == SERVICE_START_PENDING)
+    if ( ( SERVICE_START_PENDING == _kCurrentState ) || ( SERVICE_CONTINUE_PENDING == _kCurrentState ) )
       m_ServiceStatus.dwControlsAccepted = 0;
     else
     {
-      m_ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP;
+      m_ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+      if ( ( SERVICE_RUNNING == _kCurrentState ) || ( SERVICE_PAUSED == _kCurrentState ) )
+        m_ServiceStatus.dwControlsAccepted |= SERVICE_ACCEPT_PAUSE_CONTINUE;
     }
 
     if ((_kCurrentState == SERVICE_RUNNING) || (_kCurrentState == SERVICE_STOPPED))
