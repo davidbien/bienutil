@@ -1126,6 +1126,51 @@ inline void ConvertFileMapped( vtyFileHandle _hFileSrc, EFileCharacterEncoding _
   // listo.
 }
 
+inline std::string StrUnescapeStr( const char* _psz, size_t _nLen )
+{
+  std::string result;
+  result.reserve(_nLen);
+  for (size_t i = 0; i < _nLen; ++i)
+  {
+    if (_psz[i] == '\\' && i + 1 < _nLen)
+    {
+      switch (_psz[++i])
+      {
+      case 'n': result.push_back('\n'); break; // newline
+      case 't': result.push_back('\t'); break; // horizontal tab
+      case 'r': result.push_back('\r'); break; // carriage return
+      case '\\': result.push_back('\\'); break; // backslash
+      case '"': result.push_back('\"'); break; // double quote
+      case '\'': result.push_back('\''); break; // single quote
+      case 'b': result.push_back('\b'); break; // backspace
+      case 'f': result.push_back('\f'); break; // form feed
+      case 'v': result.push_back('\v'); break; // vertical tab
+      case '0': result.push_back('\0'); break; // null character
+      // Add more cases here for other escape sequences you want to handle...
+      default: result.push_back(_psz[i]); break; // If it's not an escape sequence we recognize, just add it as is.
+      }
+    }
+    else
+    {
+      result.push_back(_psz[i]);
+    }
+  }
+  return result;
+}
+inline std::string StrUnescapeStr( std::string const & _str )
+{
+  return StrUnescapeStr( &_str.at(0), _str.length() );
+}
+
+// Process a JSON target being received by boost beast:
+inline std::string StrProcessJsonTarget( std::string const & _strTarget )
+{
+  size_t nLen = _strTarget.length();
+  size_t nStart = ( '\"' == _strTarget[0] ) ? 1 : 0;
+  nLen -= nStart + ( ( '\"' == _strTarget.back() ) ? 1 : 0 );
+  return StrUnescapeStr( &_strTarget.at( nStart ), nLen );
+}
+
 __BIENUTIL_END_NAMESPACE
 
 #if defined( __linux__ ) || defined( __APPLE__ )
