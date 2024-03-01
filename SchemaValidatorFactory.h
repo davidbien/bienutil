@@ -25,7 +25,7 @@ public:
   {
   }
   // We are creating this to be a standalone validator object - no reference to this object.
-  nlohmann::json_schema::json_validator CreateValidator() 
+  nlohmann::json_schema::json_validator CreateValidator() const
   {
     auto pathSchemaRoot = m_pathSchemaRoot; // Copy the shared_ptr
     return nlohmann::json_schema::json_validator( [ pathSchemaRoot ]( const nlohmann::json_uri& _uri, nlohmann::json& _value )
@@ -37,6 +37,10 @@ public:
       VerifyThrowSz( schemaFile.is_open(), "Could not open schema file:%ls", _uri.path().c_str() );
       schemaFile >> _value;
     } );
+  }
+  std::shared_ptr< nlohmann::json_schema::json_validator > CreateSharedValidator() const
+  {
+    return std::make_shared< nlohmann::json_schema::json_validator >( CreateValidator() );
   }
 };
 
