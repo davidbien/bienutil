@@ -209,3 +209,70 @@ function(fetch_googletest version)
   include_directories("${gtest_SOURCE_DIR}/include")
   message("Google Test version: ${version}")
 endfunction()
+
+# create a target to copy a directory and a set of wildcard files to the output directory:
+function(copy_directory_to_build DIRNAME WILDCARD)
+  # Get all files in the source directory
+  file(GLOB SRC_FILES "${DIRNAME}/${WILDCARD}")
+
+  # Create a custom target that depends on the copied files
+  add_custom_target(make-build-${DIRNAME}-dir ALL)
+
+  # Create the directory in the output directory
+  add_custom_command(
+    TARGET make-build-${DIRNAME}-dir
+    PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${DIRNAME}"
+    COMMENT "Creating ${DIRNAME} directory in the output directory"
+  )
+
+  # For each file, create a custom command and a custom target that copies the file to the output directory
+  foreach(FILE ${SRC_FILES})
+    get_filename_component(FILENAME ${FILE} NAME)
+    set(OUTPUT "${CMAKE_BINARY_DIR}/${DIRNAME}/${FILENAME}")
+
+    add_custom_command(
+      OUTPUT "${OUTPUT}"
+      COMMAND ${CMAKE_COMMAND} -E copy "${FILE}" "${OUTPUT}"
+      DEPENDS "${FILE}"
+      COMMENT "Copying ${FILE} to output directory"
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+
+    add_custom_target(copy_${DIRNAME}_${FILENAME} ALL DEPENDS "${OUTPUT}")
+    add_dependencies(make-build-${DIRNAME}-dir copy_${DIRNAME}_${FILENAME})
+  endforeach()
+endfunction()
+
+function(copy_files_to_build FILES_TO_COPY)
+  # Create a custom target that depends on the copied files
+  add_custom_target(copy_files ALL)
+
+  # For each file, create a custom command and a custom target that copies the file to the output directory
+  foreach(FILE ${FILES_TO_COPY})
+    get_filename_component(FILENAME ${FILE} NAME)
+    get_filename_component(DIRNAME ${FILE} DIRECTORY)
+    set(OUTPUT "${CMAKE_BINARY_DIR}/${DIRNAME}")
+
+    # Create the directory in the output directory only if DIRNAME is not empty
+    if(NOT "${DIRNAME}" STREQUAL "")
+      add_custom_command(
+        TARGET copy_files
+        PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT}"
+        COMMENT "Creating ${OUTPUT} directory in the output directory"
+      )
+    endif()
+
+    # Copy the file to the output directory
+    add_custom_command(
+      OUTPUT "${OUTPUT}/${FILENAME}"
+      COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/${FILE}" "${OUTPUT}/${FILENAME}"
+      DEPENDS "${CMAKE_SOURCE_DIR}/${FILE}"
+      COMMENT "Copying ${FILE} to output directory"
+    )
+
+    add_custom_target(copy_${FILENAME} ALL DEPENDS "${OUTPUT}/${FILENAME}")
+    add_dependencies(copy_files copy_${FILENAME})
+  endforeach()
+endfunction()
