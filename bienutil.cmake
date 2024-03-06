@@ -210,17 +210,24 @@ function(fetch_googletest version)
   message("Google Test version: ${version}")
 endfunction()
 
+# For these copy targets we need to make sure we don't create the same target multiple times.
+# So make a global counter that we can use to make sure we don't create the same target multiple times by
+#  appending the counter to the target name.
+set(MOD_COPY_COUNTER_TARGET_VAL 0 CACHE INTERNAL "Number of times the copy methods have been called")
+
 # create a target to copy a directory and a set of wildcard files to the output directory:
 function(copy_directory_to_build DIRNAME WILDCARD)
-  # Get all files in the source directory
+  math(EXPR NEW_VAL "${MOD_COPY_COUNTER_TARGET_VAL}+1")
+  set(MOD_COPY_COUNTER_TARGET_VAL ${NEW_VAL} PARENT_SCOPE)
+# Get all files in the source directory
   file(GLOB SRC_FILES "${DIRNAME}/${WILDCARD}")
 
   # Create a custom target that depends on the copied files
-  add_custom_target(make-build-${DIRNAME}-dir ALL)
+  add_custom_target(make-build-${DIRNAME}-dir-${MOD_COPY_COUNTER_TARGET_VAL} ALL)
 
   # Create the directory in the output directory
   add_custom_command(
-    TARGET make-build-${DIRNAME}-dir
+    TARGET make-build-${DIRNAME}-dir-${MOD_COPY_COUNTER_TARGET_VAL}
     PRE_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${DIRNAME}"
     COMMENT "Creating ${DIRNAME} directory in the output directory"
@@ -239,14 +246,16 @@ function(copy_directory_to_build DIRNAME WILDCARD)
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
 
-    add_custom_target(copy_${DIRNAME}_${FILENAME} ALL DEPENDS "${OUTPUT}")
-    add_dependencies(make-build-${DIRNAME}-dir copy_${DIRNAME}_${FILENAME})
+    add_custom_target(copy_${DIRNAME}_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL} ALL DEPENDS "${OUTPUT}")
+    add_dependencies(make-build-${DIRNAME}-dir-${MOD_COPY_COUNTER_TARGET_VAL} copy_${DIRNAME}_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL})
   endforeach()
 endfunction()
 
 function(copy_files_to_build FILES_TO_COPY)
-  # Create a custom target that depends on the copied files
-  add_custom_target(copy_files ALL)
+  math(EXPR NEW_VAL "${MOD_COPY_COUNTER_TARGET_VAL}+1")
+  set(MOD_COPY_COUNTER_TARGET_VAL ${NEW_VAL} PARENT_SCOPE)
+# Create a custom target that depends on the copied files
+  add_custom_target(copy_files_build-${MOD_COPY_COUNTER_TARGET_VAL} ALL)
 
   # For each file, create a custom command and a custom target that copies the file to the output directory
   foreach(FILE ${FILES_TO_COPY})
@@ -257,7 +266,7 @@ function(copy_files_to_build FILES_TO_COPY)
     # Create the directory in the output directory only if DIRNAME is not empty
     if(NOT "${DIRNAME}" STREQUAL "")
       add_custom_command(
-        TARGET copy_files
+        TARGET copy_files_build-${MOD_COPY_COUNTER_TARGET_VAL}
         PRE_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT}"
         COMMENT "Creating ${OUTPUT} directory in the output directory"
@@ -272,7 +281,37 @@ function(copy_files_to_build FILES_TO_COPY)
       COMMENT "Copying ${FILE} to output directory"
     )
 
-    add_custom_target(copy_${FILENAME} ALL DEPENDS "${OUTPUT}/${FILENAME}")
-    add_dependencies(copy_files copy_${FILENAME})
+    add_custom_target(copy_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL} ALL DEPENDS "${OUTPUT}/${FILENAME}")
+    add_dependencies(copy_files_build-${MOD_COPY_COUNTER_TARGET_VAL} copy_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL})
+  endforeach()
+endfunction()
+
+function(copy_files_to_source_dir FILES_TO_COPY DEST_DIR)
+  math(EXPR NEW_VAL "${MOD_COPY_COUNTER_TARGET_VAL}+1")
+  set(MOD_COPY_COUNTER_TARGET_VAL ${NEW_VAL} PARENT_SCOPE)
+  # Replace directory separators in DEST_DIR with underscores
+  string(REPLACE "/" "_" DEST_DIR_SAFE ${DEST_DIR})
+
+  # Create a custom target that depends on the copied files
+  add_custom_target(copy_files-dir-${MOD_COPY_COUNTER_TARGET_VAL} ALL)
+
+  # For each file, create a custom command and a custom target that copies the file to the destination directory
+  foreach(FILE ${FILES_TO_COPY})
+    get_filename_component(FILENAME ${FILE} NAME)
+
+    # Create a safe version of the full file path
+    string(REPLACE "/" "_" FILE_SAFE ${FILE})
+
+    # Copy the file to the destination directory
+    add_custom_command(
+      OUTPUT "${CMAKE_SOURCE_DIR}/${DEST_DIR}/${FILENAME}"
+      COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/${FILE}" "${CMAKE_SOURCE_DIR}/${DEST_DIR}/${FILENAME}"
+      DEPENDS "${CMAKE_SOURCE_DIR}/${FILE}"
+      COMMENT "Copying ${FILE} to destination directory"
+    )
+
+    # Include FILE_SAFE and MOD_COPY_COUNTER_TARGET_VAL in the custom target name
+    add_custom_target(copy_${FILE_SAFE}-${MOD_COPY_COUNTER_TARGET_VAL} ALL DEPENDS "${CMAKE_SOURCE_DIR}/${DEST_DIR}/${FILENAME}")
+    add_dependencies(copy_files-dir-${MOD_COPY_COUNTER_TARGET_VAL} copy_${FILE_SAFE}-${MOD_COPY_COUNTER_TARGET_VAL})
   endforeach()
 endfunction()
