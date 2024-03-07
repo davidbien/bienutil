@@ -16,6 +16,7 @@
 #include <unistd.h>
 #endif //!WIN32
 #include <string>
+#include <cstring>
 #include <string_view>
 #include <compare>
 #include <utility>
@@ -1169,6 +1170,27 @@ inline std::string StrProcessJsonTarget( std::string const & _strTarget )
   size_t nStart = ( '\"' == _strTarget[0] ) ? 1 : 0;
   nLen -= nStart + ( ( '\"' == _strTarget.back() ) ? 1 : 0 );
   return StrUnescapeStr( &_strTarget.at( nStart ), nLen );
+}
+
+inline std::string StrPercentDecode( const char * _psz )
+{
+  std::size_t len = std::strlen( _psz );
+  std::string result;
+  result.reserve( len ); // Reserve space in the result string
+  for ( std::size_t i = 0; i < len; ++i )
+  {
+    if ( _psz[ i ] == '%' && i + 2 < len )
+    {
+      int value = std::stoi( std::string( _psz + i + 1, 2 ), nullptr, 16 );
+      result += static_cast< char >( value );
+      i += 2;
+    }
+    else
+    {
+      result += _psz[ i ];
+    }
+  }
+  return result;
 }
 
 __BIENUTIL_END_NAMESPACE
