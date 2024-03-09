@@ -32,7 +32,9 @@ public:
     {
       VerifyThrowSz( _uri.scheme().empty() || ( _uri.scheme() == "file" ), "Only supporting file referenced schemas." );
       // We want the path from the pathSchemaRoot and we will find the uri relative to that.
-      std::filesystem::path pathUri = *pathSchemaRoot / _uri.path();
+      std::string strPath = _uri.path();
+      size_t stAt = ( strPath[0] == '/' ) ? 1 : 0;
+      std::filesystem::path pathUri = *pathSchemaRoot / &strPath.at( stAt );
       std::ifstream schemaFile( pathUri.c_str() );
       VerifyThrowSz( schemaFile.is_open(), "Could not open schema file:%ls", _uri.path().c_str() );
       schemaFile >> _value;
