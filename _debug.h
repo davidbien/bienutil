@@ -9,6 +9,9 @@
 
 // This file defines debugging stuff.
 
+// Sometimes you want to run the server (for instance) in a debugger and not debug break due to assertions.
+//#define DEBUG_NEVERDEBUGBREAK
+
 #ifdef NDEBUG
 #define __DEBUG_STMT( s )
 #else //NDEBUG
@@ -33,6 +36,9 @@
 #define __DEBUG_COMMA_2( s1, s2 ) s1##,##s2
 #endif //NDEBUG
 
+#ifdef DEBUG_NEVERDEBUGBREAK
+#define DEBUG_BREAK
+#else //DEBUG_NEVERDEBUGBREAK
 #ifdef _MSC_VER
 #define DEBUG_BREAK __debugbreak()
 #elif defined( __clang__ )
@@ -50,5 +56,6 @@
 #else
 #error Need to know the OS/compiler for breaking into the debugger.
 #endif
+#endif //DEBUG_NEVERDEBUGBREAK
 
 
