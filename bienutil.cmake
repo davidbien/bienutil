@@ -295,29 +295,32 @@ function(copy_files_to_build_dir FILES_TO_COPY DEST_DIR)
   # Create a custom target that depends on the copied files
   add_custom_target(copy_files_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL} ALL)
 
-  # For each file, create a custom command and a custom target that copies the file to the output directory
-  foreach(FILE ${FILES_TO_COPY})
-    get_filename_component(FILENAME ${FILE} NAME)
-    set(OUTPUT "${CMAKE_BINARY_DIR}/${DEST_DIR}")
+  # For each file pattern, create a custom command and a custom target that copies the file to the output directory
+  foreach(FILE_PATTERN ${FILES_TO_COPY})
+    file(GLOB MATCHING_FILES RELATIVE "${CMAKE_SOURCE_DIR}" "${FILE_PATTERN}")
+    foreach(FILE ${MATCHING_FILES})
+      get_filename_component(FILENAME ${FILE} NAME)
+      set(OUTPUT "${CMAKE_BINARY_DIR}/${DEST_DIR}")
 
-    # Create the directory in the output directory
-    add_custom_command(
-      TARGET copy_files_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL}
-      PRE_BUILD
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT}"
-      COMMENT "Creating ${OUTPUT} directory in ${CMAKE_BINARY_DIR}"
-    )
+      # Create the directory in the output directory
+      add_custom_command(
+        TARGET copy_files_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL}
+        PRE_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT}"
+        COMMENT "Creating ${OUTPUT} directory in ${CMAKE_BINARY_DIR}"
+      )
 
-    # Copy the file to the output directory
-    add_custom_command(
-      OUTPUT "${OUTPUT}/${FILENAME}"
-      COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/${FILE}" "${OUTPUT}/${FILENAME}"
-      DEPENDS "${CMAKE_SOURCE_DIR}/${FILE}"
-      COMMENT "Copying ${FILE} to ${OUTPUT}"
-    )
+      # Copy the file to the output directory
+      add_custom_command(
+        OUTPUT "${OUTPUT}/${FILENAME}"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/${FILE}" "${OUTPUT}/${FILENAME}"
+        DEPENDS "${CMAKE_SOURCE_DIR}/${FILE}"
+        COMMENT "Copying ${FILE} to ${OUTPUT}"
+      )
 
-    add_custom_target(copy_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL} ALL DEPENDS "${OUTPUT}/${FILENAME}")
-    add_dependencies(copy_files_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL} copy_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL})
+      add_custom_target(copy_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL} ALL DEPENDS "${OUTPUT}/${FILENAME}")
+      add_dependencies(copy_files_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL} copy_${FILENAME}-${MOD_COPY_COUNTER_TARGET_VAL})
+    endforeach()
   endforeach()
 endfunction()
 
