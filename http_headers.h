@@ -90,7 +90,7 @@ public:
       auto line = sv.substr( 0, endOfLinePos );
       if ( line.find_first_not_of( " \t" ) == std::string_view::npos )
       {
-        startOfData = endOfLinePos != std::string_view::npos ? endOfLinePos + ( isWindowsEOL ? 2 : 1 ) : sv.size();
+        startOfData += endOfLinePos != std::string_view::npos ? endOfLinePos + ( isWindowsEOL ? 2 : 1 ) : sv.size();
         break;
       }
 
@@ -106,7 +106,7 @@ public:
         value = value.substr( value.find_first_not_of( " \t" ) );
         value = value.substr( 0, value.find_last_not_of( " \t" ) + 1 );
 
-        CHttpHeader header( std::string( name ), std::string( value ) );
+        CHttpHeader header{ std::string( name ), std::string( value ) };
 
         while ( semicolonPos != std::string::npos )
         {
@@ -129,15 +129,16 @@ public:
               attrValue = attrValue.substr( 1, attrValue.size() - 2 );
             }
 
-            CHttpHeaderAttr attr( std::string( attrName ), std::string( attrValue ) );
-            header.AddAttribute( attr );
+            CHttpHeaderAttr attr{ std::string( attrName ), std::string( attrValue ) };
+            header.AddAttribute( std::move( attr ) );
           }
         }
 
         AddHeader( std::move( header ) );
       }
 
-      sv.remove_prefix( endOfLinePos != std::string_view::npos ? endOfLinePos + ( isWindowsEOL ? 2 : 1 ) : sv.size() );
+      startOfData += endOfLinePos != std::string_view::npos ? endOfLinePos + ( isWindowsEOL ? 2 : 1 ) : sv.size();
+      sv.remove_prefix( startOfData );
     }
 
     return startOfData;
