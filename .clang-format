@@ -1,0 +1,18 @@
+BasedOnStyle: LLVM
+ConstructorInitializerIndentWidth: 2
+BreakConstructorInitializers: BeforeComma
+SpacesInParentheses: true
+SpacesInSquareBrackets: true
+SpacesInAngles: true
+BreakBeforeBraces: Allman
+ColumnLimit: 160
+AllowShortFunctionsOnASingleLine : All
+AllowShortLambdasOnASingleLine : All
+AllowShortBlocksOnASingleLine : Always
+PointerAlignment: Middle
+ReferenceAlignment: Middle
+SpaceAfterTemplateKeyword: true
+TabWidth: 2
+SortIncludes: false
+AlwaysBreakAfterReturnType: TopLevel
+AlwaysBreakTemplateDeclarations: MultiLine

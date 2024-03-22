@@ -112,6 +112,7 @@ public:
         {
           line = line.substr( semicolonPos + 1 );
           semicolonPos = line.find( ';' );
+          size_t posEndValue = semicolonPos != std::string::npos ? semicolonPos : line.size();
 
           auto equalsPos = line.find( '=' );
           if ( equalsPos != std::string::npos )
@@ -119,7 +120,7 @@ public:
             std::string_view attrName = line.substr( 0, equalsPos );
             attrName = attrName.substr( attrName.find_first_not_of( " \t" ) );
             attrName = attrName.substr( 0, attrName.find_last_not_of( " \t" ) + 1 );
-            std::string_view attrValue = line.substr( equalsPos + 1 );
+            std::string_view attrValue = line.substr( equalsPos + 1, posEndValue - ( equalsPos + 1 ) );
             attrValue = attrValue.substr( attrValue.find_first_not_of( " \t" ) );
             attrValue = attrValue.substr( 0, attrValue.find_last_not_of( " \t" ) + 1 );
 
@@ -137,8 +138,10 @@ public:
         AddHeader( std::move( header ) );
       }
 
-      startOfData += endOfLinePos != std::string_view::npos ? endOfLinePos + ( isWindowsEOL ? 2 : 1 ) : sv.size();
-      sv.remove_prefix( startOfData );
+      if ( endOfLinePos != std::string_view::npos )
+        endOfLinePos += isWindowsEOL ? 2 : 1;
+      startOfData += endOfLinePos != std::string_view::npos ? endOfLinePos : sv.size();
+      sv.remove_prefix( endOfLinePos );
     }
 
     return startOfData;
