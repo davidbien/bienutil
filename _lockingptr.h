@@ -15,6 +15,8 @@ template < typename t_Ty, typename t_TyMutex, typename t_TyLockClass > class Loc
   typedef LockingPtr _TyThis;
 public:
   typedef t_Ty _Ty;
+  typedef t_TyMutex _TyMutex;
+  typedef t_TyLockClass _TyLockClass;
 
   LockingPtr() = delete;
   LockingPtr( const LockingPtr & ) = delete;
