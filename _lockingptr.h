@@ -41,6 +41,9 @@ public:
   t_Ty & operator*() const { return *m_p; }
   t_Ty * operator->() const { return m_p; }
 
+  _TyLockClass & GetLock() { return m_lock; }
+  _TyLockClass const & GetLock() const { return m_lock; }
+
 private:
   t_Ty * m_p;
   t_TyLockClass m_lock;
@@ -61,9 +64,9 @@ public:
   LockingPtr & operator=( const LockingPtr & ) = delete;
 
   // We take a locking ptr to upgrade since we need to get the object pointer from it.
-  LockingPtr( _TyUpgradeLockingPtr const & _krlkUpgrade )
+  LockingPtr( _TyUpgradeLockingPtr & _krlkUpgrade )
     : m_p( const_cast< t_Ty * >( &*_krlkUpgrade ) )
-    , m_lock( _krlkUpgrade )
+    , m_lock( _krlkUpgrade.GetLock() )
   {
   }
   ~LockingPtr() 
@@ -76,9 +79,12 @@ public:
   t_Ty & operator*() const { return *m_p; }
   t_Ty * operator->() const { return m_p; }
 
+  _TyLockClass & GetLock() { return m_lock; }
+  _TyLockClass const & GetLock() const { return m_lock; }
+
 private:
   t_Ty * m_p;
-  t_TyLockClass m_lock;
+  _TyLockClass m_lock;
 };
 
 
