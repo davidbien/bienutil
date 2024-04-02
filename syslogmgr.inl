@@ -412,6 +412,7 @@ void _SysLogThreadHeader::ToJSONStream(JsonValueLife<t_tyJsonOutputStream> &_jvl
     _jvl.WriteTimeStringValue("TimeStarted", m_timeStart);
     _jvl.WriteValue("msSinceProgramStart", m_nmsSinceProgramStart);
     _jvl.WriteValue("ThreadId", m_tidThreadId);
+    _jvl.WriteValue("IsMainThread", m_fIsMainThread);
   }
   else
     THROWNAMEDEXCEPTION("Not at an object.");
@@ -462,11 +463,22 @@ void _SysLogThreadHeader::FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_j
             }
             continue;
           }
+          else
           if (ejvtNumber == jvtValue)
           {
             if (strKey == "ThreadId")
             {
               _jrc.GetValue(m_tidThreadId);
+              continue;
+            }
+            continue;
+          }
+          else
+          if ( (ejvtTrue == jvtValue) || (ejvtFalse == jvtValue) )
+          {
+            if (strKey == "IsMainThread")
+            {
+              m_fIsMainThread = (ejvtTrue == jvtValue);
               continue;
             }
             continue;
@@ -598,7 +610,7 @@ _SysLogMgr<t_kiInstance>::~_SysLogMgr()
 }
 
 template <const int t_kiInstance>
-bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProgramName, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson)
+bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile( const char *_pszProgramName, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson, bool _fIsMainThread )
 {
   // Move _pszProgramName past any directory:
   const char *pszProgNameNoPath = strrchr(_pszProgramName, TChGetFileSeparator<char>() );
@@ -622,6 +634,7 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile(const char *_pszProg
   slth.m_nmsSinceProgramStart = _GetMsSinceProgramStart();
   UUIDCreate(slth.m_uuid);
   slth.m_tidThreadId = s_tls_tidThreadId;
+  slth.m_fIsMainThread = _fIsMainThread;
 
   std::string strLogFile;
   if (_pszProgramName[0] == '/' || (_pszProgramName[1] == ':' && _pszProgramName[2] == '\\'))

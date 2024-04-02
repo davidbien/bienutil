@@ -88,7 +88,10 @@ namespace n_SysLog
     _tyTimePoint m_tpProgramStart;
   };
   typedef JsoValue<char> vtyJsoValueSysLog;
-  void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog *_pjvThreadSpecificJson = 0);
+  // If <_fIsMainThread> is true, then we are the main thread - before having created other threads - this allows us to set some
+  //  globals that will inform the creation of logging objects on other threads.
+  void
+  InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog * _pjvThreadSpecificJson = nullptr, bool _fIsMainThread = true );
   // Used for when we are about to abort(), etc. We can only quickly and easily close the current thread's syslog file if there is one.
   void CloseThreadSysLog() noexcept(true);
   bool FSetInAssertOrVerify( bool _fInAssertOrVerify );
@@ -122,6 +125,7 @@ struct _SysLogThreadHeader
 #else
   uuid_t m_uuid{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 #endif
+  bool m_fIsMainThread = false;
 
   _SysLogThreadHeader() = default;
 
@@ -132,6 +136,7 @@ struct _SysLogThreadHeader
     m_szProgramName.clear();
     m_tidThreadId = 0;
     m_timeStart = 0;
+    m_fIsMainThread = false;
   }
 
   template <class t_tyJsonOutputStream>
@@ -187,12 +192,12 @@ protected: // These methods aren't for general consumption. Use the s_SysLog nam
   void Log(ESysLogMessageType _eslmt, std::string &&_rrStrLog, const _SysLogContext *_pslc);
 
   bool FHasJSONLogFile() const;
-  bool FCreateUniqueJSONLogFile(const char *_pszProgramName, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson)
+  bool FCreateUniqueJSONLogFile( const char * _pszProgramName, const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson, bool _fIsMainThread )
   {
     // Don't fail running the program if we cannot create the log file.
     try
     {
-      return _FTryCreateUniqueJSONLogFile(_pszProgramName, _pjvThreadSpecificJson);
+      return _FTryCreateUniqueJSONLogFile( _pszProgramName, _pjvThreadSpecificJson, _fIsMainThread );
     }
     catch (std::exception const &exc)
     {
@@ -203,38 +208,58 @@ protected: // These methods aren't for general consumption. Use the s_SysLog nam
       return false;
     }
   }
-  bool _FTryCreateUniqueJSONLogFile(const char *_pszProgramName, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson);
+  bool _FTryCreateUniqueJSONLogFile( const char * _pszProgramName, const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson, bool _fIsMainThread );
 
   // Static method. Generally not to be called directly - use the n_SysLog methods.
-  static _SysLogMgr &RGetThreadSysLogMgr()
+  static _SysLogMgr & RGetThreadSysLogMgr( const char * _pszProgramName, int _grfOption, int _grfFacility,
+                                           const n_SysLog::vtyJsoValueSysLog * _pjvThreadSpecificJson, bool _fIsMainThread )
   {
     // If we haven't created the SysLogMgr() on this thread then do so now.
-    if (!s_tls_pThis)
+    if ( !s_tls_pThis )
     {
-      (void)ThreadGetId(s_tls_tidThreadId);
-      s_tls_upThis = std::make_unique<_SysLogMgr>(s_pslmOverlord); // This ensures we destroy this before the app goes away.
-      s_tls_pThis = &*s_tls_upThis;                                // Get the non-object pointer because thread_local objects are function calls to obtain pointer.
+      (void)ThreadGetId( s_tls_tidThreadId );
+      s_tls_upThis = std::make_unique< _SysLogMgr >( s_pslmOverlord ); // This ensures we destroy this before the app goes away.
+      s_tls_pThis = &*s_tls_upThis; // Get the non-object pointer because thread_local objects are function calls to obtain pointer.
+      s_tls_upThis->_SetOptionFacility( _grfOption, _grfFacility );
+      if ( s_fGenerateUniqueJSONLogFile )
+      {
+        if ( !s_tls_upThis->FCreateUniqueJSONLogFile( _pszProgramName, _pjvThreadSpecificJson, _fIsMainThread ) )
+        {
+          fprintf( stderr, "InitSysLog(): FCreateUniqueJSONLogFile() failed, _fIsMainThread[%d].\n", int( _fIsMainThread ) );
+          // continue on bravely...
+        }
+      }
     }
     return *s_tls_pThis;
   }
+  // This is for non-main threads. It will create a log manager consistent with the main thread's configuration.
+  static _SysLogMgr &RGetThreadSysLogMgr()
+  {
+    return RGetThreadSysLogMgr( s_strProgramName.c_str(), s_grfOption, s_grfFacility, nullptr, false );
+  }
 
 public:
-  static void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson)
+  // This allows a thread to call InitSysLog() with specific values, or to allow lazy creation of a thread sys log mgr upon first logging (preferred approach)
+  static void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const n_SysLog::vtyJsoValueSysLog *_pjvThreadSpecificJson, bool _fIsMainThread)
   {
 #ifndef WIN32 // For windows we just don't do anything at all.
     openlog(_pszProgramName, _grfOption, _grfFacility);
 #endif //!WIN32
-    assert(!_pjvThreadSpecificJson || s_fGenerateUniqueJSONLogFile);
-    if (s_fGenerateUniqueJSONLogFile)
+    if ( _fIsMainThread )
     {
-      _SysLogMgr &rslm = _SysLogMgr::RGetThreadSysLogMgr();
-      rslm._SetOptionFacility( _grfOption, _grfFacility );
-      if (!rslm.FCreateUniqueJSONLogFile(_pszProgramName, _pjvThreadSpecificJson))
-      {
-        fprintf(stderr, "InitSysLog(): FCreateUniqueJSONLogFile() failed.\n");
-        // continue on bravely...
-      }
+      // Set up values that will be used by automatically created SysLogMgr objects in other threads.
+      if ( !_pszProgramName )
+        throw std::invalid_argument( "pszProgramName must be non-NULL" ); 
+      s_strProgramName = _pszProgramName;
+      s_grfOption = _grfOption;
+      s_grfFacility = _grfFacility;
     }
+    else
+    if ( !_pszProgramName )
+      _pszProgramName = s_strProgramName.c_str();
+    
+    assert(!_pjvThreadSpecificJson || s_fGenerateUniqueJSONLogFile);
+    _SysLogMgr &rslm = _SysLogMgr::RGetThreadSysLogMgr( _pszProgramName, _grfOption, _grfFacility, _pjvThreadSpecificJson, _fIsMainThread );
   }
   static void CloseThreadSysLogFile() noexcept(true)
   {
@@ -314,6 +339,9 @@ protected:
   static bool s_fCallSysLogEachThread;
   static bool s_fGenerateUniqueJSONLogFile; // Generate a unique log file in the same directory as the executable and then log that log filename to the syslog.
   static n_SysLog::GetProgramStart s_psProgramStart;
+  inline static std::string s_strProgramName;
+  inline static int s_grfOption = 0;
+  inline static int s_grfFacility = 0;
 };
 
 template <const int t_kiInstance>
@@ -337,9 +365,9 @@ n_SysLog::GetProgramStart _SysLogMgr<t_kiInstance>::s_psProgramStart;
 namespace n_SysLog
 {
   using SysLogMgr = _SysLogMgr<0>;
-  inline void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog *_pjvThreadSpecificJson)
+  inline void InitSysLog(const char *_pszProgramName, int _grfOption, int _grfFacility, const vtyJsoValueSysLog *_pjvThreadSpecificJson, bool _fIsMainThread )
   {
-    SysLogMgr::InitSysLog(_pszProgramName, _grfOption, _grfFacility, _pjvThreadSpecificJson);
+    SysLogMgr::InitSysLog( _pszProgramName, _grfOption, _grfFacility, _pjvThreadSpecificJson, _fIsMainThread );
   }
   inline void CloseThreadSysLog() noexcept(true)
   {
