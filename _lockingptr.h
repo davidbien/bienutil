@@ -37,12 +37,23 @@ public:
   LockingPtr( LockingPtr && ) = default;
   LockingPtr & operator=( LockingPtr && ) = default;
 
-  // Pointer behavior
-  t_Ty & operator*() const { return *m_p; }
-  t_Ty * operator->() const { return m_p; }
+  // Pointer behavior - don't throw on lock non-ownership - for now at least.
+  t_Ty & operator*() const 
+  { 
+    Assert( owns_lock() );
+    return *m_p; 
+  }
+  t_Ty * operator->() const 
+  { 
+    Assert( owns_lock() );
+    return m_p; 
+  }
 
   _TyLockClass & GetLock() { return m_lock; }
   _TyLockClass const & GetLock() const { return m_lock; }
+
+  void unlock() { m_lock.unlock(); }
+  bool owns_lock() const { return m_lock.owns_lock(); }
 
 private:
   t_Ty * m_p;
@@ -75,12 +86,23 @@ public:
   LockingPtr( LockingPtr && ) = default;
   LockingPtr & operator=( LockingPtr && ) = default;
 
-  // Pointer behavior
-  t_Ty & operator*() const { return *m_p; }
-  t_Ty * operator->() const { return m_p; }
+  // Pointer behavior - don't throw on lock non-ownership - for now at least.
+  t_Ty & operator*() const
+  {
+    Assert( owns_lock() );
+    return *m_p;
+  }
+  t_Ty * operator->() const
+  {
+    Assert( owns_lock() );
+    return m_p;
+  }
 
   _TyLockClass & GetLock() { return m_lock; }
   _TyLockClass const & GetLock() const { return m_lock; }
+
+  void unlock() { m_lock.unlock(); }
+  bool owns_lock() const { return m_lock.owns_lock(); }
 
 private:
   t_Ty * m_p;
