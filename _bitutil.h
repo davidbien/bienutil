@@ -275,7 +275,8 @@ unsigned int NCountBitsSet( t_TyT _tTest )
 	else
 	{
 		// This will fail to compile if the size is not one of the above.
-		static_assert( false );
+		static_assert(sizeof(t_TyT) == 0);
+		return 0;
 	}
 #endif // !_MSC_VER
 }

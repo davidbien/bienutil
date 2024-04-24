@@ -114,7 +114,7 @@ endif(MOD_USE_VCPKG EQUAL 1 )
 endif( MOD_USE_ICU4C EQUAL 1 )
 endif (WIN32)
 
-if (APPLE)
+if (0)
 # I used "brew install icu4c" which doesn't link the libraries into /usr/local directly since it might stomp on MacOS Xcode libraries somehow.
   set(MACOS_LOCAL_OPT "/usr/local/opt")
   include_directories( BEFORE SYSTEM
@@ -126,7 +126,7 @@ if (APPLE)
 link_libraries(
   icuuc
 )
-endif(APPLE)
+endif(0)
 
 if (LINUX)
 # Linux only

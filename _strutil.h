@@ -1195,7 +1195,7 @@ inline std::string StrPercentDecode( const char * _psz )
 
 __BIENUTIL_END_NAMESPACE
 
-#if defined( __linux__ ) || defined( __APPLE__ )
+#if defined( __linux__ )
 // Support for this is spotty and ever-changing but growing...
 namespace std
 {
