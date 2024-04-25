@@ -629,7 +629,7 @@ bool _SysLogMgr<t_kiInstance>::_FTryCreateUniqueJSONLogFile( const char *_pszPro
   Assert(TChGetFileSeparator<char>() == strExePath[strExePath.length() - 1]);
   _SysLogThreadHeader slth;
   slth.m_szProgramName = strExePath;
-  slth.m_szProgramName += pszProgNameNoPath; // Put full path to EXE here for disambiguation when working with multiple versions.
+  slth.m_szProgramName += pszProgNameNoPath ? pszProgNameNoPath : "ERRORPROGRAMNAME"; // Put full path to EXE here for disambiguation when working with multiple versions.
   slth.m_timeStart = time(0);
   slth.m_nmsSinceProgramStart = _GetMsSinceProgramStart();
   UUIDCreate(slth.m_uuid);
