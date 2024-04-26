@@ -15,7 +15,7 @@
 #include <assert.h>
 
 #if !defined(WIN32) && !defined(__APPLE__) && !defined(__linux__)
-#error We don't have any compatibility platforms we are familiar with.
+#error We dont have any compatibility platforms we are familiar with.
 #endif
 
 #if ( INTPTR_MAX != INT32_MAX ) && ( INTPTR_MAX != INT64_MAX )
