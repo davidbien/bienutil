@@ -6,6 +6,7 @@
 // 29FEB2024
 
 #include "bienutil.h"
+#include "_assert.h"
 #include <memory>
 #include <string>
 #include <filesystem>
@@ -18,23 +19,25 @@ __BIENUTIL_BEGIN_NAMESPACE
 class NlohmannSchemaValidatorFileLoaderFactory
 {
 private:
-  std::shared_ptr<const std::filesystem::path> m_pathSchemaRoot;
+  std::filesystem::path m_pathSchemaRoot;
 public:
-  NlohmannSchemaValidatorFileLoaderFactory( const std::string& _kpathSchemaRoot ) 
-    : m_pathSchemaRoot( std::make_shared<const std::filesystem::path>( std::filesystem::path( _kpathSchemaRoot ).parent_path() ) ) 
+  NlohmannSchemaValidatorFileLoaderFactory( const std::string& _kpathConfigRoot, const std::string& _kpathSchemaRoot ) 
   {
+    std::filesystem::path pathSchemaRoot( _kpathConfigRoot );
+    pathSchemaRoot /= _kpathSchemaRoot;
+    m_pathSchemaRoot = pathSchemaRoot.parent_path();
   }
   // We are creating this to be a standalone validator object - no reference to this object.
   nlohmann::json_schema::json_validator CreateValidator() const
   {
-    auto pathSchemaRoot = m_pathSchemaRoot; // Copy the shared_ptr
+    std::filesystem::path pathSchemaRoot = m_pathSchemaRoot;
     return nlohmann::json_schema::json_validator( [ pathSchemaRoot ]( const nlohmann::json_uri& _uri, nlohmann::json& _value )
     {
       VerifyThrowSz( _uri.scheme().empty() || ( _uri.scheme() == "file" ), "Only supporting file referenced schemas." );
       // We want the path from the pathSchemaRoot and we will find the uri relative to that.
       std::string strPath = _uri.path();
       size_t stAt = ( strPath[0] == '/' ) ? 1 : 0;
-      std::filesystem::path pathUri = *pathSchemaRoot / &strPath.at( stAt );
+      std::filesystem::path pathUri = pathSchemaRoot / &strPath.at( stAt );
       std::ifstream schemaFile( pathUri.c_str() );
       VerifyThrowSz( schemaFile.is_open(), "Could not open schema file:%ls", _uri.path().c_str() );
       schemaFile >> _value;

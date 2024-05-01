@@ -219,6 +219,26 @@ constexpr t_tyChar TChGetOtherFileSeparator() noexcept
   return t_tyChar('\\');
 #endif
 }
+// File separator in any character type:
+template < class t_tyChar >
+constexpr const t_tyChar * PszGetFileSeparator() noexcept
+{
+#ifdef WIN32
+  return "\\";
+#else // Assume all other OS use /.
+  return "/";
+#endif
+}
+// Get the file separator not matching this OS.
+template < class t_tyChar >
+constexpr const t_tyChar * PszGetOtherFileSeparator() noexcept
+{
+#ifdef WIN32
+  return "/";
+#else // Assume all other OS use /.
+  return "\\";
+#endif
+}
 
 inline vtyFileHandle FileGetStdInHandle() noexcept
 {
