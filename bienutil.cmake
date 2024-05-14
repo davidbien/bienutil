@@ -383,3 +383,31 @@ function(copy_dir_to_source_dir SOURCE_DIR WILDCARD DEST_DIR)
     add_dependencies(copy_dir_to_source_dir-${MOD_COPY_COUNTER_TARGET_VAL} copy_${FILE_SAFE}-${MOD_COPY_COUNTER_TARGET_VAL})
   endforeach()
 endfunction()
+
+function(copy_url_to_build_dir DOWNLOAD_URL DEST_DIR)
+  math(EXPR NEW_VAL "${MOD_COPY_COUNTER_TARGET_VAL}+1")
+  set(MOD_COPY_COUNTER_TARGET_VAL ${NEW_VAL} PARENT_SCOPE) # post increment
+
+  # Create a custom target that depends on the downloaded file
+  add_custom_target(copy_url_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL} ALL)
+
+  get_filename_component(FILENAME ${DOWNLOAD_URL} NAME)
+
+  # Create a safe version of the file name
+  string(REPLACE "/" "_" FILE_SAFE ${FILENAME})
+
+  # Set the destination file path
+  set(DEST_FILE "${CMAKE_BINARY_DIR}/${DEST_DIR}/${FILENAME}")
+
+  # Download the file to the destination directory
+  add_custom_command(
+    OUTPUT ${DEST_FILE}
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${DEST_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E env --unset=LD_LIBRARY_PATH
+    ${CMAKE_COMMAND} -D "DOWNLOAD_URL=${DOWNLOAD_URL}" -D "DEST_FILE=${DEST_FILE}" -P "${CMAKE_SOURCE_DIR}/bienutil/DownloadFile.cmake"
+    COMMENT "Downloading ${DOWNLOAD_URL} to ${DEST_FILE}"
+  )
+  # Include FILE_SAFE and MOD_COPY_COUNTER_TARGET_VAL in the custom target name
+  add_custom_target(download_${FILE_SAFE}-${MOD_COPY_COUNTER_TARGET_VAL} ALL DEPENDS "${DEST_FILE}")
+  add_dependencies(copy_url_to_build_dir-${MOD_COPY_COUNTER_TARGET_VAL} download_${FILE_SAFE}-${MOD_COPY_COUNTER_TARGET_VAL})
+endfunction()
