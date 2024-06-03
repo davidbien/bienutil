@@ -49,9 +49,14 @@ public:
 #if ASSERTSENABLED
     // check if any bits above the t_kNth bit are set - don't throw - just assert.
     if constexpr ( t_kN % ( CHAR_BIT * sizeof( t_TyT ) ) )
-      Assert( !( m_tgT[ t_kN / ( CHAR_BIT * sizeof( t_TyT ) ) ] & ( ~((t_TyT(1) << (t_kN % ( CHAR_BIT * sizeof( t_TyT )))) - 1) ) ) );
+      Assert( !( m_rgT[ t_kN / ( CHAR_BIT * sizeof( t_TyT ) ) ] & ( ~((t_TyT(1) << (t_kN % ( CHAR_BIT * sizeof( t_TyT )))) - 1) ) ) );
 #endif // ASSERTSENABLED
   }
+  /// @brief return the backing array for use in serialization
+  _TyArray & GetArray() noexcept { return m_rgT; }
+  /// @return const reference to backing array
+  _TyArray const & GetArray() const noexcept { return m_rgT; }
+
   /// @brief compare two bitvectors
   /// @param _kother bitvector
   /// @return std::strong_ordering
@@ -66,6 +71,20 @@ public:
     }
     return std::strong_ordering::equal;
   }
+  /// @brief compare two bitvectors for equality
+  /// @param _kother bitvector
+  /// @return true if equal
+  bool operator==( const FixedBV & _kother ) const
+  {
+    return ( *this <=> _kother ) == std::strong_ordering::equal;
+  }
+  /// @brief compare two bitvectors for inequality
+  /// @param _kother bitvector
+  /// @return true if not equal
+  bool operator!=( const FixedBV & _kother ) const
+  {
+    return ( *this <=> _kother ) != std::strong_ordering::equal;
+  }
   /// @brief return true if bit is set
   /// @param _kindex bit index
   bool test( const size_t _kindex ) const noexcept( false )
@@ -79,7 +98,7 @@ public:
   /// @brief set bit to passed value
   /// @param _kindex bit index
   /// @param _kfvalue value
-  void set( const size_t _kindex, const bool _kfvalue ) noexcept( false )
+  _TyThis & set( const size_t _kindex, const bool _kfvalue ) noexcept( false )
   {
     AssertValid();
     VerifyThrowSz( _kindex < t_kN, "Invalid bit index." );
@@ -89,36 +108,57 @@ public:
       m_rgT[ kelIndex ] |= ( t_TyT( 1 ) << kbitIndex );
     else
       m_rgT[ kelIndex ] &= ~( t_TyT( 1 ) << kbitIndex );
+    return *this;
   }
   /// @brief set bit
   /// @param _kindex bit index
-  void set( const size_t _kindex ) noexcept( false )
+  _TyThis & set( const size_t _kindex ) noexcept( false )
   {
     AssertValid();
     VerifyThrowSz( _kindex < t_kN, "Invalid bit index." );
     const size_t kelIndex = _kindex / ( CHAR_BIT * sizeof( t_TyT ) );
     const size_t kbitIndex = _kindex % ( CHAR_BIT * sizeof( t_TyT ) );
     m_rgT[ kelIndex ] |= ( t_TyT( 1 ) << kbitIndex );
+    return *this;
+  }
+  /// @brief set all bits
+  _TyThis & set() noexcept
+  {
+    AssertValid();
+    for ( size_t _kindex = 0; _kindex < m_rgT.size(); ++_kindex )
+      m_rgT[ _kindex ] = ~t_TyT( 0 );
+    _Trim();
+    return *this;
   }
   /// @brief reset bit
   /// @param _kindex bit index
-  void reset( const size_t _kindex ) noexcept( false )
+  _TyThis & reset( const size_t _kindex ) noexcept( false )
   {
     AssertValid();
     VerifyThrowSz( _kindex < t_kN, "Invalid bit index." );
     const size_t kelIndex = _kindex / ( CHAR_BIT * sizeof( t_TyT ) );
     const size_t kbitIndex = _kindex % ( CHAR_BIT * sizeof( t_TyT ) );
     m_rgT[ kelIndex ] &= ~( t_TyT( 1 ) << kbitIndex );
+    return *this;
+  }
+  /// @brief reset all bits
+  _TyThis & reset() noexcept
+  {
+    AssertValid();
+    for ( size_t _kindex = 0; _kindex < m_rgT.size(); ++_kindex )
+      m_rgT[ _kindex ] = 0;
+    return *this;
   }
   /// @brief flip bit
   /// @param _kindex bit index
-  void flip( const size_t _kindex ) noexcept( false )
+  _TyThis & flip( const size_t _kindex ) noexcept( false )
   {
     AssertValid();
     VerifyThrowSz( _kindex < t_kN, "Invalid bit index." );
     const size_t kelIndex = _kindex / ( CHAR_BIT * sizeof( t_TyT ) );
     const size_t kbitIndex = _kindex % ( CHAR_BIT * sizeof( t_TyT ) );
     m_rgT[ kelIndex ] ^= ( t_TyT( 1 ) << kbitIndex );
+    return *this;
   }
   /// @brief return true if all bits are set
   bool all() const
@@ -239,6 +279,7 @@ public:
   _TyThis & operator>>=( const size_t _kshift )
   {
     AssertValid();
+    const size_t kwholeShifts = _kshift / ( CHAR_BIT * sizeof( t_TyT ) );
     if ( kwholeShifts != 0 )
     {
       for ( size_t _kindex = 0; _kindex <= m_rgT.size(); ++_kindex )
@@ -288,7 +329,6 @@ public:
       if ( mask != 0 )
       {
 #ifdef _MSC_VER
-        #pragma intrinsic(_BitScanForward64)
         unsigned long index;
         if constexpr ( sizeof( t_TyT ) == 8 )
           _BitScanForward64( &index, mask );
@@ -321,6 +361,7 @@ public:
     return ( std::numeric_limits< size_t >::max )();
   }
 };
+
 template< size_t t_kN, typename t_TyT >
 inline FixedBV< t_kN, t_TyT > operator|( FixedBV< t_kN, t_TyT > const& _left, FixedBV< t_kN, t_TyT > const& _right )
 {
