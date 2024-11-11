@@ -15,7 +15,7 @@ private:
   // Invariant: All bits beyond t_kN are always zero.
   void _Trim()
   {
-    const size_t kexcessBits = ( m_rgT.size() * CHAR_BIT * sizeof( t_TyT ) ) - t_kN;
+    constexpr size_t kexcessBits = ( m_rgT.size() * CHAR_BIT * sizeof( t_TyT ) ) - t_kN;
     if constexpr ( kexcessBits > 0 )
       m_rgT[ m_rgT.size() - 1 ] &= ( t_TyT( 1 ) << ( CHAR_BIT * sizeof( t_TyT ) - kexcessBits ) ) - 1;
   }
