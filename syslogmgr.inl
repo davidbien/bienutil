@@ -763,6 +763,7 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
 {
   if ( !n_SysLog::FSetInAssertOrVerify( true ) )
   {
+    std::string strFmt;
     try
     {
       std::string strMesg;
@@ -794,7 +795,6 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
         strAssertion.insert( strAssertion.begin() + posPercent, '%' );
 
       // We log both the full string - which is the only thing that will end up in the syslog - and each field individually in JSON to allow searching for specific criteria easily.
-      std::string strFmt;
       (void)FPrintfStdStrNoThrow( strFmt, !strMesg.length() ? "%s:[%s:%d],%s(): %s." : "%s:[%s:%d],%s: %s. %s", _szAssertVerify, _szFile, _nLine, _szFunction, strAssertion.c_str(), strMesg.c_str() );
 
       n_SysLog::vtyJsoValueSysLog jvLog( ejvtObject );
@@ -815,9 +815,7 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
       }
       else
       if ( eabiThrowException == _eabi )
-      {
-        (void)n_SysLog::FSetInAssertOrVerify( false );
-        THROWVERIFYFAILEDEXCEPTION( strFmt.c_str() );
+      { // Take care of this to avoid the catch and rethrow.
       }
       else
       if ( eabiBreak == _eabi )
@@ -833,6 +831,8 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
       throw;
     }
     (void)n_SysLog::FSetInAssertOrVerify( false );
+    if ( eabiThrowException == _eabi )
+      THROWVERIFYFAILEDEXCEPTION( strFmt.c_str() );
   }
 }
 
