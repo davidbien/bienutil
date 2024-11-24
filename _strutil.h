@@ -662,7 +662,7 @@ basic_string< t_tyCharConvertTo > StrConvertString( const t_tyCharConvertFrom * 
   requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom > )
 {
   basic_string< t_tyCharConvertTo > strConverted;
-  ConvertString( strConverted, StrNLen( _pc ) );
+  ConvertString( strConverted, _pc, StrNLen( _pc ) );
   return strConverted;
 }
 template < class t_tyCharConvertTo, class t_tyStringOrStringView >
