@@ -358,6 +358,13 @@ concept c_has_swap = requires (T& t1, T& t2)
     { t1.swap(t2) };
 };
 
+// A concept for whether a type has a size_t length() method.
+template <typename T>
+concept c_has_length = requires(T t) {
+    { t.length() } -> std::convertible_to<std::size_t>;
+};
+
+
 // Add <n> to an atomic but only when the value is not equal to another value:
 template < class t_TyT >
 bool FAtomicAddNotEqual( volatile atomic< t_TyT > & _rat, const t_TyT & _rtNotEqual, const t_TyT & _rtAdd ) noexcept

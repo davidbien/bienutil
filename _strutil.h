@@ -651,8 +651,23 @@ basic_string< t_tyCharConvertTo > StrConvertString( const t_tyCharConvertFrom * 
   ConvertString( strConverted, _pc, _len );
   return strConverted;
 }
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+basic_string< t_tyCharConvertTo > StrConvertString( const t_tyCharConvertFrom * _pc )
+  requires TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom >
+{
+  return basic_string< t_tyCharConvertTo >( (const t_tyCharConvertTo*)_pc, StrNLen( _pc ) );
+}
+template < class t_tyCharConvertTo, class t_tyCharConvertFrom >
+basic_string< t_tyCharConvertTo > StrConvertString( const t_tyCharConvertFrom * _pc )
+  requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, t_tyCharConvertFrom > )
+{
+  basic_string< t_tyCharConvertTo > strConverted;
+  ConvertString( strConverted, StrNLen( _pc ) );
+  return strConverted;
+}
 template < class t_tyCharConvertTo, class t_tyStringOrStringView >
 basic_string< t_tyCharConvertTo > StrConvertString( t_tyStringOrStringView const & _rsvorstr )
+  requires ( c_has_length< t_tyStringOrStringView > )
 {
   return StrConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
 }
