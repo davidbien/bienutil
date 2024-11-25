@@ -25,7 +25,7 @@
 #include "_namdexc.h"
 #include "_smartp.h"
 #include "_fdobjs.h"
-#include "_assert.h"
+#include "bien_assert.h"
 #if __APPLE__
 #include <libproc.h>
 #include <mach-o/dyld.h>

@@ -5,7 +5,7 @@
 //    (See accompanying file LICENSE_1_0.txt or copy at
 //          https://www.boost.org/LICENSE_1_0.txt).
 
-// _assert.h
+// bien_assert.h
 
 #include <assert.h>
 #include <string>
@@ -20,7 +20,7 @@
 __BIENUTIL_BEGIN_NAMESPACE
 
 #ifdef Assert
-#error _assert.h: Assert() macro is already defined.
+#error bien_assert.h: Assert() macro is already defined.
 #endif
 
 enum EAbortBreakIgnore

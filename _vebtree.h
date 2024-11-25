@@ -16,7 +16,7 @@
 #include <stddef.h>
 #include <cstdint>
 #include <climits>
-#include "_assert.h"
+#include "bien_assert.h"
 #include "_namdexc.h"
 #include "_bitutil.h"
 

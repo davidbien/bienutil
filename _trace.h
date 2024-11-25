@@ -9,7 +9,7 @@
 // Implement a "trace" mechanism to alert to code entry points.
 // Traces in retail are off by default but can be turned on by setting TRACESENABLED to non-zero before including this file.
 
-#include "_assert.h"
+#include "bien_assert.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
 

@@ -9,7 +9,7 @@
 
 #include <fcntl.h>
 #include "_compat.h"
-#include "_assert.h"
+#include "bien_assert.h"
 #include <stdlib.h>
 #ifndef WIN32
 #include <unistd.h>

@@ -15,7 +15,7 @@
 #include <map>
 #include <string>
 #include <ostream>
-#include "_assert.h"
+#include "bien_assert.h"
 #include "_namdexc.h"
 
 // _dbgthrw.h

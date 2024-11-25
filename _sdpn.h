@@ -10,7 +10,7 @@
 
 // array deallocation object
 
-#include "_assert.h"
+#include "bien_assert.h"
 #include "_allbase.h"
 
 __BIENUTIL_BEGIN_NAMESPACE
