@@ -27,7 +27,10 @@
 #include "_fdobjs.h"
 #include "bien_assert.h"
 #if __APPLE__
+#include <TargetConditionals.h>
+#if !TARGET_OS_IPHONE
 #include <libproc.h>
+#endif
 #include <mach-o/dyld.h>
 #elif __linux__
 #include <sys/auxv.h>
@@ -535,6 +538,7 @@ GetCurrentExecutablePath(std::string &_rstrPath)
 {
   _rstrPath.clear();
 #if __APPLE__
+#if !TARGET_OS_IPHONE
   char rgBuf[PROC_PIDPATHINFO_MAXSIZE];
   pid_t pid = getpid();
   int iRet = proc_pidpath(pid, rgBuf, sizeof(rgBuf));
@@ -542,6 +546,7 @@ GetCurrentExecutablePath(std::string &_rstrPath)
   if (iRet > 0)
     _rstrPath = rgBuf;
   else
+#endif // !TARGET_OS_IPHONE
   { // Then try a different way.
     __BIENUTIL_USING_NAMESPACE
     char c;
