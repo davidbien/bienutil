@@ -52,6 +52,11 @@ public:
       Assert( !( m_rgT[ t_kN / ( CHAR_BIT * sizeof( t_TyT ) ) ] & ( ~((t_TyT(1) << (t_kN % ( CHAR_BIT * sizeof( t_TyT )))) - 1) ) ) );
 #endif // ASSERTSENABLED
   }
+  /// @brief get the size of the bitvector
+  size_t size() const noexcept
+  {
+    return t_kN;
+  }
   /// @brief return the backing array for use in serialization
   _TyArray & GetArray() noexcept { return m_rgT; }
   /// @return const reference to backing array
@@ -94,6 +99,11 @@ public:
     const size_t kelIndex = _kindex / ( CHAR_BIT * sizeof( t_TyT ) );
     const size_t kbitIndex = _kindex % ( CHAR_BIT * sizeof( t_TyT ) );
     return ( m_rgT[ kelIndex ] & ( t_TyT( 1 ) << kbitIndex ) ) != 0;
+  }
+  /// @brief Get the value of the bit - we don't support bit references since it is more work than we need to do right now.
+  bool operator[]( const size_t _kindex ) const noexcept( false )
+  {
+    return test( _kindex );
   }
   /// @brief set bit to passed value
   /// @param _kindex bit index
@@ -244,6 +254,8 @@ public:
     _Trim();
     return *this;
   }
+  /// @brief generic with std::bitset<>.
+  _TyThis & flip() { return invert(); }
   /// @brief bitwise NOT
   _TyThis operator~() const
   {

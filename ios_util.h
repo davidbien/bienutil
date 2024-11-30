@@ -48,12 +48,13 @@ GetStringFromCFStringUTF16( CFStringRef _cfstr )
   if ( !_cfstr )
     return std::nullopt;
   const UniChar * pwszPtr = CFStringGetCharactersPtr( _cfstr );
+  static_assert( sizeof( UniChar ) == sizeof( char16_t ), "UniChar is not char16_t." );
   if ( pwszPtr )
-    return std::u16string( pwszPtr, CFStringGetLength( _cfstr ) );
+    return std::u16string( reinterpret_cast< const char16_t* >( pwszPtr ), CFStringGetLength( _cfstr ) );
   CFIndex nLength = CFStringGetLength( _cfstr );
   std::vector< UniChar > rgwch( nLength );
   CFStringGetCharacters( _cfstr, CFRangeMake( 0, nLength ), rgwch.data() );
-  return std::u16string( rgwch.data(), nLength );
+  return std::u16string( reinterpret_cast< const char16_t* >( rgwch.data() ), nLength );
 }
 inline std::optional< std::u32string >
 GetStringFromCFStringUTF32( CFStringRef _cfstr )
