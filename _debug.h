@@ -12,6 +12,13 @@
 // Sometimes you want to run the server (for instance) in a debugger and not debug break due to assertions.
 //#define DEBUG_NEVERDEBUGBREAK
 
+// Choose between debug and retail token based on the NDEBUG macro.
+#ifdef NDEBUG
+#define DEBUG_OR_RETAIL(debug_value, retail_value) (retail_value)
+#else
+#define DEBUG_OR_RETAIL(debug_value, retail_value) (debug_value)
+#endif
+
 #ifdef NDEBUG
 #define __DEBUG_STMT( s )
 #else //NDEBUG

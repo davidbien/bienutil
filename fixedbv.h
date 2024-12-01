@@ -9,13 +9,15 @@ template < size_t t_kN, typename t_TyT = uint8_t > class FixedBV
 {
   typedef FixedBV _TyThis;
 
+public:
+  static const size_t s_kNElsArray = ( t_kN + CHAR_BIT * sizeof( t_TyT ) - 1 ) / ( CHAR_BIT * sizeof( t_TyT ) );
 private:
-  typedef std::array< t_TyT, ( t_kN + CHAR_BIT * sizeof( t_TyT ) - 1 ) / ( CHAR_BIT * sizeof( t_TyT ) ) > _TyArray;
+  typedef std::array< t_TyT, s_kNElsArray > _TyArray;
   _TyArray m_rgT;
   // Invariant: All bits beyond t_kN are always zero.
   void _Trim()
   {
-    constexpr size_t kexcessBits = ( m_rgT.size() * CHAR_BIT * sizeof( t_TyT ) ) - t_kN;
+    constexpr size_t kexcessBits = ( s_kNElsArray * CHAR_BIT * sizeof( t_TyT ) ) - t_kN;
     if constexpr ( kexcessBits > 0 )
       m_rgT[ m_rgT.size() - 1 ] &= ( t_TyT( 1 ) << ( CHAR_BIT * sizeof( t_TyT ) - kexcessBits ) ) - 1;
   }
