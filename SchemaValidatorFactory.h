@@ -21,11 +21,9 @@ class NlohmannSchemaValidatorFileLoaderFactory
 private:
   std::filesystem::path m_pathSchemaRoot;
 public:
-  NlohmannSchemaValidatorFileLoaderFactory( const std::string& _kpathConfigRoot, const std::string& _kpathSchemaRoot ) 
+  NlohmannSchemaValidatorFileLoaderFactory( const std::string& _kpathSchemaRoot ) 
+    : m_pathSchemaRoot( _kpathSchemaRoot )
   {
-    std::filesystem::path pathSchemaRoot( _kpathConfigRoot );
-    pathSchemaRoot /= _kpathSchemaRoot;
-    m_pathSchemaRoot = pathSchemaRoot.parent_path();
   }
   // We are creating this to be a standalone validator object - no reference to this object.
   nlohmann::json_schema::json_validator CreateValidator() const
@@ -39,7 +37,7 @@ public:
       size_t stAt = ( strPath[0] == '/' ) ? 1 : 0;
       std::filesystem::path pathUri = pathSchemaRoot / &strPath.at( stAt );
       std::ifstream schemaFile( pathUri.c_str() );
-      VerifyThrowSz( schemaFile.is_open(), "Could not open schema file:%ls", _uri.path().c_str() );
+      VerifyThrowSz( schemaFile.is_open(), "Could not open schema file:[%s]", pathUri.generic_string().c_str() );
       schemaFile >> _value;
     } );
   }
