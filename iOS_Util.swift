@@ -59,3 +59,21 @@ func UIColorFromJSString(_ colorString: String) -> UIColor {
   // Handle named colors
   return UIColor(named: colorString) ?? .black
 }
+
+// Creates a path that draws 4 lines whose outer edges exactly match the input rectangle
+// this eliminates the annoying background showing through a couple of pixels at the very corner
+// when just using a rectangle - results in perfectly square corners with any line thickness.
+func CreateSquarePathFromRectInner(rect: CGRect, thicknessX: CGFloat, thicknessY: CGFloat = -1) -> CGPath {
+    let halfThickX = thicknessX / 2
+    let halfThickY = thicknessY < 0 ? halfThickX : thicknessY / 2
+    let path = CGMutablePath()
+    path.move(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickY))
+    path.addLine(to: CGPoint(x: rect.maxX - halfThickX, y: rect.maxY - halfThickY))
+    path.move(to: CGPoint(x: rect.maxX - halfThickX, y: rect.maxY - halfThickX))
+    path.addLine(to: CGPoint(x: rect.maxX - halfThickX, y: rect.minY + halfThickX))
+    path.move(to: CGPoint(x: rect.maxX - halfThickX, y: rect.minY + halfThickY))
+    path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.minY + halfThickY))
+    path.move(to: CGPoint(x: rect.minX + halfThickX, y: rect.minY + halfThickX))
+    path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickX))
+    return path
+}
