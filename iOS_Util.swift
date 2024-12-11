@@ -5,6 +5,7 @@
 
 import Foundation
 import UIKit
+import SpriteKit
 
 // ShareJsonFiles: This shares all json files located in a given directory. THe user can then choose how to share them.
 func ShareJsonFiles(fromDirectory logDir: String) {
