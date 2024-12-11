@@ -77,3 +77,16 @@ func CreateSquarePathFromRectInner(rect: CGRect, thicknessX: CGFloat, thicknessY
     path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickX))
     return path
 }
+
+public func ConvertLength(_ scene: SKScene, _ length: CGFloat) -> CGFloat {
+    let origin = scene.convertPoint(fromView: CGPoint.zero)
+    let point = scene.convertPoint(fromView: CGPoint(x: length, y: 0)) 
+    return CGFloat(floor(abs(point.x - origin.x)))
+}
+
+// Convert x and y lengths in case they end up diff.
+public func ConvertLengths(_ scene: SKScene, _ length: CGFloat) -> (CGFloat, CGFloat) {
+    let origin = scene.convertPoint(fromView: CGPoint.zero)
+    let point = scene.convertPoint(fromView: CGPoint(x: length, y: length)) 
+  return (CGFloat(floor(abs(point.x - origin.x))), CGFloat(floor(abs(point.y - origin.y))))
+}
