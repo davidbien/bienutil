@@ -57,8 +57,39 @@ func UIColorFromJSString(_ colorString: String) -> UIColor {
     }
   }
 
-  // Handle named colors
-  return UIColor(named: colorString) ?? .black
+  let colorMap: [String: UIColor] = [
+    "black": .black,
+    "blue": .blue,
+    "brown": .brown,
+    "cyan": .cyan,
+    "darkgray": .darkGray,
+    "gray": .gray,
+    "green": .green,
+    "lightgray": .lightGray,
+    "magenta": .magenta,
+    "orange": .orange,
+    "purple": .purple,
+    "red": .red,
+    "white": .white,
+    "yellow": .yellow,
+    "systemblue": .systemBlue,
+    "systembrown": .systemBrown,
+    "systemgreen": .systemGreen,
+    "systemindigo": .systemIndigo,
+    "systemorange": .systemOrange,
+    "systempink": .systemPink,
+    "systempurple": .systemPurple,
+    "systemred": .systemRed,
+    "systemteal": .systemTeal,
+    "systemyellow": .systemYellow,
+    "systemgray": .systemGray,
+    "systemgray2": .systemGray2,
+    "systemgray3": .systemGray3,
+    "systemgray4": .systemGray4,
+    "systemgray5": .systemGray5,
+    "systemgray6": .systemGray6,
+  ]
+  return colorMap[colorString.lowercased()] ?? .black
 }
 
 // Creates a path that draws 4 lines whose outer edges exactly match the input rectangle
