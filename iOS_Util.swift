@@ -4,8 +4,8 @@
 // iOS utilities for Swift.
 
 import Foundation
-import UIKit
 import SpriteKit
+import UIKit
 
 // ShareJsonFiles: This shares all json files located in a given directory. THe user can then choose how to share them.
 func ShareJsonFiles(fromDirectory logDir: String) {
@@ -64,30 +64,39 @@ func UIColorFromJSString(_ colorString: String) -> UIColor {
 // Creates a path that draws 4 lines whose outer edges exactly match the input rectangle
 // this eliminates the annoying background showing through a couple of pixels at the very corner
 // when just using a rectangle - results in perfectly square corners with any line thickness.
-func CreateSquarePathFromRectInner(rect: CGRect, thicknessX: CGFloat, thicknessY: CGFloat = -1) -> CGPath {
-    let halfThickX = thicknessX / 2
-    let halfThickY = thicknessY < 0 ? halfThickX : thicknessY / 2
-    let path = CGMutablePath()
-    path.move(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickY))
-    path.addLine(to: CGPoint(x: rect.maxX - halfThickX, y: rect.maxY - halfThickY))
-    path.move(to: CGPoint(x: rect.maxX - halfThickX, y: rect.maxY - halfThickX))
-    path.addLine(to: CGPoint(x: rect.maxX - halfThickX, y: rect.minY + halfThickX))
-    path.move(to: CGPoint(x: rect.maxX - halfThickX, y: rect.minY + halfThickY))
-    path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.minY + halfThickY))
-    path.move(to: CGPoint(x: rect.minX + halfThickX, y: rect.minY + halfThickX))
-    path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickX))
-    return path
+func CreateSquarePathFromRectInner(rect: CGRect, thicknessX: CGFloat, thicknessY: CGFloat = -1)
+  -> CGPath
+{
+  let halfThickX = thicknessX / 2
+  let halfThickY = thicknessY < 0 ? halfThickX : thicknessY / 2
+  let path = CGMutablePath()
+  path.move(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickY))
+  path.addLine(to: CGPoint(x: rect.maxX - halfThickX, y: rect.maxY - halfThickY))
+  path.move(to: CGPoint(x: rect.maxX - halfThickX, y: rect.maxY - halfThickX))
+  path.addLine(to: CGPoint(x: rect.maxX - halfThickX, y: rect.minY + halfThickX))
+  path.move(to: CGPoint(x: rect.maxX - halfThickX, y: rect.minY + halfThickY))
+  path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.minY + halfThickY))
+  path.move(to: CGPoint(x: rect.minX + halfThickX, y: rect.minY + halfThickX))
+  path.addLine(to: CGPoint(x: rect.minX + halfThickX, y: rect.maxY - halfThickX))
+  return path
+}
+
+func CreateRectPathFromRectInner(rect: CGRect, thickness: CGFloat) -> CGPath {
+  let halfThickness = thickness / 2
+  let innerRect = rect.insetBy(dx: halfThickness, dy: halfThickness)
+  let path = CGPath(rect: innerRect, transform: nil)
+  return path
 }
 
 public func ConvertLength(_ scene: SKScene, _ length: CGFloat) -> CGFloat {
-    let origin = scene.convertPoint(fromView: CGPoint.zero)
-    let point = scene.convertPoint(fromView: CGPoint(x: length, y: 0)) 
-    return CGFloat(floor(abs(point.x - origin.x)))
+  let origin = scene.convertPoint(fromView: CGPoint.zero)
+  let point = scene.convertPoint(fromView: CGPoint(x: length, y: 0))
+  return CGFloat(floor(abs(point.x - origin.x)))
 }
 
 // Convert x and y lengths in case they end up diff.
 public func ConvertLengths(_ scene: SKScene, _ length: CGFloat) -> (CGFloat, CGFloat) {
-    let origin = scene.convertPoint(fromView: CGPoint.zero)
-    let point = scene.convertPoint(fromView: CGPoint(x: length, y: length)) 
+  let origin = scene.convertPoint(fromView: CGPoint.zero)
+  let point = scene.convertPoint(fromView: CGPoint(x: length, y: length))
   return (CGFloat(floor(abs(point.x - origin.x))), CGFloat(floor(abs(point.y - origin.y))))
 }
