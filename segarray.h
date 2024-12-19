@@ -206,6 +206,10 @@ public:
   {
     return NElements();
   }
+  _tySizeType size() const
+  {
+    return NElements();
+  }
   _tySizeType NElsPerSegment() const
   {
     return m_nbySizeSegment / sizeof(_tyT);
@@ -354,7 +358,28 @@ public:
     ++m_nElements;
     return *pt;
   }
-  // Set the number of elements in this object.
+  _tyT & push_back( const _tyT & _r )
+  {
+    AssertValid();
+    _tyT * pt = new (_PbyAllocEnd()) _tyT( _r );
+    ++m_nElements;
+    return *pt;
+  }
+  _tyT & push_back( _tyT && _rr )
+  {
+    AssertValid();
+    _tyT * pt = new (_PbyAllocEnd()) _tyT( std::move( _rr ) );
+    ++m_nElements;
+    return *pt;
+  }
+  _tyT pop_back( bool _fCompact = false )
+  {
+    AssertValid();
+    Assert(m_nElements > 0);
+    _tyT t = std::move( RTail() );
+    SetSizeSmaller(m_nElements - 1, _fCompact);
+    return t;
+  } 
   // If we manage the lifetime of these object then they must have a default constructor.
   void SetSize(_tySizeType _nElements, bool _fCompact = false, _tySizeType _nNewBlockMin = 16)
   {
