@@ -9,7 +9,7 @@ import os.log
 class VerboseLogManager {
   static let shared = VerboseLogManager()
 
-  #if DEBUG
+  #if DEBUG || VERBOSE_LOGGING_ENABLED
     private var isVerboseEnabled: Bool = true
   #else
     private var isVerboseEnabled: Bool = false
@@ -26,7 +26,9 @@ class VerboseLogManager {
   }
 }
 
-func VerboseLog(_ message: String, file: String = #file, line: Int = #line, function: String = #function) {
+func VerboseLog(
+  _ message: String, file: String = #file, line: Int = #line, function: String = #function
+) {
   if VerboseLogManager.shared.isEnabled() {
     let fileName = (file as NSString).lastPathComponent
     os_log(

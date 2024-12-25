@@ -1,40 +1,61 @@
-// biensert.swift
+// bienAssert.swift
 // dbien
 // 02DEC2024
 // Custom assertions that can be enabled in both debug and release builds.
-// Provides biensert() which can be configured to halt or continue on failure.
-// Also provides biensertContinue() which always logs and continues on failure.
+// Provides bienAssert() which can be configured to halt or continue on failure. bienAssert() will not execute the associated code if assertions are disabled.
+// Also provides bienVerify() which always logs and continues on failure. bienVerify() will always execute the associated code, it will only log if assertions are enabled.
 
 import Foundation
+import os.log
 
 enum AssertionControl {
-    #if DEBUG
+  #if DEBUG
     static var areAssertionsEnabled = true
-    static var continueOnFailure = false
-    #else
+    static var continueOnFailure = true
+  #else
     static var areAssertionsEnabled = false
     static var continueOnFailure = false
-    #endif
+  #endif
 }
 
-func biensert(_ condition: @autoclosure () -> Bool, 
-              _ message: @autoclosure () -> String = String(),
-              file: StaticString = #file,
-              line: UInt = #line) {
-    if AssertionControl.areAssertionsEnabled && !condition() {
-        if AssertionControl.continueOnFailure {
-            NSLog("Assertion failed(continuing execution): \(message()) - \(file):\(line)")
-        } else {
-            precondition(false, message(), file: file, line: line)
-        }
+func bienAssert(
+  _ condition: @autoclosure () -> Bool,
+  _ message: @autoclosure () -> String = String(),
+  file: StaticString = #file, line: UInt = #line
+) {
+  // We don't execute the code if assertions are disabled.
+  if AssertionControl.areAssertionsEnabled && !condition() {
+    let strFile: String = file.description
+    let fileName = (strFile as NSString).lastPathComponent
+    os_log(
+      "[ASSERT] %{public}@:%d %{public}@: %{public}@",
+      log: OSLog.default,
+      type: .debug,
+      fileName,
+      UInt32(line),
+      #function,
+      message())
+    if !AssertionControl.continueOnFailure {
+      precondition(false, message(), file: file, line: line)
     }
+  }
 }
 
-func biensertContinue(_ condition: @autoclosure () -> Bool, 
-                      _ message: @autoclosure () -> String = String(),
-                      file: StaticString = #file,
-                      line: UInt = #line) {
-    if AssertionControl.areAssertionsEnabled && !condition() {
-        NSLog("Assertion failed(continuing execution): \(message()) - \(file):\(line)")
-    }
+func bienVerify(
+  _ condition: @autoclosure () -> Bool,
+  _ message: @autoclosure () -> String = String(),
+  file: String = #file, line: UInt = #line
+) {
+  // We always execute a verify statement, we only log if assertions are enabled.
+  if !condition() && AssertionControl.areAssertionsEnabled {
+    let fileName = (file as NSString).lastPathComponent
+    os_log(
+      "[VERIFY] %{public}@:%d %{public}@: %{public}@",
+      log: OSLog.default,
+      type: .debug,
+      fileName,
+      UInt32(line),
+      #function,
+      message())
+  }
 }
