@@ -131,3 +131,16 @@ public func ConvertLengths(_ scene: SKScene, _ length: CGFloat) -> (CGFloat, CGF
   let point = scene.convertPoint(fromView: CGPoint(x: length, y: length))
   return (CGFloat(floor(abs(point.x - origin.x))), CGFloat(floor(abs(point.y - origin.y))))
 }
+
+public func ShowModalAlert(title: String, message: String) {
+  let alert = UIAlertController(
+    title: NSLocalizedString(title, comment: ""),
+    message: NSLocalizedString(message, comment: ""),
+    preferredStyle: .alert)
+  alert.addAction(UIAlertAction(title: NSLocalizedString("OK", comment: ""), style: .default))
+  if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+    let rootVC = windowScene.windows.first?.rootViewController
+  {
+    rootVC.present(alert, animated: true)
+  }
+}
