@@ -144,3 +144,30 @@ public func ShowModalAlert(title: String, message: String) {
     rootVC.present(alert, animated: true)
   }
 }
+
+extension SKNode {
+  func FindParentViewController<T: UIViewController>(ofType type: T.Type) -> T? {
+    var node: SKNode? = self
+    while let current = node {
+      if let scene = current as? SKScene {
+        var parentView: UIView? = scene.view
+        while let currentView = parentView {
+          if let viewController = currentView.next as? T {
+            return viewController
+          }
+          parentView = currentView.superview
+        }
+        break
+      }
+      node = current.parent
+    }
+    return nil
+  }
+  func ApplyToParentViewController<T: UIViewController>(
+    to viewControllerType: T.Type, closureApplyToParent: (T) -> Void
+  ) {
+    if let viewController = FindParentViewController(ofType: viewControllerType) {
+      closureApplyToParent(viewController)
+    }
+  }
+}

@@ -6,11 +6,11 @@
 import SpriteKit
 
 class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
-  private var m_closureAction: (SKSimpleTextButton) -> Void
-  private var m_closureOnRenderSchemeChange: (SKSimpleTextButton) -> Void
-  private var m_closureOnSizeChange: (SKSimpleTextButton) -> Void
-  private var m_strLocalizationKey: String
-  private var m_labelNode: SKLabelNode
+  private var m_closureAction: (SKSimpleTextButton) -> Void = { _ in }
+  private var m_closureOnRenderSchemeChange: (SKSimpleTextButton) -> Void = { _ in }
+  private var m_closureOnSizeChange: (SKSimpleTextButton) -> Void = { _ in }
+  private var m_strLocalizationKey: String = ""
+  private var m_labelNode: SKLabelNode = SKLabelNode()
 
   init(
     keyLocale _localizationKey: String,
@@ -19,7 +19,6 @@ class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
     sizeChange _onSizeChange: @escaping (SKSimpleTextButton) -> Void
   ) {
     m_strLocalizationKey = _localizationKey
-    m_labelNode = SKLabelNode()
     m_closureAction = _action
     m_closureOnRenderSchemeChange = _onRenderSchemeChange
     m_closureOnSizeChange = _onSizeChange
@@ -37,6 +36,9 @@ class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
   }
   required init?(coder aDecoder: NSCoder) {
     fatalError("init(coder:) not supported")
+  }
+  func setActionClosure(_ closure: @escaping (SKSimpleTextButton) -> Void) {
+    m_closureAction = closure
   }
 
   var keyLocalization: String {
