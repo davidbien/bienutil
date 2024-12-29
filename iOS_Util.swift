@@ -170,4 +170,12 @@ extension SKNode {
       closureApplyToParent(viewController)
     }
   }
+  func AdjustChildrenPositions(xOffset: CGFloat, yOffset: CGFloat) {
+    for child: SKNode in children {
+      child.position = CGPoint(
+        x: child.position.x - xOffset,
+        y: child.position.y - yOffset
+      )
+    }
+  }
 }
