@@ -11,6 +11,10 @@ class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
   private var m_closureOnSizeChange: (SKSimpleTextButton) -> Void = { _ in }
   private var m_strLocalizationKey: String = ""
   private var m_labelNode: SKLabelNode = SKLabelNode()
+  private var m_fPressed: Bool = false
+  private static let s_knptsMarginsHorz: CGFloat = 10.0
+  private static let s_knptsMarginsVert: CGFloat = 2.0
+  private static let s_knptsMinSizeText: CGFloat = 8.0
 
   init(
     keyLocale _localizationKey: String,
@@ -58,14 +62,35 @@ class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
   func onLocaleChange() {
     m_labelNode.text = NSLocalizedString(m_strLocalizationKey, comment: "")
   }
+
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    m_fPressed = true
     alpha = 0.7
   }
-  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-    alpha = 1.0
-    m_closureAction(self)
+
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let touch = touches.first else { return }
+    let touchPoint = touch.location(in: self)
+
+    if !bounds.contains(touchPoint) && m_fPressed {
+      m_fPressed = false
+      alpha = 1.0
+    }
   }
+
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard let touch = touches.first else { return }
+    let touchPoint = touch.location(in: self)
+
+    if bounds.contains(touchPoint) && m_fPressed {
+      m_closureAction(self)
+    }
+    m_fPressed = false
+    alpha = 1.0
+  }
+
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    m_fPressed = false
     alpha = 1.0
   }
   func setPosAndSize(position: CGPoint, size: CGSize) {
@@ -73,15 +98,34 @@ class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
     let fNeedsUpdate = (self.size != size)
     if fNeedsUpdate {
       self.size = size
-      // Set the label position to the center of the button by default the closure can change this if it wants.
-      m_labelNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
-      // Set the label font size to the height of the button by default the closure can change this if it wants.
-      m_labelNode.fontSize = size.height
       m_closureOnSizeChange(self)
       _updateLayout()
     }
   }
   private func _updateLayout() {
+    // First try with margins
+    m_labelNode.fontSize = size.height
+    let bounds = m_labelNode.calculateAccumulatedFrame()
 
+    let scaleWithMarginsH = (size.width - (2 * Self.s_knptsMarginsHorz)) / bounds.width
+    let scaleWithMarginsV = size.height / bounds.height
+    let scaleWithMargins = min(scaleWithMarginsH, scaleWithMarginsV)
+
+    let fontSizeWithMargins = m_labelNode.fontSize * scaleWithMargins
+
+    if fontSizeWithMargins >= Self.s_knptsMinSizeText {
+      m_labelNode.fontSize = fontSizeWithMargins
+    } else {
+      // Use full space without margins
+      m_labelNode.fontSize = size.height
+      let boundsNoMargins = m_labelNode.calculateAccumulatedFrame()
+      let scaleNoMargins = min(
+        size.width / boundsNoMargins.width,
+        size.height / boundsNoMargins.height)
+      m_labelNode.fontSize *= scaleNoMargins
+    }
+
+    m_labelNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
   }
+
 }
