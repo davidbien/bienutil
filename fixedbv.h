@@ -192,6 +192,7 @@ public:
   }
   /// @brief return true if no bits are set
   bool none() const { return !any(); }
+  bool empty() const { return !any(); }
   /// @brief return number of bits set
   size_t count() const
   {
