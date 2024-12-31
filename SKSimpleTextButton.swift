@@ -13,7 +13,7 @@ class SKSimpleTextButton: SKSpriteNode, RenderLocaleAware {
   private var m_labelNode: SKLabelNode = SKLabelNode()
   private var m_fPressed: Bool = false
   private static let s_knptsMarginsHorz: CGFloat = 10.0
-  private static let s_knptsMarginsVert: CGFloat = 2.0
+  private static let s_knptsMarginsVert: CGFloat = 5.0
   private static let s_knptsMinSizeText: CGFloat = 8.0
 
   init(

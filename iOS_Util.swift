@@ -28,6 +28,39 @@ func ShareJsonFiles(fromDirectory logDir: String) {
   }
 }
 
+let s_colorMap: [String: UIColor] = [
+  "black": .black,
+  "blue": .blue,
+  "brown": .brown,
+  "cyan": .cyan,
+  "darkgray": .darkGray,
+  "gray": .gray,
+  "green": .green,
+  "lightgray": .lightGray,
+  "magenta": .magenta,
+  "orange": .orange,
+  "purple": .purple,
+  "red": .red,
+  "white": .white,
+  "yellow": .yellow,
+  "systemblue": .systemBlue,
+  "systembrown": .systemBrown,
+  "systemgreen": .systemGreen,
+  "systemindigo": .systemIndigo,
+  "systemorange": .systemOrange,
+  "systempink": .systemPink,
+  "systempurple": .systemPurple,
+  "systemred": .systemRed,
+  "systemteal": .systemTeal,
+  "systemyellow": .systemYellow,
+  "systemgray": .systemGray,
+  "systemgray2": .systemGray2,
+  "systemgray3": .systemGray3,
+  "systemgray4": .systemGray4,
+  "systemgray5": .systemGray5,
+  "systemgray6": .systemGray6,
+]
+
 // Translate a string that is in the format "#RRGGBBAA", "#RRGGBB", or a color name to a UIColor
 func UIColorFromJSString(_ colorString: String) -> UIColor {
   if colorString.hasPrefix("#") {
@@ -56,40 +89,28 @@ func UIColorFromJSString(_ colorString: String) -> UIColor {
       return .black
     }
   }
+  return s_colorMap[colorString.lowercased()] ?? .black
+}
 
-  let colorMap: [String: UIColor] = [
-    "black": .black,
-    "blue": .blue,
-    "brown": .brown,
-    "cyan": .cyan,
-    "darkgray": .darkGray,
-    "gray": .gray,
-    "green": .green,
-    "lightgray": .lightGray,
-    "magenta": .magenta,
-    "orange": .orange,
-    "purple": .purple,
-    "red": .red,
-    "white": .white,
-    "yellow": .yellow,
-    "systemblue": .systemBlue,
-    "systembrown": .systemBrown,
-    "systemgreen": .systemGreen,
-    "systemindigo": .systemIndigo,
-    "systemorange": .systemOrange,
-    "systempink": .systemPink,
-    "systempurple": .systemPurple,
-    "systemred": .systemRed,
-    "systemteal": .systemTeal,
-    "systemyellow": .systemYellow,
-    "systemgray": .systemGray,
-    "systemgray2": .systemGray2,
-    "systemgray3": .systemGray3,
-    "systemgray4": .systemGray4,
-    "systemgray5": .systemGray5,
-    "systemgray6": .systemGray6,
-  ]
-  return colorMap[colorString.lowercased()] ?? .black
+func UIColorToJSString(_ color: UIColor) -> String {
+  // First try to find a matching system color
+  for (name, systemColor) in s_colorMap {
+    if color == systemColor {
+      return name
+    }
+  }
+
+  // If no match, convert to #RRGGBBAA format
+  let colorInRGBSpace = color.cgColor.converted(
+    to: CGColorSpace(name: CGColorSpace.sRGB)!, intent: .defaultIntent, options: nil)!
+  let components = colorInRGBSpace.components!
+
+  return String(
+    format: "#%02X%02X%02X%02X",
+    Int(components[0] * 255),
+    Int(components[1] * 255),
+    Int(components[2] * 255),
+    Int(components[3] * 255))
 }
 
 // Creates a path that draws 4 lines whose outer edges exactly match the input rectangle
