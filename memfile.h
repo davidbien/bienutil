@@ -316,7 +316,7 @@ public:
     void Apply( _tySizeType _posBegin, _tySizeType _posEnd, t_TyFunctor && _rrftor )
     {
         VerifyThrow( !!m_spmfMemFile );
-        m_spmfMemFile->_GetSegArrayImpl().ApplyContiguous( _posBegin, _posEnd, forward< t_TyFunctor >( _rrftor ) );
+        m_spmfMemFile->_GetSegArrayImpl().ApplyContiguous( _posBegin, _posEnd, std::forward< t_TyFunctor >( _rrftor ) );
     }
 protected:
     void _OpenStream( std::shared_ptr< _tyMemFile > const & _spmfMemFile )
