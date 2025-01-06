@@ -62,7 +62,7 @@ public:
     : m_saBuffer( _nbySizeSegment )
   {
   }
-  FdReadRotating( FdReadRotating && _rr )
+  FdReadRotating( FdReadRotating && _rr ) noexcept
   {
     swap( _rr );
   }

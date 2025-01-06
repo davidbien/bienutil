@@ -77,7 +77,7 @@ public:
   {
     m_fObjectIterator ? _CreateIterator(_r.GetObjectIterator()) : _CreateIterator(_r.GetArrayIterator());
   }
-  JsoIterator(const JsoIterator &&_rr)
+  JsoIterator(JsoIterator &&_rr)
       : m_fObjectIterator(_rr.m_fObjectIterator)
   {
     m_fObjectIterator ? _CreateIterator(std::move(_rr.GetObjectIterator())) : _CreateIterator(std::move(_rr.GetArrayIterator()));

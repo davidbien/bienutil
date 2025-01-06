@@ -101,7 +101,8 @@ public:
             if (ppbyCurOther + 1 == ppbyEndDataOther) // we are on the last segment.
             {
               _tySizeType nLeftOver = _r.m_nElements % NElsPerSegment();
-              nbySizeCopy = nLeftOver * sizeof(_tyT);
+              if ( nLeftOver )
+                nbySizeCopy = nLeftOver * sizeof(_tyT);
             }
             memcpy(*ppbyCurThis, *ppbyCurOther, nbySizeCopy);
           }
@@ -189,6 +190,7 @@ public:
   {
     SegArray saCopy(_r);
     swap(saCopy);
+    return *this;
   }
   SegArray &operator=(SegArray &&_rr)
   {
@@ -196,6 +198,7 @@ public:
     // So Close() first.
     Clear();
     swap(_rr);
+    return *this;
   }
 
   _tySizeType NElements() const

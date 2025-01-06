@@ -11,6 +11,7 @@ template < size_t t_kN, typename t_TyT = uint8_t > class FixedBV
 
 public:
   static const size_t s_kNElsArray = ( t_kN + CHAR_BIT * sizeof( t_TyT ) - 1 ) / ( CHAR_BIT * sizeof( t_TyT ) );
+
 private:
   typedef std::array< t_TyT, s_kNElsArray > _TyArray;
   _TyArray m_rgT;
@@ -21,6 +22,7 @@ private:
     if constexpr ( kexcessBits > 0 )
       m_rgT[ m_rgT.size() - 1 ] &= ( t_TyT( 1 ) << ( CHAR_BIT * sizeof( t_TyT ) - kexcessBits ) ) - 1;
   }
+
 public:
   typedef t_TyT _TyT;
   static const size_t s_kN = t_kN;
@@ -51,14 +53,11 @@ public:
 #if ASSERTSENABLED
     // check if any bits above the t_kNth bit are set - don't throw - just assert.
     if constexpr ( t_kN % ( CHAR_BIT * sizeof( t_TyT ) ) )
-      Assert( !( m_rgT[ t_kN / ( CHAR_BIT * sizeof( t_TyT ) ) ] & ( ~((t_TyT(1) << (t_kN % ( CHAR_BIT * sizeof( t_TyT )))) - 1) ) ) );
+      Assert( !( m_rgT[ t_kN / ( CHAR_BIT * sizeof( t_TyT ) ) ] & ( ~( ( t_TyT( 1 ) << ( t_kN % ( CHAR_BIT * sizeof( t_TyT ) ) ) ) - 1 ) ) ) );
 #endif // ASSERTSENABLED
   }
   /// @brief get the size of the bitvector
-  size_t size() const noexcept
-  {
-    return t_kN;
-  }
+  size_t size() const noexcept { return t_kN; }
   /// @brief return the backing array for use in serialization
   _TyArray & GetArray() noexcept { return m_rgT; }
   /// @return const reference to backing array
@@ -81,17 +80,11 @@ public:
   /// @brief compare two bitvectors for equality
   /// @param _kother bitvector
   /// @return true if equal
-  bool operator==( const FixedBV & _kother ) const
-  {
-    return ( *this <=> _kother ) == std::strong_ordering::equal;
-  }
+  bool operator==( const FixedBV & _kother ) const { return ( *this <=> _kother ) == std::strong_ordering::equal; }
   /// @brief compare two bitvectors for inequality
   /// @param _kother bitvector
   /// @return true if not equal
-  bool operator!=( const FixedBV & _kother ) const
-  {
-    return ( *this <=> _kother ) != std::strong_ordering::equal;
-  }
+  bool operator!=( const FixedBV & _kother ) const { return ( *this <=> _kother ) != std::strong_ordering::equal; }
   /// @brief return true if bit is set
   /// @param _kindex bit index
   bool test( const size_t _kindex ) const noexcept( false )
@@ -103,10 +96,7 @@ public:
     return ( m_rgT[ kelIndex ] & ( t_TyT( 1 ) << kbitIndex ) ) != 0;
   }
   /// @brief Get the value of the bit - we don't support bit references since it is more work than we need to do right now.
-  bool operator[]( const size_t _kindex ) const noexcept( false )
-  {
-    return test( _kindex );
-  }
+  bool operator[]( const size_t _kindex ) const noexcept( false ) { return test( _kindex ); }
   /// @brief set bit to passed value
   /// @param _kindex bit index
   /// @param _kfvalue value
@@ -297,7 +287,7 @@ public:
     const size_t kwholeShifts = _kshift / ( CHAR_BIT * sizeof( t_TyT ) );
     if ( kwholeShifts != 0 )
     {
-      for ( size_t _kindex = 0; _kindex <= m_rgT.size(); ++_kindex )
+      for ( size_t _kindex = 0; _kindex < m_rgT.size(); ++_kindex )
         m_rgT[ _kindex ] = kwholeShifts <= m_rgT.size() - _kindex ? m_rgT[ _kindex + kwholeShifts ] : 0;
     }
     const size_t kbitShifts = _kshift % ( CHAR_BIT * sizeof( t_TyT ) );
@@ -339,22 +329,39 @@ public:
       return ( std::numeric_limits< size_t >::max )();
     size_t kelIndex = nBitStart / ( CHAR_BIT * sizeof( t_TyT ) );
     size_t kbitIndex = nBitStart % ( CHAR_BIT * sizeof( t_TyT ) );
-    for ( t_TyT mask = m_rgT[ kelIndex ] & ( ~t_TyT( 0 ) << kbitIndex ); ; )
+    for ( t_TyT mask = m_rgT[ kelIndex ] & ( ~t_TyT( 0 ) << kbitIndex );; )
     {
       if ( mask != 0 )
       {
 #ifdef _MSC_VER
         unsigned long index;
         if constexpr ( sizeof( t_TyT ) == 8 )
+        {
           _BitScanForward64( &index, mask );
+          return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+        }
         else
+        {
           _BitScanForward( &index, mask );
-        return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+          if constexpr ( sizeof( t_TyT ) < 4 )
+          {
+            size_t bitPos = kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+            return bitPos < t_kN ? bitPos : ( std::numeric_limits< size_t >::max )();
+          }
+          return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+        }
 #elif defined( __GNUC__ ) || defined( __clang__ )
         if constexpr ( sizeof( t_TyT ) == 8 )
           return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctzll( mask );
         else
+        {
+          if constexpr ( sizeof( t_TyT ) < 4 )
+          {
+            size_t bitPos = kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctz( mask );
+            return bitPos < t_kN ? bitPos : ( std::numeric_limits< size_t >::max )();
+          }
           return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctz( mask );
+        }
 #else
         // Brute force method for other compilers
         for ( size_t i = 0; i < CHAR_BIT * sizeof( t_TyT ); ++i )
@@ -377,15 +384,17 @@ public:
   }
 };
 
-template< size_t t_kN, typename t_TyT >
-inline FixedBV< t_kN, t_TyT > operator|( FixedBV< t_kN, t_TyT > const& _left, FixedBV< t_kN, t_TyT > const& _right )
+template < size_t t_kN, typename t_TyT >
+inline FixedBV< t_kN, t_TyT >
+operator|( FixedBV< t_kN, t_TyT > const & _left, FixedBV< t_kN, t_TyT > const & _right )
 {
   FixedBV< t_kN, t_TyT > result( _left );
   result |= _right;
   return result;
 }
-template< size_t t_kN, typename t_TyT >
-inline FixedBV< t_kN, t_TyT > operator&( FixedBV< t_kN, t_TyT > const& _left, FixedBV< t_kN, t_TyT > const& _right )
+template < size_t t_kN, typename t_TyT >
+inline FixedBV< t_kN, t_TyT >
+operator&( FixedBV< t_kN, t_TyT > const & _left, FixedBV< t_kN, t_TyT > const & _right )
 {
   FixedBV< t_kN, t_TyT > result( _left );
   result &= _right;

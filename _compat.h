@@ -336,17 +336,16 @@ CreateFileMaybeReadWrite< true_type >( const char * _pszFileName )
 inline size_t
 GetPageSize() noexcept
 {
-  static size_t stPageSize = 0;
-  if ( !stPageSize )
+  static const size_t stPageSize = []() noexcept
   {
 #ifdef WIN32
     SYSTEM_INFO si;
     GetSystemInfo( &si );
-    stPageSize = si.dwPageSize;
-#elif defined( __APPLE__ ) || defined( __linux__ )
-    stPageSize = getpagesize();
+    return si.dwPageSize;
+#else
+    return getpagesize();
 #endif
-  }
+  }();
   return stPageSize;
 }
 

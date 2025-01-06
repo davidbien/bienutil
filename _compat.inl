@@ -25,7 +25,7 @@ GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen ) noexcept
   _rgchBuffer[ _stLen - 1 ] = 0;
   return !dwLen ? -1 : 0;
 #elif defined( __linux__ ) || defined( __APPLE__ )
-  return ::strerror_r( _errno, _rgchBuffer, _stLen ) ? 0 : -1;
+  return ::strerror_r( _errno, _rgchBuffer, _stLen );
 #endif
 }
 

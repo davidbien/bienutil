@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 //          Copyright David Lawrence Bien 1997 - 2021.
 // Distributed under the Boost Software License, Version 1.0.
@@ -20,16 +20,12 @@
 __BIENUTIL_BEGIN_NAMESPACE
 
 // CircularElTraits: Allow implementors to override functionality.
-template < class t_tyEl >
-struct CircularElTraits;
-template < class t_tyEl >
-class CircularList;
-template < class t_tyEl, class t_tyCircularListContainer >
-class CircularListEl;
+template < class t_tyEl > struct CircularElTraits;
+template < class t_tyEl > class CircularList;
+template < class t_tyEl, class t_tyCircularListContainer > class CircularListEl;
 
 // Declare the non-specialized version:
-template < class t_tyEl >
-struct CircularElTraits
+template < class t_tyEl > struct CircularElTraits
 {
   typedef allocator< char > _tyAllocator;
   typedef CircularList< t_tyEl > _tyCircularListContainer;
@@ -48,48 +44,55 @@ struct CircularElTraits
 
 // CircularListEl:
 // We have an allocator because you can create one by merely having one element.
-template < class t_tyEl, class t_tyCircularListContainer >
-class CircularListEl
+template < class t_tyEl, class t_tyCircularListContainer > class CircularListEl
 {
   typedef CircularListEl _tyThis;
+
 public:
   typedef t_tyEl _tyEl;
   typedef t_tyCircularListContainer _tyCircularListContainer;
 
   CircularListEl() = default;
-  CircularListEl( _tyCircularListContainer & _rl
+  CircularListEl( _tyCircularListContainer & _rl )
+    : m_plContainer( &_rl )
+    , m_pNext( this )
+    , m_pPrev( this )
+  {
+  }
   CircularListEl( CircularListEl const & _r )
-   : m_el( _r.m_el )
-  {   
+    : m_el( _r.m_el )
+  {
   }
   CircularListEl( _tyEl const & _rEl, _tyThis & _rInsertBefore )
-    : m_el( _rEl ),
-      m_pNext( &_rInsertBefore ),
-      m_pPrev( _rInsertBefore.m_pPrev )
+    : m_el( _rEl )
+    , m_pNext( &_rInsertBefore )
+    , m_pPrev( _rInsertBefore.m_pPrev )
   {
     _rInsertBefore.m_pPrev->m_pNext = this;
     _rInsertBefore.m_pPrev = this;
   }
   CircularListEl( _tyThis & _rInsertAfter, _tyEl const & _rEl )
     : m_el( _rEl )
-      m_pNext( _rInsertAfter.m_pNext ),
-      m_pPrev( &_rInsertAfter )
+    , m_pNext( _rInsertAfter.m_pNext )
+    , m_pPrev( &_rInsertAfter )
   {
     _rInsertAfter.m_pNext->m_pPrev = this;
     _rInsertAfter.m_pNext = this;
   }
-  CircularListEl & operator = ( CircularListEl const & _r )
+  CircularListEl & operator=( CircularListEl const & _r )
   {
     m_el = _r.m_el;
+    return *this;
   }
   // The default move operators don't copy the m_pNext and m_pPrev pointers as that is rarely desireable.
   CircularListEl( CircularListEl && _rr )
     : m_el( std::move( _rr.m_el ) )
   {
   }
-  CircularListEl & operator = ( CircularListEl && _rr )
+  CircularListEl & operator=( CircularListEl && _rr )
   {
     m_el = std::move( _rr.m_el );
+    return *this;
   }
   // Use MoveAll if you want to move all the members and leave _rr in an initialized state.
   void MoveAll( CircularListEl && _rr )
@@ -105,46 +108,27 @@ public:
   {
   }
   CircularListEl( _tyEl && _rrEl, _tyThis & _rInsertBefore )
-    : m_el( std::move( _rrEl ) ),
-      m_pNext( &_rInsertBefore ),
-      m_pPrev( _rInsertBefore.m_pPrev )
+    : m_el( std::move( _rrEl ) )
+    , m_pNext( &_rInsertBefore )
+    , m_pPrev( _rInsertBefore.m_pPrev )
   {
     _rInsertBefore.m_pPrev->m_pNext = this;
     _rInsertBefore.m_pPrev = this;
   }
   CircularListEl( _tyThis & _rInsertAfter, _tyEl && _rrEl )
-    : m_el( std::move( _rrEl ) )
-      m_pNext( _rInsertAfter.m_pNext ),
-      m_pPrev( &_rInsertAfter )
+    : m_el( std::move( _rrEl ) ) m_pNext( _rInsertAfter.m_pNext )
+    , m_pPrev( &_rInsertAfter )
   {
     _rInsertAfter.m_pNext->m_pPrev = this;
     _rInsertAfter.m_pNext = this;
   }
-  _tyEl & REl()
-  {
-    return m_el;
-  }
-  const _tyEl & REl() const
-  {
-    return m_el;
-  }
+  _tyEl & REl() { return m_el; }
+  const _tyEl & REl() const { return m_el; }
 
-  const CircularListEl * PNext() const
-  {
-    return m_pNext;
-  }
-  CircularListEl * PNext()
-  {
-    return m_pNext;
-  }
-  const CircularListEl * PPrev() const
-  {
-    return m_pPrev;
-  }
-  CircularListEl * PPrev()
-  {
-    return m_pPrev;
-  }
+  const CircularListEl * PNext() const { return m_pNext; }
+  CircularListEl * PNext() { return m_pNext; }
+  const CircularListEl * PPrev() const { return m_pPrev; }
+  CircularListEl * PPrev() { return m_pPrev; }
 
   // Remove this element from the list _rcl. The list is left pointing at the next element or nullptr if no elements left.
   void Remove()
@@ -179,23 +163,22 @@ public:
   }
 
 protected:
-  _tyCircularListContainer * m_plContainer{nullptr}; // Pointer to our container - we don't maintain a hard reference to it.
-  _tyThis * m_pNext{this};
-  _tyThis * m_pPrev{this};
+  _tyCircularListContainer * m_plContainer{ nullptr }; // Pointer to our container - we don't maintain a hard reference to it.
+  _tyThis * m_pNext{ this };
+  _tyThis * m_pPrev{ this };
   t_tyEl m_el;
 };
 
 // CircularList:
 template < class t_tyEl >
-class CircularList : public _alloc_base<  typename CircularElTraits< t_tyEl >::_tyCircularListEl,
-                                          typename CircularElTraits< t_tyEl >::_tyAllocator >
+class CircularList : public _alloc_base< typename CircularElTraits< t_tyEl >::_tyCircularListEl, typename CircularElTraits< t_tyEl >::_tyAllocator >
 {
   typedef CircularList _tyThis;
-  typedef _alloc_base<  typename CircularElTraits< t_tyEl >::_tyCircularListEl,
-                        typename CircularElTraits< t_tyEl >::_tyAllocator > _tyBase;
+  typedef _alloc_base< typename CircularElTraits< t_tyEl >::_tyCircularListEl, typename CircularElTraits< t_tyEl >::_tyAllocator > _tyBase;
+
 public:
-  typedef CircularElTraits< t_tyEl >::_tyCircularListEl _tyCircularListEl;
-  typedef CircularElTraits< t_tyEl >::_tyAllocator _tyAllocator;
+  typedef typename CircularElTraits< t_tyEl >::_tyCircularListEl _tyCircularListEl;
+  typedef typename CircularElTraits< t_tyEl >::_tyAllocator _tyAllocator;
 
   CircularList() = default;
   CircularList( CircularList const & _r )
@@ -218,14 +201,8 @@ public:
     }
   }
 
-  const _tyCircularListEl * PGetHead() const
-  {
-    return m_pcleHead;
-  }
-  _tyCircularListEl * PGetHead()
-  {
-    return m_pcleHead;
-  }
+  const _tyCircularListEl * PGetHead() const { return m_pcleHead; }
+  _tyCircularListEl * PGetHead() { return m_pcleHead; }
 
   void Copy( _tyThis const & _r )
   {
@@ -260,11 +237,10 @@ protected:
       // We don't bother unlinking the elements as we are destroying the entire list:
       pNext = pCur->PNext();
       _tyBase::DestroyP( pCur );
-    }
-    while( _p != ( pCur = pNext ) );
+    } while ( _p != ( pCur = pNext ) );
   }
-  
-  _tyCircularListEl * m_pcleHead{nullptr};
+
+  _tyCircularListEl * m_pcleHead{ nullptr };
   _tyAllocEl m_allocEl; // allocator for elements of the list.
 };
 

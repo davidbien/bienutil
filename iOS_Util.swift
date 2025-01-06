@@ -166,37 +166,104 @@ public func ShowModalAlert(title: String, message: String) {
   }
 }
 
-extension SKNode {
-  func FindParentViewController<T: UIViewController>(ofType type: T.Type) -> T? {
-    var node: SKNode? = self
-    while let current = node {
-      if let scene = current as? SKScene {
-        var parentView: UIView? = scene.view
-        while let currentView = parentView {
-          if let viewController = currentView.next as? T {
-            return viewController
-          }
-          parentView = currentView.superview
-        }
-        break
-      }
-      node = current.parent
-    }
-    return nil
+/*
+ContrastRatio calculates the WCAG 2.0 contrast ratio between two colors
+Returns a value between 1 and 21, where:
+- 1:1 = no contrast (same colors)
+- 21:1 = maximum contrast (black/white)
+
+Minimum ratios for readability:
+- 3:1 - Large text (18pt+)
+- 4.5:1 - Normal text
+- 7:1 - Enhanced contrast
+
+Example usage:
+let ratio = ContrastRatio(between: .black, and: .purple)
+let isReadable = ratio >= 4.5
+
+RelativeLuminance calculates perceived brightness of a color
+using RGB coefficients based on human perception:
+- Red: 21.26%
+- Green: 71.52%
+- Blue: 7.22%
+*/
+func ContrastRatio(between textColor: UIColor, and backgroundColor: UIColor) -> CGFloat {
+  let textLuminance = RelativeLuminance(of: textColor)
+  let backgroundLuminance = RelativeLuminance(of: backgroundColor)
+
+  let lighter = max(textLuminance, backgroundLuminance)
+  let darker = min(textLuminance, backgroundLuminance)
+
+  return (lighter + 0.05) / (darker + 0.05)
+}
+private func RelativeLuminance(of color: UIColor) -> CGFloat {
+  var red: CGFloat = 0
+  var green: CGFloat = 0
+  var blue: CGFloat = 0
+  color.getRed(&red, green: &green, blue: &blue, alpha: nil)
+
+  let rLum = (red <= 0.03928) ? red / 12.92 : pow((red + 0.055) / 1.055, 2.4)
+  let gLum = (green <= 0.03928) ? green / 12.92 : pow((green + 0.055) / 1.055, 2.4)
+  let bLum = (blue <= 0.03928) ? blue / 12.92 : pow((blue + 0.055) / 1.055, 2.4)
+
+  return 0.2126 * rLum + 0.7152 * gLum + 0.0722 * bLum
+}
+
+enum EReadabilityLevel {
+  case largeText  // 3:1 minimum
+  case normalText  // 4.5:1 minimum
+  case enhancedText  // 7:1 minimum
+}
+func IsTextReadable(textColor: UIColor, backgroundColor: UIColor, level: EReadabilityLevel) -> Bool
+{
+  let ratio = ContrastRatio(between: textColor, and: backgroundColor)
+
+  switch level {
+  case .largeText:
+    return ratio >= 3.0
+  case .normalText:
+    return ratio >= 4.5
+  case .enhancedText:
+    return ratio >= 7.0
   }
-  func ApplyToParentViewController<T: UIViewController>(
-    to viewControllerType: T.Type, closureApplyToParent: (T) -> Void
-  ) {
-    if let viewController = FindParentViewController(ofType: viewControllerType) {
-      closureApplyToParent(viewController)
-    }
+}
+
+func MaxContrastColor(for backgroundColor: UIColor) -> UIColor {
+  let luminance = RelativeLuminance(of: backgroundColor)
+  return luminance > 0.5 ? .black : .white
+}
+
+func AdjustColorForReadability(
+  color: UIColor, against backgroundColor: UIColor, level: EReadabilityLevel
+) -> UIColor {
+  var h: CGFloat = 0
+  var s: CGFloat = 0
+  var b: CGFloat = 0
+  var a: CGFloat = 0
+  color.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+  let targetRatio: CGFloat = level == .largeText ? 3.0 : (level == .normalText ? 4.5 : 7.0)
+  let currentRatio = ContrastRatio(between: color, and: backgroundColor)
+  if currentRatio >= targetRatio {
+    return color
   }
-  func AdjustChildrenPositions(xOffset: CGFloat, yOffset: CGFloat) {
-    for child: SKNode in children {
-      child.position = CGPoint(
-        x: child.position.x - xOffset,
-        y: child.position.y - yOffset
-      )
-    }
+  let backgroundLuminance = RelativeLuminance(of: backgroundColor)
+  let needsDarkening = backgroundLuminance > 0.5
+  while ContrastRatio(
+    between: UIColor(hue: h, saturation: s, brightness: b, alpha: a), and: backgroundColor)
+    < targetRatio
+  {
+    b = needsDarkening ? max(0, b - 0.05) : min(1, b + 0.05)
+  }
+  return UIColor(hue: h, saturation: s, brightness: b, alpha: a)
+}
+
+extension UIColor {
+  func darkened(by percentage: CGFloat) -> UIColor {
+    var h: CGFloat = 0
+    var s: CGFloat = 0
+    var b: CGFloat = 0
+    var a: CGFloat = 0
+    getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+    return UIColor(hue: h, saturation: s, brightness: b * (1 - percentage), alpha: a)
   }
 }

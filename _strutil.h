@@ -157,6 +157,8 @@ size_t StrSpn( const t_tyChar * _psz, size_t _stNChars, const t_tyChar * _pszCha
 template <class t_tyChar>
 size_t StrRSpn(const t_tyChar *_pszBegin, const t_tyChar *_pszEnd, const t_tyChar *_pszSet)
 {
+  if ( _pszBegin == _pszEnd )
+    return 0;
   const t_tyChar *pszCur = _pszEnd;
   for (; pszCur-- != _pszBegin;)
   {
