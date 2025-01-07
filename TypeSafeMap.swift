@@ -7,8 +7,7 @@ import Foundation
 
 class TypeSafeMap<t_TyKey: AnyObject, t_TyValue> {
   typealias _TyThis = TypeSafeMap
-  private let m_map: NSMapTable<t_TyKey, NSArray>
-
+  private let m_map: NSMapTable<t_TyKey, AnyObject>
   init() {
     m_map = NSMapTable.weakToStrongObjects()
   }
@@ -16,10 +15,10 @@ class TypeSafeMap<t_TyKey: AnyObject, t_TyValue> {
     return m_map.count
   }
   func setObject(_ value: t_TyValue, forKey key: t_TyKey) {
-    m_map.setObject([value] as NSArray, forKey: key)
+    m_map.setObject(value as AnyObject, forKey: key)
   }
   func object(forKey key: t_TyKey) -> t_TyValue? {
-    return (m_map.object(forKey: key) as? [t_TyValue])?.first
+    return m_map.object(forKey: key) as? t_TyValue
   }
   func removeObject(forKey key: t_TyKey) {
     m_map.removeObject(forKey: key)
