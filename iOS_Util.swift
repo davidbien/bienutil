@@ -267,3 +267,50 @@ extension UIColor {
     return UIColor(hue: h, saturation: s, brightness: b * (1 - percentage), alpha: a)
   }
 }
+
+// Randomly permute array via successive random swaps
+public func Permute<T>(_ array: inout [T], iterations: Int? = nil) {
+  let n = array.count
+  let numIterations = iterations ?? max(100, n)
+
+  for _ in 0 ..< numIterations {
+    // Get two random indices
+    let i = Int(drand48() * Double(n))
+    let j = Int(drand48() * Double(n))
+
+    // Swap elements
+    let temp = array[i]
+    array[i] = array[j]
+    array[j] = temp
+  }
+}
+
+// Non-mutating variant that returns a new array
+public func Permuted<T>(_ array: [T], iterations: Int? = nil) -> [T] {
+  var copy = array
+  Permute(&copy, iterations: iterations)
+  return copy
+}
+
+// Randomly permute array via successive random value pairs passed to closure
+public func PermuteWithClosure<T>(
+  _ array: inout [T], iterations: Int? = nil, exchange: (inout T, inout T) -> Void
+) {
+  let n = array.count
+  guard n > 1 else { return }  // Nothing to permute with 0 or 1 elements
+
+  let numIterations = iterations ?? max(100, n)
+
+  for _ in 0 ..< numIterations {
+    var i: Int
+    var j: Int
+    repeat {
+      i = Int(drand48() * Double(n))
+      j = Int(drand48() * Double(n))
+    } while i == j
+
+    array.withUnsafeMutableBufferPointer { buffer in
+      exchange(&buffer[i], &buffer[j])
+    }
+  }
+}
