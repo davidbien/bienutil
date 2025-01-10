@@ -276,9 +276,11 @@ public func Permute<T>(_ array: inout [T], iterations: Int? = nil) {
 
   for _ in 0 ..< numIterations {
     // Get two random indices
+    var i: Int
+    var j: Int
     repeat {
-      i = Int(drand48() * Double(n))
-      j = Int(drand48() * Double(n))
+      i = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
+      j = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
     } while i == j
 
     // Swap elements
@@ -308,8 +310,8 @@ public func PermuteWithClosure<T>(
     var i: Int
     var j: Int
     repeat {
-      i = Int(drand48() * Double(n))
-      j = Int(drand48() * Double(n))
+      i = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
+      j = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
     } while i == j
 
     array.withUnsafeMutableBufferPointer { buffer in
