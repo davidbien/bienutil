@@ -8,9 +8,16 @@ import Foundation
 import GameplayKit
 
 struct SeededRandomNumberGenerator: RandomNumberGenerator {
-  static var shared = SeededRandomNumberGenerator()
-
   #if DEBUG
+    private static let threadLocal = ThreadSpecific<SeededRandomNumberGenerator>()
+    static var shared: SeededRandomNumberGenerator {
+      threadLocal.current ?? {
+        let rng = SeededRandomNumberGenerator()
+        threadLocal.current = rng
+        return rng
+      }()
+    }
+    
     private var m_gkrng: GKMersenneTwisterRandomSource
     private var m_dist: GKRandomDistribution
     private init(seed: UInt64 = 1) {
@@ -30,6 +37,7 @@ struct SeededRandomNumberGenerator: RandomNumberGenerator {
         randomSource: m_gkrng, lowestValue: Int64.min, highestValue: Int64.max)
     }
   #else
+    static var shared = SeededRandomNumberGenerator()
     private var m_rng = SystemRandomNumberGenerator()
     private init() {}
     mutating func next() -> UInt64 {

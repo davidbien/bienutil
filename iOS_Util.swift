@@ -7,6 +7,13 @@ import Foundation
 import SpriteKit
 import UIKit
 
+func DebugDumpLeaks() {
+    #if DEBUG
+    _ = malloc_zone_statistics(nil, print)
+    _ = malloc_zone_print(nil, true)
+    #endif
+}
+
 // ShareJsonFiles: This shares all json files located in a given directory. THe user can then choose how to share them.
 func ShareJsonFiles(fromDirectory logDir: String) {
   let fileURLs = try? FileManager.default.contentsOfDirectory(
