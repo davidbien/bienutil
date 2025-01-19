@@ -9,8 +9,8 @@ import UIKit
 
 func DebugDumpLeaks() {
     #if DEBUG
-    _ = malloc_zone_statistics(nil, print)
-    _ = malloc_zone_print(nil, true)
+    malloc_zone_statistics(nil, nil)
+    malloc_zone_print(nil, 1)
     #endif
 }
 

@@ -10,20 +10,21 @@ import GameplayKit
 struct SeededRandomNumberGenerator: RandomNumberGenerator {
   #if DEBUG
     private static let threadLocal = ThreadSpecific<SeededRandomNumberGenerator>()
-    static var shared: SeededRandomNumberGenerator {
+    static var _shared: SeededRandomNumberGenerator {
       threadLocal.current ?? {
         let rng = SeededRandomNumberGenerator()
         threadLocal.current = rng
         return rng
       }()
     }
+    static var shared = SeededRandomNumberGenerator._shared
     
     private var m_gkrng: GKMersenneTwisterRandomSource
     private var m_dist: GKRandomDistribution
     private init(seed: UInt64 = 1) {
       self.m_gkrng = GKMersenneTwisterRandomSource(seed: seed)
       self.m_dist = GKRandomDistribution(
-        randomSource: m_gkrng, lowestValue: Int64.min, highestValue: Int64.max)
+        randomSource: m_gkrng, lowestValue: Int.min, highestValue: Int.max)
     }
     mutating func next() -> UInt64 {
       return UInt64(bitPattern: Int64(m_dist.nextInt()))
@@ -34,7 +35,7 @@ struct SeededRandomNumberGenerator: RandomNumberGenerator {
     mutating func setSeed(_ seed: UInt64) {
       m_gkrng = GKMersenneTwisterRandomSource(seed: seed)
       m_dist = GKRandomDistribution(
-        randomSource: m_gkrng, lowestValue: Int64.min, highestValue: Int64.max)
+        randomSource: m_gkrng, lowestValue: Int.min, highestValue: Int.max)
     }
   #else
     static var shared = SeededRandomNumberGenerator()
