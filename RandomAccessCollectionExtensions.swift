@@ -55,4 +55,11 @@ extension RandomAccessCollection {
   func equalRange(value: Element, comp: (Element, Element) -> Bool) -> Range<Index> {
     return lowerBound(value: value, comp: comp) ..< upperBound(value: value, comp: comp)
   }
+
+  func getRandomElement<T: RandomNumberGenerator>(using generator: inout T) -> Element? {
+    guard !isEmpty else { return nil }
+    let count = distance(from: startIndex, to: endIndex)
+    let randomOffset = Int(generator.next() % UInt64(count))
+    return self[index(startIndex, offsetBy: randomOffset)]
+  }
 }

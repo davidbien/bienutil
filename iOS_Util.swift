@@ -8,10 +8,22 @@ import SpriteKit
 import UIKit
 
 func DebugDumpLeaks() {
-    #if DEBUG
+  // This is a hack to dump memory leaks - that is dubious at best.
+  #if DEBUG
     malloc_zone_statistics(nil, nil)
     malloc_zone_print(nil, 1)
-    #endif
+  #endif
+}
+
+// NotifyOnRelease is a class that will notify when it is deallocated.
+class NotifyOnRelease {
+  private let m_pfnNotify: () -> Void
+  init(notify: @escaping () -> Void) {
+    m_pfnNotify = notify
+  }
+  deinit {
+    m_pfnNotify()
+  }
 }
 
 // ShareJsonFiles: This shares all json files located in a given directory. THe user can then choose how to share them.
@@ -286,8 +298,8 @@ public func Permute<T>(_ array: inout [T], iterations: Int? = nil) {
     var i: Int
     var j: Int
     repeat {
-      i = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
-      j = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
+      i = Int(SeededRandomNumberGenerator.shared.nextUniformNotOne() * Double(n))
+      j = Int(SeededRandomNumberGenerator.shared.nextUniformNotOne() * Double(n))
     } while i == j
 
     // Swap elements
@@ -317,8 +329,8 @@ public func PermuteWithClosure<T>(
     var i: Int
     var j: Int
     repeat {
-      i = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
-      j = Int(SeededRandomNumberGenerator.shared.nextUniform() * Double(n))
+      i = Int(SeededRandomNumberGenerator.shared.nextUniformNotOne() * Double(n))
+      j = Int(SeededRandomNumberGenerator.shared.nextUniformNotOne() * Double(n))
     } while i == j
 
     array.withUnsafeMutableBufferPointer { buffer in

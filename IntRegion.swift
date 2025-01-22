@@ -186,13 +186,14 @@ class IntRegion<T: FixedWidthInteger & Comparable> {
   func contains(x: T, y: T) -> Bool {
     assertValid(fAllScanlines: true)
     if m_rgrect.isEmpty {
-      return false
+        return false
     }
     let rectSearch = IntRect(x: x, y: y, width: 0, height: 0)
     let nIdx = m_rgrect.lowerBound(value: rectSearch) { 
-      $0.minY < $1.minY || ($0.minY == $1.minY && $0.minX < $1.minX) 
+        $0.minY < $1.minY || ($0.minY == $1.minY && $0.minX < $1.minX) 
     }
-    return nIdx > 0 && m_rgrect[nIdx - 1].minY == y && x >= m_rgrect[nIdx - 1].minX && x < m_rgrect[nIdx - 1].maxX
+    return (nIdx > 0 && m_rgrect[nIdx - 1].minY == y && x >= m_rgrect[nIdx - 1].minX && x < m_rgrect[nIdx - 1].maxX) ||
+           (nIdx < m_rgrect.count && m_rgrect[nIdx].minY == y && x >= m_rgrect[nIdx].minX && x < m_rgrect[nIdx].maxX)
   }
 }
 

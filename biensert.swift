@@ -21,19 +21,21 @@ enum AssertionControl {
 func bienAssert(
   _ condition: @autoclosure () -> Bool,
   _ message: @autoclosure () -> String = String(),
-  file: StaticString = #file, line: UInt = #line
+  file: StaticString = #file, 
+  line: UInt = #line,
+  function: StaticString = #function
 ) {
   // We don't execute the code if assertions are disabled.
   if AssertionControl.areAssertionsEnabled && !condition() {
     let strFile: String = file.description
     let fileName = (strFile as NSString).lastPathComponent
     os_log(
-      "[ASSERT] %{public}@:%d %{public}@: %{public}@",
+      "[ASSERT] %{public}@ line %d: %{public}@: %{public}@",
       log: OSLog.default,
       type: .debug,
       fileName,
       UInt32(line),
-      #function,
+      String(describing: function),
       message())
     if !AssertionControl.continueOnFailure {
       precondition(false, message(), file: file, line: line)
@@ -44,18 +46,21 @@ func bienAssert(
 func bienVerify(
   _ condition: @autoclosure () -> Bool,
   _ message: @autoclosure () -> String = String(),
-  file: String = #file, line: UInt = #line
+  file: StaticString = #file, 
+  line: UInt = #line,
+  function: StaticString = #function
 ) {
   // We always execute a verify statement, we only log if assertions are enabled.
   if !condition() && AssertionControl.areAssertionsEnabled {
-    let fileName = (file as NSString).lastPathComponent
+    let strFile: String = file.description
+    let fileName = (strFile as NSString).lastPathComponent
     os_log(
-      "[VERIFY] %{public}@:%d %{public}@: %{public}@",
+      "[VERIFY] %{public}@ line %d: %{public}@: %{public}@",
       log: OSLog.default,
       type: .debug,
       fileName,
       UInt32(line),
-      #function,
+      String(describing: function),
       message())
   }
 }

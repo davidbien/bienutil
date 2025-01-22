@@ -20,22 +20,24 @@ struct SeededRandomNumberGenerator: RandomNumberGenerator {
     static var shared = SeededRandomNumberGenerator._shared
     
     private var m_gkrng: GKMersenneTwisterRandomSource
-    private var m_dist: GKRandomDistribution
-    private init(seed: UInt64 = 1) {
+    
+    private init(seed: UInt64 = 123456789) {
       self.m_gkrng = GKMersenneTwisterRandomSource(seed: seed)
-      self.m_dist = GKRandomDistribution(
-        randomSource: m_gkrng, lowestValue: Int.min, highestValue: Int.max)
     }
     mutating func next() -> UInt64 {
-      return UInt64(bitPattern: Int64(m_dist.nextInt()))
+      let value = UInt64(bitPattern: Int64(m_gkrng.nextInt()))
+      return value
     }
     mutating func nextUniform() -> Double {
-      return Double(m_dist.nextUniform())
+      return Double( m_gkrng.nextUniform() )
+    }
+    // Don't return one to rid a boundary condition for nextUniform().
+    mutating func nextUniformNotOne() -> Double {
+      let d = Double( nextUniform() )
+      return d >= 0.9999999 ? 0.9999999 : d
     }
     mutating func setSeed(_ seed: UInt64) {
       m_gkrng = GKMersenneTwisterRandomSource(seed: seed)
-      m_dist = GKRandomDistribution(
-        randomSource: m_gkrng, lowestValue: Int.min, highestValue: Int.max)
     }
   #else
     static var shared = SeededRandomNumberGenerator()
@@ -46,6 +48,10 @@ struct SeededRandomNumberGenerator: RandomNumberGenerator {
     }
     mutating func nextUniform() -> Double {
       return Double(next()) / Double(UInt64.max)
+    }
+    mutating func nextUniformNotOne() -> Double {
+      let d = Double( nextUniform() )
+      return d >= 0.9999999 ? 0.9999999 : d
     }
     mutating func setSeed(_ seed: UInt64) {
       // Ignored in release builds
