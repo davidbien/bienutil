@@ -51,7 +51,6 @@ struct IntRect<T: FixedWidthInteger & Comparable>: Equatable {
   }
 
   var isEmpty: Bool { m_szSize.width <= 0 || m_szSize.height <= 0 }
-
   var fScanline: Bool { m_szSize.height == 1 }
 
   func outsetBy(dx: T, dy: T) -> IntRect {
@@ -60,31 +59,31 @@ struct IntRect<T: FixedWidthInteger & Comparable>: Equatable {
   func insetBy(dx: T, dy: T) -> IntRect {
     IntRect(x: minX + dx, y: minY + dy, width: width - dx - dx, height: height - dy - dy)
   }
+  func scaleBy(numerator: T, denominator: T) -> IntRect<T> {
+    return IntRect(
+      origin: m_ptOrigin.scaleBy(numerator: numerator, denominator: denominator),
+      size: m_szSize.scaleBy(numerator: numerator, denominator: denominator)
+    )
+  }
 
   func intersects(_ rectOther: IntRect) -> Bool {
     guard !isEmpty && !rectOther.isEmpty else { return false }
     return maxX > rectOther.minX && minX < rectOther.maxX && maxY > rectOther.minY
       && minY < rectOther.maxY
   }
-
   func intersection(_ rectOther: IntRect) -> IntRect {
     let nMinX = Swift.max(minX, rectOther.minX)
     let nMinY = Swift.max(minY, rectOther.minY)
     let nMaxX = Swift.min(maxX, rectOther.maxX)
     let nMaxY = Swift.min(maxY, rectOther.maxY)
-
     let nWidth = nMaxX - nMinX
     let nHeight = nMaxY - nMinY
-
     guard nWidth > 0 && nHeight > 0 else { return .zero }
-
     return IntRect(x: nMinX, y: nMinY, width: nWidth, height: nHeight)
   }
-
   func contains(_ ptTest: IntPoint<T>) -> Bool {
     ptTest.x >= minX && ptTest.x < maxX && ptTest.y >= minY && ptTest.y < maxY
   }
-
   func contains(x: T, y: T) -> Bool {
     x >= minX && x < maxX && y >= minY && y < maxY
   }
@@ -124,6 +123,12 @@ struct IntPoint<T: FixedWidthInteger & Comparable>: Equatable {
     get { m_y }
     set { m_y = newValue }
   }
+  func scaleBy(numerator: T, denominator: T) -> IntPoint<T> {
+    return IntPoint(
+      x: (m_x * numerator) / denominator,
+      y: (m_y * numerator) / denominator
+    )
+  }
 }
 
 struct IntSize<T: FixedWidthInteger & Comparable>: Equatable {
@@ -142,5 +147,11 @@ struct IntSize<T: FixedWidthInteger & Comparable>: Equatable {
   var height: T {
     get { m_dy }
     set { m_dy = newValue }
+  }
+  func scaleBy(numerator: T, denominator: T) -> IntSize<T> {
+    return IntSize(
+      width: ((m_dx * numerator) + (denominator - 1)) / denominator,
+      height: ((m_dy * numerator) + (denominator - 1)) / denominator
+    )
   }
 }
