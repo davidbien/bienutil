@@ -104,6 +104,15 @@ struct IntRect<T: FixedWidthInteger & Comparable>: Equatable {
     let nMaxX = Swift.max(maxX, rectOther.maxX)
     return IntRect(x: nMinX, y: minY, width: nMaxX - nMinX, height: T(1))
   }
+
+  // Added method to count how many cells lie on the border (perimeter)
+  func borderCellsCount() -> T {
+    if width <= 0 || height <= 0 { return 0 }
+    if width == 1 || height == 1 {
+      return width * height
+    }
+    return 2 * (width + height - T(2))
+  }
 }
 
 struct IntPoint<T: FixedWidthInteger & Comparable>: Equatable {
