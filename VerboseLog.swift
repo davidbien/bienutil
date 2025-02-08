@@ -41,3 +41,16 @@ func VerboseLog(
       message)
   }
 }
+
+class VerboseLogObject {
+    private let previousState: Bool
+    
+    init(enable: Bool) {
+        previousState = VerboseLogManager.shared.isEnabled()
+        VerboseLogManager.shared.enableVerbose(enable)
+    }
+    
+    deinit {
+        VerboseLogManager.shared.enableVerbose(previousState)
+    }
+}
