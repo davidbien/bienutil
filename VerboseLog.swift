@@ -12,7 +12,7 @@ class VerboseLogManager {
   #if DEBUG || VERBOSE_LOGGING_ENABLED
     private var isVerboseEnabled: Bool = true
   #else
-    private var isVerboseEnabled: Bool = false
+    private var isVerboseEnabled: Bool = true
   #endif
 
   private init() {}
@@ -26,6 +26,8 @@ class VerboseLogManager {
   }
 }
 
+private let logger = OSLog(subsystem: "com.davidbien.CreatePlaylistApp", category: "verbose")
+
 func VerboseLog(
   _ message: String, file: String = #file, line: Int = #line, function: String = #function
 ) {
@@ -33,7 +35,7 @@ func VerboseLog(
     let fileName = (file as NSString).lastPathComponent
     os_log(
       "[VERBOSE] %{public}@:%d %{public}@: %{public}@",
-      log: OSLog.default,
+      log: logger,
       type: .debug,
       fileName,
       line,
