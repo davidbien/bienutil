@@ -6,7 +6,18 @@
 namespace nlohmann
 {
 using namespace __BIENUTIL_USE_NAMESPACE;
-template < typename t_TyT > struct adl_serializer< std::vector< t_TyT > >
+
+// Define the concept for types that have ToJson and FromJson
+template<typename T>
+concept JsonSerializable = requires(T t, const json& j) {
+    { t.ToJson() } -> std::convertible_to<json>;
+    { t.FromJson(j) };
+};
+
+// Specialization only for types that satisfy JsonSerializable
+template < typename t_TyT > 
+  requires JsonSerializable<t_TyT>
+struct adl_serializer< std::vector< t_TyT > >
 {
   static void to_json( json & j, const std::vector< t_TyT > & _rg )
   {
@@ -18,7 +29,7 @@ template < typename t_TyT > struct adl_serializer< std::vector< t_TyT > >
     _rg.clear();
     _rg.reserve( j.size() );
     for ( const auto & item : j )
-    {
+    { 
       t_TyT element;
       element.FromJson( item );
       _rg.push_back( std::move( element ) );

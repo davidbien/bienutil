@@ -16,6 +16,7 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+
 inline int
 GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen ) noexcept
 {
@@ -24,8 +25,16 @@ GetErrorString( vtyErrNo _errno, char * _rgchBuffer, size_t _stLen ) noexcept
   Assert( dwLen < _stLen );
   _rgchBuffer[ _stLen - 1 ] = 0;
   return !dwLen ? -1 : 0;
-#elif defined( __linux__ ) || defined( __APPLE__ )
+#elif defined( __APPLE__ )
   return ::strerror_r( _errno, _rgchBuffer, _stLen );
+#elif defined( __linux__ )
+  char * pszError = ::strerror_r( _errno, _rgchBuffer, _stLen );
+  if ( pszError != _rgchBuffer )
+  {
+    strncpy( _rgchBuffer, pszError, _stLen );
+    _rgchBuffer[ _stLen - 1 ] = 0;
+  }
+  return 0;
 #endif
 }
 
