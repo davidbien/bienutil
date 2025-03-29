@@ -43,6 +43,17 @@ typedef guid_t uuid_t;
 #endif // !__ANDROID__
 #endif //! WIN32
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#else // !__APPLE__
+// This allows us to use these all over the place regardless.
+#define TARGET_OS_SIMULATOR 0
+#define TARGET_OS_IPHONE 0
+#define TARGET_OS_TV 0
+#define TARGET_OS_WATCH 0
+#define TARGET_OS_MAC 0
+#endif // !__APPLE__
+
 // Test for compilation with multi-threading support under various platforms:
 #ifndef IS_MULTITHREADED_BUILD
 #ifdef _MSC_VER
