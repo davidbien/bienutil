@@ -321,15 +321,15 @@ public:
   /// @brief Return the next set bit after the specified index.
   /// @param _kindex starting index or std::numeric_limits<size_t>::max() to start at the first set bit
   /// @return index of next set bit or std::numeric_limits<size_t>::max() if not found
-  size_t get_next_bit( size_t _kindex = ( std::numeric_limits< size_t >::max )() ) const
+  size_t get_next_bit( const size_t _kindex = ( std::numeric_limits< size_t >::max )() ) const
   {
     AssertValid();
-    size_t nBitStart = _kindex + 1;
+    const size_t nBitStart = _kindex + 1;
     if ( nBitStart >= t_kN )
       return ( std::numeric_limits< size_t >::max )();
-    size_t kelIndex = nBitStart / ( CHAR_BIT * sizeof( t_TyT ) );
-    size_t kbitIndex = nBitStart % ( CHAR_BIT * sizeof( t_TyT ) );
-    for ( t_TyT mask = m_rgT[ kelIndex ] & ( ~t_TyT( 0 ) << kbitIndex );; )
+    size_t elIndex = nBitStart / ( CHAR_BIT * sizeof( t_TyT ) );
+    const size_t kbitIndex = nBitStart % ( CHAR_BIT * sizeof( t_TyT ) );
+    for ( t_TyT mask = m_rgT[ elIndex ] & ( ~t_TyT( 0 ) << kbitIndex );; )
     {
       if ( mask != 0 )
       {
@@ -338,29 +338,29 @@ public:
         if constexpr ( sizeof( t_TyT ) == 8 )
         {
           _BitScanForward64( &index, mask );
-          return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+          return elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
         }
         else
         {
           _BitScanForward( &index, mask );
           if constexpr ( sizeof( t_TyT ) < 4 )
           {
-            size_t bitPos = kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+            size_t bitPos = elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
             return bitPos < t_kN ? bitPos : ( std::numeric_limits< size_t >::max )();
           }
-          return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
+          return elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + index;
         }
 #elif defined( __GNUC__ ) || defined( __clang__ )
         if constexpr ( sizeof( t_TyT ) == 8 )
-          return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctzll( mask );
+          return elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctzll( mask );
         else
         {
           if constexpr ( sizeof( t_TyT ) < 4 )
           {
-            size_t bitPos = kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctz( mask );
+            size_t bitPos = elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctz( mask );
             return bitPos < t_kN ? bitPos : ( std::numeric_limits< size_t >::max )();
           }
-          return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctz( mask );
+          return elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + __builtin_ctz( mask );
         }
 #else
         // Brute force method for other compilers
@@ -368,14 +368,14 @@ public:
         {
           if ( ( mask >> i ) & 1 )
           {
-            return kelIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + i;
+            return elIndex * ( CHAR_BIT * sizeof( t_TyT ) ) + i;
           }
         }
 #endif
       }
       // No set bit found in this element, continue with the next one
-      if ( ++kelIndex < m_rgT.size() )
-        mask = m_rgT[ kelIndex ];
+      if ( ++elIndex < m_rgT.size() )
+        mask = m_rgT[ elIndex ];
       else
         break;
     }
