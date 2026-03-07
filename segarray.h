@@ -343,7 +343,7 @@ public:
     Assert( StrNLen( _pszMatch, _posEnd - _posBegin ) == ( _posEnd - _posBegin ) );
     const _tyT * pcCur = _pszMatch;
     _tySizeType nApplied = NApplyContiguous( _posBegin, _posEnd,
-      [pcCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
+      [&pcCur]( const _tyT * _ptBegin, const _tyT * _ptEnd )
       {
         const _tyT * ptCur = _ptBegin;
         for ( ; ( ptCur != _ptEnd ) && ( *ptCur == *pcCur ); ++ptCur, ++pcCur )
