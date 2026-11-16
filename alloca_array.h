@@ -47,6 +47,7 @@ public:
     _rr.AssertValid();
     AllocaArray acquire( std::move( _rr ) );
     swap( acquire );
+    return *this;
   }
   void swap( _TyThis & _r )
   {
@@ -54,14 +55,16 @@ public:
     _r.AssertValid();
     std::swap( m_rgEls, _r.m_rgEls );
     std::swap( m_nElsPool, _r.m_nElsPool );
+    std::swap( m_pElEnd, _r.m_pElEnd );
   }
   template < class ... t_TysArgs >
   _TyEl & emplaceAtEnd( t_TysArgs ... _args )
   {
     AssertValid();
     Assert( m_pElEnd < m_rgEls + m_nElsPool );
-    new( m_pElEnd ) _TyEl( std::forward< t_TysArgs >( _args ) ... );
+    _TyEl * pElNew = new( m_pElEnd ) _TyEl( std::forward< t_TysArgs >( _args ) ... );
     ++m_pElEnd;
+    return *pElNew;
   }
   size_t GetSize() const
   {
