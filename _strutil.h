@@ -504,10 +504,10 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
   {
     typedef typename std::make_signed<t_tyNum>::type _tyNumSigned;
     _tyNumSigned numCur;
-    if ( _tyNumSigned(*pszCur) > _tyNumSigned('a') )
+    if ( _tyNumSigned(*pszCur) >= _tyNumSigned('a') )
       numCur = _tyNumSigned(*pszCur) - _tyNumSigned('a') + 10;
     else
-    if ( _tyNumSigned(*pszCur) > _tyNumSigned('A') )
+    if ( _tyNumSigned(*pszCur) >= _tyNumSigned('A') )
       numCur = _tyNumSigned(*pszCur) - _tyNumSigned('A') + 10;
     else
       numCur = _tyNumSigned(*pszCur) - _tyNumSigned('0');
@@ -918,15 +918,20 @@ inline EFileCharacterEncoding DetectEncodingXmlFile( uint8_t * _pbyBufFileBegin,
   Assert( _u64Len >= vknBytesBOM );
   if ( _u64Len < vknBytesBOM )
       return efceFileCharacterEncodingCount;
-  if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 != _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
+  // A document without an XMLDecl may legally begin with whitespace so accept that as the first character as well as '<'.
+  auto lambdaFIsFirstChar = []( uint8_t _by ) -> bool
+  {
+    return ( '<' == _by ) || ( ' ' == _by ) || ( '\t' == _by ) || ( '\r' == _by ) || ( '\n' == _by );
+  };
+  if ( lambdaFIsFirstChar( _pbyBufFileBegin[0] ) && ( 0x00 != _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
       return efceUTF8;
-  if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( '<' == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) )
+  if ( ( 0x00 == _pbyBufFileBegin[0] ) && lambdaFIsFirstChar( _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) )
       return efceUTF16BE;
-  if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
+  if ( lambdaFIsFirstChar( _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 != _pbyBufFileBegin[2] ) )
       return efceUTF16LE;
-  if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( '<' == _pbyBufFileBegin[3] ) )
+  if ( ( 0x00 == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && lambdaFIsFirstChar( _pbyBufFileBegin[3] ) )
       return efceUTF32BE;
-  if ( ( '<' == _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
+  if ( lambdaFIsFirstChar( _pbyBufFileBegin[0] ) && ( 0x00 == _pbyBufFileBegin[1] ) && ( 0x00 == _pbyBufFileBegin[2] ) && ( 0x00 == _pbyBufFileBegin[3] ) )
       return efceUTF32LE;
   return efceFileCharacterEncodingCount;
 }

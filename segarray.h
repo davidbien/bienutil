@@ -990,6 +990,7 @@ public:
   {
     _tyThis saCopy(_r);
     swap(saCopy);
+    return *this;
   }
   _tyThis &operator=(_tyThis &&_rr)
   {
@@ -997,6 +998,7 @@ public:
     // So Clear() first.
     Clear();
     swap(_rr);
+    return *this;
   }
 
   _tySignedSizeType IBaseElement() const

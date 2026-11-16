@@ -147,7 +147,7 @@ public:
         }
         if ( s_kfSwitchEndian )
           SwitchEndian( _rc );
-        m_saBuffer.Overwrite( m_posCur++, &_rc, sizeof _rc );
+        m_saBuffer.Overwrite( m_posCur++, &_rc, 1 ); // The count is in elements, not bytes.
         AssertValid();
         return true;
       }
