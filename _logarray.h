@@ -25,7 +25,13 @@ __BIENUTIL_BEGIN_NAMESPACE
 
 // Range of block size are [2^t_knPow2Min, 2^t_knPow2Max].
 // Always manages the lifetimes of the elements.
-template < class t_TyT, size_t t_knPow2Min, size_t t_knPow2Max > class LogArray
+// t_fUseFreeList: When true the first block of each array - the block of 2^t_knPow2Min elements that is all that a
+//  small array needs - is obtained from and returned to a per-thread free list of such blocks rather than malloc()/free().
+//  This is for arrays that are created and destroyed at a high rate, such as the values of the tokens of a lexical analyzer:
+//  it replaces a malloc()/free() pair with a few instructions. The free list of each thread holds at most
+//  s_knFreeListMaxBlocks blocks ( others are free()d ) and is free()d when the thread exits.
+//  A block may be freed on a different thread than the one that allocated it - it is then just cached on that thread.
+template < class t_TyT, size_t t_knPow2Min, size_t t_knPow2Max, bool t_fUseFreeList = false > class LogArray
 {
   typedef LogArray _TyThis;
 
@@ -39,6 +45,8 @@ public:
   static constexpr size_t s_knSingleBlockSizeLimit = ( 1ull << t_knPow2Min );
   // We allocate block pointers in blocks so that we don't have to reallocate every time - unless we decide to set this to one...
   static constexpr size_t s_knAllocateBlockPtrsInBlocksOf = 4;
+  static constexpr bool s_kfUseFreeList = t_fUseFreeList;
+  static constexpr size_t s_knFreeListMaxBlocks = 256; // The maximum number of blocks cached by each thread.
   static_assert( t_knPow2Max > t_knPow2Min, "Maximum power must be greater than minimum" );
   static_assert( t_knPow2Max < sizeof( size_t ) * 8 - 1, "Maximum power too large" );
   ~LogArray()
@@ -69,7 +77,7 @@ public:
     return *this;
   }
   // The way we construct we can copy any LogArray.
-  template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther > LogArray( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther > const & _r )
+  template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther, bool t_fUseFreeListOther > LogArray( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther, t_fUseFreeListOther > const & _r )
   {
     // Piecewise copy construct.
     _r.ApplyContiguous( 0, _r.NElements(),
@@ -79,7 +87,7 @@ public:
                             emplaceAtEnd( *ptCur );
                         } );
   }
-  template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther > LogArray & operator=( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther > const & _r )
+  template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther, bool t_fUseFreeListOther > LogArray & operator=( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther, t_fUseFreeListOther > const & _r )
   {
     _TyThis copy( _r );
     swap( copy );
@@ -473,9 +481,7 @@ public: // Allow access for testing.
     {
       Assert( !m_nElements );
       // Then we are always allocating just the first block:
-      m_ptSingleBlock = (_TyT *)malloc( s_knSingleBlockSizeLimit * sizeof( _TyT ) );
-      if ( !m_ptSingleBlock )
-        THROWNAMEDBADALLOC( "malloc failed" );
+      m_ptSingleBlock = _PtAllocFirstBlock();
       m_nElements = -1;
       return m_ptSingleBlock;
     }
@@ -690,7 +696,8 @@ protected:
     if ( nElementsAllocated <= s_knSingleBlockSizeLimit )
     {
       _DestructContigRange( m_ptSingleBlock, m_ptSingleBlock + nElementsDestruct );
-      // ::free( m_ptSingleBlock ); This is freed below in common code.
+      _FreeFirstBlock( m_ptSingleBlock );
+      return;
     }
     else
     {
@@ -711,13 +718,91 @@ protected:
       {
         _TyT * ptBlockCur = *pptBlockPtrCur;
         _DestructContigRange( ptBlockCur, ptBlockCur + nElementTailInBlock + 1 );
-        ::free( *pptBlockPtrCur );
+        if ( m_pptBlocksBegin == pptBlockPtrCur )
+          _FreeFirstBlock( ptBlockCur ); // The first block may be from the free list.
+        else
+          ::free( ptBlockCur );
         if ( --nBlockTail < s_knBlockFixedBoundary )
           nTailBlockSize >>= 1ull; // we may already be done here but we don't care.
         nElementTailInBlock = nTailBlockSize - 1;
       }
     }
-    ::free( m_pptBlocksBegin ); // This is either freeing the single block or the block of blocks.
+    ::free( m_pptBlocksBegin ); // The block of blocks.
+  }
+
+  // The first block - that of a single block array - is the only one that may come from the free list.
+  // It is freed only in _Clear(): when an array shrinks back to a single block it is that same first block that remains.
+  struct _FreeList
+  {
+    void * m_pvHead; // Singly linked list of blocks through their first bytes.
+    size_t m_nBlocks;
+    bool m_fCleanupRegistered;
+    bool m_fClosed; // The thread is exiting and the list has been freed: we no longer cache blocks.
+  };
+  // A trivially destructible thread local: it remains usable while other thread locals are destroyed at thread exit.
+  static _FreeList & _RFreeList() noexcept
+  {
+    static thread_local _FreeList s_fl{ nullptr, 0, false, false };
+    return s_fl;
+  }
+  // Free the free list when the thread exits.
+  struct _FreeListCleanup
+  {
+    ~_FreeListCleanup()
+    {
+      _FreeList & rfl = _RFreeList();
+      for ( void * pv = rfl.m_pvHead; !!pv; )
+      {
+        void * pvNext = *(void **)pv;
+        ::free( pv );
+        pv = pvNext;
+      }
+      rfl.m_pvHead = nullptr;
+      rfl.m_nBlocks = 0;
+      rfl.m_fClosed = true;
+    }
+  };
+  static _TyT * _PtAllocFirstBlock()
+  {
+    if constexpr ( t_fUseFreeList )
+    {
+      _FreeList & rfl = _RFreeList();
+      if ( !!rfl.m_pvHead )
+      {
+        void * pv = rfl.m_pvHead;
+        rfl.m_pvHead = *(void **)pv;
+        --rfl.m_nBlocks;
+        return (_TyT *)pv;
+      }
+    }
+    _TyT * pt = (_TyT *)malloc( s_knSingleBlockSizeLimit * sizeof( _TyT ) );
+    if ( !pt )
+      THROWNAMEDBADALLOC( "malloc failed" );
+    return pt;
+  }
+  static void _FreeFirstBlock( _TyT * _pt ) noexcept
+  {
+    if constexpr ( t_fUseFreeList )
+    {
+      // Here rather than at class scope as _TyT may be incomplete there.
+      static_assert( s_knSingleBlockSizeLimit * sizeof( _TyT ) >= sizeof( void * ), "Block must be able to hold the free list link." );
+      _FreeList & rfl = _RFreeList();
+      if ( !rfl.m_fClosed && ( rfl.m_nBlocks < s_knFreeListMaxBlocks ) )
+      {
+        if ( !rfl.m_fCleanupRegistered )
+        {
+          // Construct the thread local whose destructor frees the list at thread exit.
+          static thread_local _FreeListCleanup s_flc;
+          (void)&s_flc;
+          rfl.m_fCleanupRegistered = true;
+        }
+        *(void **)_pt = rfl.m_pvHead;
+        rfl.m_pvHead = _pt;
+        ++rfl.m_nBlocks;
+        return;
+      }
+    }
+    ::free( _pt );
   }
 
   ssize_t m_nElements{ 0 }; // If m_nElements < 0 then there is an uninitialized element at the end of the array.
