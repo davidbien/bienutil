@@ -401,6 +401,10 @@ struct _throw_static_base
   }
 };
 
+// _throw_static_base must be complete to define this so it can't be defined inline inside of _throw_object_base.
+// An inline variable (C++17) so that no source file need define it.
+inline _throw_static_base _throw_object_base::ms_tsb;
+
 __INLINE void 
 _throw_object_base::_maybe_throw( bool _fAlwaysThrow )
 {
