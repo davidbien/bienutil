@@ -25,6 +25,8 @@
 #include <memory>
 #include <optional>
 #include <chrono>
+#include <filesystem>
+#include <cstdlib>
 #include <assert.h>
 #ifndef WIN32
 #include <syslog.h>
@@ -203,6 +205,18 @@ protected: // These methods aren't for general consumption. Use the s_SysLog nam
     // Don't fail running the program if we cannot create the log file.
     try
     {
+      // Without a log directory from the caller use the BIENUTIL_LOG_DIR environment variable if set - e.g. so that a test run can
+      //  gather the logs of all of its programs in one directory: see bienutil_ctest_log_dir() in bienutil.cmake.
+      if ( !_pszLogDir )
+      {
+        const char * pszEnvLogDir = getenv( "BIENUTIL_LOG_DIR" );
+        if ( !!pszEnvLogDir && !!*pszEnvLogDir )
+        {
+          std::error_code ec;
+          (void)std::filesystem::create_directories( pszEnvLogDir, ec ); // If this fails then creating the file fails and says why.
+          _pszLogDir = pszEnvLogDir;
+        }
+      }
       return _FTryCreateUniqueJSONLogFile( _pszProgramName, _pjvThreadSpecificJson, _fIsMainThread, _pszLogDir );
     }
     catch ( std::exception const & exc )
