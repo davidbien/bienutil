@@ -35,6 +35,9 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <dirent.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #ifdef __ANDROID__
 #include <linux/uuid.h>
 typedef guid_t uuid_t;
@@ -45,6 +48,7 @@ typedef guid_t uuid_t;
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
+#include <sys/sysctl.h> // FIsDebuggerPresent().
 #else // !__APPLE__
 // This allows us to use these all over the place regardless.
 #define TARGET_OS_SIMULATOR 0
@@ -126,6 +130,42 @@ ThreadGetId( vtyProcThreadId & _rtid ) noexcept
   _rtid = syscall( SYS_gettid );
 #elif defined( __APPLE__ )
   (void)pthread_threadid_np( 0, &_rtid );
+#endif
+}
+
+// Is a debugger attached to this process? Breaking into the debugger when none is attached terminates the process,
+//  so code which wants to break only when it is being debugged checks this first - see VerifyThrowOrBreakSz().
+inline bool
+FIsDebuggerPresent() noexcept
+{
+#ifdef WIN32
+  return !!IsDebuggerPresent();
+#elif defined( __linux__ )
+  // The process is being traced when the TracerPid in /proc/self/status is non-zero.
+  FILE * pf = fopen( "/proc/self/status", "r" );
+  if ( !pf )
+    return false;
+  bool fTraced = false;
+  char rgcLine[ 256 ];
+  while ( fgets( rgcLine, sizeof( rgcLine ), pf ) )
+  {
+    if ( !strncmp( rgcLine, "TracerPid:", 10 ) )
+    {
+      fTraced = !!atoi( rgcLine + 10 );
+      break;
+    }
+  }
+  fclose( pf );
+  return fTraced;
+#elif defined( __APPLE__ )
+  // The process is being traced when P_TRACED is set in its kinfo_proc.
+  int rgiMib[ 4 ] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid() };
+  struct kinfo_proc kp;
+  kp.kp_proc.p_flag = 0;
+  size_t stSize = sizeof( kp );
+  if ( sysctl( rgiMib, 4, &kp, &stSize, nullptr, 0 ) )
+    return false;
+  return !!( kp.kp_proc.p_flag & P_TRACED );
 #endif
 }
 

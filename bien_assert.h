@@ -26,9 +26,10 @@ __BIENUTIL_BEGIN_NAMESPACE
 enum EAbortBreakIgnore
 {
   eabiIgnore,           // Ignore entirely - log and continue.
-  eabiBreak,            // Break into the debugger but otherwise same as Ignore.
+  eabiBreak,            // Break into the debugger - only if one is attached - but otherwise same as Ignore.
   eabiThrowException,   // Throw an exception after logging - this is not valid for Assert() because it changes the flow of control - thought I guess it could be used for unit testing.
   eabiAbort,            // Abort after logging.
+  eabiBreakIfDebuggerThrowException, // As eabiThrowException but first break into the debugger - only if one is attached: see VerifyThrowOrBreakSz().
   eabiEAbortBreakIgnoreCount
 };
 
@@ -126,6 +127,17 @@ AssertVerify_LogMessage(  EAbortBreakIgnore _eabi, bool _fAssert, const char * _
      ( static_cast <bool> (expr)					  \
       ? void (0)							              \
       : AssertVerify_LogMessage( eabiThrowException, false, "VerifyThrow", #expr, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, sz, ##__VA_ARGS__ ) )
+// VerifyThrowOrBreak() macros: as VerifyThrow() but when a debugger is attached break into it - after logging and before throwing
+//  the exception. Without a debugger this is just VerifyThrow(): breaking into the debugger when none is attached would terminate
+//  the process without the exception ever being thrown or the failure being reported.
+#define VerifyThrowOrBreak(expr)							\
+     ( static_cast <bool> (expr)						\
+      ? void (0)							            \
+      : AssertVerify_LogMessage( eabiBreakIfDebuggerThrowException, false, "VerifyThrow", #expr, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, 0 ) )
+#define VerifyThrowOrBreakSz(expr, sz, ...)							  \
+     ( static_cast <bool> (expr)					  \
+      ? void (0)							              \
+      : AssertVerify_LogMessage( eabiBreakIfDebuggerThrowException, false, "VerifyThrow", #expr, __FILE__, __LINE__, FUNCTION_PRETTY_NAME, sz, ##__VA_ARGS__ ) )
 // FVerifyInline(expr) expects expr to be true and will assert if not but returns the result of the operation to the caller and thus
 //  may be used inline (and indeed is intended to be used inline) in a logical statement.
 #define FVerifyThrowInline(expr)                 \

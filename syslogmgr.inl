@@ -848,11 +848,23 @@ AssertVerify_LogMessage( EAbortBreakIgnore _eabi, bool _fAssert, const char * _s
       else if ( eabiThrowException == _eabi )
       { // Take care of this to avoid the catch and rethrow.
       }
+      else if ( eabiBreakIfDebuggerThrowException == _eabi )
+      {
+        // Only break when a debugger is attached - otherwise breaking would terminate the process. We throw below.
+        if ( FIsDebuggerPresent() )
+        {
+          (void)n_SysLog::FSetInAssertOrVerify( false ); // As for eabiBreak.
+          DEBUG_BREAK;
+          (void)n_SysLog::FSetInAssertOrVerify( true );
+        }
+      }
       else if ( eabiBreak == _eabi )
       {
         (void)n_SysLog::FSetInAssertOrVerify(
             false ); // Change this here since we may be able to change lines in a method above us in the debugger in VC for instance.
-        DEBUG_BREAK;
+        // Only break when a debugger is attached - otherwise breaking would terminate the process. Without one we log and continue.
+        if ( FIsDebuggerPresent() )
+          DEBUG_BREAK;
       }
     }
     catch ( ... )
@@ -862,7 +874,7 @@ AssertVerify_LogMessage( EAbortBreakIgnore _eabi, bool _fAssert, const char * _s
       throw;
     }
     (void)n_SysLog::FSetInAssertOrVerify( false );
-    if ( eabiThrowException == _eabi )
+    if ( ( eabiThrowException == _eabi ) || ( eabiBreakIfDebuggerThrowException == _eabi ) )
       THROWVERIFYFAILEDEXCEPTION( strFmt.c_str() );
   }
 }
@@ -917,7 +929,9 @@ Trace_LogMessageVArg( EAbortBreakIgnore _eabi, const char * _szFile, unsigned in
     }
     else if ( eabiBreak == _eabi )
     {
-      DEBUG_BREAK;
+      // Only break when a debugger is attached - otherwise breaking would terminate the process.
+      if ( FIsDebuggerPresent() )
+        DEBUG_BREAK;
     }
   }
   catch ( std::exception const & _rexc )
