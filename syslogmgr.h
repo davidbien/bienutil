@@ -91,6 +91,10 @@ InitSysLog( const char * _pszProgramName, int _grfOption, int _grfFacility, cons
 // Used for when we are about to abort(), etc. We can only quickly and easily close the current thread's syslog file if there is one.
 void
 CloseThreadSysLog() noexcept( true );
+// Whether each thread's log manager creates a unique JSON log file (the default) - this affects only log managers created after the call:
+//  call it before InitSysLog() and before anything logs. E.g. a test that logs a great many expected failures may not want the file.
+void
+SetGenerateUniqueJSONLogFile( bool _fGenerate ) noexcept( true );
 bool
 FSetInAssertOrVerify( bool _fInAssertOrVerify );
 void
@@ -283,6 +287,7 @@ public:
     }
   }
   void CloseSysLogFile() noexcept( true );
+  static void SetGenerateUniqueJSONLogFile( bool _fGenerate ) noexcept( true ) { s_fGenerateUniqueJSONLogFile = _fGenerate; }
   static void StaticLog( ESysLogMessageType _eslmt, std::string && _rrStrLog, const _SysLogContext * _pslc )
   {
     // So the caller has given us some stuff to log and even gave us a string that we get to own.
@@ -377,6 +382,11 @@ inline void
 CloseThreadSysLog() noexcept( true )
 {
   SysLogMgr::CloseThreadSysLogFile();
+}
+inline void
+SetGenerateUniqueJSONLogFile( bool _fGenerate ) noexcept( true )
+{
+  SysLogMgr::SetGenerateUniqueJSONLogFile( _fGenerate );
 }
 inline bool
 FSetInAssertOrVerify( bool _fInAssertOrVerify )
