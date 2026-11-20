@@ -39,6 +39,10 @@ if(MSVC)
     string(REPLACE "/bigobj" "" ${CompilerFlag} "${${CompilerFlag}}")
     string(REPLACE "/Zm2000" "" ${CompilerFlag} "${${CompilerFlag}}")
     #string(REPLACE "/Zm2" "" ${CompilerFlag} "${${CompilerFlag}}")
+    # The space before each flag taken out is left: without this the flags grow at each configure - and since they
+    #  change, everything is compiled again each time.
+    string(REGEX REPLACE "  +" " " ${CompilerFlag} "${${CompilerFlag}}")
+    string(STRIP "${${CompilerFlag}}" ${CompilerFlag})
     set(${CompilerFlag} "${${CompilerFlag}} /bigobj" CACHE STRING "msvc compiler flags" FORCE)
     set(${CompilerFlag} "${${CompilerFlag}} /Zm2000" CACHE STRING "msvc compiler flags" FORCE)
     message("MSVC flags: ${CompilerFlag}:${${CompilerFlag}}")
