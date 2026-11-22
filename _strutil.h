@@ -238,8 +238,13 @@ int VNSPrintf( wchar_t * _rgcOut, size_t _n, const wchar_t * _szFormat, va_list 
   return vswprintf( _rgcOut, _n, _szFormat, _ap );
 }
 
+// Declare both overloads defined below - with their constraints, else this declares a third template that is never defined.
 template < class t_tyString >
-void VPrintfStdStr(t_tyString& _rstr, const typename t_tyString::value_type* _pcFmt, va_list _ap) noexcept(false);
+void VPrintfStdStr(t_tyString& _rstr, const typename t_tyString::value_type* _pcFmt, va_list _ap) noexcept(false)
+      requires ( sizeof( typename t_tyString::value_type ) == sizeof( char ) );
+template < class t_tyString >
+void VPrintfStdStr(t_tyString& _rstr, const typename t_tyString::value_type* _pcFmt, va_list _ap) noexcept(false)
+      requires ( sizeof( typename t_tyString::value_type ) == sizeof( wchar_t ) );
 
 // Return a string formatted like printf. Throws.
 template < class t_tyString >
@@ -1222,8 +1227,9 @@ inline std::string StrPercentDecode( const char * _psz )
 
 __BIENUTIL_END_NAMESPACE
 
-#if defined( __linux__ )
+#if defined( __linux__ ) && !defined( __cpp_lib_three_way_comparison )
 // Support for this is spotty and ever-changing but growing...
+// ( libstdc++ defines it when it defines __cpp_lib_three_way_comparison - then ours would be ambiguous with it. )
 namespace std
 {
   // neither VC or clang define basic_string_view::operator <=>():
@@ -1234,4 +1240,4 @@ namespace std
     return ( iComp < 0 ) ? strong_ordering::less : ( ( iComp > 0 ) ? strong_ordering::greater : strong_ordering::equal );
   }
 } // namespace std
-#endif // _MSC_VER || __APPLE__
+#endif // __linux__ && !__cpp_lib_three_way_comparison
