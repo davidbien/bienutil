@@ -38,7 +38,7 @@ public:
   }
   void swap( _smartptr & _r )
   {
-    std:swap( _r.m_pt, m_pt );
+    std::swap( _r.m_pt, m_pt );
   }
 
   t_Ty *  Ptr() const _BIEN_NOTHROW

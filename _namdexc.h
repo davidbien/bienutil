@@ -212,7 +212,7 @@ struct ExceptionUsage
 {
   typedef t_tyException _TyException;
 
-  static void ThrowFileLine( const char * _pcFile, int _nLine, const char * _pcFmt, ... )
+  [[noreturn]] static void ThrowFileLine( const char * _pcFile, int _nLine, const char * _pcFmt, ... )
   {
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
@@ -226,7 +226,7 @@ struct ExceptionUsage
     va_end( ap );
     throw std::move( exc );
   }
-  static void ThrowFileLineFunc( const char * _pcFile, int _nLine, const char * _pcFunc, const char * _pcFmt, ... )
+  [[noreturn]] static void ThrowFileLineFunc( const char * _pcFile, int _nLine, const char * _pcFunc, const char * _pcFmt, ... )
   {
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
@@ -240,7 +240,7 @@ struct ExceptionUsage
     va_end( ap );
     throw std::move( exc );
   }
-  static void ThrowFileLineErrno( const char * _pcFile, int _nLine, int _errno, const char * _pcFmt, ... )
+  [[noreturn]] static void ThrowFileLineErrno( const char * _pcFile, int _nLine, int _errno, const char * _pcFmt, ... )
   {
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
@@ -254,7 +254,7 @@ struct ExceptionUsage
     va_end( ap );
     throw std::move( exc );
   }
-  static void ThrowFileLineFuncErrno( const char * _pcFile, int _nLine, const char * _pcFunc, int _errno, const char * _pcFmt, ... )
+  [[noreturn]] static void ThrowFileLineFuncErrno( const char * _pcFile, int _nLine, const char * _pcFunc, int _errno, const char * _pcFmt, ... )
   {
     // We add _psFile:[_nLine]: to the start of the format string.
     const int knBuf = NAMEDEXC_BUFSIZE;
@@ -268,7 +268,7 @@ struct ExceptionUsage
     va_end( ap );
     throw std::move( exc );
   }
-  static void Throw( const char * _pcFmt, ... )
+  [[noreturn]] static void Throw( const char * _pcFmt, ... )
   {
     va_list ap;
     va_start( ap, _pcFmt );
@@ -276,7 +276,7 @@ struct ExceptionUsage
     va_end( ap );
     throw std::move( exc );
   }
-  static void ThrowErrno( int _errno, const char * _pcFmt, ... )
+  [[noreturn]] static void ThrowErrno( int _errno, const char * _pcFmt, ... )
   {
     va_list ap;
     va_start( ap, _pcFmt );
