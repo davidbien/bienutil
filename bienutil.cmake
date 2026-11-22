@@ -47,6 +47,10 @@ if(MSVC)
     set(${CompilerFlag} "${${CompilerFlag}} /Zm2000" CACHE STRING "msvc compiler flags" FORCE)
     message("MSVC flags: ${CompilerFlag}:${${CompilerFlag}}")
   endforeach()
+  # The source files are UTF-8 and so are the strings of the programs: MSVC reads the sources as gcc and clang do - not
+  #  in the code page of the machine, where a character which isn't ASCII would be read as other characters - and a
+  #  narrow string literal is UTF-8 on every compiler. ( /utf-8 is /source-charset:utf-8 /execution-charset:utf-8. )
+  add_compile_options( $<$<COMPILE_LANGUAGE:C,CXX>:/utf-8> )
 endif(MSVC)
 
 if(UNIX)
