@@ -66,7 +66,7 @@ public:
 			new ( p->Ptr() ) t_TyP();
 			p->m_fConstructed = true;
 		}
-		_BIEN_UNWIND( p->~_TyThis() );
+		_BIEN_UNWIND( p->_DestroyAndDealloc() );
 		return p;	
 	}
 
@@ -81,7 +81,7 @@ public:
 			new ( p->Ptr() ) t_TyP( _p1 );
 			p->m_fConstructed = true;
 		}
-		_BIEN_UNWIND( p->~_TyThis() );
+		_BIEN_UNWIND( p->_DestroyAndDealloc() );
 		return p;	
 	}
 
@@ -96,7 +96,7 @@ public:
 			new ( p->Ptr() ) t_TyP( _p1, _p2 );
 			p->m_fConstructed = true;
 		}
-		_BIEN_UNWIND( p->~_TyThis() );
+		_BIEN_UNWIND( p->_DestroyAndDealloc() );
 		return p;	
 	}
 	// etc...
@@ -125,7 +125,7 @@ public:
 				pSdp->m_fConstructed = true;
 			}
 		}
-		_BIEN_UNWIND( pSdp->~_TySdpMD() );
+		_BIEN_UNWIND( pSdp->_DestroyAndDealloc() );
 		*_ppb = pSdp;
 	}
 
@@ -139,18 +139,14 @@ public:
 // A base class that provides virtual deallocation/destruction capabilities:
 // ( The contained class can be virtually destroyed without a virtual destructor -
 //		as long as the _sdp::t_TyP - is most derived. )
+// _DestroyAndDealloc() ends the life of the whole object and frees it - _dtorp<> calls it ( _DtorpDestroy() below ).
+//	The destructor only destroys: the derived parts are gone by the time it runs, so it can't use them to free.
 template < class t_TyPBase >
 struct _sdp_vbase
 {
 private:
 	typedef _sdp_vbase< t_TyPBase >	_TyThis;
 
-protected:
-
-	typedef void ( _TyThis :: * _TyPMFnDeallocThis )();
-	// This member not valid until ~_sdp_valloc().
-	_TyPMFnDeallocThis m_pmfnDeallocThis;
-	
 public:
 	
 	_sdp_vbase()
@@ -162,9 +158,8 @@ public:
 	
 	virtual ~_sdp_vbase()
 	{
-		// Deallocate ourselves:
-		(this->*m_pmfnDeallocThis)();
 	}
+	virtual void _DestroyAndDealloc() _BIEN_NOTHROW = 0;
 	virtual void clone( _TyThis ** ) const = 0;
 	virtual void destruct() = 0;
 	virtual void allocate() = 0;
@@ -222,19 +217,27 @@ protected:
 
 	~_sdp_valloc()
 	{
-		// We cannot deallocate ourselves - since our most base class still exists -
-		//	and since its destructor must be called - we register a deallocation method with
-		//	the most base object:
-		_TyVBase::m_pmfnDeallocThis = static_cast< typename _TyVBase::_TyPMFnDeallocThis >( &_TyThis::DeallocThis );
+		((_TyAllocSdpMD*)m_rgcAllocSelf)->~_TyAllocSdpMD();
 	}
 
-	void	DeallocThis()
+public:
+	// The allocator which allocated the object is copied out of it, the whole object is destroyed and then freed with
+	//	the copy: nothing of the object is used once its destructor has run.
+	void	_DestroyAndDealloc() _BIEN_NOTHROW
 	{
+		_TySdpMD * const psdp = static_cast< _TySdpMD * >( this );
 		_TyAllocSdpMD alloc( *((_TyAllocSdpMD*)m_rgcAllocSelf) );
-		((_TyAllocSdpMD*)m_rgcAllocSelf)->~_TyAllocSdpMD();
-		alloc.deallocate_type( static_cast< _TySdpMD * >( this ) );
+		psdp->~_TySdpMD();
+		alloc.deallocate_type( psdp );
 	}
 };
+
+// _dtorp<> of an _sdp_vbase<> destroys and frees the object.
+template < class t_TyPBase >
+void _DtorpDestroy( _sdp_vbase< t_TyPBase > * _psdp ) _BIEN_NOTHROW
+{
+	_psdp->_DestroyAndDealloc();
+}
 
 __BIENUTIL_END_NAMESPACE
 

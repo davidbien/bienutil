@@ -12,6 +12,14 @@
 
 __BIENUTIL_BEGIN_NAMESPACE
 
+// How _dtorp ends the life of its object: the destructor. An overload for a type which must do more - _sdpv.h's
+//  _sdp_vbase<> frees itself as well - is found by argument-dependent lookup.
+template < class t_Ty >
+void _DtorpDestroy( t_Ty * _pt ) _BIEN_NOTHROW
+{
+  _pt->~t_Ty();
+}
+
 template < class t_Ty >
 class _dtorp
 {
@@ -38,7 +46,7 @@ public:
   {
     if ( m_pt )
     {
-      m_pt->~t_Ty();
+      _DtorpDestroy( m_pt );
     }
   }
 
@@ -55,7 +63,7 @@ public:
   {
     if ( m_pt )
     {
-      m_pt->~t_Ty();
+      _DtorpDestroy( m_pt );
       m_pt = 0;
     }
   }
@@ -74,7 +82,7 @@ public:
   {
     if ( m_pt )
     {
-      m_pt->~t_Ty();
+      _DtorpDestroy( m_pt );
     }
     m_pt = _pt;
   }
@@ -84,7 +92,7 @@ public:
   {
     if ( m_pt )
     {
-      m_pt->~t_Ty();
+      _DtorpDestroy( m_pt );
     }
     m_pt = _r;
     _r.Reset();
