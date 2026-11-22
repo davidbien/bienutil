@@ -607,11 +607,12 @@ using namespace ns_CONVBIEN;
 
 // wrappers for the above methods.
 // This one should work for both strings and string_views.
+// data() rather than &[0] in these: [0] of an empty string_view - data() may be null - is undefined.
 template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
   requires TAreSameSizeTypes_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type >
 {
-  _rstrDest.assign( (const typename t_tyStringDest::value_type *)&_rstrSrc[0], _rstrSrc.length() );
+  _rstrDest.assign( (const typename t_tyStringDest::value_type *)_rstrSrc.data(), _rstrSrc.length() );
 }
 // The below should work for all kinds of strings and also when the source is a string view.
 template < class t_tyStringDest, class t_tyStringSrc >
@@ -625,7 +626,7 @@ template < class t_tyStringDest, class t_tyStringSrc >
 void ConvertString( t_tyStringDest & _rstrDest, t_tyStringSrc const & _rstrSrc ) 
   requires ( !TAreSameSizeTypes_v< typename t_tyStringSrc::value_type, typename t_tyStringDest::value_type > )
 {
-  ConvertString( _rstrDest, &_rstrSrc[0], _rstrSrc.length() );
+  ConvertString( _rstrDest, _rstrSrc.data(), _rstrSrc.length() );
 }
 
 // ASCII string "conversions": As long as the characters are less than 128 they can be "converted" in place:
@@ -681,7 +682,7 @@ template < class t_tyCharConvertTo, class t_tyStringOrStringView >
 basic_string< t_tyCharConvertTo > StrConvertString( t_tyStringOrStringView const & _rsvorstr )
   requires ( c_has_length< t_tyStringOrStringView > )
 {
-  return StrConvertString< t_tyCharConvertTo >( &_rsvorstr[0], _rsvorstr.length() );
+  return StrConvertString< t_tyCharConvertTo >( _rsvorstr.data(), _rsvorstr.length() );
 }
 
 // trivial type for conversion buffer when no conversion necessary.
@@ -727,13 +728,13 @@ template < class t_tyStringOrStringViewFrom, class t_tyCharConvertTo >
 basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringViewFrom const & _rsvorstr, FakeConversionBuffer< t_tyCharConvertTo > & _strConvertBuf )
   requires ( TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringViewFrom::value_type > )
 {
-  return StrViewConvertString( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+  return StrViewConvertString( _rsvorstr.data(), _rsvorstr.length(), _strConvertBuf );
 }
 template < class t_tyStringOrStringViewFrom, class t_tyCharConvertTo >
 basic_string_view< t_tyCharConvertTo > StrViewConvertString( t_tyStringOrStringViewFrom const & _rsvorstr, basic_string< t_tyCharConvertTo > & _strConvertBuf )
   requires ( !TAreSameSizeTypes_v< t_tyCharConvertTo, typename t_tyStringOrStringViewFrom::value_type > )
 {
-  return StrViewConvertString( &_rsvorstr[0], _rsvorstr.length(), _strConvertBuf );
+  return StrViewConvertString( _rsvorstr.data(), _rsvorstr.length(), _strConvertBuf );
 }
 
 namespace n_StrArrayStaticCast
