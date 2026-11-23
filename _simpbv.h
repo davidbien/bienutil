@@ -289,7 +289,7 @@ public:
     {
       // We know that beyond the end is empty ( invariant ):
       t_TyEl  el;
-      if ( !!( el = ( ~*pElNext & ~( ( size_type(1) << _stLast ) - 1 ) ) ) )
+      if ( !!( el = t_TyEl( t_TyEl( ~*pElNext ) & t_TyEl( ~( ( size_type(1) << _stLast ) - 1 ) ) ) ) )
       {
         _stLast = size_type(_bv_get_first_set( el )) + size_type( pElNext - m_rgEls ) * ms_kstElSizeBits;
         Assert( _stLast <= size() ); // may be size() and that is by design.
