@@ -293,8 +293,9 @@ class _gco< t_TyEl, t_TyAllocator, t_fUseElCompare, true >
 
 	vytGcoRef	          m_ref;
   [[no_unique_address]] _TyAllocatorThis  m_alloc;
-	// REVIEW:<dbien>: Better to do this with an anonymous union - ie. as std::optional<> is done since then the alignment of the structure would be correct.
-  char m_cpEl[ sizeof( _TyEl ) ];
+	// Aligned for the element: after the count of references, an array of chars is at an address of 4 bytes, and an
+	//  element of 8 bytes was built there ( the undefined behavior sanitizer, in lexang's _l_dfopt.h ).
+  alignas( _TyEl ) char m_cpEl[ sizeof( _TyEl ) ];
 
 	explicit _gco( t_TyAllocator const & _rAlloc )
 		: m_alloc( _rAlloc ),
