@@ -9,6 +9,7 @@
 // JSON objects for reading/writing using jsonstrm.h.
 // dbien 01APR2020
 
+#include <cstdint>
 #include <vector>
 #include <map>
 #include <compare>
@@ -279,7 +280,9 @@ protected:
 // JsoValue:
 // Every JSON object is a value. In fact every single JSON object is represented by the class JsoValue because that is the best spacewise
 //  way of doing things. We embed the string/object/array within this class to implement the different JSON objects.
-#if defined(__amd64__) || defined(_M_AMD64) || defined(__x86_64__) || defined(__ia64__)
+// By the size of a pointer, not by the processor: one of 64 bits which was not named here - ARM64, Apple's and Linux's -
+//  was packed on 4 bytes, and the 8 byte members of the objects within were misaligned ( the undefined behavior sanitizer ).
+#if INTPTR_MAX == INT64_MAX
 #pragma pack(push, 8) // Ensure that we pack this on an 8 byte boundary for 64bit compilation.
 #else
 #pragma pack(push, 4) // Ensure that we pack this on an 4 byte boundary for 32bit compilation.
@@ -1209,9 +1212,10 @@ protected:
     m_jvtType = _jvt; // throw-safety.
   }
 
-  // Put the object buffer as the first member because then it will have alignment of the object - which is 8(64bit) or 4(32bit).
+  // The buffer is aligned for each of the objects constructed in it: an array of bytes is not of itself, and a value
+  //  within another - a node of a map - may be anywhere ( the undefined behavior sanitizer found one at an odd address ).
   static constexpr size_t s_kstSizeValBuf = (std::max)(sizeof(_tyStrWRsv), (std::max)(sizeof(_tyJsoObject), sizeof(_tyJsoArray)));
-  uint8_t m_rgbyValBuf[s_kstSizeValBuf]; // We aren't initializing this on purpose.
+  alignas(_tyStrWRsv) alignas(_tyJsoObject) alignas(_tyJsoArray) uint8_t m_rgbyValBuf[s_kstSizeValBuf]; // We aren't initializing this on purpose.
   EJsonValueType m_jvtType{ejvtJsonValueTypeCount};
 };
 
