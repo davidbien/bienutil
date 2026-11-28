@@ -139,6 +139,12 @@ public:
   {
     return FHasStringObj() ? _PGetStrBase()->c_str() : m_rgtcBuffer;
   }
+  // As std::basic_string's: what JsoValue's SetStringValue() reads of any string it is given ( MSVC compiles that
+  //  for a StrWRsv in xmlp's lexer ).
+  const _tyChar *data() const
+  {
+    return c_str();
+  }
   size_type length() const
   {
     return FHasStringObj() ? _PGetStrBase()->length() : StrNLen(m_rgtcBuffer);
