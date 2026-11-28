@@ -256,7 +256,8 @@ TEST( Files, ReadWriteSeek )
 TEST( Files, Mapping )
 {
   const std::string strPath = StrTempPath( "map.bin" );
-  std::string str( 3 * GetPageSize() + 123, ' ' );
+  const size_t knbyGranularity = GetMappingGranularity(); // a page on POSIX, 64 KB on Windows.
+  std::string str( 3 * knbyGranularity + 123, ' ' );
   for ( size_t n = 0; n < str.size(); ++n )
     str[ n ] = char( 'a' + n % 26 );
   WriteFile( strPath, str );
@@ -268,13 +269,18 @@ TEST( Files, Mapping )
     ASSERT_TRUE( fmo.FIsOpen() );
     EXPECT_EQ( nbySize, str.size() );
     EXPECT_EQ( std::string( (const char *)fmo.Pv(), nbySize ), str );
-    // At a position: mapped from the page before it, the remainder given back.
-    uint64_t nbyAt = GetPageSize() + 10, nbySizeAt = 0;
+    // At a position: mapped from the granularity before it, the remainder given back.
+    uint64_t nbyAt = knbyGranularity + 10, nbySizeAt = 0;
     FileMappingObj fmoAt( MapReadOnlyHandle( fo.HFileGet(), &nbySizeAt, &nbyAt ) );
     ASSERT_TRUE( fmoAt.FIsOpen() );
     EXPECT_EQ( nbyAt, 10u );
-    EXPECT_EQ( nbySizeAt, str.size() - GetPageSize() );
-    EXPECT_EQ( *fmoAt.Pby( nbyAt ), str[ GetPageSize() + 10 ] );
+    EXPECT_EQ( nbySizeAt, str.size() - knbyGranularity );
+    EXPECT_EQ( *fmoAt.Pby( nbyAt ), str[ knbyGranularity + 10 ] );
+    // At a position which is a page but not a granularity on Windows - what failed there.
+    uint64_t nbyAtPage = GetPageSize() + 3, nbySizeAtPage = 0;
+    FileMappingObj fmoAtPage( MapReadOnlyHandle( fo.HFileGet(), &nbySizeAtPage, &nbyAtPage ) );
+    ASSERT_TRUE( fmoAtPage.FIsOpen() );
+    EXPECT_EQ( *fmoAtPage.Pby( nbyAtPage ), str[ GetPageSize() + 3 ] );
     uint64_t nbyBeyond = str.size();
     EXPECT_TRUE( MapReadOnlyHandle( fo.HFileGet(), nullptr, &nbyBeyond ).FFailedMapping() );
   }

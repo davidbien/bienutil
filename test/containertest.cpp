@@ -68,8 +68,9 @@ TEST( BitUtil, MultiplyOverflow )
   for ( int n = 0; n < 100000; ++n )
   {
     const uint64_t u64L = rng() >> ( rng() % 64 ), u64R = rng() >> ( rng() % 64 );
-    uint64_t u64Expect;
-    const bool fExpect = __builtin_mul_overflow( u64L, u64R, &u64Expect );
+    // The reference: no builtin ( MSVC has none ) - overflowed if more than the most / one factor; the product wraps.
+    const bool fExpect = !!u64R && ( u64L > ~0ull / u64R );
+    const uint64_t u64Expect = u64L * u64R;
     uint64_t u64;
     ASSERT_EQ( KMultiplyTestOverflow( u64L, u64R, u64 ), fExpect ) << u64L << " * " << u64R;
     ASSERT_EQ( u64, u64Expect );
@@ -84,17 +85,18 @@ TEST( BitUtil, Power )
   for ( uint64_t u64Base : { 0ull, 1ull, 2ull, 3ull, 7ull, 10ull, 255ull, 65536ull, ( 1ull << 32 ), ( 1ull << 32 ) + 1, ~0ull } )
     for ( unsigned nExp = 0; nExp < 256; ++nExp )
     {
-      unsigned __int128 u128 = 1;
+      // The reference: multiply nExp times, overflow found before each multiplication - no 128 bit type ( MSVC has none ).
+      uint64_t u64 = 1;
       bool fOverflow = false;
       for ( unsigned n = 0; n < nExp && !fOverflow; ++n )
       {
-        u128 *= u64Base;
-        fOverflow = u128 > ~0ull;
+        fOverflow = !!u64Base && ( u64 > ~0ull / u64Base );
+        u64 *= u64Base;
       }
       if ( fOverflow )
         EXPECT_THROW( KUPow( u64Base, uint8_t( nExp ) ), std::exception ) << u64Base << "^" << nExp;
       else
-        EXPECT_EQ( KUPow( u64Base, uint8_t( nExp ) ), uint64_t( u128 ) ) << u64Base << "^" << nExp;
+        EXPECT_EQ( KUPow( u64Base, uint8_t( nExp ) ), u64 ) << u64Base << "^" << nExp;
     }
   static_assert( 1000000000000000000ull == KUPow( 10, 18 ) );
   static_assert( 9 == KUPow( 3, 2 ) );

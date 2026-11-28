@@ -153,7 +153,7 @@ TEST( SegArray, CharsRandom )
         sa.GetString( strGot, nBegin, nEnd );
         ASSERT_EQ( strGot, str.substr( nBegin, nEnd - nBegin ) );
         std::string strRead( nEnd - nBegin + 5, '#' );
-        ASSERT_EQ( sa.Read( nBegin, strRead.data(), strRead.length() ), std::min( strRead.length(), str.length() - nBegin ) );
+        ASSERT_EQ( sa.Read( nBegin, strRead.data(), strRead.length() ), ( std::min )( strRead.length(), str.length() - nBegin ) );
         ASSERT_EQ( strRead.substr( 0, nEnd - nBegin ), str.substr( nBegin, nEnd - nBegin ) );
         std::string_view sv;
         if ( sa.FGetStringView( sv, nBegin, nEnd ) )

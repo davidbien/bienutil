@@ -401,6 +401,24 @@ GetPageSize() noexcept
   return stPageSize;
 }
 
+// The granularity of the position a file is mapped at: the page size on POSIX; on Windows the allocation granularity
+//  ( 64 KB ), which MapViewOfFile() asks the offset to be a multiple of - not the page size ( 4 KB ). ( Before, the page
+//  size was used there too and every mapping at a position not a multiple of 64 KB failed on Windows. )
+inline size_t
+GetMappingGranularity() noexcept
+{
+#ifdef WIN32
+  static const size_t stGranularity = []() noexcept
+  {
+    SYSTEM_INFO si;
+    GetSystemInfo( &si );
+    return (size_t)si.dwAllocationGranularity;
+  }();
+  return stGranularity;
+#else
+  return GetPageSize();
+#endif
+}
 // Define a "mapped memory handle" which contains all that we need to perform the unmapping. Under Windows this is just a pv, under Linux this is a (pv,size).
 class MappedMemoryHandle
 {
@@ -456,7 +474,7 @@ MapReadOnlyHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = nullptr, 
 #ifdef WIN32
   static_assert( sizeof( LARGE_INTEGER ) == sizeof( *_pu64SizeMapping ) );
   uint64_t u64AtPosition = !_pu64AtPosition ? 0 : *_pu64AtPosition;
-  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetMappingGranularity() );
   uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
   if ( _pu64AtPosition )
     *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
@@ -502,7 +520,7 @@ MapReadOnlyHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = nullptr, 
     SetLastErrNo( EINVAL );
     return vtyMappedMemoryHandle();
   }
-  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetMappingGranularity() );
   uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
   if ( _pu64AtPosition )
     *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
@@ -520,7 +538,7 @@ MapReadWriteHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = 0, uint6
 {
 #ifdef WIN32
   uint64_t u64AtPosition = !_pu64AtPosition ? 0 : *_pu64AtPosition;
-  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetMappingGranularity() );
   uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
   if ( _pu64AtPosition )
     *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
@@ -567,7 +585,7 @@ MapReadWriteHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = 0, uint6
     SetLastErrNo( EINVAL );
     return vtyMappedMemoryHandle();
   }
-  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetPageSize() );
+  uint64_t u64AtPositionRemainder = ( u64AtPosition % GetMappingGranularity() );
   uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
   if ( _pu64AtPosition )
     *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
