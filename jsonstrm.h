@@ -17,6 +17,7 @@
 #include <charconv>
 #include <cmath>
 #include <cfloat>
+#include <limits>
 #include <optional>
 #include <type_traits>
 #ifndef WIN32
@@ -1323,7 +1324,7 @@ bool FJsonNumberToText(t_tyNum _num, t_tyChar *_rgc, size_t _stMax, size_t &_rst
   }
   if constexpr (std::is_same_v<t_tyNum, long double>)
   {
-    int n = snprintf(rgc, sizeof rgc, "%.*Lg", LDBL_DECIMAL_DIG, _num);
+    int n = snprintf(rgc, sizeof rgc, "%.*Lg", int( std::numeric_limits< long double >::max_digits10 ) /* LDBL_DECIMAL_DIG, which MSVC's float.h has not */, _num);
     if ((n <= 0) || (size_t(n) >= sizeof rgc))
       return false;
     stLen = size_t(n);
