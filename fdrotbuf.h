@@ -57,7 +57,8 @@ public:
   }
   FdReadRotating( FdReadRotating const & ) = delete;
   FdReadRotating & operator = ( FdReadRotating const & ) = delete;
-  FdReadRotating() = default; // produces an FdReadRotating that FIsNull(). 
+  // Default constructed it FIsNull(). ( There was a second default constructor as well - "= default" - which made
+  //  FdReadRotating x; ambiguous. )
   FdReadRotating( _tySizeType _nbySizeSegment = 4096 / sizeof( t_tyChar ) )
     : m_saBuffer( _nbySizeSegment )
   {
@@ -97,7 +98,9 @@ public:
     m_saBuffer.AssertValid();
     Assert( ( vkhInvalidFileHandle != m_hFile ) || ( (std::numeric_limits<_tySizeType>::max)() == m_stchLenRead ) );
     Assert( m_stchLenRead >= m_posCur );
-    Assert( m_fReadAhead || ( m_posCur == m_saBuffer.NElements() ) );
+    // What has been read and is reread after ResetPositionToBase() - as lexang does to scan a token again - lies before
+    //  the end whether reading ahead or not: the invariant is that the position is within what has been read.
+    Assert( m_posCur <= m_saBuffer.NElements() );
 #endif //ASSERTSENABLED  
   }
   void AssertValidRange( _tySizeType _posBegin, _tySizeType _posEnd ) const
@@ -155,8 +158,9 @@ public:
       {
         static constexpr _tySizeType s_knSegmentsReadAhead = 4;
         // Then we should read ahead by the amount we like to read ahead by - which is s_knSegmentsReadAhead segments.
-        Assert( !( m_posCur % m_saBuffer.NElsPerSegment() ) ); // Should always be at a tile boundary when we are reading ahead.
-        _tySizeType sizeAdd = min( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, _NLenRemaining() );
+        // ( Not asserted to be at a segment's boundary any more: a read may give less than asked - a pipe, the end of a
+        //  stream of no given length - and what it gave is all that is kept, so the next read starts where it ended. )
+        _tySizeType sizeAdd = (std::min)( m_saBuffer.NElsPerSegment() * s_knSegmentsReadAhead, _NLenRemaining() );
         if ( !sizeAdd )
           return false;
         m_saBuffer.SetSize( m_posCur + sizeAdd );
@@ -167,13 +171,18 @@ public:
             int iReadResult = FileRead( m_hFile, _pcBegin, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ), &stRead );
             if ( -1 == iReadResult )
               THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileRead(): m_hFile[0x%zx] m[%zu]", (size_t)m_hFile, ( _pcEnd - _pcBegin ) * sizeof( _tyChar ) );
+            const _tySizeType nchRead = (_tySizeType)stRead / sizeof( _tyChar );
             if ( s_kfSwitchEndian )
-              SwitchEndian( _pcBegin, _pcEnd );
-            Assert( ( (_tySizeType)stRead / sizeof( _tyChar ) ) == ( _pcEnd - _pcBegin ) );
-            return (_tySizeType)stRead / sizeof( _tyChar );
+              SwitchEndian( _pcBegin, _pcBegin + nchRead );
+            return nchRead; // Less than asked ends the application: a short read is not asserted against any more.
           }
         );
-        Assert( nRead == sizeAdd );
+        // Only what was read is kept: before, the buffer stayed at the size asked for and what lay past a short read -
+        //  never read - was returned as characters.
+        if ( nRead < sizeAdd )
+          m_saBuffer.SetSizeSmaller( m_posCur + nRead );
+        if ( !nRead )
+          return false; // EOF.
         nRead = m_saBuffer.Read( m_posCur++, &_rc, 1 );
         Assert( nRead ); // Should always get something here since we would have failed above.
         AssertValid();
@@ -182,7 +191,7 @@ public:
     }
     else
     {
-      Assert( m_fReadAhead ); // Should always get into the above loop when not reading ahead.
+      // Within what has been read: read ahead, or read again after ResetPositionToBase().
       _tySizeType nRead = m_saBuffer.Read( m_posCur++, &_rc, 1 );
       Assert( nRead ); // Should always get something here since we would have failed above.
       AssertValid();

@@ -5,10 +5,11 @@
 # strwrsvtest: Google test based unit tests of StrWRsv - strwrsv.h - the string every JSON string is kept in.
 # strutiltest: Google test based unit tests of _strutil.h and utfconvert.h - UTF conversions, encodings, C strings,
 #   printf to a string, reading numbers.
-# containertest: Google test based unit tests of _bitutil.h, _simple_bitvec ( _simpbv.h ) and LogArray ( _logarray.h ).
+# containertest: Google test based unit tests of _bitutil.h, _simple_bitvec ( _simpbv.h ), LogArray ( _logarray.h ) and
+#   UniquePtrSList ( upslist.h ).
 # segarraytest: Google test based unit tests of SegArray, SegArrayRotatingBuffer and SegArrayView ( segarray.h ).
 # iotest: Google test based unit tests of MemFile and MemStream ( memfile.h ), the file functions of _compat.h and
-#   _compat.inl, and FileObj and FileMappingObj ( _fdobjs.h ).
+#   _compat.inl, FileObj and FileMappingObj ( _fdobjs.h ), and FdReadRotating ( fdrotbuf.h ).
 
 include(GoogleTest)
 

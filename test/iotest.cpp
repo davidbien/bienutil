@@ -12,6 +12,7 @@
 
 #include "bienutiltest.h"
 #include "memfile.h"
+#include "fdrotbuf.h"
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -423,6 +424,139 @@ TEST( FileMappingObj, OwnershipMoves )
   EXPECT_EQ( *(const char *)hmm.Pv(), 'm' ) << "unmapped by a FileMappingObj which didn't own it";
   {
     FileMappingObj fmoOwning( hmm );
+  }
+  FileDelete( strPath.c_str() );
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// FdReadRotating: a file read through a rotating buffer, as lexang reads its input.
+
+// Read the whole of a handle: tokens of random lengths consumed or discarded as they are read, some read again.
+template < bool t_fReadAhead >
+static std::string StrReadRotating( vtyFileHandle _h, uint64_t _nLen, size_t _nbySegment, std::mt19937 & _rrng )
+{
+  FdReadRotating< char > frr( _nbySegment );
+  EXPECT_TRUE( frr.FIsNull() );
+  frr.Init( _h, 0, t_fReadAhead, _nLen, _nbySegment );
+  std::string strOut;
+  for ( ;; )
+  {
+    const size_t nToken = 1 + _rrng() % 40;
+    std::string strToken;
+    char ch;
+    while ( strToken.length() < nToken && frr.FGetChar( ch ) )
+      strToken += ch;
+    if ( strToken.empty() )
+      break;
+    std::string strCurrent;
+    frr.GetCurrentString( strCurrent );
+    EXPECT_EQ( strCurrent, strToken );
+    if ( !( _rrng() % 4 ) )
+    {
+      // Scanned again from the token's start - as lexang does - then the same characters.
+      frr.ResetPositionToBase();
+      std::string strAgain;
+      for ( size_t n = 0; n < strToken.length() && frr.FGetChar( ch ); ++n )
+        strAgain += ch;
+      EXPECT_EQ( strAgain, strToken );
+    }
+    if ( _rrng() & 1 )
+    {
+      std::string strConsumed( strToken.length(), '#' );
+      frr.ConsumeData( strConsumed.data(), strConsumed.length() );
+      EXPECT_EQ( strConsumed, strToken );
+    }
+    else
+      frr.DiscardData( frr.PosCurrent() );
+    EXPECT_EQ( frr.PosBase(), frr.PosCurrent() );
+    strOut += strToken;
+  }
+  return strOut;
+}
+
+TEST( FdReadRotating, File )
+{
+  FdReadRotating< char > frrDefault; // default constructed - ambiguous before, with two default constructors.
+  EXPECT_TRUE( frrDefault.FIsNull() );
+  const std::string strPath = StrTempPath( "rotating.txt" );
+  std::string str( 100000, ' ' );
+  for ( size_t n = 0; n < str.size(); ++n )
+    str[ n ] = char( 'a' + n % 26 );
+  WriteFile( strPath, str );
+  std::mt19937 rng( 7 );
+  for ( size_t nbySegment : { 16, 256, 4096 } )
+  {
+    {
+      FileObj fo( OpenReadOnlyFile( strPath.c_str() ) );
+      EXPECT_EQ( StrReadRotating< false >( fo.HFileGet(), ( std::numeric_limits< uint64_t >::max )(), nbySegment, rng ), str );
+    }
+    {
+      FileObj fo( OpenReadOnlyFile( strPath.c_str() ) );
+      EXPECT_EQ( StrReadRotating< true >( fo.HFileGet(), str.size(), nbySegment, rng ), str ) << nbySegment;
+    }
+    {
+      // A length less than the file: no more than it is read.
+      FileObj fo( OpenReadOnlyFile( strPath.c_str() ) );
+      EXPECT_EQ( StrReadRotating< true >( fo.HFileGet(), 1000, nbySegment, rng ), str.substr( 0, 1000 ) );
+    }
+    {
+      // Read ahead, of no given length: the end comes as a read shorter than asked - before, what lay past it was
+      //  returned as characters.
+      FileObj fo( OpenReadOnlyFile( strPath.c_str() ) );
+      EXPECT_EQ( StrReadRotating< true >( fo.HFileGet(), ( std::numeric_limits< uint64_t >::max )(), nbySegment, rng ), str ) << nbySegment;
+    }
+  }
+  FileDelete( strPath.c_str() );
+}
+
+#ifndef WIN32
+// Through a pipe, written in pieces: reads are short without being the end.
+TEST( FdReadRotating, Pipe )
+{
+  std::string str( 50000, ' ' );
+  for ( size_t n = 0; n < str.size(); ++n )
+    str[ n ] = char( 'A' + n % 23 );
+  std::mt19937 rng( 11 );
+  for ( bool fReadAhead : { false, true } )
+  {
+    int rgfd[ 2 ];
+    ASSERT_EQ( pipe( rgfd ), 0 );
+    std::thread thrWrite( [ & ]
+                          {
+                            for ( size_t n = 0; n < str.size(); n += 777 )
+                            {
+                              FileWrite( rgfd[ 1 ], str.data() + n, ( std::min )( size_t( 777 ), str.size() - n ) );
+                              std::this_thread::yield();
+                            }
+                            close( rgfd[ 1 ] );
+                          } );
+    const std::string strRead = fReadAhead ? StrReadRotating< true >( rgfd[ 0 ], ( std::numeric_limits< uint64_t >::max )(), 4096, rng )
+                                           : StrReadRotating< false >( rgfd[ 0 ], ( std::numeric_limits< uint64_t >::max )(), 4096, rng );
+    thrWrite.join();
+    close( rgfd[ 0 ] );
+    EXPECT_EQ( strRead, str ) << fReadAhead;
+  }
+}
+#endif
+
+// Of 16 bit characters with the endian switched.
+TEST( FdReadRotating, SwitchEndian )
+{
+  const std::string strPath = StrTempPath( "rotating16.bin" );
+  std::u16string str16( u"\u00e9 sixteen bit characters, swapped" );
+  std::u16string str16Swapped( str16 );
+  SwitchEndian( str16Swapped.data(), str16Swapped.data() + str16Swapped.length() );
+  WriteFile( strPath, std::string( (const char *)str16Swapped.data(), str16Swapped.length() * 2 ) );
+  for ( bool fReadAhead : { false, true } )
+  {
+    FileObj fo( OpenReadOnlyFile( strPath.c_str() ) );
+    FdReadRotating< char16_t, true > frr( 64 );
+    frr.Init( fo.HFileGet(), 0, fReadAhead, fReadAhead ? str16.length() : ( std::numeric_limits< uint64_t >::max )(), 64 );
+    std::u16string str16Read;
+    char16_t ch;
+    while ( frr.FGetChar( ch ) )
+      str16Read += ch;
+    EXPECT_EQ( str16Read, str16 ) << fReadAhead;
   }
   FileDelete( strPath.c_str() );
 }

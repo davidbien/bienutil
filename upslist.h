@@ -94,7 +94,30 @@ public:
   UniquePtrSList( const UniquePtrSList & ) = delete;
   UniquePtrSList & operator=( const UniquePtrSList & ) = delete;
   UniquePtrSList( UniquePtrSList && ) = default;
-  UniquePtrSList & operator=( UniquePtrSList && ) = default;
+  UniquePtrSList & operator=( UniquePtrSList && _rr )
+  {
+    if ( this != &_rr )
+    {
+      clear();
+      swap( _rr );
+    }
+    return *this;
+  }
+  // The elements are freed one at a time: left to the unique_ptr<>s, each frees the next within itself - as deep a
+  //  recursion as the list is long.
+  ~UniquePtrSList()
+  {
+    clear();
+  }
+  void clear()
+  {
+    while ( !!m_upHead )
+    {
+      _TyPtr upNext;
+      upNext.swap( m_upHead->PtrNext() );
+      m_upHead.swap( upNext ); // upNext is now the old head, alone: freed here.
+    }
+  }
   void swap( _TyThis & _r )
   {
     m_upHead.swap( _r.m_upHead );
@@ -106,8 +129,9 @@ public:
   size_t count() const
   {
     size_t count = 0;
-    const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur; pelCur = &*pelCur->PtrNext() )
+    // get(), not &*: * of an empty unique_ptr<> is undefined.
+    const _TyListEl * pelCur = m_upHead.get();
+    for ( ; !!pelCur; pelCur = pelCur->PtrNext().get() )
       ++count;
     return count;
   }
@@ -123,14 +147,15 @@ public:
   }
   const _TyListEl * PListElFront() const
   {
-    return &*m_upHead;
+    return m_upHead.get();
   }
   _TyListEl * PListElFront()
   {
-    return &*m_upHead;
+    return m_upHead.get();
   }
   void push( _TyPtr & _rpt )
   {
+    VerifyThrow( !!_rpt );
     Assert( !_rpt->PtrNext() );
     _rpt->PtrNext().swap( m_upHead );
     m_upHead.swap( _rpt );
@@ -147,6 +172,7 @@ public:
   }
   void pop()
   {
+    VerifyThrow( !!m_upHead ); // Of an empty list: before, null was dereferenced.
     _TyPtr upClear;
     upClear.swap( m_upHead->PtrNext() );
     m_upHead.swap( upClear );
@@ -154,43 +180,43 @@ public:
   // Pop and return the top in _TyPtr;
   void pop( _TyPtr & _upTop )
   {
+    VerifyThrow( !!m_upHead );
     _upTop.reset();
     _upTop.swap( m_upHead->PtrNext() );
     m_upHead.swap( _upTop );
   }
-  bool FFind( const _TyListEl * _pel )
+  bool FFind( const _TyListEl * _pel ) const
   {
-    const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur && ( pelCur != _pel ); pelCur = &*pelCur->PtrNext() )
+    const _TyListEl * pelCur = m_upHead.get();
+    for ( ; !!pelCur && ( pelCur != _pel ); pelCur = pelCur->PtrNext().get() )
       ;
     return !!pelCur;
   }
   const _TyListEl * PListElFind( const t_TyT & _rt ) const
   {
-    const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = &*pelCur->PtrNext() )
+    const _TyListEl * pelCur = m_upHead.get();
+    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = pelCur->PtrNext().get() )
       ;
     return pelCur;
   }
   _TyListEl * PListElFind( const t_TyT & _rt )
   {
-    const _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur && ( **pelCur != _rt ); pelCur = &*pelCur->PtrNext() )
-      ;
-    return pelCur;
+    return const_cast< _TyListEl * >( const_cast< const _TyThis * >( this )->PListElFind( _rt ) );
   }
+  // The functor is given each value, from the front: const of a const list. ( Before, the const version did not
+  //  compile, and would have given the element rather than the value. )
   template < class t_TyFunctor >
   void Apply( t_TyFunctor&& _rrFtor ) const
   {
-    _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur; pelCur = &*pelCur->PtrNext() )
-      std::forward< t_TyFunctor >( _rrFtor )( *pelCur );
+    const _TyListEl * pelCur = m_upHead.get();
+    for ( ; !!pelCur; pelCur = pelCur->PtrNext().get() )
+      std::forward< t_TyFunctor >( _rrFtor )( **pelCur );
   }
   template < class t_TyFunctor >
   void Apply( t_TyFunctor&& _rrFtor )
   {
-    _TyListEl * pelCur = &*m_upHead;
-    for ( ; !!pelCur; pelCur = &*pelCur->PtrNext() )
+    _TyListEl * pelCur = m_upHead.get();
+    for ( ; !!pelCur; pelCur = pelCur->PtrNext().get() )
       std::forward< t_TyFunctor >( _rrFtor )( **pelCur );
   }
 protected:

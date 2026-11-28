@@ -14,6 +14,7 @@
 #include "bienutiltest.h"
 #include "_simpbv.h"
 #include "_logarray.h"
+#include "upslist.h"
 #include <random>
 #include <vector>
 #include <thread>
@@ -504,6 +505,70 @@ TEST( LogArray, FreeListAcrossThreads )
     std::vector< _TyArray > rg( 300 ); // more than the 256 a thread keeps.
     for ( auto & rla : rg )
       rla.emplaceAtEnd( 1 );
+  }
+  EXPECT_EQ( _Counted::s_nLive, 0 );
+}
+
+// ------------------------------------------------------------------------------------------------------------------
+// UniquePtrSList
+
+TEST( UniquePtrSList, PushPopFind )
+{
+  UniquePtrSList< std::string > list;
+  EXPECT_TRUE( list.empty() );
+  EXPECT_EQ( list.count(), 0u );                          // of an empty list: before, * of a null unique_ptr.
+  EXPECT_EQ( list.PListElFront(), nullptr );
+  EXPECT_EQ( list.PListElFind( "x" ), nullptr );
+  EXPECT_FALSE( list.FFind( nullptr ) );
+  EXPECT_THROW( list.front(), std::exception );
+  EXPECT_THROW( list.pop(), std::exception );             // before, null was dereferenced.
+  list.push( std::string( "c" ) );
+  const std::string strB( "b" );
+  list.push( strB );
+  UniquePtrSList< std::string >::_TyPtr upA = std::make_unique< UniquePtrSList< std::string >::_TyListEl >( std::string( "a" ) );
+  list.push( upA );
+  EXPECT_FALSE( !!upA );
+  EXPECT_EQ( list.count(), 3u );
+  EXPECT_EQ( list.front(), "a" );
+  std::string strAll;
+  list.Apply( [ & ]( std::string & _rstr ) { strAll += _rstr; } );
+  EXPECT_EQ( strAll, "abc" );
+  const UniquePtrSList< std::string > & rlistConst = list;
+  std::string strConst;
+  rlistConst.Apply( [ & ]( const std::string & _rstr ) { strConst += _rstr; } ); // didn't compile before.
+  EXPECT_EQ( strConst, "abc" );
+  auto * pelB = list.PListElFind( "b" );                   // nor this, of a non-const list.
+  ASSERT_NE( pelB, nullptr );
+  EXPECT_EQ( **pelB, "b" );
+  EXPECT_TRUE( list.FFind( pelB ) );
+  EXPECT_EQ( list.PListElFind( "z" ), nullptr );
+  UniquePtrSList< std::string >::_TyPtr upTop;
+  list.pop( upTop );
+  EXPECT_EQ( **upTop, "a" );
+  EXPECT_FALSE( list.FFind( upTop.get() ) );
+  list.pop();
+  EXPECT_EQ( list.front(), "c" );
+  UniquePtrSList< std::string > listMoved( std::move( list ) );
+  EXPECT_TRUE( list.empty() );
+  EXPECT_EQ( listMoved.count(), 1u );
+  UniquePtrSList< std::string > listOther;
+  listOther.push( std::string( "o" ) );
+  listOther = std::move( listMoved );
+  EXPECT_EQ( listOther.front(), "c" );
+  listOther = std::move( listOther ); // to itself.
+  EXPECT_EQ( listOther.front(), "c" );
+  listOther.clear();
+  EXPECT_TRUE( listOther.empty() );
+}
+
+// A long list is destroyed one element at a time: as unique_ptr<>s alone it was a recursion as deep as the list.
+TEST( UniquePtrSList, LongListDestroyed )
+{
+  {
+    UniquePtrSList< _Counted > list;
+    for ( int n = 0; n < 1000000; ++n )
+      list.push( _Counted( n ) );
+    EXPECT_EQ( _Counted::s_nLive, 1000000 );
   }
   EXPECT_EQ( _Counted::s_nLive, 0 );
 }

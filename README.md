@@ -19,10 +19,10 @@ cmake --build out/build/release && ctest --test-dir out/build/release
   made of what is no UTF, encodings by byte order mark and by an XML document's first character, the C string
   functions, printf to a string, the reading of numbers.
 - `test/containertest.cpp`: `_bitutil.h`, `_simple_bitvec` ( `_simpbv.h` ) and `LogArray` ( `_logarray.h` ), each against
-  the standard library under random operations, the elements counted.
+  the standard library under random operations, the elements counted; `UniquePtrSList` ( `upslist.h` ).
 - `test/segarraytest.cpp`: `SegArray`, `SegArrayRotatingBuffer` and `SegArrayView` ( `segarray.h` ), likewise.
 - `test/iotest.cpp`: `MemFile` and `MemStream` ( `memfile.h` ), the file functions of `_compat.h` / `_compat.inl`, and
-  `FileObj` and `FileMappingObj` ( `_fdobjs.h` ).
+  `FileObj` and `FileMappingObj` ( `_fdobjs.h` ), and `FdReadRotating` ( `fdrotbuf.h` ) - lexang's input - of files and pipes.
 
 They are what invalid, xmlp, lexang and dgraph use of bienutil.
 
