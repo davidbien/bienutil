@@ -281,8 +281,11 @@ TEST( Files, Mapping )
     FileMappingObj fmoAtPage( MapReadOnlyHandle( fo.HFileGet(), &nbySizeAtPage, &nbyAtPage ) );
     ASSERT_TRUE( fmoAtPage.FIsOpen() );
     EXPECT_EQ( *fmoAtPage.Pby( nbyAtPage ), str[ GetPageSize() + 3 ] );
+    // At or past the end: refused, whether the size is asked for or not ( on Windows it was refused only when asked ).
     uint64_t nbyBeyond = str.size();
     EXPECT_TRUE( MapReadOnlyHandle( fo.HFileGet(), nullptr, &nbyBeyond ).FFailedMapping() );
+    uint64_t nbyBeyond2 = str.size() + 5, nbySizeBeyond = 0;
+    EXPECT_TRUE( MapReadOnlyHandle( fo.HFileGet(), &nbySizeBeyond, &nbyBeyond2 ).FFailedMapping() );
   }
   {
     FileObj fo( CreateFileMaybeReadWrite< std::true_type >( StrTempPath( "maprw.bin" ).c_str() ) );
@@ -291,6 +294,15 @@ TEST( Files, Mapping )
     FileMappingObj fmo( MapReadWriteHandle( fo.HFileGet() ) );
     ASSERT_TRUE( fmo.FIsOpen() );
     memcpy( fmo.Pby( 100 ), "written through the mapping", 27 );
+    uint64_t nbyRwBeyond = 4096;
+    EXPECT_TRUE( MapReadWriteHandle( fo.HFileGet(), nullptr, &nbyRwBeyond ).FFailedMapping() ); // at the end: refused.
+    uint64_t nbyRwBeyond2 = 5000, nbySizeRw = 0;
+    EXPECT_TRUE( MapReadWriteHandle( fo.HFileGet(), &nbySizeRw, &nbyRwBeyond2 ).FFailedMapping() );
+    uint64_t nbyRwAt = 10, nbySizeRwAt = 0;
+    FileMappingObj fmoRwAt( MapReadWriteHandle( fo.HFileGet(), &nbySizeRwAt, &nbyRwAt ) );
+    ASSERT_TRUE( fmoRwAt.FIsOpen() );
+    EXPECT_EQ( nbyRwAt, 10u );
+    EXPECT_EQ( nbySizeRwAt, 4096u );
   }
   EXPECT_EQ( StrReadFile( StrTempPath( "maprw.bin" ) ).substr( 100, 27 ), "written through the mapping" );
   uint64_t nbySize = 0;

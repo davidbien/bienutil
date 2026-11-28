@@ -478,22 +478,23 @@ MapReadOnlyHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = nullptr, 
   uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
   if ( _pu64AtPosition )
     *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
-  if ( !!_pu64SizeMapping )
+  // The size is wanted for the check of the position whether the caller asks for it or not: before, a position at or
+  //  past the end was refused only when the caller asked for the size - else the mapping was made from the aligned
+  //  position, as POSIX's never is.
+  uint64_t u64SizeFile;
+  if ( !GetFileSizeEx( _hFile, (PLARGE_INTEGER)&u64SizeFile ) )
   {
-    BOOL fGetFileSize;
-    if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pu64SizeMapping ) ) || ( u64AtPosition >= *_pu64SizeMapping ) )
-    {
-      if ( !fGetFileSize )
-      {
-        if ( !!_pu64SizeMapping )
-          *_pu64SizeMapping = ( numeric_limits< uint64_t >::max )(); // indicate to the caller that we didn't get the file size.
-      }
-      else
-        SetLastErrNo( ERROR_INVALID_PARAMETER ); // Can't map a zero size file or a file at a posiion beyond or equal to the end.
-      return vtyMappedMemoryHandle();
-    }
-    *_pu64SizeMapping -= u64AtPositionAligned;
+    if ( !!_pu64SizeMapping )
+      *_pu64SizeMapping = ( numeric_limits< uint64_t >::max )(); // indicate to the caller that we didn't get the file size.
+    return vtyMappedMemoryHandle();
   }
+  if ( u64AtPosition >= u64SizeFile )
+  {
+    SetLastErrNo( ERROR_INVALID_PARAMETER ); // Can't map a zero size file or a file at a posiion beyond or equal to the end.
+    return vtyMappedMemoryHandle();
+  }
+  if ( !!_pu64SizeMapping )
+    *_pu64SizeMapping = u64SizeFile - u64AtPositionAligned;
   // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
   vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READONLY, 0, 0, NULL );
   if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
@@ -542,22 +543,23 @@ MapReadWriteHandle( vtyFileHandle _hFile, uint64_t * _pu64SizeMapping = 0, uint6
   uint64_t u64AtPositionAligned = u64AtPosition - u64AtPositionRemainder;
   if ( _pu64AtPosition )
     *_pu64AtPosition = u64AtPositionRemainder; // update for the caller.
-  if ( !!_pu64SizeMapping )
+  // The size is wanted for the check of the position whether the caller asks for it or not: before, a position at or
+  //  past the end was refused only when the caller asked for the size - else the mapping was made from the aligned
+  //  position, as POSIX's never is.
+  uint64_t u64SizeFile;
+  if ( !GetFileSizeEx( _hFile, (PLARGE_INTEGER)&u64SizeFile ) )
   {
-    BOOL fGetFileSize;
-    if ( !( fGetFileSize = GetFileSizeEx( _hFile, (PLARGE_INTEGER)_pu64SizeMapping ) ) || ( u64AtPosition >= *_pu64SizeMapping ) )
-    {
-      if ( !fGetFileSize )
-      {
-        if ( !!_pu64SizeMapping )
-          *_pu64SizeMapping = ( numeric_limits< uint64_t >::max )(); // indicate to the caller that we didn't get the file size.
-      }
-      else
-        SetLastErrNo( ERROR_INVALID_PARAMETER ); // Can't map a zero size file or a file at a posiion beyond or equal to the end.
-      return vtyMappedMemoryHandle();
-    }
-    *_pu64SizeMapping -= u64AtPositionAligned;
+    if ( !!_pu64SizeMapping )
+      *_pu64SizeMapping = ( numeric_limits< uint64_t >::max )(); // indicate to the caller that we didn't get the file size.
+    return vtyMappedMemoryHandle();
   }
+  if ( u64AtPosition >= u64SizeFile )
+  {
+    SetLastErrNo( ERROR_INVALID_PARAMETER ); // Can't map a zero size file or a file at a posiion beyond or equal to the end.
+    return vtyMappedMemoryHandle();
+  }
+  if ( !!_pu64SizeMapping )
+    *_pu64SizeMapping = u64SizeFile - u64AtPositionAligned;
   // This will also fail if the backing file happens to be of zero size. No reason to call GetFileSizeEx() under Windows unless the caller wants the size.
   vtyFileHandle hMapping = ::CreateFileMappingA( _hFile, NULL, PAGE_READWRITE, 0, 0, NULL );
   if ( !hMapping ) // CreateFileMappingA return 0 on failure - annoyingly enough.
