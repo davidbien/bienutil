@@ -328,9 +328,9 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
     va_end(ap2);
     if ( -1 == nWritten )
     {
-      // A buffer too small is -1 with no errno ( glibc ) or with EOVERFLOW ( macOS ): the buffer is grown. Another
-      //  errno - EILSEQ, of a character which has no wide form - is an error.
-      if ( ( 0 != GetLastErrNo() ) && ( EOVERFLOW != GetLastErrNo() ) )
+      // A buffer too small is -1 with E2BIG ( glibc - measured, 27 Nov 2026 ), with EOVERFLOW ( macOS ) or with no
+      //  errno: the buffer is grown. Another errno - EILSEQ, of a character which has no wide form - is an error.
+      if ( ( 0 != GetLastErrNo() ) && ( EOVERFLOW != GetLastErrNo() ) && ( E2BIG != GetLastErrNo() ) )
       {
         // Then some error besides not having a big enough buffer.
         THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRequired[%d].", nWritten);
