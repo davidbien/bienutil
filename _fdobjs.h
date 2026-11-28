@@ -42,9 +42,12 @@ public:
     swap( fdo );
     return *this;
   }
+  // The ownership goes with the handle: before, a FileObj moved from one which didn't own its handle owned it - and
+  //  closed it.
   void swap( FileObj & _r )
   {
     std::swap( m_hFile, _r.m_hFile );
+    std::swap( m_fOwnFile, _r.m_fOwnFile );
   }
   ~FileObj()
   {
@@ -121,6 +124,7 @@ public:
   void swap( FileMappingObj & _r )
   {
     m_hmmFile.swap( _r.m_hmmFile );
+    std::swap( m_fOwnFile, _r.m_fOwnFile );
   }
   ~FileMappingObj()
   {

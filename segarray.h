@@ -82,16 +82,16 @@ public:
               const _tyT *ptCurOther = (const _tyT *)*ppbyCurOther;
               const _tyT *const ptEndOther = ptCurOther + NElsPerSegment();
               _tyT *ptCurThis = (_tyT *)*ppbyCurThis;
-              for (; ptEndOther != ptCurOther; ++ptCurOther, ++ptCurThis)
-              {
+              // The count is checked before each element: a segment past the last element - allocated still after the
+              //  array shrank - has none to copy. ( Before, its first was copied, then the rest, of objects never made. )
+              for (; ( ptEndOther != ptCurOther ) && ( nElementsCopied != _r.m_nElements ); ++ptCurOther, ++ptCurThis, ++nElementsCopied)
                 new (ptCurThis) _tyT(*ptCurOther);
-                if (++nElementsCopied == _r.m_nElements)
-                  break; // We have copied all the elements.
-              }
             }
-            catch (std::exception const &rexc)
+            catch (...)
             {
-              n_SysLog::Log(eslmtError, "SegArray::SegArray(const&): Caught exception copy constructing an element [%s].", rexc.what());
+              // The segment and the elements made in it are cleaned up with the others below: before, the segment in
+              //  which an element threw was not - it and its elements leaked.
+              ++ppbyCurThis;
               break; // Can't do anything about - we will clean up and throw a separate exception below.
             }
           }
@@ -122,12 +122,9 @@ public:
           {
             _tyT *ptCurThis = (_tyT *)*ppbyCurThis;
             const _tyT *const ptEndThis = ptCurThis + NElsPerSegment();
-            for (; ptEndThis != ptCurThis; ++ptCurThis)
-            {
+            // The count is checked before each element: when none were made in a segment none is destroyed.
+            for (; ( ptEndThis != ptCurThis ) && ( nElementsDestroyed != nElementsCopied ); ++ptCurThis, ++nElementsDestroyed)
               ptCurThis->~_tyT();
-              if (++nElementsDestroyed == nElementsCopied)
-                break; // We have destroyed all the elements.
-            }
           }
           free(*ppbyCurThis); // might be 0 but free doesn't care.
         }
@@ -194,6 +191,8 @@ public:
   }
   SegArray &operator=(SegArray &&_rr)
   {
+    if (this == &_rr)
+      return *this; // else Clear() would empty both.
     // Caller doesn't want _rr to have anything in it or they would have just called swap directly.
     // So Close() first.
     Clear();
@@ -275,7 +274,7 @@ public:
   bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
     requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
-    return FGetStringView( _rdr.begin(), _rdr.end() );
+    return FGetStringView( _rsv, _rdr.begin(), _rdr.end() );
   }
   void _CopyStringToBuf( _tySizeType _posBegin, _tySizeType _posEnd, _tyT * _ptBuf ) const
   {
@@ -298,8 +297,7 @@ public:
       return; // empty result.
     VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%llu],_posEnd[%llu],NElements()[%llu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
     _rstr.resize( size_t( _posEnd - _posBegin ) );
-    _CopyStringToBuf( _posBegin, _posEnd, (_tyT*)&_rstr[0] );
-    Assert( StrNLen( _rstr.c_str() ) == (_posEnd - _posBegin ) );
+    _CopyStringToBuf( _posBegin, _posEnd, (_tyT*)&_rstr[0] ); // ( Not asserted to hold no NUL: data may. )
   }
   template < class t_tyString >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
@@ -309,7 +307,7 @@ public:
     if ( _posBegin == _posEnd )
       return; // empty result.
     VerifyThrowSz( ( _posEnd >= _posBegin ) && ( _posEnd <= NElements() ), "_posBegin[%llu],_posEnd[%llu],NElements()[%llu]", uint64_t(_posBegin), uint64_t(_posEnd), uint64_t(NElements()) );
-    static size_t knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof(_tyT);
+    static constexpr size_t knchMaxAllocaSize = 4096 / sizeof(_tyT); // A little on the stack: a thread's may be only 512 KB.
     std::basic_string< _tyT > strTempBuf; // For when we have more than knchMaxAllocaSize - avoid using t_tyString as it may be some derivation of string or anything else for that matter.
     _tySizeType nLen = _posEnd - _posBegin;
     _tyT * ptBuf;
@@ -457,7 +455,8 @@ public:
   void Compact() noexcept
   {
     AssertValid();
-    _tySizeType nBlocksNeeded = ((m_nElements - 1) / NElsPerSegment()) + 1;
+    // Of no elements, no segments ( before, m_nElements - 1 wrapped and nothing was freed ).
+    _tySizeType nBlocksNeeded = !m_nElements ? 0 : ( ((m_nElements - 1) / NElsPerSegment()) + 1 );
     if (nBlocksNeeded < _tySizeType(m_ppbyEndSegments - m_ppbySegments))
     {
       uint8_t **ppbyDealloc = m_ppbySegments + nBlocksNeeded;
@@ -476,7 +475,8 @@ public:
 
   // Remove _nEls starting at _nPos.
   // This is the version where the move assignment cannot throw.
-  void Remove( _tySizeType _nPos, _tySizeType _nEls ) noexcept( std::is_nothrow_destructible_v< _tyT > )
+  // Not noexcept: a range beyond the array throws ( noexcept, it was std::terminate() ).
+  void Remove( _tySizeType _nPos, _tySizeType _nEls )
     requires ( std::is_nothrow_move_assignable_v< _tyT > )
   {
     // std::move() each element into its new place...
@@ -512,7 +512,8 @@ public:
   // This method efficiently removes elements as indicated by bits set in the passed _rbv.
   // This one might not throw.
   template < class t_tyBitVector >
-  void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( std::is_nothrow_destructible_v< _tyT > )
+  // Not noexcept: a bit vector of another size throws.
+  void RemoveBvElements( t_tyBitVector const & _rbv )
     requires ( std::is_nothrow_move_assignable_v< _tyT > )
   {
     if ( !_rbv.size() )
@@ -715,7 +716,7 @@ public:
       _tySignedSizeType nReadCur = _tySignedSizeType(_itBegin->end()) - _tySignedSizeType(_itBegin->begin());
       if ( nReadCur > 0 )
       {
-        _tySizeType nReadMin = min( nReadCur, nElsRemaining );
+        _tySizeType nReadMin = (std::min)( _tySizeType( nReadCur ), nElsRemaining );
         _tySizeType nRead = Read( _itBegin->begin(), ptCur, nReadMin );
         Assert( nRead == nReadMin );
         ptCur += nRead;
@@ -902,6 +903,7 @@ protected:
       for ( ; m_nElements; --m_nElements )
         ElGet(m_nElements-1).~_tyT();
     }    
+    m_nElements = 0; // Of elements whose lifetimes aren't ours too - before, Clear() left their count as it was.
     uint8_t **ppbyEndData = m_ppbyEndSegments;
     m_ppbyEndSegments = 0;
     uint8_t **ppbySegments = m_ppbySegments;
@@ -997,6 +999,8 @@ public:
   }
   _tyThis &operator=(_tyThis &&_rr)
   {
+    if (this == &_rr)
+      return *this; // else Clear() would empty both.
     // Caller doesn't want _rr to have anything in it or they would have just called swap directly.
     // So Clear() first.
     Clear();
@@ -1049,7 +1053,9 @@ public:
       m_iBaseEl = _iBaseEl;
       return;
     }
-    VerifyThrowSz( _iBaseEl >= m_iBaseEl, 
+    // A positive base after a negative one is a switch of signs too: before, it was let through and "rotated" by far
+    //  more segments than there are.
+    VerifyThrowSz( ( m_iBaseEl >= 0 ) && ( _iBaseEl >= m_iBaseEl ), 
       "Trying to set the base element to something less than the current base or switch signs which is not possible. _iBaseEl[%lld], m_iBaseEl[%lld].", int64_t(_iBaseEl), int64_t(m_iBaseEl) );
 #if ASSERTSENABLED
     size_t ast_nBlocksStart = _tySizeType(_tyBase::m_ppbyEndSegments - _tyBase::m_ppbySegments);
@@ -1128,7 +1134,7 @@ public:
   bool FGetStringView( t_tyStringView & _rsv, t_tyDataRange const & _rdr ) const
     requires ( sizeof( typename t_tyStringView::value_type ) == sizeof( _tyT ) )
   {
-    return FGetStringView( _rdr.begin(), _rdr.end() );
+    return FGetStringView( _rsv, _rdr.begin(), _rdr.end() );
   }
   template < class t_tyString >
   void GetString( t_tyString & _rstr, _tySizeType _posBegin, _tySizeType _posEnd ) const
@@ -1255,7 +1261,7 @@ public:
       _tySignedSizeType nReadCur = _tySignedSizeType(_itBegin->end()) - _tySignedSizeType(_itBegin->begin());
       if ( nReadCur > 0 )
       {
-        _tySizeType nReadMin = min( nReadCur, nElsRemaining );
+        _tySizeType nReadMin = (std::min)( _tySizeType( nReadCur ), nElsRemaining );
         _tySizeType nRead = Read( _itBegin->begin(), ptCur, nReadMin );
         Assert( nRead == nReadMin );
         ptCur += nRead;
@@ -1350,6 +1356,8 @@ public:
         m_sstLen( -((_tySignedSizeType)_sstLen)) 
   {
     Assert( _sstLen < (_tySizeType)(numeric_limits< _tySignedSizeType >::max)() );
+    if ( !_sstLen )
+      m_stBegin = (numeric_limits<_tySizeType>::max)(); // Of no length: the null view.
     AssertValid();
   }
   SegArrayView(_tySegArray *_psaContainer, _tySizeType _stBegin, _tySizeType _sstLen )
@@ -1375,7 +1383,7 @@ public:
     Assert( !!m_sstLen || ( (std::numeric_limits<_tySizeType>::max)() == m_stBegin ) );
 #endif //ASSERTSENABLED
   }
-  bool FIsNull()
+  bool FIsNull() const
   {
     AssertValid();
     return ( (numeric_limits<_tySizeType>::max)() == m_stBegin );
@@ -1423,10 +1431,10 @@ public:
     Assert( _rStr.empty() );
     if ( !m_psaContainer || !m_sstLen )
       return true; // The empty string view is perfect.
-    const _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
-    static const _tySizeType knchMaxAllocaSize = vknbyMaxAllocaSize / sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
+    _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
+    static constexpr _tySizeType knchMaxAllocaSize = 4096 / sizeof( _tyTRemoveCV ); // A little on the stack - a thread's may be only 512 KB. After that we go to a string.
     basic_string< _tyTRemoveCV > strTempBuf;
-    _tyTRemoveCV * ptContigBuf;
+    const _tyTRemoveCV * ptContigBuf;
     if ( m_sstLen < 0 )
     {
       ptContigBuf = m_ptBegin;
@@ -1440,7 +1448,7 @@ public:
       }
       else
         ptContigBuf = (_tyTRemoveCV*)alloca( stLen * sizeof( _tyTRemoveCV ) );
-      const _tySizeType kstRead = m_psaContainer->Read( m_stBegin, ptContigBuf, stLen );
+      const _tySizeType kstRead = m_psaContainer->Read( m_stBegin, const_cast< _tyTRemoveCV * >( ptContigBuf ), stLen );
       Assert( kstRead == stLen );
       stLen = kstRead;
     }
@@ -1480,10 +1488,10 @@ public:
     Assert( _rStr.empty() );
     if ( !m_psaContainer || !m_sstLen )
       return; // The empty string is perfect.
-    const _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
-    static const _tySizeType knchMaxAllocaSize = vknbyMaxAllocaSize/ sizeof( _tyTRemoveCV ); // Allow 512KB on the stack. After that we go to a string.
+    _tySizeType stLen = m_sstLen < 0 ? (_tySizeType)-m_sstLen : (_tySizeType)m_sstLen;
+    static constexpr _tySizeType knchMaxAllocaSize = 4096 / sizeof( _tyTRemoveCV ); // A little on the stack - a thread's may be only 512 KB. After that we go to a string.
     basic_string< _tyTRemoveCV > strTempBuf;
-    _tyTRemoveCV * ptContigBuf;
+    const _tyTRemoveCV * ptContigBuf;
     if ( m_sstLen < 0 )
     {
       ptContigBuf = m_ptBegin;
@@ -1498,7 +1506,7 @@ public:
       else
         ptContigBuf = (_tyTRemoveCV*)alloca( stLen * sizeof( _tyTRemoveCV ) );
       
-      _tySizeType stRead = m_psaContainer->Read( m_stBegin, ptContigBuf, stLen );
+      _tySizeType stRead = m_psaContainer->Read( m_stBegin, const_cast< _tyTRemoveCV * >( ptContigBuf ), stLen );
       Assert( stRead == stLen );
       stLen = stRead;
     }

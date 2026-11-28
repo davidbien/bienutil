@@ -3,6 +3,12 @@
 # jsontest: Google test based unit tests of the JSON reader and writer - jsonstrm.h - and of the JSON values built on
 #   them - jsonobjs.h. See jsontest.cpp.
 # strwrsvtest: Google test based unit tests of StrWRsv - strwrsv.h - the string every JSON string is kept in.
+# strutiltest: Google test based unit tests of _strutil.h and utfconvert.h - UTF conversions, encodings, C strings,
+#   printf to a string, reading numbers.
+# containertest: Google test based unit tests of _bitutil.h, _simple_bitvec ( _simpbv.h ) and LogArray ( _logarray.h ).
+# segarraytest: Google test based unit tests of SegArray, SegArrayRotatingBuffer and SegArrayView ( segarray.h ).
+# iotest: Google test based unit tests of MemFile and MemStream ( memfile.h ), the file functions of _compat.h and
+#   _compat.inl, and FileObj and FileMappingObj ( _fdobjs.h ).
 
 include(GoogleTest)
 
@@ -17,7 +23,7 @@ if(NOT TARGET gtest)
   FetchContent_MakeAvailable(googletest)
 endif()
 
-foreach(BIENUTILTEST jsontest strwrsvtest)
+foreach(BIENUTILTEST jsontest strwrsvtest strutiltest containertest segarraytest iotest)
   add_executable (${BIENUTILTEST} ${BIENUTILTEST}.cpp bienutiltest.h)
   target_link_libraries(${BIENUTILTEST} bienutil gtest gtest_main)
   target_compile_definitions( ${BIENUTILTEST}

@@ -60,15 +60,24 @@ public:
   LogArray() = default;
   LogArray( size_t _nElements ) { SetSize( _nElements ); }
   // The way we construct we can copy any LogArray.
+  // A copy which throws part way leaves nothing behind: the destructor of an object whose constructor throws is not run.
   LogArray( LogArray const & _r )
   {
-    // Piecewise copy construct.
-    _r.ApplyContiguous( 0, _r.NElements(),
-                        [ this ]( const _TyT * _ptBegin, const _TyT * _ptEnd )
-                        {
-                          for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
-                            emplaceAtEnd( *ptCur );
-                        } );
+    try
+    {
+      // Piecewise copy construct.
+      _r.ApplyContiguous( 0, _r.NElements(),
+                          [ this ]( const _TyT * _ptBegin, const _TyT * _ptEnd )
+                          {
+                            for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
+                              emplaceAtEnd( *ptCur );
+                          } );
+    }
+    catch ( ... )
+    {
+      Clear();
+      throw;
+    }
   }
   LogArray & operator=( LogArray const & _r )
   {
@@ -79,13 +88,21 @@ public:
   // The way we construct we can copy any LogArray.
   template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther, bool t_fUseFreeListOther > LogArray( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther, t_fUseFreeListOther > const & _r )
   {
-    // Piecewise copy construct.
-    _r.ApplyContiguous( 0, _r.NElements(),
-                        [ this ]( const _TyT * _ptBegin, const _TyT * _ptEnd )
-                        {
-                          for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
-                            emplaceAtEnd( *ptCur );
-                        } );
+    try
+    {
+      // Piecewise copy construct.
+      _r.ApplyContiguous( 0, _r.NElements(),
+                          [ this ]( const _TyT * _ptBegin, const _TyT * _ptEnd )
+                          {
+                            for ( const _TyT * ptCur = _ptBegin; _ptEnd != ptCur; ++ptCur )
+                              emplaceAtEnd( *ptCur );
+                          } );
+    }
+    catch ( ... )
+    {
+      Clear();
+      throw;
+    }
   }
   template < size_t t_knPow2MinOther, size_t t_knPow2MaxOther, bool t_fUseFreeListOther > LogArray & operator=( LogArray< _TyT, t_knPow2MinOther, t_knPow2MaxOther, t_fUseFreeListOther > const & _r )
   {
@@ -219,7 +236,8 @@ public:
   // Element removal:
   // Remove _nEls starting at _nPos.
   // This is the version where the move assignment cannot throw.
-  void Remove( size_t _nPos, size_t _nEls ) noexcept( std::is_nothrow_destructible_v< _TyT > )
+  // Not noexcept: a range beyond the array throws ( noexcept, it was std::terminate() ).
+  void Remove( size_t _nPos, size_t _nEls )
     requires( std::is_nothrow_move_assignable_v< _TyT > )
   {
     // std::move() each element into its new place...
@@ -257,7 +275,8 @@ public:
   // This method efficiently removes elements as indicated by bits set in the passed _rbv.
   // This one might not throw.
   template < class t_tyBitVector >
-  void RemoveBvElements( t_tyBitVector const & _rbv ) noexcept( std::is_nothrow_destructible_v< _TyT > )
+  // Not noexcept: a bit vector of another size throws.
+  void RemoveBvElements( t_tyBitVector const & _rbv )
     requires( std::is_nothrow_move_assignable_v< _TyT > )
   {
     if ( !_rbv.size() )
@@ -536,7 +555,10 @@ public: // Allow access for testing.
       }
       _TyT * ptNewBlock = (_TyT *)malloc( nBlockSize * sizeof( _TyT ) );
       if ( !ptNewBlock )
+      {
+        ::free( pptNewBlockPtrs ); // the new block pointers, if any, aren't ours yet.
         THROWNAMEDBADALLOC( "malloc failed" );
+      }
       // Everything is allocated now - we won't throw for the rest of this method.
       if ( pptNewBlockPtrs )
       {

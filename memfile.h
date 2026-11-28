@@ -78,7 +78,7 @@ public:
     {
     }
     MemFile( MemFile const & _r )
-        : m_rgsImpl( _r.m_rgsImpl )
+        : m_rgsImpl( _r._RgsCopyLocked() )
     {
     }
     _tyFilePos GetEndPos() const
@@ -124,7 +124,7 @@ public:
         // If we run out of memory we should throw. There shouldn't be any other reason we should fail - barring A/V.
         _tyLock lock;
         LockMutex( lock );
-        m_rgsImpl.Insert( _posInsert, _pbyInsert, _nBytes );
+        m_rgsImpl.Insert( _posInsert, (const vtyMemStreamByteType*)_pbyInsert, _nBytes );
         return _nBytes;
     }
     void WriteToFile( vtyFileHandle _hFile, _tyFilePos _nPos = 0, _tyFilePos _nElsWrite = (std::numeric_limits< _tyFilePos >::max)() ) const
@@ -134,6 +134,13 @@ public:
         m_rgsImpl.WriteToFile( _hFile, _nPos, _nElsWrite );
     }
 protected:
+    // A copy of the data, taken under the lock of the file copied.
+    _tySegArrayImpl _RgsCopyLocked() const
+    {
+        _tyLock lock;
+        LockMutex( lock );
+        return m_rgsImpl;
+    }
     _tySegArrayImpl & _GetSegArrayImpl()
     {
         return m_rgsImpl;

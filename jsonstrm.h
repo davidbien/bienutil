@@ -1361,6 +1361,10 @@ void JsonOutputStream_WriteString( t_tyJsonOutputStream & _rjos, bool _fEscape,
   const size_t stLen = (_sstLen < 0) ? _tyCharTraits::StrLen(_psz) : (size_t)_sstLen;
   if (!_fEscape) // We shouldn't write such characters to strings so we had better know that we don't have any.
   {
+#if ASSERTSENABLED
+    for (_tyLPCSTR pszCheck = _psz; pszCheck != _psz + stLen; ++pszCheck)
+      Assert((_tyUChar(*pszCheck) >= 0x20) && (_tyCharTraits::s_tcDoubleQuote != *pszCheck) && (_tyCharTraits::s_tcBackSlash != *pszCheck));
+#endif //ASSERTSENABLED
     _rjos.WriteRawChars(_psz, stLen);
     return;
   }

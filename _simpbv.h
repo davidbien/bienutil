@@ -164,28 +164,44 @@ public:
     return m_rgEls;
   }
 
+  // Bit vectors are used with those of the same size only: asserted. Should one of another size be assigned all the
+  //  same, this becomes of that size ( before, only this one's size was copied - too little or too much ).
   _TyThis & 
-  operator = ( _TyThis const & _r ) _BIEN_NOTHROW
+  operator = ( _TyThis const & _r )
   {
     if ( this != &_r )
     {
       Assert( _r.m_kstBits == m_kstBits );
-      memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
+      if ( _r.m_kstBits == m_kstBits )
+      {
+        if ( m_kstSize )
+          memcpy( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
+      }
+      else
+      {
+        _TyThis copy( _r );
+        swap( copy );
+      }
     }
     AssertValid();
     return *this;
   }
 
+  // Of the same size only - asserted; should the sizes differ all the same, the shorter is less rather than memory past
+  //  the shorter read.
   bool
   operator < ( _TyThis const & _r ) const _BIEN_NOTHROW
   {
     Assert( _r.m_kstBits == m_kstBits );
-    return 0 > memcmp( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) );
+    if ( _r.m_kstBits != m_kstBits )
+      return m_kstBits < _r.m_kstBits;
+    return !!m_kstSize && ( 0 > memcmp( m_rgEls, _r.m_rgEls, m_kstSize * sizeof( t_TyEl ) ) );
   }
 
   void clear() _BIEN_NOTHROW
   {
-    memset( m_rgEls, 0, m_kstSize * sizeof( t_TyEl ) );
+    if ( m_kstSize )
+      memset( m_rgEls, 0, m_kstSize * sizeof( t_TyEl ) );
   }
 
   bool  empty() const _BIEN_NOTHROW
@@ -240,10 +256,26 @@ public:
     return _getclearfirstset( m_rgEls );
   }
 
+  // Clear the first set bit after _stLast and return its index - m_kstBits if there is none. ( Before, the bits of
+  //  _stLast's element at and before it were looked at too. )
   size_type getclearfirstset( size_type _stLast )
   {
     AssertValid();
-    return _getclearfirstset( m_rgEls + ( (_stLast+1) / ms_kstElSizeBits ) );
+    if ( ++_stLast >= m_kstBits )
+      return m_kstBits;
+    t_TyEl * pElNext = m_rgEls + ( _stLast / ms_kstElSizeBits );
+    if ( const size_type kstBit = _stLast % ms_kstElSizeBits )
+    {
+      const t_TyEl kelMask = t_TyEl( ~( ( t_TyEl( 1 ) << kstBit ) - 1 ) );
+      if ( t_TyEl el = t_TyEl( *pElNext & kelMask ) )
+      {
+        const size_type kstFound = size_type( _bv_get_first_set( el ) );
+        *pElNext &= t_TyEl( ~( t_TyEl( 1 ) << kstFound ) );
+        return size_type( pElNext - m_rgEls ) * ms_kstElSizeBits + kstFound;
+      }
+      ++pElNext;
+    }
+    return _getclearfirstset( pElNext );
   }
 
   // Obtain the index first least significant bit set.
@@ -320,9 +352,16 @@ public:
     return stSet;
   }
 
+  // Of the same size only - asserted; should the sizes differ all the same, they are unequal rather than memory past
+  //  the shorter read.
   bool  operator == ( _TyThis const & _r ) const _BIEN_NOTHROW
   {
-    return !memcmp( _r.m_rgEls, m_rgEls, m_kstSize * sizeof( t_TyEl ) );
+    Assert( _r.m_kstBits == m_kstBits );
+    return ( _r.m_kstBits == m_kstBits ) && ( !m_kstSize || !memcmp( _r.m_rgEls, m_rgEls, m_kstSize * sizeof( t_TyEl ) ) );
+  }
+  bool  operator != ( _TyThis const & _r ) const _BIEN_NOTHROW
+  {
+    return !( *this == _r );
   }
 
   _TyThis & operator |= ( _TyThis const & _r ) _BIEN_NOTHROW
@@ -440,6 +479,8 @@ public:
   {
     AssertValid();
     Assert( _stLast < size() );
+    if ( _stLast >= size() )
+      return size();
     // First process any partial elements:
     t_TyEl * pElNextThis = m_rgEls + ( ++_stLast / ms_kstElSizeBits );
     t_TyEl * pElNextThat = _r.m_rgEls + ( pElNextThis - m_rgEls );
@@ -507,12 +548,13 @@ public:
 			t_TyEl * pEl;
       for ( pEl = m_rgEls; pEl != pElEnd; ++pEl )
       {
-        if ( !!*pEl-- )
+        if ( !!(*pEl)-- )
           break;
       }
+      // A borrow through every element - of zero - sets every bit, past the last too: those are kept clear.
       const size_t kstLastFill = m_kstBits % ms_kstElSizeBits;
-      if ( ( pEl == pElEnd-1 ) && !!kstLastFill ) // update the last element?
-        *pEl &= ( ( 1ull << kstLastFill ) - 1ull );
+      if ( !!kstLastFill )
+        pElEnd[-1] &= ( ( 1ull << kstLastFill ) - 1ull );
     }    
     AssertValid();
   }

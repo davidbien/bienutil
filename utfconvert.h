@@ -263,9 +263,10 @@ inline char32_t * PCConvertUTF( const char16_t *& _rputf16Source, char32_t _rgu3
     return nullptr; // We must return nullptr if we don't advance the source buffer.
   }
   *_rgu32Buffer = *_rputf16Source;
-  if ( FIsHighSurrogate( *_rgu32Buffer ) )
+  if ( FIsSurrogate( *_rgu32Buffer ) )
   {
-    if ( ( _putf16SourceEnd == _rputf16Source + 1 ) || !FIsLowSurrogate( _rputf16Source[1] ) )
+    // A low surrogate first, or a high one not followed by a low one, is no character.
+    if ( !FIsHighSurrogate( *_rgu32Buffer ) || ( _putf16SourceEnd == _rputf16Source + 1 ) || !FIsLowSurrogate( _rputf16Source[1] ) )
     {
       // No room for low surrogate or no low surrogate present - error or replace:
       if ( vkutf16ReplacementCharError == _utf16ReplacementChar )
@@ -402,7 +403,9 @@ inline char32_t UTF32ConvertUTF8(  const char8_t *& _rputf8Source, const char8_t
       SetLastErrNo( vkerrOverflow );
       return vkutf32Error;
     }
-    _rputf8Source = !pucEndTrailBytesOnError ? _putf8SourceEnd : pucEndTrailBytesOnError; // Set end appropriately.
+    // A sequence cut short by the end of the source is the lead byte and the trail bytes which follow it - not
+    //  everything to the end: "\xE2" then "A" is the replacement character then "A".
+    _rputf8Source = !pucEndTrailBytesOnError ? PcLastTrailByte( _rputf8Source, size_t( _putf8SourceEnd - _rputf8Source ) ) : pucEndTrailBytesOnError;
     return _utf16ReplacementChar;
   }
   // Valid sequence.
@@ -562,7 +565,7 @@ const t_TyCharSource * PCConvertString( const t_TyCharSource * _pcSource, size_t
   requires ( TAreSameSizeTypes_v< t_TyCharDest, t_TyCharSource > ) // non-converting.
 {
   if ( !_nchSource )
-    return true; // no-op.
+    return _pcSource; // no-op.
   size_t nchCopy = (min)( _nchSource, _nchDest );
   memcpy( _rpcDest, _pcSource, nchCopy * sizeof( t_TyCharDest ) );
   _rpcDest += nchCopy;
@@ -622,11 +625,19 @@ void ConvertString( t_TyStringDest & _rstrDest, const t_TyCharSource * _pcSource
   typedef utf_traits< _TyCharDest > _TyUTFTraitsDest;
   if ( _nchSource == (std::numeric_limits<size_t>::max)() )
     _nchSource = StrNLen( _pcSource );
+  if ( !_nchSource )
+  {
+    _rstrDest.clear(); // An empty source may be null - an empty string_view's data().
+    return;
+  }
   // Allocate assuming that every source character is a single code that generates the maximum count of destination characters:
   size_t nchDest = _TyUTFTraitsDest::max_length * _nchSource;
   size_t nbyDest = nchDest * sizeof( _TyCharDest );
+  // A little on the stack, more in the string itself: vknbyMaxAllocaSize ( 512 KB ) is all the stack a thread has on
+  //  macOS other than the main one.
+  static constexpr size_t knbyMaxAlloca = 4096;
   _TyCharDest * pcBufDest;
-  if ( nbyDest > vknbyMaxAllocaSize )
+  if ( nbyDest > knbyMaxAlloca )
   {
     _rstrDest.resize( nchDest );
     pcBufDest = reinterpret_cast< _TyCharDest *>( &_rstrDest[0] );
@@ -638,7 +649,7 @@ void ConvertString( t_TyStringDest & _rstrDest, const t_TyCharSource * _pcSource
   Assert( !pcSrcEnd || ( pcSrcEnd == ( _pcSource + _nchSource ) ) ); // We always should have allocated enough space up front.
   if ( !pcSrcEnd )
     THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "Error converting string.");
-  if ( nbyDest > vknbyMaxAllocaSize )
+  if ( nbyDest > knbyMaxAlloca )
     _rstrDest.resize( pcEndDest - pcBufDest );
   else
     _rstrDest.assign( reinterpret_cast< typename t_TyStringDest::value_type * >( pcBufDest ), pcEndDest - pcBufDest );

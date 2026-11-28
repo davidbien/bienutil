@@ -328,26 +328,25 @@ void VPrintfStdStr( t_tyString &_rstr, const typename t_tyString::value_type *_p
     va_end(ap2);
     if ( -1 == nWritten )
     {
-      if ( 0 != GetLastErrNo() )
+      // A buffer too small is -1 with no errno ( glibc ) or with EOVERFLOW ( macOS ): the buffer is grown. Another
+      //  errno - EILSEQ, of a character which has no wide form - is an error.
+      if ( ( 0 != GetLastErrNo() ) && ( EOVERFLOW != GetLastErrNo() ) )
       {
         // Then some error besides not having a big enough buffer.
         THROWNAMEDEXCEPTIONERRNO(GetLastErrNo(), "vsnprintf() returned nRequired[%d].", nWritten);
       }
-      if ( pcBuf == rgcFirstTry )
-        pcBuf = (_tyChar*)alloca( stBufSize = kst2ndTryBufSize );
-      else
-      {
-        stBufSize *= 2;
-        if ( stBufSize > kstMaxBufSize )
-          THROWNAMEDEXCEPTION("Overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%zu].", kstMaxBufSize);
-        _rstr.resize( stBufSize-1 );
-        pcBuf = (_tyChar*)&_rstr[0];
-      }
+      // Then in the string itself - growing. ( Before, a second try on the stack was given 8192 bytes and told it was
+      //  8192 wide characters: vswprintf() wrote past it. )
+      stBufSize = ( pcBuf == rgcFirstTry ) ? kst2ndTryBufSize : ( stBufSize * 2 );
+      if ( stBufSize > kstMaxBufSize )
+        THROWNAMEDEXCEPTION("Overflowed maximum buffer size since vswprintf is a crappy implementation kstMaxBufSize[%zu].", kstMaxBufSize);
+      _rstr.resize( stBufSize-1 ); // with its terminator, stBufSize.
+      pcBuf = (_tyChar*)&_rstr[0];
     }
     else
     {
       // Success!!!
-      if ( stBufSize <= kst2ndTryBufSize )
+      if ( pcBuf == rgcFirstTry )
         _rstr.assign( (typename t_tyString::value_type*)pcBuf, nWritten );
       else
         _rstr.resize(nWritten); // truncate appropriately.
@@ -474,16 +473,16 @@ int IReadPositiveNum(const t_tyChar *_psz, ssize_t _sstLen, t_tyNum &_rNum, bool
         return 0; // We got our number.
     }
     fGotDigit = true;
-    t_tyNum numBefore = _rNum;
-    _rNum *= 10;
-    _rNum += iCur;
-    if (_rNum < numBefore) // overflow.
+    // Overflow is found before it happens: wrapping would be undefined for a signed type, and an unsigned one may wrap
+    //  to a larger number ( "510" as uint8_t: 51 * 10 is 254 ).
+    if (_rNum > ((std::numeric_limits<t_tyNum>::max)() - t_tyNum(iCur)) / 10) // overflow.
     {
       SetLastErrNo( vkerrOverflow );
       if (_fThrowOnError)
         THROWNAMEDEXCEPTION("Overflow.");
       return -1;
     }
+    _rNum = _rNum * 10 + t_tyNum(iCur);
   }
   return 0;
 }
@@ -509,32 +508,35 @@ int IReadPositiveNum(size_t _stRadix, const t_tyChar *_psz, ssize_t _sstLen, t_t
   const _tyChar *const pszEnd = pszCur + _sstLen;
   for (; pszEnd != pszCur; ++pszCur)
   {
-    typedef typename std::make_signed<t_tyNum>::type _tyNumSigned;
-    _tyNumSigned numCur;
-    if ( _tyNumSigned(*pszCur) >= _tyNumSigned('a') )
-      numCur = _tyNumSigned(*pszCur) - _tyNumSigned('a') + 10;
+    // A digit is 0-9, a-z or A-Z: nothing between them - ':' is not 10, nor '[' 36.
+    const uint32_t uCh = uint32_t( std::make_unsigned_t< _tyChar >( *pszCur ) );
+    uint32_t numCur;
+    if ( ( uCh >= 'a' ) && ( uCh <= 'z' ) )
+      numCur = uCh - 'a' + 10;
     else
-    if ( _tyNumSigned(*pszCur) >= _tyNumSigned('A') )
-      numCur = _tyNumSigned(*pszCur) - _tyNumSigned('A') + 10;
+    if ( ( uCh >= 'A' ) && ( uCh <= 'Z' ) )
+      numCur = uCh - 'A' + 10;
     else
-      numCur = _tyNumSigned(*pszCur) - _tyNumSigned('0');
-    if ((numCur < 0) || ((t_tyNum)numCur >= knumRadix))
+    if ( ( uCh >= '0' ) && ( uCh <= '9' ) )
+      numCur = uCh - '0';
+    else
+      numCur = uint32_t( _stRadix ); // no digit.
+    if ( numCur >= _stRadix )
     {
       SetLastErrNo( vkerrInvalidArgument );
       if (_fThrowOnError)
         THROWNAMEDEXCEPTION("Invalid character passed.");			
       return -1;
     }
-    t_tyNum numBefore = _rNum;
-    _rNum *= knumRadix;
-    _rNum += (t_tyNum)numCur;
-    if ( ( _rNum < numBefore ) || ( _rNum > _kNumMax ) ) // overflow.
+    // Overflow found before it happens, as above.
+    if ( ( _rNum > ( (std::numeric_limits<t_tyNum>::max)() - (t_tyNum)numCur ) / knumRadix ) || ( _rNum * knumRadix + (t_tyNum)numCur > _kNumMax ) ) // overflow.
     {
       SetLastErrNo( vkerrOverflow );
       if (_fThrowOnError)
         THROWNAMEDEXCEPTION("Overflow.");
       return -1;
     }
+    _rNum = _rNum * knumRadix + (t_tyNum)numCur;
   }
   return 0;
 }
@@ -643,7 +645,8 @@ void ConvertAsciiString( t_tyCharDest * _rgcBufDest, size_t _nBufDest, const t_t
   t_tyCharDest * pcdestCur = _rgcBufDest;
   for ( const t_tyCharSrc * pcsrcCur = _pcSrc; ( pcsrcEnd != pcsrcCur ); )
   {
-    VerifyThrowSz( *pcsrcCur < t_tyCharDest(128), "This is a size conversion only - can't convert characters over 128." );
+    // As unsigned: a char of 0x80 or more is negative, and char(128) is -128.
+    VerifyThrowSz( uint32_t( std::make_unsigned_t< t_tyCharSrc >( *pcsrcCur ) ) < 128u, "This is a size conversion only - can't convert characters over 128." );
     *pcdestCur++ = (t_tyCharDest)*pcsrcCur++;
   }
   *pcdestCur = 0;
@@ -1193,16 +1196,16 @@ inline std::string StrUnescapeStr( const char* _psz, size_t _nLen )
 }
 inline std::string StrUnescapeStr( std::string const & _str )
 {
-  return StrUnescapeStr( &_str.at(0), _str.length() );
+  return StrUnescapeStr( _str.data(), _str.length() );
 }
 
 // Process a JSON target being received by boost beast:
 inline std::string StrProcessJsonTarget( std::string const & _strTarget )
 {
   size_t nLen = _strTarget.length();
-  size_t nStart = ( '\"' == _strTarget[0] ) ? 1 : 0;
-  nLen -= nStart + ( ( '\"' == _strTarget.back() ) ? 1 : 0 );
-  return StrUnescapeStr( &_strTarget.at( nStart ), nLen );
+  size_t nStart = ( nLen && ( '\"' == _strTarget[0] ) ) ? 1 : 0;
+  size_t nEnd = ( ( nLen > nStart ) && ( '\"' == _strTarget.back() ) ) ? 1 : 0;
+  return StrUnescapeStr( _strTarget.data() + nStart, nLen - nStart - nEnd );
 }
 
 inline std::string StrPercentDecode( const char * _psz )

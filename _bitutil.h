@@ -128,63 +128,32 @@ constexpr size_t KMSBitSet( t_tyT _tTest )
 	return _KMSBitSet8( (uint8_t)_tTest );		
 }
 
-// REVIEW:<dbien>: I wrote this stuff below but never used it:
+// Multiply, returning whether the product overflowed 64 bits. ( Before, a product was taken as overflowed only when
+//  smaller than a factor - which a product which wrapped needn't be: ( 2^32 + 1 )^2 is 2^33 + 1. )
 inline constexpr bool KMultiplyTestOverflow( uint64_t _u64L, uint64_t _u64R, uint64_t & _ru64Result )
 {
   _ru64Result = _u64L * _u64R;
-  return ( _ru64Result < _u64L ) || ( _ru64Result < _u64R );
+  return !!_u64L && ( ( _ru64Result / _u64L ) != _u64R );
 }
 
-// Can't use intrinsics since we want this to be constexpr. 
-// Also we will throw on overflow so that the compile will fail during constexpr evaluation.
+// _u64Base to the power _u8Exp - square and multiply. Can't use intrinsics since we want this to be constexpr.
+// Throws on overflow so that the compile will fail during constexpr evaluation.
 inline constexpr uint64_t KUPow( uint64_t _u64Base, uint8_t _u8Exp )
 {
   uint64_t u64Result = 1;
-  switch( KMSBitSet( _u8Exp ) )
+  for ( ;; )
   {
-    default:
-      THROWNAMEDEXCEPTION("Guaranteed overflow _u64Base > 1.");
-    break;
-    case 6:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
+    if ( 1u & _u8Exp )
+    {
+      if ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) )
         THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 5:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 4:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 3:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 2:
-      if ( ( 1u & _u8Exp ) && 
-           ( KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) ||
-             KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-      _u8Exp >>= 1;
-      [[fallthrough]];
-    case 1:
-      if ( ( 1u & _u8Exp ) && 
-           KMultiplyTestOverflow( u64Result, _u64Base, u64Result ) )
-        THROWNAMEDEXCEPTION("Overflow u64Result.");
-    break;    
+    }
+    _u8Exp >>= 1;
+    if ( !_u8Exp )
+      break;
+    // A higher bit remains: the result will be multiplied by this square at least, so its overflow is the result's.
+    if ( KMultiplyTestOverflow( _u64Base, _u64Base, _u64Base ) )
+      THROWNAMEDEXCEPTION("Overflow u64Result.");
   }
   return u64Result;
 }

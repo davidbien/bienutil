@@ -155,6 +155,8 @@ FileRead( vtyFileHandle _hFile, void * _pvBuffer, uint64_t _u64NBytesToRead, uin
   {
     uint64_t u64BytesToRead = ( _u64NBytesToRead > ku64MaxPerRead ) ? ku64MaxPerRead : _u64NBytesToRead;
     ssize_t sstRead = ::read( _hFile, _pvBuffer, u64BytesToRead );
+    if ( ( -1ll == sstRead ) && ( EINTR == errno ) )
+      continue; // A signal before anything was read: again.
     if ( -1ll == sstRead )
       return -1;
     u64BytesRead += (size_t)sstRead;
@@ -233,13 +235,17 @@ FileWrite( vtyFileHandle _hFile, const void * _pvBuffer, uint64_t _u64NBytesToWr
   {
     uint64_t u64BytesToWrite = ( _u64NBytesToWrite > ku64MaxPerWrite ) ? ku64MaxPerWrite : _u64NBytesToWrite;
     ssize_t sstWrite = ::write( _hFile, _pvBuffer, u64BytesToWrite );
+    if ( ( -1ll == sstWrite ) && ( EINTR == errno ) )
+      continue; // A signal before anything was written: again.
     if ( -1ll == sstWrite )
       return -1;
+    if ( !sstWrite )
+      break; // Nothing could be written: up to the caller if it wants to treat it as an error.
+    // A write may write less than asked - a signal part way, a pipe - without that being the end: the rest is written.
+    //  ( Before, the rest was dropped and success returned. )
     u64BytesWritten += (size_t)sstWrite;
-    if ( (size_t)sstWrite != u64BytesToWrite ) // we hit EOF.
-      break;                                   // can't write anymore - up to caller if wants to treat as error.
-    _u64NBytesToWrite -= u64BytesToWrite;
-    (uint8_t *&)_pvBuffer += u64BytesToWrite;
+    _u64NBytesToWrite -= (size_t)sstWrite;
+    (const uint8_t *&)_pvBuffer += (size_t)sstWrite;
   }
   if ( _pu64NBytesWritten )
     *_pu64NBytesWritten = u64BytesWritten;
@@ -281,8 +287,14 @@ FileCopy( const char * _pszDest, const char * _pszSrc, bool _fDeleteOnFail, uint
   try
   {
     uint64_t u64BytesRead;
-    while ( 0 == FileRead( hSrc, vBuffer.data(), _u64BlockSize, &u64BytesRead ) && u64BytesRead > 0 )
+    for ( ;; )
     {
+      // A read which fails is an error - before, it ended the copy as the end of the file would, and the copy was
+      //  reported whole.
+      if ( 0 != FileRead( hSrc, vBuffer.data(), _u64BlockSize, &u64BytesRead ) )
+        THROWNAMEDEXCEPTIONERRNO( GetLastErrNo(), "FileCopy(): reading [%s] failed.", _pszSrc );
+      if ( !u64BytesRead )
+        break;
       FileWriteOrThrow( hDest, vBuffer.data(), u64BytesRead );
     }
   }
