@@ -60,8 +60,8 @@ public:
   }
   StrWRsv(t_tyStrBase && _rrstr)
   {
-    new ((void*)m_rgtcBuffer) t_tyStrBase(std::move(_rrstr));
-    SetHasStringObj();
+    Assert(!FHasStringObj());
+    *this = std::move(_rrstr);
   }
   ~StrWRsv()
   {
@@ -73,7 +73,7 @@ public:
       assign(_r.c_str(), _r.length());
     return *this;
   }
-  _tyThis &operator=(_tyThis &_rr)
+  _tyThis &operator=(_tyThis &&_rr)
   {
     if (this != &_rr)
     {
@@ -89,8 +89,11 @@ public:
   }
   _tyThis &operator=(t_tyStrBase &&_rrstr)
   {
-    // In this case we will use the existing string even if it is small enough to put in the buffer.
-    if (FHasStringObj())
+    // A short string goes in the buffer: a string object is only ever of a string too long for the buffer - one which a
+    //  std::basic_string keeps outside of itself, so that the object may be moved with memcpy() - see swap().
+    if (_rrstr.length() < t_kstReserve)
+      assign(_rrstr.c_str(), _rrstr.length());
+    else if (FHasStringObj())
       _PGetStrBase()->swap(_rrstr);
     else
     {
@@ -104,12 +107,32 @@ public:
     assign(_psz);
     return *this;
   }
+  // The characters in a buffer are swapped as bytes; a string object is moved as a string object - a std::basic_string
+  //  may point within itself ( libstdc++'s short strings, MSVC's debug proxy ) and is not to be moved with memcpy().
   void swap(_tyThis &_r)
   {
-    _tyChar rgtcBuffer[t_kstReserve];
-    memcpy(rgtcBuffer, _r.m_rgtcBuffer, sizeof(m_rgtcBuffer));
-    memcpy(_r.m_rgtcBuffer, m_rgtcBuffer, sizeof(m_rgtcBuffer));
-    memcpy(m_rgtcBuffer, rgtcBuffer, sizeof(m_rgtcBuffer));
+    if (this == &_r)
+      return;
+    if (!FHasStringObj() && !_r.FHasStringObj())
+    {
+      _tyChar rgtcBuffer[t_kstReserve];
+      memcpy(rgtcBuffer, _r.m_rgtcBuffer, sizeof(m_rgtcBuffer));
+      memcpy(_r.m_rgtcBuffer, m_rgtcBuffer, sizeof(m_rgtcBuffer));
+      memcpy(m_rgtcBuffer, rgtcBuffer, sizeof(m_rgtcBuffer));
+    }
+    else if (FHasStringObj() && _r.FHasStringObj())
+      _PGetStrBase()->swap(*_r._PGetStrBase());
+    else
+    {
+      _tyThis &rObj = FHasStringObj() ? *this : _r;
+      _tyThis &rBuf = FHasStringObj() ? _r : *this;
+      _tyChar rgtcBuffer[t_kstReserve];
+      memcpy(rgtcBuffer, rBuf.m_rgtcBuffer, sizeof(m_rgtcBuffer)); // the characters, and the flags: none.
+      new ((void *)rBuf.m_rgtcBuffer) t_tyStrBase(std::move(*rObj._PGetStrBase())); // moving a string doesn't throw.
+      rBuf.SetHasStringObj();
+      rObj._ClearStrObj();
+      memcpy(rObj.m_rgtcBuffer, rgtcBuffer, sizeof(m_rgtcBuffer));
+    }
   }
 
   const _tyChar *c_str() const
@@ -155,16 +178,23 @@ public:
     _ClearStrObj();
     m_rgtcBuffer[0] = 0; // length = 0.
   }
+  // As std::basic_string::resize(): the characters there are kept, those added are _ch.
   void resize(size_type _stLen, _tyChar _ch = 0)
   {
+    const size_type stLenCur = length();
     if (_stLen < t_kstReserve)
     {
-      _ClearStrObj();
-      _tyChar *const pcEnd = m_rgtcBuffer + _stLen;
-      _tyChar *pc;
-      for (pc = m_rgtcBuffer; pc != pcEnd; ++pc)
-        *pc = _ch;
-      *pc = 0;
+      if (FHasStringObj())
+      {
+        _tyChar rgtcKeep[t_kstReserve];
+        const size_type stKeep = (std::min)(stLenCur, _stLen);
+        memcpy(rgtcKeep, _PGetStrBase()->c_str(), stKeep * sizeof(_tyChar));
+        _ClearStrObj();
+        memcpy(m_rgtcBuffer, rgtcKeep, stKeep * sizeof(_tyChar));
+      }
+      for (size_type st = stLenCur; st < _stLen; ++st)
+        m_rgtcBuffer[st] = _ch;
+      m_rgtcBuffer[_stLen] = 0;
     }
     else if (FHasStringObj())
     {
@@ -172,8 +202,10 @@ public:
     }
     else
     {
-      new ((void *)m_rgtcBuffer) t_tyStrBase(_stLen, _ch); // may throw.
-      SetHasStringObj();                                   // throw-safe.
+      t_tyStrBase str(m_rgtcBuffer, stLenCur); // may throw.
+      str.resize(_stLen, _ch);
+      new ((void *)m_rgtcBuffer) t_tyStrBase(std::move(str));
+      SetHasStringObj(); // throw-safe.
     }
   }
 
@@ -203,7 +235,7 @@ public:
   }
   _tyThis &assign(const _tyChar *_pszBegin, const _tyChar *_pszEnd)
   {
-    return assign(_pszBegin, _pszEnd, _pszEnd - _pszBegin);
+    return assign(_pszBegin, size_type(_pszEnd - _pszBegin));
   }
   _tyThis &assign(_tyThis const &_r)
   {
@@ -218,28 +250,31 @@ public:
 
   _tyThis &operator+=(const _tyChar *_psz)
   {
-    size_type stLenAdd = StrNLen(_psz);
+    return append(_psz, StrNLen(_psz));
+  }
+  _tyThis &append(const _tyChar *_psz, size_type _stLenAdd)
+  {
     if (!FHasStringObj())
     {
       size_type stLenCur = length();
-      if (stLenCur + stLenAdd < t_kstReserve)
+      if (stLenCur + _stLenAdd < t_kstReserve)
       {
-        memcpy(m_rgtcBuffer + stLenCur, _psz, stLenAdd);
-        m_rgtcBuffer[stLenCur + stLenAdd] = 0;
+        memmove(m_rgtcBuffer + stLenCur, _psz, _stLenAdd * sizeof(_tyChar));
+        m_rgtcBuffer[stLenCur + _stLenAdd] = 0;
       }
       else
       {
-        size_type stTotal = stLenCur + stLenAdd;
-        _tyChar* rgInit = (_tyChar*)alloca(stTotal);
-        memcpy(rgInit, m_rgtcBuffer, stLenCur);
-        memcpy(rgInit + stLenCur, _psz, stLenAdd);
-        new ((void *)m_rgtcBuffer) t_tyStrBase(rgInit, stTotal); // may throw.
+        t_tyStrBase str; // may throw.
+        str.reserve(stLenCur + _stLenAdd);
+        str.append(m_rgtcBuffer, stLenCur);
+        str.append(_psz, _stLenAdd);
+        new ((void *)m_rgtcBuffer) t_tyStrBase(std::move(str));
         SetHasStringObj(); // throw-safe.
       }
     }
     else
     {
-      *_PGetStrBase() += _psz;
+      _PGetStrBase()->append(_psz, _stLenAdd);
     }
     return *this;
   }

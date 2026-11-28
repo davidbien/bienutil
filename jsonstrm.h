@@ -14,6 +14,11 @@
 #include <memory>
 #include <compare>
 #include <utility>
+#include <charconv>
+#include <cmath>
+#include <cfloat>
+#include <optional>
+#include <type_traits>
 #ifndef WIN32
 #include <unistd.h>
 #include <sys/mman.h>
@@ -583,7 +588,7 @@ struct JsonCharTraits<char32_t>
   static const _tyChar s_tcF = U'F';
   static const _tyChar s_tct = U't';
   static const _tyChar s_tcr = U'r';
-  static const _tyChar s_tcu = U'U';
+  static const _tyChar s_tcu = U'u';
   static const _tyChar s_tcl = U'l';
   static const _tyChar s_tcs = U's';
   static const _tyChar s_tcn = U'n';
@@ -876,22 +881,22 @@ public:
     // We will keep reading characters until we find non-whitespace:
     if (m_fHasLookahead && !_tyCharTraits::FIsWhitespace(m_tcLookahead))
       return;
-    size_t stRead;
+    uint64_t stRead;
     for (;;)
     {
-      _tyPersistAsChar cpxRead;
+      _tyPersistAsChar cpxRead{};
       int iReadResult = FileRead( m_foFile.HFileGet(), &cpxRead, sizeof cpxRead, &stRead );
       if (-1 == iReadResult)
         THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() failed for file [%s]", m_szFilename.c_str());
-      m_tcLookahead = cpxRead;
-      m_pos += stRead;
-      if (stRead != sizeof cpxRead)
-        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() for file [%s] had [%zu] leftover bytes.", m_szFilename.c_str(), stRead);
       if (!stRead)
       {
         m_fHasLookahead = false;
         return; // We have skipped the whitespace until we hit EOF.
       }
+      m_pos += stRead;
+      if (stRead != sizeof cpxRead)
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() for file [%s] had [%zu] leftover bytes.", m_szFilename.c_str(), (size_t)stRead);
+      m_tcLookahead = cpxRead;
       if (_tyCharTraits::FIsIllegalChar(m_tcLookahead))
         THROWBADJSONSTREAM("Found illegal char [%TC] in file [%s]", m_tcLookahead ? m_tcLookahead : '?', m_szFilename.c_str());
       if (!_tyCharTraits::FIsWhitespace(m_tcLookahead))
@@ -928,8 +933,8 @@ public:
       m_fHasLookahead = false;
       return m_tcLookahead;
     }
-    _tyPersistAsChar cpxRead;
-    size_t stRead;
+    _tyPersistAsChar cpxRead{};
+    uint64_t stRead;
     int iReadResult = FileRead( m_foFile.HFileGet(), &cpxRead, sizeof cpxRead, &stRead );
     if (-1 == iReadResult)
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() failed for file [%s]", m_szFilename.c_str());
@@ -955,8 +960,8 @@ public:
       m_fHasLookahead = false;
       return true;
     }
-    _tyPersistAsChar cpxRead;
-    size_t stRead;
+    _tyPersistAsChar cpxRead{};
+    uint64_t stRead;
     int iReadResult = FileRead( m_foFile.HFileGet(), &cpxRead, sizeof cpxRead, &stRead );
     if (-1 == iReadResult)
       THROWBADJSONSTREAMERRNO(GetLastErrNo(), "FileRead() failed for file [%s]", m_szFilename.c_str());
@@ -966,7 +971,7 @@ public:
       if (!!stRead)
       {
         m_pos += stRead;
-        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "read() for file [%s] had [%zu] leftover bytes.", m_szFilename.c_str(), stRead);
+        THROWBADJSONSTREAMERRNO(GetLastErrNo(), "read() for file [%s] had [%zu] leftover bytes.", m_szFilename.c_str(), (size_t)stRead);
       }
       else
       {
@@ -1260,6 +1265,84 @@ protected:
   FileMappingObj m_fmoMapping; // Use the smart obj...
 };
 
+// Numbers: JSON's text of a number and a C++ number, either way.
+// An integer is read exactly or not at all: a number with a fraction or an exponent, or which the type cannot hold, is
+//  refused - not cut, not wrapped. A floating point number is read as strtod() reads it, and an infinite one refused.
+// A floating point number is written as the shortest text which reads back as the same number ( std::to_chars() );
+//  JSON has no NaN nor infinity, so they are refused.
+// Each returns false on what it refuses - the caller throws as befits it.
+template <class t_tyChar, class t_tyNum>
+bool FJsonNumberFromText(const t_tyChar *_psz, size_t _stLen, t_tyNum &_rNum)
+{
+  static_assert(std::is_arithmetic_v<t_tyNum> && !std::is_same_v<t_tyNum, bool>);
+  char rgc[1024];
+  if (!_stLen || (_stLen >= sizeof rgc))
+    return false;
+  for (size_t st = 0; st < _stLen; ++st)
+  {
+    if ((_psz[st] < t_tyChar(0)) || (_psz[st] > t_tyChar(127)))
+      return false;
+    rgc[st] = char(_psz[st]);
+  }
+  rgc[_stLen] = 0;
+  if constexpr (std::is_integral_v<t_tyNum>)
+  {
+    const char *pcBegin = rgc;
+    if (std::is_unsigned_v<t_tyNum> && (0 == strcmp(rgc, "-0")))
+      ++pcBegin; // -0 is 0.
+    std::from_chars_result fcr = std::from_chars(pcBegin, rgc + _stLen, _rNum);
+    return (std::errc() == fcr.ec) && (rgc + _stLen == fcr.ptr);
+  }
+  else
+  {
+    char *pcEnd = nullptr;
+    t_tyNum num;
+    if constexpr (std::is_same_v<t_tyNum, float>)
+      num = strtof(rgc, &pcEnd);
+    else if constexpr (std::is_same_v<t_tyNum, double>)
+      num = strtod(rgc, &pcEnd);
+    else
+      num = strtold(rgc, &pcEnd);
+    if ((pcEnd != rgc + _stLen) || std::isinf(num))
+      return false;
+    _rNum = num;
+    return true;
+  }
+}
+// The text of a number into _rgc - not terminated - its length into _rstLen.
+template <class t_tyChar, class t_tyNum>
+bool FJsonNumberToText(t_tyNum _num, t_tyChar *_rgc, size_t _stMax, size_t &_rstLen)
+{
+  static_assert(std::is_arithmetic_v<t_tyNum> && !std::is_same_v<t_tyNum, bool>);
+  char rgc[128];
+  size_t stLen;
+  if constexpr (std::is_floating_point_v<t_tyNum>)
+  {
+    if (!std::isfinite(_num))
+      return false;
+  }
+  if constexpr (std::is_same_v<t_tyNum, long double>)
+  {
+    int n = snprintf(rgc, sizeof rgc, "%.*Lg", LDBL_DECIMAL_DIG, _num);
+    if ((n <= 0) || (size_t(n) >= sizeof rgc))
+      return false;
+    stLen = size_t(n);
+  }
+  else
+  {
+    std::to_chars_result tcr = std::to_chars(rgc, rgc + sizeof rgc, _num);
+    if (std::errc() != tcr.ec)
+      return false;
+    stLen = size_t(tcr.ptr - rgc);
+  }
+  if (stLen > _stMax)
+    return false;
+  for (size_t st = 0; st < stLen; ++st)
+    _rgc[st] = t_tyChar(rgc[st]);
+  _rstLen = stLen;
+  return true;
+}
+
 // Utility method used by the various output streams.
 // If <_fEscape> then we escape all special characters when writing.
 template < class t_tyJsonOutputStream >
@@ -1270,71 +1353,55 @@ void JsonOutputStream_WriteString( t_tyJsonOutputStream & _rjos, bool _fEscape,
   typedef typename _tyJsonOutputStream::_tyCharTraits _tyCharTraits;
   typedef typename _tyJsonOutputStream::_tyChar _tyChar;
   typedef typename _tyJsonOutputStream::_tyLPCSTR _tyLPCSTR;
+  typedef std::make_unsigned_t<_tyChar> _tyUChar;
   Assert(!_pjfs || _fEscape); // only pass formatting when we are escaping the string.
   if (!_sstLen)
     return;
-  size_t stLen = (_sstLen < 0) ? _tyCharTraits::StrLen(_psz) : (size_t)_sstLen;
+  const size_t stLen = (_sstLen < 0) ? _tyCharTraits::StrLen(_psz) : (size_t)_sstLen;
   if (!_fEscape) // We shouldn't write such characters to strings so we had better know that we don't have any.
-    Assert(stLen <= _tyCharTraits::StrCSpn(_psz, _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar + 1,
-                                            _tyCharTraits::s_szEscapeStringChars));
-  _tyLPCSTR pszPrintableWhitespaceAtEnd = _psz + stLen;
-  if (_fEscape && !!_pjfs && !_pjfs->m_fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine)
-    pszPrintableWhitespaceAtEnd -= _tyCharTraits::StrRSpn(_psz, pszPrintableWhitespaceAtEnd, _tyCharTraits::s_szPrintableWhitespace);
-
-  // When we are escaping the string we write piecewise.
-  _tyLPCSTR pszWrite = _psz;
-  while (!!stLen)
   {
-    if (pszWrite < pszPrintableWhitespaceAtEnd)
+    _rjos.WriteRawChars(_psz, stLen);
+    return;
+  }
+  // Only the characters within [_psz, _psz+stLen) are looked at: the string need not be terminated there.
+  const _tyLPCSTR pszEnd = _psz + stLen;
+  // Newlines, returns and tabs may be written as they are ( m_fEscapePrintableWhitespace false ) - but those at the end
+  //  of the value are escaped still if m_fEscapePrintableWhitespaceAtEndOfLine.
+  const bool fEscapePrintableWhitespace = !_pjfs || _pjfs->m_fEscapePrintableWhitespace;
+  _tyLPCSTR pszPrintableWhitespaceAtEnd = pszEnd;
+  if (!fEscapePrintableWhitespace && _pjfs->m_fEscapePrintableWhitespaceAtEndOfLine)
+  {
+    while ((pszPrintableWhitespaceAtEnd != _psz) &&
+           ((_tyCharTraits::s_tcNewline == pszPrintableWhitespaceAtEnd[-1]) || (_tyCharTraits::s_tcCarriageReturn == pszPrintableWhitespaceAtEnd[-1]) ||
+            (_tyCharTraits::s_tcTab == pszPrintableWhitespaceAtEnd[-1])))
+      --pszPrintableWhitespaceAtEnd;
+  }
+  auto lambdaFEscape = [&](_tyLPCSTR _pszCur) -> bool
+  {
+    const _tyChar tc = *_pszCur;
+    if ((_tyCharTraits::s_tcDoubleQuote == tc) || (_tyCharTraits::s_tcBackSlash == tc))
+      return true;
+    if (_tyUChar(tc) >= 0x20)
+      return false;
+    if (!fEscapePrintableWhitespace && (_pszCur < pszPrintableWhitespaceAtEnd) &&
+        ((_tyCharTraits::s_tcNewline == tc) || (_tyCharTraits::s_tcCarriageReturn == tc) || (_tyCharTraits::s_tcTab == tc)))
+      return false;
+    return true;
+  };
+  _tyLPCSTR pszWrite = _psz;
+  while (pszWrite != pszEnd)
+  {
+    _tyLPCSTR pszRun = pszWrite;
+    for (; (pszRun != pszEnd) && !lambdaFEscape(pszRun); ++pszRun)
+      ;
+    if (pszRun != pszWrite)
     {
-      ssize_t sstLenWrite = stLen;
-      if (_fEscape)
-      {
-        if (!_pjfs || _pjfs->m_fEscapePrintableWhitespace) // escape everything.
-          sstLenWrite = _tyCharTraits::StrCSpn(pszWrite,
-                                                _tyCharTraits::s_tcFirstUnprintableChar, _tyCharTraits::s_tcLastUnprintableChar + 1,
-                                                _tyCharTraits::s_szEscapeStringChars);
-        else
-        {
-          // More complex escaping of whitespace is possible here:
-          _tyLPCSTR pszNoEscape = pszWrite;
-          for (; pszPrintableWhitespaceAtEnd != pszNoEscape; ++pszNoEscape)
-          {
-            _tyLPCSTR pszPrintableWS = _tyCharTraits::s_szPrintableWhitespace;
-            for (; !!*pszPrintableWS; ++pszPrintableWS)
-            {
-              if (*pszNoEscape == *pszPrintableWS)
-                break;
-            }
-            if (!!*pszPrintableWS)
-              continue; // found printable WS that we want to print.
-            if ((*pszNoEscape < _tyCharTraits::s_tcFirstUnprintableChar) ||
-                (*pszNoEscape > _tyCharTraits::s_tcLastUnprintableChar))
-            {
-              _tyLPCSTR pszEscapeChar = _tyCharTraits::s_szEscapeStringChars;
-              for (; !!*pszEscapeChar && (*pszNoEscape != *pszEscapeChar); ++pszEscapeChar)
-                ;
-              if (!!*pszEscapeChar)
-                continue; // found printable WS that we want to print.
-            }
-          }
-          sstLenWrite = pszNoEscape - pszWrite;
-        }
-      }
-      if (sstLenWrite)
-      {
-        _rjos.WriteRawChars(pszWrite, sstLenWrite);
-        stLen -= sstLenWrite;
-        pszWrite += sstLenWrite;
-        if (!stLen)
-          return; // the overwhelming case is we return here.
-      }
-      else
-        Assert(!!stLen); // invariant.
+      _rjos.WriteRawChars(pszWrite, pszRun - pszWrite);
+      pszWrite = pszRun;
+      if (pszWrite == pszEnd)
+        return; // the overwhelming case is we return here.
     }
-    // else otherwise we will escape all remaining characters.
-    _rjos.WriteChar(_tyCharTraits::s_tcBackSlash); // use for error handling.
-    // If we haven't written the whole string then we encountered a character we need to escape.
+    _rjos.WriteChar(_tyCharTraits::s_tcBackSlash);
     switch (*pszWrite)
     {
     case _tyCharTraits::s_tcBackSpace:
@@ -1357,16 +1424,18 @@ void JsonOutputStream_WriteString( t_tyJsonOutputStream & _rjos, bool _fEscape,
       _rjos.WriteChar(*pszWrite);
       break;
     default:
-      // Unprintable character between 0 and 31. We'll use the \uXXXX method for this character.
+    {
+      // A control character - 0 to 31: \u00XX.
+      const unsigned int u = unsigned(_tyUChar(*pszWrite));
       _rjos.WriteChar(_tyCharTraits::s_tcu);
       _rjos.WriteChar(_tyCharTraits::s_tc0);
       _rjos.WriteChar(_tyCharTraits::s_tc0);
-      _rjos.WriteChar(_tyChar('0' + (*pszWrite / 16)));
-      _rjos.WriteChar(_tyChar((*pszWrite % 16) < 10 ? ('0' + (*pszWrite % 16)) : ('A' + (*pszWrite % 16) - 10)));
-      break;
+      _rjos.WriteChar(_tyChar('0' + (u / 16)));
+      _rjos.WriteChar(_tyChar((u % 16) < 10 ? ('0' + (u % 16)) : ('A' + (u % 16) - 10)));
+    }
+    break;
     }
     ++pszWrite;
-    --stLen;
   }
 }
 
@@ -1964,7 +2033,8 @@ public:
   JsonOutputOStream & operator=( JsonOutputOStream && _rr )
   {
     JsonOutputOStream jos( std::move( _rr ) );
-    swap( *this );
+    swap( jos );
+    return *this;
   }
   void swap(JsonOutputOStream &_r)
   {
@@ -1997,7 +2067,7 @@ public:
     {
       if (sizeof(_tyChar) == sizeof(_tyPersistAsChar))
       {
-        (void)m_ros.write(&_tc, sizeof _tc); // may throw on failure subject to the caller's whims.
+        (void)m_ros.write((const _tyPersistAsChar *)&_tc, 1); // may throw on failure subject to the caller's whims.
       }
       else
       {
@@ -2021,7 +2091,7 @@ public:
         (void)m_ros.write(&strPersist[0], strPersist.length() ); // may throw on failure subject to the caller's whims.
       }
       else
-        (void)m_ros.write(_psz, _sstLen ); // may throw on failure subject to the caller's whims.
+        (void)m_ros.write((const _tyPersistAsChar *)_psz, _sstLen ); // may throw on failure subject to the caller's whims.
     }
   }
   // If <_fEscape> then we escape all special characters when writing.
@@ -2676,10 +2746,10 @@ public:
     case ejvtTrue:
     case ejvtFalse:
     {
-      Assert(FAtArrayValue());
-      if (!FAtArrayValue())
+      Assert(FAtObjectValue());
+      if (!FAtObjectValue())
         THROWBADJSONSEMANTICUSE("Writing a (key,value) pair to a non-object.");
-      JsonValueLife jvlArrayElement(*this, _pszKey, _jvt);
+      JsonValueLife jvlObjectElement(*this, _pszKey, _jvt);
     }
     break;
     default:
@@ -2812,43 +2882,43 @@ public:
 
   void WriteValue(_tyLPCSTR _pszKey, uint8_t _by)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%hhu"), _by);
+    _WriteNumber(_pszKey, _by);
   }
   void WriteValue(_tyLPCSTR _pszKey, int8_t _sby)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%hhd"), _sby);
+    _WriteNumber(_pszKey, _sby);
   }
   void WriteValue(_tyLPCSTR _pszKey, uint16_t _us)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%hu"), _us);
+    _WriteNumber(_pszKey, _us);
   }
   void WriteValue(_tyLPCSTR _pszKey, int16_t _ss)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%hd"), _ss);
+    _WriteNumber(_pszKey, _ss);
   }
   void WriteValue(_tyLPCSTR _pszKey, uint32_t _ui)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%u"), _ui);
+    _WriteNumber(_pszKey, _ui);
   }
   void WriteValue(_tyLPCSTR _pszKey, int32_t _si)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%d"), _si);
+    _WriteNumber(_pszKey, _si);
   }
   void WriteValue(_tyLPCSTR _pszKey, uint64_t _ul)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%llu"), _ul);
+    _WriteNumber(_pszKey, _ul);
   }
   void WriteValue(_tyLPCSTR _pszKey, int64_t _sl)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%lld"), _sl);
+    _WriteNumber(_pszKey, _sl);
   }
   void WriteValue(_tyLPCSTR _pszKey, double _dbl)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%f"), _dbl);
+    _WriteNumber(_pszKey, _dbl);
   }
   void WriteValue(_tyLPCSTR _pszKey, long double _ldbl)
   {
-    _WriteValue(_pszKey, str_array_cast<_tyChar>("%Lf"), _ldbl);
+    _WriteNumber(_pszKey, _ldbl);
   }
 #if defined( WIN32 ) || defined ( __APPLE__ ) // Linux seems to handle this correctly without - and there's an endless loop with...
   // Translate long and unsigned long appropriately by platform size:
@@ -3001,49 +3071,49 @@ public:
   {
     vtyUUIDString uusOut;
     int iRes = UUIDToString(_uuidt, uusOut, sizeof uusOut);
-    Assert(!!iRes);
+    Assert(!iRes);
     _WriteValue(ejvtString, uusOut);
   }
 
   void WriteValue(uint8_t _by)
   {
-    _WriteValue(str_array_cast<_tyChar>("%hhu"), _by);
+    _WriteNumber(_by);
   }
   void WriteValue(int8_t _sby)
   {
-    _WriteValue(str_array_cast<_tyChar>("%hhd"), _sby);
+    _WriteNumber(_sby);
   }
   void WriteValue(uint16_t _us)
   {
-    _WriteValue(str_array_cast<_tyChar>("%hu"), _us);
+    _WriteNumber(_us);
   }
   void WriteValue(int16_t _ss)
   {
-    _WriteValue(str_array_cast<_tyChar>("%hd"), _ss);
+    _WriteNumber(_ss);
   }
   void WriteValue(uint32_t _ui)
   {
-    _WriteValue(str_array_cast<_tyChar>("%u"), _ui);
+    _WriteNumber(_ui);
   }
   void WriteValue(int32_t _si)
   {
-    _WriteValue(str_array_cast<_tyChar>("%d"), _si);
+    _WriteNumber(_si);
   }
   void WriteValue(uint64_t _ul)
   {
-    _WriteValue(str_array_cast<_tyChar>("%llu"), _ul);
+    _WriteNumber(_ul);
   }
   void WriteValue(int64_t _sl)
   {
-    _WriteValue(str_array_cast<_tyChar>("%lld"), _sl);
+    _WriteNumber(_sl);
   }
   void WriteValue(double _dbl)
   {
-    _WriteValue(str_array_cast<_tyChar>("%f"), _dbl);
+    _WriteNumber(_dbl);
   }
   void WriteValue(long double _ldbl)
   {
-    _WriteValue(str_array_cast<_tyChar>("%Lf"), _ldbl);
+    _WriteNumber(_ldbl);
   }
 #if defined( WIN32 ) || defined ( __APPLE__ ) // Linux seems to handle this correctly without - and there's an endless loop with...
   // Translate long and unsigned long appropriately by platform size:
@@ -3071,13 +3141,13 @@ public:
 
 protected:
   template <class t_tyNum>
-  void _WriteValue(_tyLPCSTR _pszKey, _tyLPCSTR _pszFmt, t_tyNum _num)
+  void _WriteNumber(_tyLPCSTR _pszKey, t_tyNum _num)
   {
-    const int knNum = 512;
-    _tyChar rgcNum[knNum];
-    int nPrinted = _tyCharTraits::Snprintf(rgcNum, knNum, _pszFmt, _num);
-    Assert(nPrinted < knNum);
-    _WriteValue(ejvtNumber, _pszKey, StrNLen(_pszKey), rgcNum, (std::min)(nPrinted, knNum - 1));
+    _tyChar rgcNum[128];
+    size_t stLen;
+    if (!FJsonNumberToText(_num, rgcNum, std::size(rgcNum), stLen))
+      THROWBADJSONSEMANTICUSE("A number which JSON has no text for - NaN or infinity.");
+    _WriteValue(ejvtNumber, _pszKey, StrNLen(_pszKey), rgcNum, stLen);
   }
   void _WriteValue(EJsonValueType _ejvt, _tyLPCSTR _pszKey, size_t _stLenKey, _tyLPCSTR _pszValue, size_t _stLenValue)
   {
@@ -3100,13 +3170,13 @@ protected:
   }
 
   template <class t_tyNum>
-  void _WriteValue(_tyLPCSTR _pszFmt, t_tyNum _num)
+  void _WriteNumber(t_tyNum _num)
   {
-    const int knNum = 512;
-    _tyChar rgcNum[knNum];
-    int nPrinted = _tyCharTraits::Snprintf(rgcNum, knNum, _pszFmt, _num);
-    Assert(nPrinted < knNum);
-    _WriteValue(ejvtNumber, rgcNum, (std::min)(nPrinted, knNum - 1));
+    _tyChar rgcNum[128];
+    size_t stLen;
+    if (!FJsonNumberToText(_num, rgcNum, std::size(rgcNum), stLen))
+      THROWBADJSONSEMANTICUSE("A number which JSON has no text for - NaN or infinity.");
+    _WriteValue(ejvtNumber, rgcNum, stLen);
   }
   void _WriteValue(EJsonValueType _ejvt, _tyLPCSTR _pszValue, size_t _stLen)
   {
@@ -3898,18 +3968,33 @@ public:
       _strValue = *m_pjrxCurrent->PGetStringValue();
       break;
     case ejvtTrue:
-      _strValue = "true";
+      _AssignAscii(_strValue, "true");
       break;
     case ejvtFalse:
-      _strValue = "false";
+      _AssignAscii(_strValue, "false");
       break;
     case ejvtNull:
-      _strValue = "null";
+      _AssignAscii(_strValue, "null");
       break;
     default:
       Assert(0);
-      _strValue = "***ERROR***";
+      _AssignAscii(_strValue, "***ERROR***");
     }
+  }
+  static void _AssignAscii(_tyStdStr &_rstr, const char *_psz)
+  {
+    _tyChar rgtc[16];
+    size_t st = 0;
+    for (; !!_psz[st] && (st < std::size(rgtc)); ++st)
+      rgtc[st] = _tyChar(_psz[st]);
+    _rstr.assign(rgtc, st);
+  }
+  // Read the current value if it hasn't been - for null, true and false this checks the rest of the literal.
+  void ReadValue()
+  {
+    Assert(FAttached());
+    if (!FAtAggregateValue() && !FAtEndOfAggregate() && !m_pjrxCurrent->m_posEndValue)
+      _ReadSimpleValue();
   }
   void GetValue(bool &_rf) const
   {
@@ -3940,21 +4025,21 @@ public:
     if (!m_pjrxCurrent->m_posEndValue)
       const_cast<_tyThis *>(this)->_ReadSimpleValue();
 
-    // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
-    int iRet = sscanf(m_pjrxCurrent->PGetStringValue()->c_str(), _pszFmt, &_rNumber);
-    Assert(1 == iRet); // Due to the specification of number we expect this to always succeed.
+    const _tyStdStr &rstr = *m_pjrxCurrent->PGetStringValue();
+    if (!FJsonNumberFromText(rstr.c_str(), rstr.length(), _rNumber))
+      THROWBADJSONSEMANTICUSE("The number is not of the type asked for, or the type cannot hold it.");
   }
-  void GetValue(uint8_t &_rby) const { _GetValue("%hhu", _rby); }
-  void GetValue(int8_t &_rsby) const { _GetValue("%hhd", _rsby); }
-  void GetValue(uint16_t &_rus) const { _GetValue("%hu", _rus); }
-  void GetValue(int16_t &_rss) const { _GetValue("%hd", _rss); }
-  void GetValue(uint32_t &_rui) const { _GetValue("%u", _rui); }
-  void GetValue(int32_t &_rsi) const { _GetValue("%d", _rsi); }
-  void GetValue(uint64_t &_rul) const { _GetValue("%llu", _rul); }
-  void GetValue(int64_t &_rsl) const { _GetValue("%lld", _rsl); }
-  void GetValue(float &_rfl) const { _GetValue("%e", _rfl); }
-  void GetValue(double &_rdbl) const { _GetValue("%e", _rdbl); }
-  void GetValue(long double &_rldbl) const { _GetValue("%Le", _rldbl); }
+  void GetValue(uint8_t &_rby) const { _GetValue(nullptr, _rby); }
+  void GetValue(int8_t &_rsby) const { _GetValue(nullptr, _rsby); }
+  void GetValue(uint16_t &_rus) const { _GetValue(nullptr, _rus); }
+  void GetValue(int16_t &_rss) const { _GetValue(nullptr, _rss); }
+  void GetValue(uint32_t &_rui) const { _GetValue(nullptr, _rui); }
+  void GetValue(int32_t &_rsi) const { _GetValue(nullptr, _rsi); }
+  void GetValue(uint64_t &_rul) const { _GetValue(nullptr, _rul); }
+  void GetValue(int64_t &_rsl) const { _GetValue(nullptr, _rsl); }
+  void GetValue(float &_rfl) const { _GetValue(nullptr, _rfl); }
+  void GetValue(double &_rdbl) const { _GetValue(nullptr, _rdbl); }
+  void GetValue(long double &_rldbl) const { _GetValue(nullptr, _rldbl); }
 
   // Speciality values:
   // Human readable date/time - implemented on ejvtString.
@@ -4177,18 +4262,47 @@ public:
     m_pis->PushBackLastChar(true); // Let caller read this and decide what to do depending on context - we don't expect a specific character here.
   }
 
+  // Read four hex digits following \u.
+  unsigned int _UReadHex4() const
+  {
+    unsigned int uHex = 0;
+    for (int n = 0; n < 4; ++n)
+    {
+      _tyChar tchCur = m_pis->ReadChar("EOF found looking for 4 hex digits following \\u."); // throws on EOF.
+      uHex <<= 4;
+      if ((tchCur >= _tyCharTraits::s_tc0) && (tchCur <= _tyCharTraits::s_tc9))
+        uHex += (tchCur - _tyCharTraits::s_tc0);
+      else if ((tchCur >= _tyCharTraits::s_tca) && (tchCur <= _tyCharTraits::s_tcf))
+        uHex += 10 + (tchCur - _tyCharTraits::s_tca);
+      else if ((tchCur >= _tyCharTraits::s_tcA) && (tchCur <= _tyCharTraits::s_tcF))
+        uHex += 10 + (tchCur - _tyCharTraits::s_tcA);
+      else
+        THROWBADJSONSTREAM("Found [%TC] when looking for digit following \\u.", tchCur);
+    }
+    return uHex;
+  }
   // Read the string starting at the current position. The '"' has already been read.
+  // A \u escape is of a UTF-16 code unit: a surrogate pair is one character. In a string of 8 bit characters it is
+  //  written as UTF-8, of 16 bits as it is, of 32 bits as the character. A surrogate not of a pair is refused unless the
+  //  string is of 16 bits.
   void _ReadString(_tyStdStr &_rstrRead) const
   {
-    const int knLenBuffer = 1023;
-    _tyChar rgtcBuffer[knLenBuffer + 1]; // We will append a zero when writing to the string.
-    rgtcBuffer[knLenBuffer] = 0;         // preterminate end.
+    const int knLenBuffer = 1024;
+    _tyChar rgtcBuffer[knLenBuffer];
     _tyChar *ptchCur = rgtcBuffer;
     _rstrRead.clear();
+    auto lambdaAdd = [&](_tyChar _tch)
+    {
+      if (ptchCur == rgtcBuffer + knLenBuffer)
+      {
+        _rstrRead.append(rgtcBuffer, knLenBuffer);
+        ptchCur = rgtcBuffer;
+      }
+      *ptchCur++ = _tch;
+    };
 
     // We know we will see a '"' at the end. Along the way we may see multiple excape '\' characters.
     // So we move along checking each character, throwing if we hit EOF before the end of the string is found.
-
     for (;;)
     {
       _tyChar tchCur = m_pis->ReadChar("EOF found looking for end of string."); // throws on EOF.
@@ -4220,45 +4334,63 @@ public:
           break;
         case _tyCharTraits::s_tcu:
         {
-          unsigned int uHex = 0; // Accumulate the hex amount.
-          unsigned int uCurrentMultiplier = (1u << 12);
-          // Must find 4 hex digits:
-          for (int n = 0; n < 4; ++n, (uCurrentMultiplier >>= 4))
+          uint32_t uChar = _UReadHex4();
+          if constexpr (sizeof(_tyChar) == 2)
           {
-            tchCur = m_pis->ReadChar("EOF found looking for 4 hex digits following \\u."); // throws on EOF.
-            if ((tchCur >= _tyCharTraits::s_tc0) && (tchCur <= _tyCharTraits::s_tc9))
-              uHex += uCurrentMultiplier * (tchCur - _tyCharTraits::s_tc0);
-            else if ((tchCur >= _tyCharTraits::s_tca) && (tchCur <= _tyCharTraits::s_tcf))
-              uHex += uCurrentMultiplier * (10 + (tchCur - _tyCharTraits::s_tca));
-            else if ((tchCur >= _tyCharTraits::s_tcA) && (tchCur <= _tyCharTraits::s_tcF))
-              uHex += uCurrentMultiplier * (10 + (tchCur - _tyCharTraits::s_tcA));
+            lambdaAdd(_tyChar(uChar)); // UTF-16: each unit as it is.
+            continue;
+          }
+          else
+          {
+            if ((uChar >= 0xD800) && (uChar <= 0xDBFF))
+            {
+              if ((_tyCharTraits::s_tcBackSlash != m_pis->ReadChar("EOF looking for the second of a surrogate pair.")) ||
+                  (_tyCharTraits::s_tcu != m_pis->ReadChar("EOF looking for the second of a surrogate pair.")))
+                THROWBADJSONSTREAM("A high surrogate [%u] not followed by a \\u escape.", uChar);
+              uint32_t uLow = _UReadHex4();
+              if ((uLow < 0xDC00) || (uLow > 0xDFFF))
+                THROWBADJSONSTREAM("A high surrogate [%u] not followed by a low surrogate but [%u].", uChar, uLow);
+              uChar = 0x10000 + ((uChar - 0xD800) << 10) + (uLow - 0xDC00);
+            }
+            else if ((uChar >= 0xDC00) && (uChar <= 0xDFFF))
+              THROWBADJSONSTREAM("A low surrogate [%u] not after a high surrogate.", uChar);
+            if constexpr (sizeof(_tyChar) == 1)
+            {
+              if (uChar < 0x80)
+                lambdaAdd(_tyChar(uChar));
+              else if (uChar < 0x800)
+              {
+                lambdaAdd(_tyChar(0xC0 | (uChar >> 6)));
+                lambdaAdd(_tyChar(0x80 | (uChar & 0x3F)));
+              }
+              else if (uChar < 0x10000)
+              {
+                lambdaAdd(_tyChar(0xE0 | (uChar >> 12)));
+                lambdaAdd(_tyChar(0x80 | ((uChar >> 6) & 0x3F)));
+                lambdaAdd(_tyChar(0x80 | (uChar & 0x3F)));
+              }
+              else
+              {
+                lambdaAdd(_tyChar(0xF0 | (uChar >> 18)));
+                lambdaAdd(_tyChar(0x80 | ((uChar >> 12) & 0x3F)));
+                lambdaAdd(_tyChar(0x80 | ((uChar >> 6) & 0x3F)));
+                lambdaAdd(_tyChar(0x80 | (uChar & 0x3F)));
+              }
+            }
             else
-              THROWBADJSONSTREAM("Found [%TC] when looking for digit following \\u.", tchCur);
+              lambdaAdd(_tyChar(uChar));
+            continue;
           }
-          // If we are supposed to throw on overflow then check for it, otherwise just truncate to the character type silently.
-          if (_tyCharTraits::s_fThrowOnUnicodeOverflow && (sizeof(_tyChar) < sizeof(uHex)))
-          {
-            if (uHex >= (1u << (CHAR_BIT * sizeof(_tyChar))))
-              THROWBADJSONSTREAM("Unicode hex overflow [%u].", uHex);
-          }
-          tchCur = (_tyChar)uHex;
-          break;
         }
         default:
           THROWBADJSONSTREAM("Found [%TC] when looking for competetion of backslash when reading string.", tchCur);
           break;
         }
       }
-      if (ptchCur == rgtcBuffer + knLenBuffer)
-      {
-        _rstrRead += rgtcBuffer;
-        ptchCur = rgtcBuffer;
-      }
-      *ptchCur++ = tchCur;
+      lambdaAdd(tchCur);
     }
     // Add in the rest of the string if any.
-    *ptchCur = 0;
-    _rstrRead += rgtcBuffer;
+    _rstrRead.append(rgtcBuffer, ptchCur - rgtcBuffer);
   }
   // Skip the string starting at the current position. The '"' has already been read.
   void _SkipRemainingString() const
@@ -4297,6 +4429,7 @@ public:
               THROWBADJSONSTREAM("Found [%TC] when looking for digit following \\u.", tchCur);
           }
         }
+        break;
         default:
           THROWBADJSONSTREAM("Found [%TC] when looking for competetion of backslash when reading string.", tchCur);
           break;

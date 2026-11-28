@@ -407,20 +407,19 @@ public:
     }
     return *this;
   }
+  // By moves: what is in the buffer - a string, a map, a vector - is not to be moved with memcpy().
   void swap(JsoValue &_r)
   {
-    std::swap(m_jvtType, _r.m_jvtType);
-    if (_r._FHasBufData() || _FHasBufData())
-    {
-      uint8_t rgbyValBuf[s_kstSizeValBuf];
-      memcpy(rgbyValBuf, _r.m_rgbyValBuf, sizeof(m_rgbyValBuf));
-      memcpy(_r.m_rgbyValBuf, m_rgbyValBuf, sizeof(m_rgbyValBuf));
-      memcpy(m_rgbyValBuf, rgbyValBuf, sizeof(m_rgbyValBuf));
-    }
+    if (this == &_r)
+      return;
+    JsoValue jvTemp(std::move(_r));
+    _r = std::move(*this);
+    *this = std::move(jvTemp);
   }
+  // Whether the buffer holds an object: a string, an object's map or an array's vector.
   bool _FHasBufData() const
   {
-    return m_jvtType >= ejvtFirstJsonValueless && m_jvtType <= ejvtLastJsonSpecifiedValue;
+    return m_jvtType < ejvtFirstJsonValueless;
   }
 
   EJsonValueType JvtGetValueType() const
@@ -627,21 +626,28 @@ public:
     if (ejvtNumber != JvtGetValueType())
       THROWJSONBADUSAGE("Not at a numeric value type.");
 
-    // The presumption is that sscanf won't read past any decimal point if scanning a non-floating point number.
-    int iRet = sscanf(StrGet().c_str(), _pszFmt, &_rNumber);
-    Assert(1 == iRet); // Due to the specification of number we expect this to always succeed.
+    // An integer exactly or not at all - see FJsonNumberFromText().
+    if (!FJsonNumberFromText(StrGet().c_str(), StrGet().length(), _rNumber))
+      THROWJSONBADUSAGE("The number [%s] is not of the type asked for, or the type cannot hold it.", _StrAscii(StrGet()).c_str());
   }
-  void GetValue(uint8_t &_rby) const { _GetValue("%hhu", _rby); }
-  void GetValue(int8_t &_rsby) const { _GetValue("%hhd", _rsby); }
-  void GetValue(uint16_t &_rus) const { _GetValue("%hu", _rus); }
-  void GetValue(int16_t &_rss) const { _GetValue("%hd", _rss); }
-  void GetValue(uint32_t &_rui) const { _GetValue("%u", _rui); }
-  void GetValue(int32_t &_rsi) const { _GetValue("%d", _rsi); }
-  void GetValue(uint64_t &_rul) const { _GetValue("%llu", _rul); }
-  void GetValue(int64_t &_rsl) const { _GetValue("%lld", _rsl); }
-  void GetValue(float &_rfl) const { _GetValue("%e", _rfl); }
-  void GetValue(double &_rdbl) const { _GetValue("%e", _rdbl); }
-  void GetValue(long double &_rldbl) const { _GetValue("%Le", _rldbl); }
+  static std::string _StrAscii(_tyStrWRsv const &_rstr)
+  {
+    std::string str;
+    for (const _tyChar *pc = _rstr.c_str(); !!*pc; ++pc)
+      str += ((*pc >= _tyChar(0x20)) && (*pc < _tyChar(0x7f))) ? char(*pc) : '?';
+    return str;
+  }
+  void GetValue(uint8_t &_rby) const { _GetValue(nullptr, _rby); }
+  void GetValue(int8_t &_rsby) const { _GetValue(nullptr, _rsby); }
+  void GetValue(uint16_t &_rus) const { _GetValue(nullptr, _rus); }
+  void GetValue(int16_t &_rss) const { _GetValue(nullptr, _rss); }
+  void GetValue(uint32_t &_rui) const { _GetValue(nullptr, _rui); }
+  void GetValue(int32_t &_rsi) const { _GetValue(nullptr, _rsi); }
+  void GetValue(uint64_t &_rul) const { _GetValue(nullptr, _rul); }
+  void GetValue(int64_t &_rsl) const { _GetValue(nullptr, _rsl); }
+  void GetValue(float &_rfl) const { _GetValue(nullptr, _rfl); }
+  void GetValue(double &_rdbl) const { _GetValue(nullptr, _rdbl); }
+  void GetValue(long double &_rldbl) const { _GetValue(nullptr, _rldbl); }
 
   // Setting methods: These overwrite the existing element at this location.
   void SetEmpty() // Note that this is not the same as the NullValue - see below.
@@ -659,6 +665,7 @@ public:
   _tyThis &operator=(bool _f)
   {
     SetBoolValue(_f);
+    return *this;
   }
   void SetStringValue(_tyLPCSTR _psz, size_t _stLen = (std::numeric_limits<size_t>::max)())
   {
@@ -672,7 +679,7 @@ public:
   void SetStringValue(t_tyStr const &_rstr) 
     requires ( TAreSameSizeTypes_v< typename t_tyStr::value_type, _tyChar > )
   {
-    SetStringValue( (const _tyChar *)&_rstr[0], _rstr.length()) ;
+    SetStringValue( (const _tyChar *)_rstr.data(), _rstr.length()) ;
   }
   // String methods requiring conversion. No reason for the move method since we must convert anyway.
   template <class t_tyStr>
@@ -683,9 +690,8 @@ public:
     ConvertString(strConverted, _rstr);
     SetStringValue(std::move(strConverted));
   }
-  template <class t_tyStr>
-  void SetStringValue(t_tyStr &&_rrstr) 
-    requires ( is_same_v< typename t_tyStr::value_type, _tyChar > )
+  // Only a std::basic_string which is an rvalue is moved from: an lvalue is copied ( the overload above ).
+  void SetStringValue(_tyStdStr &&_rrstr)
   {
     SetValueType(ejvtString);
     StrGet() = std::move( _rrstr );
@@ -697,9 +703,7 @@ public:
     SetStringValue( _rstr );
     return *this;
   }
-  template < class t_tyStr >
   _tyThis &operator=(_tyStdStr &&_rrstr)
-    requires( TIsCharType_v< typename t_tyStr::value_type > )
   {
     SetStringValue( std::move( _rrstr ) );
     return *this;
@@ -707,15 +711,15 @@ public:
 
   void SetValue(uint8_t _by)
   {
-    _SetValue("%hhu", _by);
+    _SetValue(nullptr, _by);
   }
   void SetValue(int8_t _sby)
   {
-    _SetValue("%hhd", _sby);
+    _SetValue(nullptr, _sby);
   }
   void SetValue(uint16_t _us)
   {
-    _SetValue("%hu", _us);
+    _SetValue(nullptr, _us);
   }
   _tyThis &operator=(uint16_t _us)
   {
@@ -724,7 +728,7 @@ public:
   }
   void SetValue(int16_t _ss)
   {
-    _SetValue("%hd", _ss);
+    _SetValue(nullptr, _ss);
   }
   _tyThis &operator=(int16_t _ss)
   {
@@ -733,7 +737,7 @@ public:
   }
   void SetValue(uint32_t _ui)
   {
-    _SetValue("%u", _ui);
+    _SetValue(nullptr, _ui);
   }
   _tyThis &operator=(uint32_t _ui)
   {
@@ -742,7 +746,7 @@ public:
   }
   void SetValue(int32_t _si)
   {
-    _SetValue("%d", _si);
+    _SetValue(nullptr, _si);
   }
   _tyThis &operator=(int32_t _si)
   {
@@ -751,7 +755,7 @@ public:
   }
   void SetValue(uint64_t _ul)
   {
-    _SetValue("%llu", _ul);
+    _SetValue(nullptr, _ul);
   }
   _tyThis &operator=(uint64_t _ul)
   {
@@ -760,7 +764,7 @@ public:
   }
   void SetValue(int64_t _sl)
   {
-    _SetValue("%lld", _sl);
+    _SetValue(nullptr, _sl);
   }
   _tyThis &operator=(int64_t _sl)
   {
@@ -769,7 +773,7 @@ public:
   }
   void SetValue(double _dbl)
   {
-    _SetValue("%f", _dbl);
+    _SetValue(nullptr, _dbl);
   }
   _tyThis &operator=(double _dbl)
   {
@@ -778,7 +782,7 @@ public:
   }
   void SetValue(long double _ldbl)
   {
-    _SetValue("%Lf", _ldbl);
+    _SetValue(nullptr, _ldbl);
   }
   _tyThis &operator=(long double _ldbl)
   {
@@ -847,6 +851,15 @@ public:
     _tyJsonReadCursor jrc;
     jisFixed.AttachReadCursor(jrc);
     FromJSONStream(jrc);
+    _CheckAtEnd(jisFixed);
+  }
+  // After the value there is whitespace and nothing else.
+  template <class t_tyJsonInputStream>
+  static void _CheckAtEnd(t_tyJsonInputStream &_rjis)
+  {
+    _rjis.SkipWhitespace();
+    if (!_rjis.FEOF())
+      THROWBADJSONSTREAM("Found something other than whitespace after the JSON value, at [%zu].", (size_t)_rjis.ByPosGet());
   }
   template <class t_tyJsonInputStream>
   void FromJSONStream(JsonReadCursor<t_tyJsonInputStream> &_jrc)
@@ -857,6 +870,7 @@ public:
     case ejvtNull:
     case ejvtTrue:
     case ejvtFalse:
+      _jrc.ReadValue(); // The rest of the literal is checked.
       break;
     case ejvtNumber:
     case ejvtString:
@@ -883,11 +897,12 @@ public:
   void FromString( const _tyChar *_psz, size_t _stLen, t_tyFilter &_rfFilter )
   {
     typedef JsonFixedMemInputStream<_tyCharTraits> _tyJsonInputStream;
-    typedef JsonReadCursor<_tyCharTraits> _tyJsonReadCursor;
+    typedef JsonReadCursor<_tyJsonInputStream> _tyJsonReadCursor;
     _tyJsonInputStream jisFixed(_psz, _stLen);
     _tyJsonReadCursor jrc;
     jisFixed.AttachReadCursor(jrc);
     FromJSONStream(jrc, _rfFilter);
+    _CheckAtEnd(jisFixed);
   }
   // FromJSONStream with a filter method.
   // The filtering takes place in the objects and arrays because these create sub-values.
@@ -901,6 +916,7 @@ public:
     case ejvtNull:
     case ejvtTrue:
     case ejvtFalse:
+      _jrc.ReadValue(); // The rest of the literal is checked.
       break;
     case ejvtNumber:
     case ejvtString:
@@ -1041,6 +1057,29 @@ public:
   {
     return GetEl(_st);
   }
+  // Any integer type - jv[0] would be ambiguous otherwise, 0 being a null key too. A negative index throws.
+  template <class t_tyIndex>
+  JsoValue &operator[](t_tyIndex _n)
+    requires(std::is_integral_v<t_tyIndex> && !std::is_same_v<t_tyIndex, bool> && !std::is_same_v<t_tyIndex, size_t>)
+  {
+    return GetEl(_StIndex(_n));
+  }
+  template <class t_tyIndex>
+  const JsoValue &operator[](t_tyIndex _n) const
+    requires(std::is_integral_v<t_tyIndex> && !std::is_same_v<t_tyIndex, bool> && !std::is_same_v<t_tyIndex, size_t>)
+  {
+    return GetEl(_StIndex(_n));
+  }
+  template <class t_tyIndex>
+  static size_t _StIndex(t_tyIndex _n)
+  {
+    if constexpr (std::is_signed_v<t_tyIndex>)
+    {
+      if (_n < 0)
+        THROWJSONBADUSAGE("Negative index [%lld].", (long long)_n);
+    }
+    return size_t(_n);
+  }
   JsoValue &GetEl(size_t _st)
   {
     return _ArrayGet().GetEl(_st);
@@ -1149,15 +1188,16 @@ public:
 #endif //_MSC_VER
 
 protected:
+  // The shortest text which reads back as the same number - see FJsonNumberToText(). NaN and infinity throw.
   template <class t_tyNum>
-  void _SetValue(_tyLPCSTR _pszFmt, t_tyNum _num)
+  void _SetValue(_tyLPCSTR, t_tyNum _num)
   {
-    const int knNum = 512;
-    char rgcNum[knNum];
-    int nPrinted = snprintf(rgcNum, knNum, _pszFmt, _num);
-    Assert(nPrinted < knNum);
+    _tyChar rgcNum[128];
+    size_t stLen;
+    if (!FJsonNumberToText(_num, rgcNum, std::size(rgcNum), stLen))
+      THROWJSONBADUSAGE("A number which JSON has no text for - NaN or infinity.");
     SetValueType(ejvtNumber);
-    StrGet().assign(rgcNum, (std::min)(nPrinted, knNum - 1));
+    StrGet().assign(rgcNum, stLen);
   }
   void _ClearValue()
   {
@@ -1337,9 +1377,9 @@ public:
         THROWJSONBADUSAGE("FGetKeyCurrent() returned false unexpectedly.");
       _tyJsoValue jvValue(jvt);
       jvValue.FromJSONStream(_jrc);
-      std::pair<_tyIterator, bool> pib = m_mapValues.try_emplace(std::move(strKey), std::move(jvValue));
-      if (!pib.second) // key already exists.
-        THROWBADJSONSTREAM("Duplicate key found[%s].", strKey.c_str());
+      if (m_mapValues.end() != m_mapValues.find(strKey))
+        THROWBADJSONSTREAM("Duplicate key found[%s].", _tyJsoValue::_StrAscii(strKey).c_str());
+      m_mapValues.try_emplace(std::move(strKey), std::move(jvValue));
     }
   }
   template <class t_tyJsonInputStream, class t_tyFilter>
@@ -1365,9 +1405,9 @@ public:
         THROWJSONBADUSAGE("FGetKeyCurrent() returned false unexpectedly.");
       _tyJsoValue jvValue(jvt);
       jvValue.FromJSONStream(_jrc, _rfFilter);
-      std::pair<_tyIterator, bool> pib = m_mapValues.try_emplace(std::move(strKey), std::move(jvValue));
-      if (!pib.second) // key already exists.
-        THROWBADJSONSTREAM("Duplicate key found[%s].", strKey.c_str());
+      if (m_mapValues.end() != m_mapValues.find(strKey))
+        THROWBADJSONSTREAM("Duplicate key found[%s].", _tyJsoValue::_StrAscii(strKey).c_str());
+      m_mapValues.try_emplace(std::move(strKey), std::move(jvValue));
     }
   }
 
@@ -1460,7 +1500,7 @@ public:
   // Throws if there is no such el.
   _tyVectorValueType &GetEl(size_t _st)
   {
-    if (_st > m_vecValues.size())
+    if (_st >= m_vecValues.size())
       THROWJSONBADUSAGE("_st[%zu] exceeds array size[%zu].", _st, m_vecValues.size());
     return m_vecValues[_st];
   }
