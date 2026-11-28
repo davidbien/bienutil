@@ -236,7 +236,7 @@ struct _BitVecTest
     for ( size_t nBits : { 1, 3, 7, 8, 9, 16, 17, 40, 64 } )
     {
       const uint64_t u64Mask = ( 64 == nBits ) ? ~0ull : ( ( 1ull << nBits ) - 1 );
-      for ( uint64_t u64Start : { 0ull, 1ull, u64Mask, u64Mask - 1, u64Mask >> 1, 0x5555555555555555ull & u64Mask } )
+      for ( uint64_t u64Start : std::initializer_list< uint64_t >{ 0ull, 1ull, u64Mask, u64Mask - 1, u64Mask >> 1, 0x5555555555555555ull & u64Mask } )
       {
         std::vector< bool > rg( nBits );
         for ( size_t n = 0; n < nBits; ++n )
